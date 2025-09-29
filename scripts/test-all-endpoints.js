@@ -1,11 +1,12 @@
 const fetch = require('node-fetch');
+const { performance } = require('perf_hooks');
 
 const BASE = 'https://api.zerodaysoftware.tr/api';
 const HEADERS = {
   'Accept': 'application/json',
   'Content-Type': 'application/json',
   'X-Tenant-Id': '1',
-  'X-API-Key': 'huglu_f22635b61189c2cea13eec242465148d890fef5206ec8a1b0263bf279f4ba6ad'
+  'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
 };
 
 let userId = '5';
@@ -21,6 +22,7 @@ async function callEndpoint(name, method, path, body) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
   try {
+    const t0 = performance.now();
     const resp = await fetch(url, {
       method,
       headers: HEADERS,
@@ -28,6 +30,8 @@ async function callEndpoint(name, method, path, body) {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
+    const t1 = performance.now();
+    const durationMs = Math.round(t1 - t0);
     const contentType = resp.headers.get('content-type') || '';
     let data = null;
     try {
@@ -36,12 +40,12 @@ async function callEndpoint(name, method, path, body) {
       data = await resp.text().catch(() => null);
     }
     const brief = typeof data === 'string' ? data.slice(0, 200) : JSON.stringify(data, null, 0).slice(0, 200);
-    console.log(`${okEmoji(resp.ok)} ${method} ${path} → ${resp.status} ${resp.statusText} | ${name}`);
+    console.log(`${okEmoji(resp.ok)} ${method} ${path} → ${resp.status} ${resp.statusText} | ${name} | ${durationMs}ms`);
     if (!resp.ok) {
       console.log('    ↳ body:', body ? JSON.stringify(body) : '-');
       console.log('    ↳ resp:', brief);
     }
-    return { ok: resp.ok, status: resp.status, data };
+    return { ok: resp.ok, status: resp.status, data, ms: durationMs };
   } catch (err) {
     clearTimeout(timeoutId);
     console.log(`${okEmoji(false)} ${method} ${path} → ERROR | ${name}`);

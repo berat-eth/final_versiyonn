@@ -3866,13 +3866,14 @@ app.get('/api/products/search', async (req, res) => {
     const whereTenant = tenantId ? ' AND p.tenantId = ?' : '';
 
     const [rows] = await poolWrapper.execute(
-      `SELECT DISTINCT p.*
+      `SELECT DISTINCT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated
        FROM products p
        LEFT JOIN product_variations v ON v.productId = p.id
        LEFT JOIN product_variation_options o ON o.variationId = v.id
        WHERE (
          p.name LIKE ?
-         OR p.description LIKE ?
+        OR p.brand LIKE ?
+        OR p.description LIKE ?
          OR p.brand LIKE ?
          OR p.externalId LIKE ?
          OR p.sku LIKE ?
