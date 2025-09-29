@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Text, ActivityIndicator, View, Image, TouchableOpacity, StyleSheet, Animated, Modal, Pressable, Dimensions, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ModernTabBar } from './ModernTabBar';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -595,24 +596,11 @@ const TabNavigator = () => {
 
   return (
     <Tab.Navigator
+      tabBar={(props) => <ModernTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: '#1A1A2E',
-        tabBarInactiveTintColor: '#666666',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#E0E0E0',
-          paddingBottom: 0,
-          paddingTop: 4,
-          height: 60,
-          elevation: 20,
-          shadowOpacity: 0.3,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          marginTop: 2,
-        },
+        tabBarActiveTintColor: '#0ea5e9',
+        tabBarInactiveTintColor: '#000000',
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '700', marginTop: 2 },
         headerShown: false,
       }}
     >

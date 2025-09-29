@@ -13,6 +13,8 @@ import {
   Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { UserController } from '../controllers/UserController';
 import { useAppContext } from '../contexts/AppContext';
 import apiService from '../utils/api-service';
 
@@ -46,17 +48,31 @@ const DealershipApplicationsScreen: React.FC<{ navigation: any }> = ({ navigatio
   }, []);
 
   const loadApplications = async () => {
-    if (!currentUser?.email) {
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
-      const response = await apiService.getDealershipApplications(currentUser.email);
-      
+
+      // Öncelik: context > storage > UserController
+      let emailToUse: string | null | undefined = currentUser?.email;
+      if (!emailToUse) {
+        try {
+          emailToUse = await AsyncStorage.getItem('userEmail');
+        } catch {}
+      }
+      if (!emailToUse) {
+        try {
+          const user = await UserController.getCurrentUser();
+          emailToUse = user?.email;
+        } catch {}
+      }
+
+      if (!emailToUse) {
+        setApplications([]);
+        return;
+      }
+
+      const response = await apiService.getDealershipApplications(emailToUse);
       if (response.success && response.data) {
-        setApplications(response.data);
+        setApplications(response.data as any);
       } else {
         Alert.alert('Hata', response.message || 'Başvurular yüklenemedi');
       }

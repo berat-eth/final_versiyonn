@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Alert,
   Dimensions,
+  Share,
 } from 'react-native';
 import { Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,7 +36,8 @@ import DiscountWheel from '../components/DiscountWheel';
 const { width } = Dimensions.get('window');
 
 export default function MyCampaignsScreen() {
-  const { user } = useAppContext();
+  const { state } = useAppContext();
+  const user = state.user;
   const [personalizedContent, setPersonalizedContent] = useState<PersonalizedContent | null>(null);
   const [availableCampaigns, setAvailableCampaigns] = useState<Campaign[]>([]);
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
@@ -77,12 +79,12 @@ export default function MyCampaignsScreen() {
         PersonalizationController.generatePersonalizedContent(user.id).catch(() => null),
         CampaignController.getAvailableCampaigns(user.id).catch(() => []),
         DiscountWheelController.getUserDiscountCodes(user.id).catch(() => []),
-        SocialSharingController.getUserSocialTasks(user.id).catch(() => []),
-        GroupDiscountController.getUserGroupDiscounts(user.id).catch(() => []),
-        ShoppingCompetitionController.getActiveCompetitions(user.id).catch(() => []),
-        CartSharingController.getUserSharedCarts(user.id).catch(() => []),
-        BuyTogetherController.getActiveOffers(user.id).catch(() => []),
-        UserLevelController.getUserLevel(user.id).catch(() => null)
+        SocialSharingController.getUserSocialTasks(String(user.id)).catch(() => []),
+        GroupDiscountController.getUserGroupDiscounts(String(user.id)).catch(() => []),
+        ShoppingCompetitionController.getActiveCompetitions(String(user.id)).catch(() => []),
+        CartSharingController.getUserSharedCarts(String(user.id)).catch(() => []),
+        BuyTogetherController.getActiveOffers(String(user.id)).catch(() => []),
+        UserLevelController.getUserLevel(String(user.id)).catch(() => null)
       ]);
 
       setPersonalizedContent(content);
@@ -158,7 +160,6 @@ export default function MyCampaignsScreen() {
 
       // Platforma özel URL açılamazsa Native Share'e düş
       if (!shared) {
-        const { Share } = require('react-native');
         const result = await Share.share({
           message: shareText,
           title: 'Huğlu Outdoor - Kamp Malzemeleri',
@@ -193,7 +194,7 @@ export default function MyCampaignsScreen() {
     if (!user?.id) return;
 
     try {
-      const result = await GroupDiscountController.sendInvitation(user.id, groupId, {
+      const result = await GroupDiscountController.sendInvitation(String(user.id), groupId, {
         message: 'Bu harika kamp ürünlerini birlikte alalım!'
       });
       
@@ -213,7 +214,7 @@ export default function MyCampaignsScreen() {
     if (!user?.id) return;
 
     try {
-      const result = await ShoppingCompetitionController.joinCompetition(user.id, competitionId);
+      const result = await ShoppingCompetitionController.joinCompetition(String(user.id), competitionId);
       
       if (result.success) {
         Alert.alert(
@@ -234,7 +235,7 @@ export default function MyCampaignsScreen() {
     if (!user?.id) return;
 
     try {
-      const result = await CartSharingController.shareCart(user.id, {
+      const result = await CartSharingController.shareCart(String(user.id), {
         title: 'Kamp Malzemeleri Sepetim',
         description: 'Bu hafta sonu kamp için hazırladığım sepet',
         productIds: ['product-1', 'product-2', 'product-3'],
@@ -262,7 +263,7 @@ export default function MyCampaignsScreen() {
 
     try {
       const result = await BuyTogetherController.joinOffer({
-        userId: user.id,
+        userId: String(user.id),
         offerId,
         selectedProducts: [
           { productId: 'product-1', quantity: 1, price: 450 },
@@ -593,7 +594,7 @@ export default function MyCampaignsScreen() {
           <View style={styles.groupDiscountCard}>
             <View style={styles.groupDiscountHeader}>
               <View style={styles.groupDiscountIcon}>
-                <Icon name="trophy" size={24} color="white" />
+              <Icon name="emoji-events" size={24} color="white" />
               </View>
               <View style={styles.groupDiscountInfo}>
                 <Text style={styles.groupDiscountTitle}>Kamp Arkadaşları</Text>
@@ -690,7 +691,7 @@ export default function MyCampaignsScreen() {
               </View>
             </View>
             <TouchableOpacity style={styles.competitionButton}>
-              <Icon name="cart-outline" size={20} color="#ff6b6b" />
+              <Icon name="shopping-cart" size={20} color="#ff6b6b" />
               <Text style={styles.competitionButtonText}>Alışverişe Devam Et</Text>
             </TouchableOpacity>
           </View>
@@ -724,7 +725,7 @@ export default function MyCampaignsScreen() {
               </View>
             </View>
             <TouchableOpacity style={styles.competitionButton}>
-              <Icon name="share-outline" size={20} color="#ff6b6b" />
+              <Icon name="share" size={20} color="#ff6b6b" />
               <Text style={styles.competitionButtonText}>Paylaşım Yap</Text>
             </TouchableOpacity>
           </View>
@@ -740,7 +741,7 @@ export default function MyCampaignsScreen() {
           <View style={styles.cartShareCard}>
             <View style={styles.cartShareHeader}>
               <View style={styles.cartShareIcon}>
-                <Icon name="cart" size={24} color="white" />
+              <Icon name="shopping-cart" size={24} color="white" />
               </View>
               <View style={styles.cartShareInfo}>
                 <Text style={styles.cartShareTitle}>Sepetimi Paylaş</Text>
@@ -769,7 +770,7 @@ export default function MyCampaignsScreen() {
               style={styles.cartShareButton}
               onPress={handleShareCart}
             >
-              <Icon name="share-outline" size={20} color="#17a2b8" />
+              <Icon name="share" size={20} color="#17a2b8" />
               <Text style={styles.cartShareButtonText}>Sepetimi Paylaş</Text>
             </TouchableOpacity>
           </View>
@@ -900,7 +901,7 @@ export default function MyCampaignsScreen() {
           <View style={styles.buyTogetherCard}>
             <View style={styles.buyTogetherHeader}>
               <View style={styles.buyTogetherIcon}>
-                <Icon name="shirt" size={24} color="white" />
+              <Icon name="checkroom" size={24} color="white" />
               </View>
               <View style={styles.buyTogetherInfo}>
                 <Text style={styles.buyTogetherTitle}>Kamp Kıyafetleri Seti</Text>

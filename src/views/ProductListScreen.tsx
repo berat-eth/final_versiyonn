@@ -85,21 +85,40 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   const searchInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    loadData();
-    loadFavorites();
-    loadCampaigns();
+    let mounted = true;
+    (async () => {
+      await Promise.all([
+        loadData(),
+        loadFavorites(),
+        loadCampaigns(),
+      ]);
+      if (mounted && !nowIntervalRef.current) {
+        nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
+      }
+    })();
 
-    if (!nowIntervalRef.current) {
-      nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
-    }
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      if (!nowIntervalRef.current) {
+        nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
+      }
+    });
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      if (nowIntervalRef.current) {
+        clearInterval(nowIntervalRef.current);
+        nowIntervalRef.current = null;
+      }
+    });
 
     return () => {
+      mounted = false;
+      unsubscribeFocus?.();
+      unsubscribeBlur?.();
       if (nowIntervalRef.current) {
         clearInterval(nowIntervalRef.current);
         nowIntervalRef.current = null;
       }
     };
-  }, [selectedCategory]);
+  }, [selectedCategory, navigation]);
 
   useEffect(() => {
     if (route.params?.searchQuery) {

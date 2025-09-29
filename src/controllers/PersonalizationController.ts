@@ -32,8 +32,8 @@ export class PersonalizationController {
     try {
       console.log('🎨 Generating personalized content for user:', userId);
       
-      // Get user analytics
-      const analytics = await CampaignController.getCustomerAnalytics(userId);
+      // Analytics kaldırıldı
+      const analytics = null as any;
       
       // Get product recommendations
       const recommendations = await CampaignController.getProductRecommendations(userId, { limit: 8 });
@@ -355,7 +355,7 @@ export class PersonalizationController {
     return 'Favori kategorilerinizi keşfedin!';
   }
 
-  // Generate product recommendations based on user behavior
+      // Generate product recommendations
   static async generateProductRecommendations(
     userId: number, 
     limit: number = 10
@@ -363,8 +363,8 @@ export class PersonalizationController {
     try {
       console.log('🔄 Generating product recommendations for user:', userId);
       
-      // Get user analytics
-      const analytics = await CampaignController.getCustomerAnalytics(userId);
+      // Analytics kaldırıldı
+      const analytics = null as any;
       
       // Get existing recommendations
       let recommendations = await CampaignController.getProductRecommendations(userId, { limit });

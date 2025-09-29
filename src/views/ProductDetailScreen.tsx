@@ -27,6 +27,7 @@ import { Colors } from '../theme/colors';
 import { ModernButton } from '../components/ui/ModernButton';
 import { SocialShareButtons } from '../components/SocialShareButtons';
 import { ImageGallery } from '../components/ImageGallery';
+import * as FileSystem from 'expo-file-system';
 
 interface ProductDetailScreenProps {
   navigation: any;
@@ -56,15 +57,20 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const { productId } = route.params;
 
   useEffect(() => {
-    loadProduct();
-    loadCurrentUser();
-    checkIfFavorite();
+    let mounted = true;
+    (async () => {
+      await loadProduct();
+      if (!mounted) return;
+      await loadCurrentUser();
+      if (!mounted) return;
+      checkIfFavorite();
+    })();
     // Rastgele izleyici sayısı üret ve göster
     const count = Math.floor(Math.random() * 20) + 1; // 1..20
     setViewerCount(count);
     setShowViewer(true);
     const hideTimer = setTimeout(() => setShowViewer(false), 8000); // 8 sn sonra gizle
-    return () => clearTimeout(hideTimer);
+    return () => { mounted = false; clearTimeout(hideTimer); };
   }, [productId]);
 
   useEffect(() => {
@@ -83,6 +89,24 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       setCurrentStock(prod?.stock || 0);
       // Yorumları arka planda yükle (ilk render'ı bloklamasın)
       loadReviews().catch(() => {});
+
+      // Görselleri arka planda önbelleğe indir (UI’ı bloklamadan)
+      try {
+        const images = (prod?.images || []).slice(0, 6);
+        await Promise.all(
+          images.map(async (uri: string) => {
+            if (!uri) return;
+            const filename = encodeURIComponent(uri.split('/').pop() || `img_${Date.now()}.jpg`);
+            const local = `${FileSystem.cacheDirectory}${filename}`;
+            try {
+              const info = await FileSystem.getInfoAsync(local);
+              if (!info.exists) {
+                await FileSystem.downloadAsync(uri, local, { cache: true });
+              }
+            } catch {}
+          })
+        );
+      } catch {}
     } catch (error) {
       console.error('Error loading product:', error);
     } finally {

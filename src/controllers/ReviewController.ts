@@ -1,26 +1,50 @@
 import db from '../utils/database';
 import { Review } from '../utils/types';
 import { apiService } from '../utils/api-service';
+
+// Simple in-memory cache for reviews (SWR-style)
+const reviewsCache = new Map<number, { data: Review[]; ts: number }>();
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from '../utils/database';
 
 export class ReviewController {
   // Ürün için tüm yorumları getir
   static async getReviewsByProductId(productId: number): Promise<Review[]> {
     try {
-      console.log(`📝 Getting reviews for product: ${productId}`);
+      if (__DEV__) console.log(`📝 Getting reviews for product: ${productId}`);
+
+      // Cache-first
+      const cached = reviewsCache.get(productId);
+      const now = Date.now();
+      if (cached && now - cached.ts < CACHE_TTL_MS) {
+        // Background refresh
+        (async () => {
+          try {
+            const fresh = await apiService.getProductReviews(productId);
+            if (fresh.success && fresh.data) {
+              const mapped = fresh.data.map((apiReview: any) => this.mapApiReviewToAppReview(apiReview));
+              mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+              reviewsCache.set(productId, { data: mapped, ts: Date.now() });
+            }
+          } catch {}
+        })();
+        return cached.data;
+      }
       
       const response = await apiService.getProductReviews(productId);
       if (response.success && response.data) {
-        console.log(`✅ Retrieved ${response.data.length} reviews for product: ${productId}`);
+        if (__DEV__) console.log(`✅ Retrieved ${response.data.length} reviews for product: ${productId}`);
         const reviews = response.data.map((apiReview: any) => this.mapApiReviewToAppReview(apiReview));
         
         // Sort reviews by creation date (newest first)
         reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        // Update cache
+        reviewsCache.set(productId, { data: reviews, ts: Date.now() });
         
         return reviews;
       }
       
-      console.log('📱 No reviews found or API failed');
+      if (__DEV__) console.log('📱 No reviews found or API failed');
       return [];
     } catch (error) {
       console.error(`❌ Error getting reviews for product ${productId}:`, error);
@@ -47,7 +71,7 @@ export class ReviewController {
             }));
           }
         } catch (queueError) {
-          console.error('❌ Failed to get offline queue:', queueError);
+          if (__DEV__) console.error('❌ Failed to get offline queue:', queueError);
         }
       }
       

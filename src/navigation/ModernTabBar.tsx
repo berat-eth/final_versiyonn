@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
+  Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +26,7 @@ const tabIcons: { [key: string]: string } = {
   Products: 'category',
   Cart: 'shopping-cart',
   Profile: 'person',
+  Custom: 'business',
 };
 
 export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigation }) => {
@@ -37,7 +39,31 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
           const { options } = descriptors[route.key];
           const label = options.tabBarLabel || options.title || route.name;
           const isFocused = state.index === index;
-          const iconName = tabIcons[route.name] || 'circle';
+          const iconName = tabIcons[route.name] || 'apps';
+          const activeColor = options.tabBarActiveTintColor || Colors.primary;
+          const inactiveColor = options.tabBarInactiveTintColor || Colors.textLight;
+          const iconNode = typeof options.tabBarIcon === 'function'
+            ? options.tabBarIcon({ color: isFocused ? activeColor : inactiveColor, size: 26 })
+            : (
+                <Icon
+                  name={iconName}
+                  size={26}
+                  color={isFocused ? activeColor : inactiveColor}
+                />
+              );
+
+          // Animations
+          const scale = useRef(new Animated.Value(isFocused ? 1.1 : 1)).current;
+          const opacity = useRef(new Animated.Value(isFocused ? 1 : 0.7)).current;
+          const translateY = useRef(new Animated.Value(isFocused ? -2 : 0)).current;
+
+          useEffect(() => {
+            Animated.parallel([
+              Animated.spring(scale, { toValue: isFocused ? 1.12 : 1, useNativeDriver: true, friction: 6, tension: 120 }),
+              Animated.timing(opacity, { toValue: isFocused ? 1 : 0.7, duration: 180, useNativeDriver: true }),
+              Animated.spring(translateY, { toValue: isFocused ? -3 : 0, useNativeDriver: true, friction: 7, tension: 140 }),
+            ]).start();
+          }, [isFocused]);
 
           const onPress = () => {
             const event = navigation.emit({
@@ -72,29 +98,36 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
               onLongPress={onLongPress}
               style={styles.tabItem}
             >
-              <View style={styles.tabContent}>
-                <View style={styles.iconContainer}>
-                  <Icon
-                    name={iconName}
-                    size={24}
-                    color={isFocused ? Colors.primary : Colors.textLight}
-                  />
+              <Animated.View
+                style={[
+                  styles.tabContent,
+                  {
+                    transform: [{ translateY }],
+                    backgroundColor: isFocused ? 'rgba(14,165,233,0.12)' : 'transparent',
+                    paddingHorizontal: isFocused ? 10 : 6,
+                    paddingVertical: isFocused ? 6 : 4,
+                    borderRadius: 14,
+                  },
+                ]}
+              >
+                <Animated.View style={[styles.iconContainer, { transform: [{ scale }], opacity }]}>
+                  {React.cloneElement(iconNode as any, { size: 28 })}
                   {badgeCount > 0 && (
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>{badgeCount}</Text>
                     </View>
                   )}
-                </View>
-                <Text
+                </Animated.View>
+                <Animated.Text
                   style={[
                     styles.tabLabel,
-                    { color: isFocused ? Colors.primary : Colors.textLight },
+                    { color: isFocused ? activeColor : inactiveColor, opacity },
                   ]}
                 >
                   {label}
-                </Text>
+                </Animated.Text>
                 {isFocused && <View style={styles.activeIndicator} />}
-              </View>
+              </Animated.View>
             </TouchableOpacity>
           );
         })}

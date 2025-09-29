@@ -235,21 +235,8 @@ export class CampaignController {
 
   // Customer Analytics
   static async getCustomerAnalytics(userId: number): Promise<CustomerAnalytics | null> {
-    try {
-      console.log('🔄 Fetching customer analytics for user:', userId);
-      
-      const response = await apiService.get(`/campaigns/analytics/${userId}`);
-      
-      if (response.success && response.data) {
-        console.log('✅ Retrieved customer analytics');
-        return response.data;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('❌ CampaignController - getCustomerAnalytics error:', error);
-      return null;
-    }
+    // Kaldırıldı: müşteri analiz servisi devre dışı
+    return null;
   }
 
   // Product Recommendations

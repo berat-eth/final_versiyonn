@@ -1,8 +1,4 @@
-import { behaviorAnalytics } from './BehaviorAnalytics';
-import { ecommerceAnalytics } from './EcommerceAnalytics';
-import { performanceAnalytics } from './PerformanceAnalytics';
-import { socialContentAnalytics } from './SocialContentAnalytics';
-import { detailedActivityLogger } from './DetailedActivityLogger';
+// Customer/behavior analytics kaldırıldı: tüm servisler devre dışı
 
 export interface AnalyticsConfig {
   enableBehaviorAnalytics: boolean;
@@ -38,11 +34,11 @@ class AnalyticsCoordinator {
 
   constructor() {
     this.config = {
-      enableBehaviorAnalytics: true,
-      enableEcommerceAnalytics: true,
-      enablePerformanceAnalytics: true,
-      enableSocialContentAnalytics: true,
-      enableDetailedLogging: true,
+      enableBehaviorAnalytics: false,
+      enableEcommerceAnalytics: false,
+      enablePerformanceAnalytics: false,
+      enableSocialContentAnalytics: false,
+      enableDetailedLogging: false,
       flushInterval: 30000, // 30 saniye
       batchSize: 50,
       enableOfflineMode: true,
@@ -77,27 +73,7 @@ class AnalyticsCoordinator {
     };
 
     // Tüm analytics servislerini başlat
-    if (this.config.enableBehaviorAnalytics) {
-      behaviorAnalytics.setUserId(userId);
-      behaviorAnalytics.startSession();
-    }
-
-    if (this.config.enableEcommerceAnalytics) {
-      ecommerceAnalytics.setUserId(userId);
-    }
-
-    if (this.config.enablePerformanceAnalytics) {
-      performanceAnalytics.setUserId(userId);
-      performanceAnalytics.startPerformanceMonitoring();
-    }
-
-    if (this.config.enableSocialContentAnalytics) {
-      socialContentAnalytics.setUserId(userId);
-    }
-
-    if (this.config.enableDetailedLogging) {
-      detailedActivityLogger.setUserId(userId);
-    }
+    // Tüm analytics servisleri devre dışı
 
     // Periyodik veri gönderimini başlat
     this.startPeriodicFlush();
@@ -109,13 +85,7 @@ class AnalyticsCoordinator {
       this.currentSession.endTime = Date.now();
       
       // Tüm analytics servislerini durdur
-      if (this.config.enableBehaviorAnalytics) {
-        behaviorAnalytics.endSession();
-      }
-
-      if (this.config.enablePerformanceAnalytics) {
-        performanceAnalytics.logAppStability();
-      }
+    // Servis yok
 
       // Son veri gönderimini yap
       this.flushAllData();
@@ -134,21 +104,12 @@ class AnalyticsCoordinator {
     this.currentSession.screensVisited.push(screenName);
     this.currentSession.totalEvents++;
 
-    if (this.config.enableBehaviorAnalytics) {
-      behaviorAnalytics.startPageView(screenName);
-      behaviorAnalytics.visitScreen(screenName);
-    }
-
-    if (this.config.enableDetailedLogging) {
-      detailedActivityLogger.logScreenViewed(screenName);
-    }
+    // no-op
   }
 
   // Ekran görüntüleme bitirme
   endScreenView(screenName: string): void {
-    if (this.config.enableBehaviorAnalytics) {
-      behaviorAnalytics.endPageView(screenName);
-    }
+    // no-op
   }
 
   // Tıklama takibi
@@ -158,10 +119,7 @@ class AnalyticsCoordinator {
     this.currentSession.totalClicks++;
     this.currentSession.totalEvents++;
 
-    if (this.config.enableBehaviorAnalytics) {
-      behaviorAnalytics.logClick(elementType, elementId, elementText, x, y);
-      behaviorAnalytics.incrementClickCount();
-    }
+    // no-op
   }
 
   // Scroll takibi
@@ -171,9 +129,7 @@ class AnalyticsCoordinator {
     this.currentSession.totalScrolls++;
     this.currentSession.totalEvents++;
 
-    if (this.config.enableBehaviorAnalytics) {
-      behaviorAnalytics.incrementScrollCount();
-    }
+    // no-op
   }
 
   // Hata takibi
@@ -183,13 +139,7 @@ class AnalyticsCoordinator {
     this.currentSession.totalErrors++;
     this.currentSession.totalEvents++;
 
-    if (this.config.enablePerformanceAnalytics) {
-      performanceAnalytics.logError(errorType, errorMessage, errorStack, screenName, userAction);
-    }
-
-    if (this.config.enableDetailedLogging) {
-      detailedActivityLogger.logErrorOccurred(errorMessage, screenName || 'unknown', userAction);
-    }
+    // no-op
   }
 
   // Çökme takibi
@@ -199,9 +149,7 @@ class AnalyticsCoordinator {
     this.currentSession.totalCrashes++;
     this.currentSession.totalEvents++;
 
-    if (this.config.enablePerformanceAnalytics) {
-      performanceAnalytics.logError('crash', crashInfo.message || 'App crashed', crashInfo.stack);
-    }
+    // no-op
   }
 
   // E-ticaret olayları
@@ -210,25 +158,7 @@ class AnalyticsCoordinator {
 
     this.currentSession.totalEvents++;
 
-    if (this.config.enableEcommerceAnalytics) {
-      switch (eventType) {
-        case 'cart_abandonment':
-          ecommerceAnalytics.abandonCart(eventData.userId);
-          break;
-        case 'product_comparison':
-          ecommerceAnalytics.startProductComparison(eventData.userId, eventData.productId, eventData.productName, eventData.price, eventData.category, eventData.brand);
-          break;
-        case 'price_sensitivity':
-          ecommerceAnalytics.logPriceSensitivity(eventData.productId, eventData.productName, eventData.originalPrice, eventData.newPrice, eventData.userReaction, eventData.actionTaken, eventData.timeToReact);
-          break;
-        case 'campaign_engagement':
-          ecommerceAnalytics.logCampaignEngagement(eventData.campaignId, eventData.campaignName, eventData.campaignType, eventData.engagementType, eventData.engagementDuration, eventData.conversionValue);
-          break;
-        case 'wishlist_action':
-          ecommerceAnalytics.logWishlistAction(eventData.productId, eventData.productName, eventData.price, eventData.category, eventData.action, eventData.wishlistSize);
-          break;
-      }
-    }
+    // no-op
   }
 
   // Sosyal medya olayları
@@ -237,25 +167,7 @@ class AnalyticsCoordinator {
 
     this.currentSession.totalEvents++;
 
-    if (this.config.enableSocialContentAnalytics) {
-      switch (eventType) {
-        case 'share':
-          socialContentAnalytics.logShare(eventData.contentType, eventData.contentId, eventData.contentTitle, eventData.sharePlatform, eventData.shareMethod, eventData.shareSuccess, eventData.shareError);
-          break;
-        case 'review':
-          socialContentAnalytics.logReview(eventData.productId, eventData.productName, eventData.reviewType, eventData.rating, eventData.reviewText, eventData.hasPhotos, eventData.hasVideos);
-          break;
-        case 'social_engagement':
-          socialContentAnalytics.logSocialMediaEngagement(eventData.platform, eventData.engagementType, eventData.contentId, eventData.contentType, eventData.engagementValue);
-          break;
-        case 'content_consumption':
-          socialContentAnalytics.logContentConsumption(eventData.contentId, eventData.contentType, eventData.contentTitle, eventData.contentCategory, eventData.consumptionType, eventData.consumptionDuration, eventData.consumptionPercentage, eventData.interactionCount);
-          break;
-        case 'community_interaction':
-          socialContentAnalytics.logCommunityInteraction(eventData.interactionType, eventData.targetUserId, eventData.targetContentId, eventData.interactionText, eventData.isHelpful);
-          break;
-      }
-    }
+    // no-op
   }
 
   // Performans olayları
@@ -264,19 +176,7 @@ class AnalyticsCoordinator {
 
     this.currentSession.totalEvents++;
 
-    if (this.config.enablePerformanceAnalytics) {
-      switch (eventType) {
-        case 'screen_performance':
-          performanceAnalytics.logScreenPerformance(eventData.screenName, eventData.loadTime, eventData.renderTime);
-          break;
-        case 'network_request':
-          performanceAnalytics.logNetworkRequest(eventData.url, eventData.method, eventData.responseTime, eventData.responseSize, eventData.statusCode);
-          break;
-        case 'device_metrics':
-          performanceAnalytics.logDeviceMetrics();
-          break;
-      }
-    }
+    // no-op
   }
 
   // Özel olay takibi
@@ -292,27 +192,15 @@ class AnalyticsCoordinator {
 
   // Veri gönderimi
   private startPeriodicFlush(): void {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-    }
-
-    this.flushTimer = setInterval(() => {
-      this.flushAllData();
-    }, this.config.flushInterval);
+    // devre dışı
   }
 
   private stopPeriodicFlush(): void {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-      this.flushTimer = null;
-    }
+    // devre dışı
   }
 
   private flushAllData(): void {
-    // Tüm analytics servislerinin verilerini gönder
-    if (this.config.enableBehaviorAnalytics) {
-      behaviorAnalytics.startPeriodicFlush(1000); // 1 saniye
-    }
+    // devre dışı
   }
 
   // Debug modu

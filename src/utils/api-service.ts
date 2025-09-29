@@ -599,8 +599,15 @@ class ApiService {
   async getAllProducts(): Promise<ApiResponse<any[]>> {
     const cacheKey = this.getCacheKey('/products');
     const cached = await this.getFromCache<ApiResponse<any[]>>(cacheKey);
-    
-    if (cached) {
+    if (cached && cached.success && Array.isArray(cached.data)) {
+      // SWR: önce cache dön, arkaplanda güncelle
+      this.request<any[]>('/products')
+        .then(async (fresh) => {
+          if (fresh && fresh.success) {
+            await this.setCache(cacheKey, fresh, fresh.isOffline);
+          }
+        })
+        .catch(() => {});
       return cached;
     }
 
@@ -615,8 +622,15 @@ class ApiService {
   async getProducts(page: number = 1, limit: number = 20): Promise<ApiResponse<{ products: any[], total: number, hasMore: boolean }>> {
     const cacheKey = this.getCacheKey(`/products?page=${page}&limit=${limit}`);
     const cached = await this.getFromCache<ApiResponse<{ products: any[], total: number, hasMore: boolean }>>(cacheKey);
-    
-    if (cached) {
+    if (cached && cached.success && Array.isArray(cached.data?.products)) {
+      // SWR cache-first
+      this.request<{ products: any[], total: number, hasMore: boolean }>(`/products?page=${page}&limit=${limit}`)
+        .then(async (fresh) => {
+          if (fresh && fresh.success) {
+            await this.setCache(cacheKey, fresh, fresh.isOffline);
+          }
+        })
+        .catch(() => {});
       return cached;
     }
 
@@ -771,7 +785,27 @@ class ApiService {
         query = `?deviceId=${encodeURIComponent(deviceId)}`;
       } catch {}
     }
-    return this.request(`/cart/user/${userId}${query}`);
+
+    const endpoint = `/cart/user/${userId}${query}`;
+
+    // Cache-first: hızlı değişmeyecek veriler için önbellekten sun
+    try {
+      const cacheKey = this.getCacheKey(endpoint);
+      const cached = await this.getFromCache<ApiResponse<any[]>>(cacheKey);
+      if (cached && cached.success && Array.isArray(cached.data)) {
+        // Arkaplanda yenile
+        this.request<any[]>(endpoint)
+          .then(async (fresh) => {
+            if (fresh && fresh.success) {
+              await this.setCache(cacheKey, fresh, fresh.isOffline);
+            }
+          })
+          .catch(() => {});
+        return cached;
+      }
+    } catch {}
+
+    return this.request(endpoint);
   }
 
   async clearCart(userId: number): Promise<ApiResponse<boolean>> {

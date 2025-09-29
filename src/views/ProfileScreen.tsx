@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserController } from '../controllers/UserController';
+import apiService from '../utils/api-service';
 import { OrderController } from '../controllers/OrderController';
 import { ProductController } from '../controllers/ProductController';
 import { UserLevelController } from '../controllers/UserLevelController';
@@ -190,9 +191,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       // Load user addresses
       const addresses = await UserController.getUserAddresses(userId);
       
-      // Load user wallet
-      const wallet = await UserController.getUserWallet(userId);
-      setWalletBalance(wallet.balance);
+      // Load user wallet (remote API)
+      try {
+        const balanceResponse = await apiService.get(`/wallet/balance/${userId}`);
+        if (balanceResponse?.success && balanceResponse?.data) {
+          setWalletBalance(balanceResponse.data.balance || 0);
+        } else {
+          setWalletBalance(0);
+        }
+      } catch (e) {
+        setWalletBalance(0);
+      }
       
       // Load user orders first
       const userOrders = await OrderController.getUserOrders(userId);
