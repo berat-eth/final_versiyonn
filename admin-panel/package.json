@@ -1,0 +1,25 @@
+{
+  "name": "huglu-admin-panel",
+  "version": "1.0.0",
+  "description": "Admin panel for Huglu mobile app management",
+  "main": "index.html",
+  "scripts": {
+    "start": "python server.py",
+    "dev": "python server.py",
+    "build": "echo 'No build process needed for static files'",
+    "serve": "python -m http.server 8080"
+  },
+  "dependencies": {
+    "axios": "1.11.0",
+    "chart.js": "4.4.0",
+    "moment": "2.29.4"
+  },
+  "devDependencies": {
+    "live-server": "1.2.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}
