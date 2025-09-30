@@ -84,8 +84,8 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
             });
           };
 
-          // Cart badge count (example)
-          const badgeCount = route.name === 'Cart' ? 3 : 0;
+          // Badge value from screen options (supports number or string)
+          const badgeValue = options.tabBarBadge;
 
           return (
             <TouchableOpacity
@@ -112,9 +112,9 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
               >
                 <Animated.View style={[styles.iconContainer, { transform: [{ scale }], opacity }]}>
                   {React.cloneElement(iconNode as any, { size: 28 })}
-                  {badgeCount > 0 && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{badgeCount}</Text>
+                  {badgeValue != null && badgeValue !== 0 && (
+                    <View style={[styles.badge, options.tabBarBadgeStyle]}> 
+                      <Text style={styles.badgeText}>{String(badgeValue)}</Text>
                     </View>
                   )}
                 </Animated.View>

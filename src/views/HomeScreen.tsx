@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,6 +29,7 @@ import { PersonalizationController, PersonalizedContent } from '../controllers/P
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Chatbot } from '../components/Chatbot';
 import { VariationModal } from '../components/VariationModal';
+import { InstagramStories } from '../components/InstagramStories';
 import { useAppContext } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -1303,6 +1305,14 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
           />
         }
       >
+        <InstagramStories
+          username="hugluoutdoor"
+          onStoryPress={(story) => {
+            if (story.storyPreviewUrl) {
+              Linking.openURL(story.storyPreviewUrl).catch(() => {});
+            }
+          }}
+        />
         {renderHeroSlider()}
         {renderCategories}
         {renderFlashDeals()}
