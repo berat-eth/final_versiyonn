@@ -45,6 +45,10 @@
                 <i class="fas fa-bullhorn"></i>
                 <span>Kampanyalar</span>
             </a>
+            <a href="#stories" class="nav-item" data-section="stories">
+                <i class="fas fa-images"></i>
+                <span>Story'ler</span>
+            </a>
             <a href="#dealership" class="nav-item" data-section="dealership">
                 <i class="fas fa-briefcase"></i>
                 <span>Bayilik Başvuruları</span>
@@ -836,6 +840,54 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Stories Section -->
+        <div class="content-section hidden" id="stories-section">
+            <div class="section-header">
+                <h2>Story Yönetimi</h2>
+                <div class="header-actions">
+                    <button class="btn-primary" onclick="openCreateStoryModal()">
+                        <i class="fas fa-plus"></i> Yeni Story
+                    </button>
+                    <input id="storySearch" class="btn-secondary" type="text" placeholder="Ara (başlık/açıklama)" onkeydown="if(event.key==='Enter'){refreshStories()}"/>
+                    <select id="storyStatusFilter" class="btn-secondary" onchange="refreshStories()">
+                        <option value="">Tüm Durumlar</option>
+                        <option value="active">Aktif</option>
+                        <option value="inactive">Pasif</option>
+                    </select>
+                    <select id="storyPageSize" class="btn-secondary" onchange="refreshStories()">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                    </select>
+                    <button class="btn-secondary" onclick="refreshStories()">
+                        <i class="fas fa-sync"></i> Yenile
+                    </button>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Resim</th>
+                            <th>Başlık</th>
+                            <th>Açıklama</th>
+                            <th>Durum</th>
+                            <th>Sıra</th>
+                            <th>Bitiş Tarihi</th>
+                            <th>Oluşturulma</th>
+                            <th>İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody id="storiesTableBody">
+                        <tr>
+                            <td colspan="8" class="loading">Yükleniyor...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -1734,6 +1786,88 @@
                         </button>
                         <button type="submit" class="btn-primary">
                             <i class="fas fa-bolt"></i> Flash İndirim Oluştur
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create / Edit Story Modal -->
+    <div class="modal hidden" id="createStoryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="storyModalTitle">Yeni Story Oluştur</h3>
+                <button class="modal-close" onclick="closeModal('createStoryModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="createStoryForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storyTitle">Başlık *</label>
+                            <input type="text" id="storyTitle" name="title" required placeholder="Story başlığı">
+                        </div>
+                        <div class="form-group">
+                            <label for="storyOrder">Sıra</label>
+                            <input type="number" id="storyOrder" name="order" placeholder="Görüntülenme sırası">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="storyDescription">Açıklama</label>
+                        <textarea id="storyDescription" name="description" rows="3" placeholder="Story açıklaması (opsiyonel)"></textarea>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storyImageUrl">Resim URL *</label>
+                            <input type="url" id="storyImageUrl" name="imageUrl" required placeholder="https://example.com/image.jpg">
+                        </div>
+                        <div class="form-group">
+                            <label for="storyThumbnailUrl">Thumbnail URL</label>
+                            <input type="url" id="storyThumbnailUrl" name="thumbnailUrl" placeholder="https://example.com/thumb.jpg">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storyExpiresAt">Bitiş Tarihi</label>
+                            <input type="datetime-local" id="storyExpiresAt" name="expiresAt">
+                        </div>
+                        <div class="form-group">
+                            <label for="storyIsActive">Durum</label>
+                            <select id="storyIsActive" name="isActive">
+                                <option value="true">Aktif</option>
+                                <option value="false">Pasif</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Tıklama Aksiyonu</label>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <select id="storyClickType" name="clickAction.type" onchange="toggleClickActionValue()">
+                                    <option value="none">Aksiyon Yok</option>
+                                    <option value="product">Ürün</option>
+                                    <option value="category">Kategori</option>
+                                    <option value="url">URL</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="clickActionValueGroup" style="display: none;">
+                                <input type="text" id="storyClickValue" name="clickAction.value" placeholder="Değer">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="closeModal('createStoryModal')">
+                            İptal
+                        </button>
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-save"></i> Kaydet
                         </button>
                     </div>
                 </form>

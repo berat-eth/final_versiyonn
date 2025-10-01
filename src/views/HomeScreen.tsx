@@ -1306,11 +1306,10 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         }
       >
         <InstagramStories
-          username="hugluoutdoor"
+          limit={5}
           onStoryPress={(story) => {
-            if (story.storyPreviewUrl) {
-              Linking.openURL(story.storyPreviewUrl).catch(() => {});
-            }
+            console.log('Story tıklandı:', story);
+            // Sadece console'a yazdır, otomatik yönlendirme yapma
           }}
         />
         {renderHeroSlider()}

@@ -788,6 +788,7 @@ function showSection(sectionName) {
         'products': 'Ürün Yönetimi',
         'product-detail': 'Ürün Detayları',
         'campaigns': 'Kampanya Yönetimi',
+        'stories': 'Story Yönetimi',
         'segments': 'Müşteri Segmentleri',
         'analytics': 'Analitik ve Raporlar',
         'live': 'Canlı Veriler',
@@ -1967,6 +1968,9 @@ function loadSectionData(sectionName) {
             break;
         case 'campaigns':
             loadCampaigns();
+            break;
+        case 'stories':
+            loadStories();
             break;
     case 'dealership':
       loadDealershipApplications();
@@ -4192,3 +4196,253 @@ async function ensureCategoriesLoaded() {
         console.warn('Kategoriler yüklenemedi:', e);
     }
 }
+
+// Story Management Functions
+let currentEditingStoryId = null;
+
+async function loadStories() {
+    try {
+        showLoading(true);
+        const search = document.getElementById('storySearch')?.value || '';
+        const statusFilter = document.getElementById('storyStatusFilter')?.value || '';
+        const pageSize = document.getElementById('storyPageSize')?.value || '20';
+        
+        let query = `?limit=${pageSize}`;
+        if (search) query += `&search=${encodeURIComponent(search)}`;
+        if (statusFilter) query += `&status=${statusFilter}`;
+        
+        const response = await apiRequest('/admin/stories/all' + query);
+        if (response && response.success) {
+            updateStoriesTable(response.data || []);
+        } else {
+            showNotification('Story\'ler yüklenirken hata oluştu', 'error');
+        }
+    } catch (error) {
+        console.error('Story yükleme hatası:', error);
+        showNotification('Story\'ler yüklenirken hata oluştu', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function updateStoriesTable(stories) {
+    const tbody = document.getElementById('storiesTableBody');
+    
+    if (!stories || stories.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="loading">Story bulunamadı</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = stories.map(story => `
+        <tr>
+            <td>
+                <div class="story-thumbnail">
+                    <img src="${story.thumbnailUrl || story.imageUrl}" 
+                         alt="${story.title}" 
+                         style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px;">
+                </div>
+            </td>
+            <td>
+                <div class="story-info">
+                    <strong>${safeString(story.title)}</strong>
+                </div>
+            </td>
+            <td>${safeString(story.description, 'Açıklama yok')}</td>
+            <td>
+                <span class="status-badge ${story.isActive ? 'active' : 'paused'}">
+                    ${story.isActive ? 'Aktif' : 'Pasif'}
+                </span>
+            </td>
+            <td>${story.order || 0}</td>
+            <td>${story.expiresAt ? formatDate(story.expiresAt) : 'Süresiz'}</td>
+            <td>${formatDate(story.createdAt)}</td>
+            <td>
+                <div class="story-actions">
+                    <button onclick="viewStory(${story.id})" class="btn-secondary" title="Görüntüle">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button onclick="editStory(${story.id})" class="btn-secondary" title="Düzenle">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button onclick="toggleStoryStatus(${story.id})" class="btn-secondary" title="Durum Değiştir">
+                        <i class="fas fa-power-off"></i>
+                    </button>
+                    <button onclick="deleteStory(${story.id})" class="btn-secondary" title="Sil">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openCreateStoryModal() {
+    currentEditingStoryId = null;
+    document.getElementById('storyModalTitle').textContent = 'Yeni Story Oluştur';
+    document.getElementById('createStoryForm').reset();
+    document.getElementById('clickActionValueGroup').style.display = 'none';
+    showModal('createStoryModal');
+}
+
+function editStory(storyId) {
+    // Story düzenleme modalını aç
+    currentEditingStoryId = storyId;
+    document.getElementById('storyModalTitle').textContent = 'Story Düzenle';
+    
+    // Story verilerini yükle ve formu doldur
+    loadStoryForEdit(storyId);
+}
+
+async function loadStoryForEdit(storyId) {
+    try {
+        const response = await apiRequest(`/admin/stories/all`);
+        if (response && response.success) {
+            const story = response.data.find(s => s.id == storyId);
+            if (story) {
+                document.getElementById('storyTitle').value = story.title || '';
+                document.getElementById('storyDescription').value = story.description || '';
+                document.getElementById('storyImageUrl').value = story.imageUrl || '';
+                document.getElementById('storyThumbnailUrl').value = story.thumbnailUrl || '';
+                document.getElementById('storyOrder').value = story.order || '';
+                document.getElementById('storyIsActive').value = story.isActive ? 'true' : 'false';
+                
+                if (story.expiresAt) {
+                    const date = new Date(story.expiresAt);
+                    document.getElementById('storyExpiresAt').value = date.toISOString().slice(0, 16);
+                }
+                
+                if (story.clickAction) {
+                    document.getElementById('storyClickType').value = story.clickAction.type || 'none';
+                    document.getElementById('storyClickValue').value = story.clickAction.value || '';
+                    toggleClickActionValue();
+                }
+                
+                showModal('createStoryModal');
+            }
+        }
+    } catch (error) {
+        console.error('Story yükleme hatası:', error);
+        showNotification('Story yüklenirken hata oluştu', 'error');
+    }
+}
+
+function toggleClickActionValue() {
+    const clickType = document.getElementById('storyClickType').value;
+    const valueGroup = document.getElementById('clickActionValueGroup');
+    const valueInput = document.getElementById('storyClickValue');
+    
+    if (clickType === 'none') {
+        valueGroup.style.display = 'none';
+        valueInput.placeholder = 'Değer';
+    } else {
+        valueGroup.style.display = 'block';
+        if (clickType === 'product') {
+            valueInput.placeholder = 'Ürün ID';
+        } else if (clickType === 'category') {
+            valueInput.placeholder = 'Kategori adı';
+        } else if (clickType === 'url') {
+            valueInput.placeholder = 'https://example.com';
+        }
+    }
+}
+
+async function saveStory() {
+    try {
+        const form = document.getElementById('createStoryForm');
+        const formData = new FormData(form);
+        
+        const storyData = {
+            title: formData.get('title'),
+            description: formData.get('description'),
+            imageUrl: formData.get('imageUrl'),
+            thumbnailUrl: formData.get('thumbnailUrl'),
+            order: parseInt(formData.get('order')) || 0,
+            isActive: formData.get('isActive') === 'true',
+            expiresAt: formData.get('expiresAt') || null,
+            clickAction: {
+                type: formData.get('clickAction.type'),
+                value: formData.get('clickAction.value') || null
+            }
+        };
+        
+        if (!storyData.title || !storyData.imageUrl) {
+            showNotification('Başlık ve resim URL\'si gerekli', 'error');
+            return;
+        }
+        
+        let response;
+        if (currentEditingStoryId) {
+            response = await apiRequest(`/admin/stories/${currentEditingStoryId}`, 'PUT', storyData);
+        } else {
+            response = await apiRequest('/admin/stories', 'POST', storyData);
+        }
+        
+        if (response && response.success) {
+            showNotification(
+                currentEditingStoryId ? 'Story güncellendi' : 'Story oluşturuldu', 
+                'success'
+            );
+            closeModal('createStoryModal');
+            loadStories();
+        } else {
+            showNotification('Story kaydedilirken hata oluştu', 'error');
+        }
+    } catch (error) {
+        console.error('Story kaydetme hatası:', error);
+        showNotification('Story kaydedilirken hata oluştu', 'error');
+    }
+}
+
+async function deleteStory(storyId) {
+    if (!confirm('Bu story\'i silmek istediğinizden emin misiniz?')) {
+        return;
+    }
+    
+    try {
+        const response = await apiRequest(`/admin/stories/${storyId}`, 'DELETE');
+        if (response && response.success) {
+            showNotification('Story silindi', 'success');
+            loadStories();
+        } else {
+            showNotification('Story silinirken hata oluştu', 'error');
+        }
+    } catch (error) {
+        console.error('Story silme hatası:', error);
+        showNotification('Story silinirken hata oluştu', 'error');
+    }
+}
+
+async function toggleStoryStatus(storyId) {
+    try {
+        const response = await apiRequest(`/admin/stories/${storyId}/toggle`, 'PATCH');
+        if (response && response.success) {
+            showNotification('Story durumu değiştirildi', 'success');
+            loadStories();
+        } else {
+            showNotification('Story durumu değiştirilirken hata oluştu', 'error');
+        }
+    } catch (error) {
+        console.error('Story durum değiştirme hatası:', error);
+        showNotification('Story durumu değiştirilirken hata oluştu', 'error');
+    }
+}
+
+function viewStory(storyId) {
+    // Story görüntüleme (modal veya yeni sayfa)
+    showNotification('Story görüntüleme özelliği yakında eklenecek', 'info');
+}
+
+function refreshStories() {
+    loadStories();
+}
+
+// Form submit handler
+document.addEventListener('DOMContentLoaded', function() {
+    const storyForm = document.getElementById('createStoryForm');
+    if (storyForm) {
+        storyForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveStory();
+        });
+    }
+});

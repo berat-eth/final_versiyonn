@@ -747,6 +747,15 @@ try {
   console.warn('⚠️ Dealership routes could not be mounted:', e.message);
 }
 
+// Stories Routes
+try {
+  const storiesRoutes = require('./routes/stories');
+  app.use('/api/admin/stories', storiesRoutes);
+  console.log('✅ Stories routes mounted at /api/admin/stories');
+} catch (e) {
+  console.warn('⚠️ Stories routes could not be mounted:', e.message);
+}
+
 // Helper: generate unique 8-digit user_id
 async function generateUnique8DigitUserId() {
   const min = 10000000;
