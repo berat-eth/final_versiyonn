@@ -59,12 +59,20 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   useEffect(() => {
     let mounted = true;
     (async () => {
-      await loadProduct();
+      // Ürün verilerini paralel yükle
+      const [productResult, userResult] = await Promise.allSettled([
+        loadProduct(),
+        loadCurrentUser()
+      ]);
+      
       if (!mounted) return;
-      await loadCurrentUser();
-      if (!mounted) return;
-      checkIfFavorite();
+      
+      // Favori kontrolünü kullanıcı verisi geldiğinde yap
+      if (userResult.status === 'fulfilled') {
+        checkIfFavorite();
+      }
     })();
+    
     // Rastgele izleyici sayısı üret ve göster
     const count = Math.floor(Math.random() * 20) + 1; // 1..20
     setViewerCount(count);
@@ -75,8 +83,19 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
   useEffect(() => {
     if (product) {
-      calculateCurrentPrice();
-      calculateCurrentStock();
+      // Hesaplamaları hafiflet - sadece gerekli durumlarda çalıştır
+      const hasVariations = product.variations && product.variations.length > 0;
+      const hasSelectedOptions = Object.keys(selectedOptions).length > 0;
+      
+      // Sadece varyasyon varsa ve seçim yapılmışsa hesapla
+      if (hasVariations && hasSelectedOptions) {
+        calculateCurrentPrice();
+        calculateCurrentStock();
+      } else if (!hasVariations) {
+        // Varyasyon yoksa sadece temel fiyat ve stok
+        setCurrentPrice(product.price);
+        setCurrentStock(product.stock);
+      }
     }
   }, [product, selectedOptions]);
 
@@ -87,15 +106,22 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       setProduct(prod);
       setCurrentPrice(prod?.price || 0);
       setCurrentStock(prod?.stock || 0);
-      // Yorumları arka planda yükle (ilk render'ı bloklamasın)
+      
+      // Loading'i hemen kapat - UI'ı bloklamasın
+      setLoading(false);
+      
+      // Yorumları arka planda yükle
       loadReviews().catch(() => {});
 
-      // Görselleri arka planda önbelleğe indir (UI’ı bloklamadan)
-      try {
-        const images = (prod?.images || []).slice(0, 6);
-        await Promise.all(
-          images.map(async (uri: string) => {
+      // Görselleri arka planda önbelleğe indir (fire-and-forget)
+      setTimeout(() => {
+        try {
+          const images = (prod?.images || []).slice(0, 3); // Sadece ilk 3 görsel
+          // Eşzamanlı indirme sayısını düşür
+          const downloadPromises = images.map(async (uri: string, index: number) => {
             if (!uri) return;
+            // Staggered download - her 200ms'de bir başlat
+            await new Promise(resolve => setTimeout(resolve, index * 200));
             const filename = encodeURIComponent(uri.split('/').pop() || `img_${Date.now()}.jpg`);
             const local = `${FileSystem.cacheDirectory}${filename}`;
             try {
@@ -104,12 +130,12 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
                 await FileSystem.downloadAsync(uri, local, { cache: true });
               }
             } catch {}
-          })
-        );
-      } catch {}
+          });
+          Promise.all(downloadPromises).catch(() => {});
+        } catch {}
+      }, 0);
     } catch (error) {
       console.error('Error loading product:', error);
-    } finally {
       setLoading(false);
     }
   };
@@ -402,10 +428,14 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
         {/* Ana Görsel Galerisi */}
         <View style={styles.imageContainer}>
           <ImageGallery
-            images={galleryImages}
-            mainImage={product.image || galleryImages[0] || 'https://via.placeholder.com/400x400?text=No+Image'}
+            images={galleryImages?.slice(0, 10) || []} // İlk 10 görseli göster
+            mainImage={product.image || galleryImages?.[0] || 'https://via.placeholder.com/400x400?text=No+Image'}
             style={styles.imageGallery}
             showThumbnails={true}
+            onImagePress={(imageUrl, index) => {
+              // Görsel tam ekran gösterimi
+              console.log('Image pressed:', imageUrl, index);
+            }}
           />
           
           {/* Favori Butonu */}
