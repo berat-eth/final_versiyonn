@@ -1502,6 +1502,49 @@ app.post('/api/payments/process', async (req, res) => {
         ]
       );
 
+      // Hpay+ bonus: Her başarılı alışverişin %3'ü cüzdana puan olarak eklenir
+      try {
+        const bonusRate = 0.03;
+        const [orderUserRows] = await poolWrapper.execute(
+          'SELECT userId FROM orders WHERE id = ? AND tenantId = ? LIMIT 1',
+          [orderId, req.tenant.id]
+        );
+        if (orderUserRows && orderUserRows.length > 0) {
+          const targetUserId = orderUserRows[0].userId;
+          const rawBonus = Number(order.totalAmount || 0) * bonusRate;
+          const bonus = Math.max(0, Number(rawBonus.toFixed(2)));
+          if (bonus > 0) {
+            // Ensure wallet exists
+            await poolWrapper.execute(
+              `INSERT INTO user_wallets (userId, tenantId, balance, currency) 
+               VALUES (?, ?, 0, 'TRY')
+               ON DUPLICATE KEY UPDATE balance = balance`,
+              [targetUserId, req.tenant.id]
+            );
+            // Update wallet balance
+            await poolWrapper.execute(
+              'UPDATE user_wallets SET balance = balance + ?, updatedAt = NOW() WHERE userId = ? AND tenantId = ?',
+              [bonus, targetUserId, req.tenant.id]
+            );
+            // Log wallet transaction as Hpay+ bonus
+            await poolWrapper.execute(
+              `INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, status, paymentMethod, orderId, createdAt)
+               VALUES (?, ?, 'credit', ?, ?, 'completed', 'hpay_plus', ?, NOW())`,
+              [
+                targetUserId,
+                req.tenant.id,
+                bonus,
+                `Hpay+ bonus (%3) - Order #${orderId}`,
+                orderId
+              ]
+            );
+            console.log(`🎁 Hpay+ bonus eklendi: user ${targetUserId}, +${bonus} TRY (order ${orderId})`);
+          }
+        }
+      } catch (bonusError) {
+        console.warn('⚠️ Hpay+ bonus eklenemedi:', bonusError.message);
+      }
+
       console.log('✅ Payment successful for order:', orderId);
       console.log('✅ Card data processed and discarded - NOT stored in database');
 
