@@ -247,12 +247,14 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     const shipping = CartController.calculateShipping(subtotal);
     const discount = appliedDiscount ? appliedDiscount.amount : 0;
     const total = CartController.calculateTotal(subtotal, shipping) - discount;
-    return { subtotal, shipping, discount, total };
+    const hpayBonus = Math.max(0, Number((total * 0.03).toFixed(2)));
+    return { subtotal, shipping, discount, total, hpayBonus };
   }, [cartItems, appliedDiscount]);
 
   const renderCartItem = useCallback(({ item }: { item: CartItem }) => {
     const isUpdating = updatingItems.has(item.id);
     const productPrice = item.product?.price || 0;
+    const itemHpay = Math.max(0, Number(((productPrice * item.quantity) * 0.03).toFixed(2)));
     
     return (
       <View style={styles.cartItemWrapper}>
@@ -299,6 +301,9 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             
             <Text style={styles.productPrice}>
               {(Number(productPrice) || 0).toFixed(0)} TL
+            </Text>
+            <Text style={styles.hpayItemNote}>
+              Hpay+ kazanım: +{itemHpay.toFixed(2)} TL
             </Text>
           </View>
 
@@ -407,11 +412,48 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       <Text style={styles.headerSubtitle}>
         {cartItems.length} ürün sepetinizde
       </Text>
+
+      {/* Yatay Kupon Listeleme */}
+      {discountCodes && discountCodes.length > 0 && (
+        <View style={styles.couponsContainer}>
+          <Text style={styles.couponsTitle}>Kullanılabilir Kuponlar</Text>
+          <FlatList
+            data={discountCodes}
+            keyExtractor={(c) => String(c.id)}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.couponsList}
+            renderItem={({ item }) => (
+              <View style={styles.couponCard}>
+                <View style={styles.couponLeft}>
+                  <Text style={styles.couponCode}>{DiscountWheelController.formatDiscountCode(item.discountCode)}</Text>
+                  <Text style={styles.couponDesc} numberOfLines={1}>
+                    Min: {(Number(item.minOrderAmount) || 0).toFixed(0)} TL
+                  </Text>
+                  <View style={styles.couponMetaRow}>
+                    <Icon name="event" size={12} color={Colors.textLight} />
+                    <Text style={styles.couponMeta}>Kalan: {DiscountWheelController.getTimeRemaining(item.expiresAt)}</Text>
+                  </View>
+                </View>
+                <View style={styles.couponRight}>
+                  <Text style={styles.couponValue}>{DiscountWheelController.getDiscountDisplay(item.discountValue, item.discountType)}</Text>
+                  <TouchableOpacity
+                    style={styles.couponUseBtn}
+                    onPress={() => setDiscountCode(item.discountCode)}
+                  >
+                    <Text style={styles.couponUseText}>Uygula</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          />
+        </View>
+      )}
     </View>
   );
 
   const renderSummary = useCallback(() => {
-    const { subtotal, shipping, discount, total } = cartSummary();
+    const { subtotal, shipping, discount, total, hpayBonus } = cartSummary();
 
     return (
       <View style={styles.summaryContainer}>
@@ -441,6 +483,16 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
           
           <View style={styles.summaryDivider} />
           
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Hpay+ Kazanım (%3)</Text>
+            <View style={styles.hpayBadgeRow}>
+              <Icon name="star" size={16} color="#a855f7" />
+              <Text style={[styles.summaryValue, styles.hpayValue]}>
+                +{(Number(hpayBonus) || 0).toFixed(2)} TL
+              </Text>
+            </View>
+          </View>
+
           <View style={[styles.summaryRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Toplam</Text>
             <Text style={styles.totalValue}>{(Number(total) || 0).toFixed(0)} TL</Text>
@@ -596,6 +648,82 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textLight,
     textAlign: 'center',
+  },
+  couponsContainer: {
+    marginTop: Spacing.sm,
+  },
+  couponsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 6,
+    paddingLeft: 4,
+  },
+  couponsList: {
+    paddingVertical: 6,
+    paddingLeft: 4,
+  },
+  couponCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 12,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    ...Shadows.small,
+  },
+  couponLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  couponRight: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  couponCode: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  couponDesc: {
+    fontSize: 12,
+    color: Colors.textLight,
+    marginTop: 2,
+    maxWidth: 160,
+  },
+  couponMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  couponMeta: {
+    fontSize: 11,
+    color: Colors.textLight,
+  },
+  couponValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#16a34a',
+  },
+  couponUseBtn: {
+    backgroundColor: '#111827',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  couponUseText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  hpayItemNote: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#a855f7',
+    fontWeight: '600',
   },
 
   // List Content
@@ -869,6 +997,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.primary,
+  },
+  hpayBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  hpayValue: {
+    color: '#a855f7',
+    fontWeight: '700',
   },
   checkoutButton: {
     borderRadius: 12,
