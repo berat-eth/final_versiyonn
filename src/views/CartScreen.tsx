@@ -279,18 +279,6 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
               <Text style={styles.productName} numberOfLines={1}>
                 {item.product?.name || 'Ürün'}
               </Text>
-              
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => handleRemoveFromCart(item.id, item.product?.name || 'Ürün')}
-                disabled={isUpdating}
-              >
-                <Icon 
-                  name="delete-outline" 
-                  size={20} 
-                  color={isUpdating ? Colors.textMuted : '#FF6B6B'} 
-                />
-              </TouchableOpacity>
             </View>
             
             {item.variationString && (
@@ -329,6 +317,21 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
               disabled={isUpdating}
             >
               <Icon name="add" size={16} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Delete Button (far right) */}
+          <View style={styles.deleteWrapper}>
+            <TouchableOpacity
+              style={styles.removeButton}
+              onPress={() => handleRemoveFromCart(item.id, item.product?.name || 'Ürün')}
+              disabled={isUpdating}
+            >
+              <Icon 
+                name="delete-outline" 
+                size={20} 
+                color={isUpdating ? Colors.textMuted : '#FF6B6B'} 
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -782,6 +785,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333333',
     marginRight: 8,
+    flexWrap: 'nowrap',
   },
   removeButton: {
     padding: 4,
@@ -808,6 +812,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 4,
     paddingVertical: 4,
+  },
+  deleteWrapper: {
+    marginLeft: 'auto',
   },
   quantityBtn: {
     width: 28,

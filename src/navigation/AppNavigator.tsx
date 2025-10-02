@@ -23,6 +23,7 @@ import OrderDetailScreen from '../views/OrderDetailScreen';
 import NfcScanScreen from '../views/NfcScanScreen';
 
 import { WalletScreen } from '../views/WalletScreen';
+import HpayWalletScreen from '../views/HpayWalletScreen';
 import { ShippingTrackingScreen } from '../views/ShippingTrackingScreen';
 import { AddressesScreen } from '../views/AddressesScreen';
 import { FavoritesScreen } from '../views/FavoritesScreen';
@@ -452,6 +453,11 @@ const ProfileStack = () => {
         name="Wallet" 
         component={WalletScreen} 
         options={{ title: 'Cüzdanım' }}
+      />
+      <Stack.Screen 
+        name="HpayWallet" 
+        component={HpayWalletScreen} 
+        options={{ title: 'Hpay+ Bakiyem' }}
       />
       <Stack.Screen 
         name="ShippingTracking" 

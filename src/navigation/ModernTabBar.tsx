@@ -116,10 +116,8 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
                     { transform: [{ translateY }] }
                   ]}
                 >
-                  {/* Simple Active Background */}
-                  {isFocused && (
-                    <View style={styles.activeBackground} />
-                  )}
+                  {/* Active subtle background */}
+                  {isFocused && (<View style={styles.activeBackground} />)}
                   
                   <Animated.View style={[styles.iconContainer, { opacity }]}>
                     {React.cloneElement(iconNode as any, { size: 24 })}
@@ -130,23 +128,18 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
                     )}
                   </Animated.View>
                   
+                  {/* Label: her zaman göster, odaklı değilken düşük opaklık */}
                   <Animated.Text
                     style={[
                       styles.tabLabel,
-                      { 
-                        color: isFocused ? activeColor : inactiveColor, 
-                        opacity,
-                        fontWeight: isFocused ? '600' : '400'
-                      },
+                      { color: isFocused ? activeColor : inactiveColor, opacity }
                     ]}
                   >
                     {label}
                   </Animated.Text>
                   
-                  {/* Simple Active Indicator */}
-                  {isFocused && (
-                    <View style={styles.activeIndicator} />
-                  )}
+                  {/* Active dot indicator */}
+                  {isFocused && (<View style={styles.activeDot} />)}
                 </Animated.View>
               </TouchableOpacity>
             );
@@ -162,32 +155,35 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   glassBackground: {
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderTopWidth: 0,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -2 },
   },
   tabBar: {
     flexDirection: 'row',
-    height: 60,
-    paddingHorizontal: Spacing.sm,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.xs,
+    height: 58,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   tabItem: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: Spacing.xs,
+    paddingVertical: 6,
   },
   tabContent: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.medium,
-    minWidth: 50,
-    minHeight: 40,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 14,
+    minWidth: 44,
+    minHeight: 36,
   },
   activeBackground: {
     position: 'absolute',
@@ -195,30 +191,29 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.small,
+    backgroundColor: '#eef2ff',
+    borderRadius: 12,
   },
   iconContainer: {
     position: 'relative',
-    marginBottom: 1,
+    marginBottom: 0,
     zIndex: 2,
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '500',
+    fontSize: 11,
+    fontWeight: '600',
     textAlign: 'center',
     zIndex: 2,
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
+    marginTop: 2,
   },
-  activeIndicator: {
+  activeDot: {
     position: 'absolute',
-    bottom: -1,
-    left: '50%',
-    marginLeft: -12,
-    width: 24,
-    height: 2,
+    bottom: -2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.small,
   },
   badge: {
     position: 'absolute',

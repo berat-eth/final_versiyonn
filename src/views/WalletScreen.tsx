@@ -117,8 +117,8 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
         setTransactions(formattedTransactions);
         // Hpay+ toplam bonus (kredi yönlü hpay_plus işlemleri)
         const bonus = formattedTransactions
-          .filter(t => (t.paymentMethod === 'hpay_plus') && (t.type === 'credit'))
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+          .filter((t: Transaction) => (t.paymentMethod === 'hpay_plus') && (t.type === 'credit'))
+          .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
         setHpayBonusTotal(bonus);
         console.log('✅ Wallet transactions loaded successfully');
       }
@@ -420,6 +420,15 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
     );
   }
 
+  // Derived stats
+  const totalTransactions = transactions.length;
+  const hpayIn = transactions
+    .filter((t: Transaction) => t.paymentMethod === 'hpay_plus' && t.type === 'credit')
+    .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
+  const hpayOut = transactions
+    .filter((t: Transaction) => t.paymentMethod === 'hpay_plus' && t.type === 'debit')
+    .reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0);
+
   return (
     <SafeAreaView style={styles.modernContainer}>
       <ScrollView 
@@ -473,41 +482,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Modern Stats */}
-        <View style={styles.modernStatsContainer}>
-          <View style={styles.modernStatItem}>
-            <View style={styles.modernStatIcon}>
-              <Icon name="receipt" size={20} color="#6b7280" />
-            </View>
-            <Text style={styles.modernStatNumber}>{transactions.length}</Text>
-            <Text style={styles.modernStatLabel}>Toplam İşlem</Text>
-          </View>
-          <View style={styles.modernStatItem}>
-            <View style={styles.modernStatIcon}>
-              <Icon name="star" size={20} color="#a855f7" />
-            </View>
-            <Text style={styles.modernStatNumber}>{ProductController.formatPrice(hpayBonusTotal)}</Text>
-            <Text style={styles.modernStatLabel}>Hpay+ Kazanç</Text>
-          </View>
-          <View style={styles.modernStatItem}>
-            <View style={styles.modernStatIcon}>
-              <Icon name="trending-up" size={20} color="#10b981" />
-            </View>
-            <Text style={styles.modernStatNumber}>
-              {transactions.filter(t => t.type === 'credit').length}
-            </Text>
-            <Text style={styles.modernStatLabel}>Gelen</Text>
-          </View>
-          <View style={styles.modernStatItem}>
-            <View style={styles.modernStatIcon}>
-              <Icon name="trending-down" size={20} color="#ef4444" />
-            </View>
-            <Text style={styles.modernStatNumber}>
-              {transactions.filter(t => t.type === 'debit').length}
-            </Text>
-            <Text style={styles.modernStatLabel}>Giden</Text>
-          </View>
-        </View>
+        {/* İstatistikler kaldırıldı; tüm veriler işlem geçmişinde listelenir */}
 
         {/* Tab Navigation */}
         <View style={styles.tabContainer}>
@@ -589,6 +564,16 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
 
         {/* Güvenlik ve bilgilendirme notları üstteki bilgi kutusunda birleşti */}
       </ScrollView>
+      {/* Fixed bottom Hpay+ button */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity 
+          style={styles.hpayBottomButton}
+          onPress={() => navigation.navigate('HpayWallet')}
+        >
+          <Icon name="star" size={20} color="white" />
+          <Text style={styles.hpayBottomText}>Hpay+</Text>
+        </TouchableOpacity>
+      </View>
       
       {/* Para Yükleme Modal */}
       <Modal
@@ -1112,6 +1097,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 12,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  hpayBottomButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#a855f7',
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  hpayBottomText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   modernBalanceCard: {
     backgroundColor: 'white',
     margin: 20,
@@ -1265,6 +1274,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 12,
     marginBottom: 20,
+  },
+  modernStatsScroll: {
+    marginBottom: 20,
+  },
+  statsScrollContent: {
+    paddingHorizontal: 20,
+    gap: 12,
   },
   modernStatItem: {
     flex: 1,
