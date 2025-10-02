@@ -600,9 +600,47 @@ class XmlSyncService {
 
         const variationId = variationResult.insertId;
 
-        // Varyasyon seçeneklerini kaydet
-        for (let i = 0; i < options.length; i++) {
-          const option = options[i];
+        // Aynı değerli seçenekleri tekilleştir ve stokları birleştir
+        const mergedByValue = new Map(); // key: normalized value -> merged option
+        for (const rawOption of options) {
+          const normalizedValue = (rawOption.value || '').toString().trim();
+          if (!normalizedValue) continue;
+          const key = normalizedValue.toLowerCase();
+          const existing = mergedByValue.get(key);
+          if (!existing) {
+            mergedByValue.set(key, {
+              ...rawOption,
+              value: normalizedValue,
+              stock: parseInt(rawOption.stock || 0) || 0,
+              priceModifier: Number(rawOption.priceModifier || 0)
+            });
+          } else {
+            existing.stock = (parseInt(existing.stock || 0) || 0) + (parseInt(rawOption.stock || 0) || 0);
+            // Fiyat çakışmasında daha düşük olanı kullan
+            const candidatePrice = Number(rawOption.priceModifier || 0);
+            if (candidatePrice > 0 && (existing.priceModifier === 0 || candidatePrice < Number(existing.priceModifier))) {
+              existing.priceModifier = candidatePrice;
+            }
+            // Boş alanları doldur (sku, barkod vb.)
+            existing.sku = existing.sku || rawOption.sku || '';
+            existing.barkod = existing.barkod || rawOption.barkod || null;
+            existing.alisFiyati = existing.alisFiyati || rawOption.alisFiyati || 0;
+            existing.satisFiyati = existing.satisFiyati || rawOption.satisFiyati || 0;
+            existing.indirimliFiyat = existing.indirimliFiyat || rawOption.indirimliFiyat || 0;
+            existing.kdvDahil = typeof existing.kdvDahil === 'boolean' ? existing.kdvDahil : (rawOption.kdvDahil || false);
+            existing.kdvOrani = existing.kdvOrani || rawOption.kdvOrani || 0;
+            existing.paraBirimi = existing.paraBirimi || rawOption.paraBirimi || 'TL';
+            existing.paraBirimiKodu = existing.paraBirimiKodu || rawOption.paraBirimiKodu || 'TRY';
+            existing.desi = existing.desi || rawOption.desi || 1;
+            existing.externalId = existing.externalId || rawOption.externalId;
+          }
+        }
+
+        const dedupedOptions = Array.from(mergedByValue.values());
+
+        // Varyasyon seçeneklerini kaydet (tekilleştirilmiş)
+        for (let i = 0; i < dedupedOptions.length; i++) {
+          const option = dedupedOptions[i];
           await this.pool.execute(
             `INSERT INTO product_variation_options 
              (tenantId, variationId, value, priceModifier, stock, sku, barkod, alisFiyati, satisFiyati, 
@@ -633,7 +671,7 @@ class XmlSyncService {
           );
         }
 
-        console.log(`✅ Saved ${options.length} options for variation: ${variationName}`);
+        console.log(`✅ Saved ${dedupedOptions.length} options for variation: ${variationName}`);
       }
 
       console.log(`✅ Saved variations for product ID: ${productId}`);
