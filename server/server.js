@@ -6330,7 +6330,11 @@ app.get('/api/chatbot/faq', async (req, res) => {
       'teslimat süresi': 'Stokta bulunan ürünler 1-3 iş günü içinde kargoya verilir. Teslimat süresi 1-5 iş günüdür.',
       'taksit': 'Kredi kartınızla 2, 3, 6, 9 ve 12 aya varan taksit seçenekleri kullanabilirsiniz.',
       'şifre unuttum': 'Giriş ekranında "Şifremi Unuttum" linkine tıklayın ve e-posta adresinizi girin.',
-      'stok': 'Ürün sayfasında stok durumu gösterilir. Stokta olmayan ürünler için "Stok gelince haber ver" seçeneğini kullanın.'
+      'stok': 'Ürün sayfasında stok durumu gösterilir. Stokta olmayan ürünler için "Stok gelince haber ver" seçeneğini kullanın.',
+      // Hpay+ kısa bilgiler
+      'hpay+ nedir': 'Hpay+, başarılı her alışverişten otomatik olarak %3 oranında kazandığınız cüzdan puanıdır.',
+      'hpay+ nasıl kazanılır': 'Ödeme onaylandığında sipariş tutarınızın %3’ü Hpay+ olarak cüzdanınıza eklenir ve işlem geçmişinde görünür.',
+      'hpay+ nerede görünür': 'Cüzdan sayfasındaki Hpay+ Bakiyesi ve Hpay+ Kazanç alanlarında ve işlem geçmişinde mor yıldız ile görünür.'
     };
 
     res.json({

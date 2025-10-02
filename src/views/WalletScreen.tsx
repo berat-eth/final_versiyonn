@@ -39,6 +39,7 @@ interface Transaction {
   balance?: number;
   otherUserName?: string;
   transferDirection?: 'sent' | 'received';
+  paymentMethod?: string;
 }
 
 export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
@@ -73,6 +74,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [transferLoading, setTransferLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'transfers'>('all');
+  const [hpayBonusTotal, setHpayBonusTotal] = useState(0);
 
   useEffect(() => {
     loadWalletData();
@@ -109,9 +111,15 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
           date: tx.createdAt,
           status: 'completed',
           referenceId: tx.referenceId,
-          balance: tx.balance
+          balance: tx.balance,
+          paymentMethod: tx.paymentMethod
         }));
         setTransactions(formattedTransactions);
+        // Hpay+ toplam bonus (kredi yönlü hpay_plus işlemleri)
+        const bonus = formattedTransactions
+          .filter(t => (t.paymentMethod === 'hpay_plus') && (t.type === 'credit'))
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+        setHpayBonusTotal(bonus);
         console.log('✅ Wallet transactions loaded successfully');
       }
       
@@ -208,7 +216,10 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
     ? transactions.filter(tx => tx.type === 'transfer_in' || tx.type === 'transfer_out')
     : transactions;
 
-  const getTransactionColor = (type: string) => {
+  const getTransactionColor = (type: string, paymentMethod?: string) => {
+    if (paymentMethod === 'hpay_plus') {
+      return '#a855f7'; // Mor - Hpay+ bonus
+    }
     switch (type) {
       case 'transfer_in':
         return '#10b981'; // Yeşil - gelen
@@ -223,7 +234,10 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
     }
   };
 
-  const getTransactionIcon = (type: string) => {
+  const getTransactionIcon = (type: string, paymentMethod?: string) => {
+    if (paymentMethod === 'hpay_plus') {
+      return 'star';
+    }
     switch (type) {
       case 'transfer_in':
         return 'arrow-downward';
@@ -239,6 +253,11 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
   };
 
   const getTransactionDescription = (transaction: Transaction) => {
+    if (transaction.paymentMethod === 'hpay_plus') {
+      return transaction.description?.startsWith('Hpay+')
+        ? transaction.description
+        : `Hpay+ Bonus: ${transaction.description}`;
+    }
     if (transaction.type === 'transfer_in' || transaction.type === 'transfer_out') {
       return transaction.otherUserName 
         ? transaction.type === 'transfer_in' 
@@ -413,7 +432,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
         <View style={styles.modernBalanceCard}>
           <View style={styles.balanceHeader}>
             <Icon name="account-balance-wallet" size={32} color="#6b7280" />
-            <Text style={styles.modernBalanceTitle}>Cüzdan Bakiyesi</Text>
+            <Text style={styles.modernBalanceTitle}>Hpay+ Bakiyesi</Text>
             <View style={{ flex: 1 }} />
             <TouchableOpacity onPress={() => setShowNotice(prev => !prev)} accessibilityLabel="Bilgi">
               <Icon name={showNotice ? 'info' : 'info-outline'} size={20} color="#6b7280" />
@@ -428,7 +447,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
               <Icon name="info" size={16} color="#92400E" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.noticeText}>
-                  3 ay boyunca kullanılmayan cüzdan bakiyeleri iade sürecine alınacaktır.
+                  Her alışverişte ödemenizin %3’ü Hpay+ olarak hesabınıza eklenir.
                 </Text>
                 <Text style={styles.noticeText}>
                   • Kredi kartı bilgileriniz hiçbir şekilde kayıt edilmez
@@ -462,6 +481,13 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
             </View>
             <Text style={styles.modernStatNumber}>{transactions.length}</Text>
             <Text style={styles.modernStatLabel}>Toplam İşlem</Text>
+          </View>
+          <View style={styles.modernStatItem}>
+            <View style={styles.modernStatIcon}>
+              <Icon name="star" size={20} color="#a855f7" />
+            </View>
+            <Text style={styles.modernStatNumber}>{ProductController.formatPrice(hpayBonusTotal)}</Text>
+            <Text style={styles.modernStatLabel}>Hpay+ Kazanç</Text>
           </View>
           <View style={styles.modernStatItem}>
             <View style={styles.modernStatIcon}>
@@ -515,11 +541,11 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
           {filteredTransactions.map((transaction) => (
             <View key={transaction.id} style={styles.transactionCard}>
               <View style={styles.transactionHeader}>
-                <View style={[styles.transactionIcon, { backgroundColor: getTransactionColor(transaction.type) + '20' }]}>
+                <View style={[styles.transactionIcon, { backgroundColor: getTransactionColor(transaction.type, transaction.paymentMethod) + '20' }]}>
                   <Icon 
-                    name={getTransactionIcon(transaction.type)} 
+                    name={getTransactionIcon(transaction.type, transaction.paymentMethod)} 
                     size={20} 
-                    color={getTransactionColor(transaction.type)} 
+                    color={getTransactionColor(transaction.type, transaction.paymentMethod)} 
                   />
                 </View>
                 <View style={styles.transactionInfo}>
@@ -539,7 +565,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
                 <View style={styles.transactionAmount}>
                   <Text style={[
                     styles.amountText,
-                    { color: getTransactionColor(transaction.type) }
+                    { color: getTransactionColor(transaction.type, transaction.paymentMethod) }
                   ]}>
                     {transaction.type === 'transfer_in' || transaction.type === 'credit' ? '+' : '-'}
                     {ProductController.formatPrice(transaction.amount)}

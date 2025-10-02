@@ -183,6 +183,38 @@ export const FAQScreen: React.FC<FAQScreenProps> = ({ navigation }) => {
       question: 'Seviye sistemi tüm ürünlerde geçerli mi?',
       answer: 'Seviye sistemi çoğu ürünümüzde geçerlidir. Ancak bazı özel ürünler, kampanya ürünleri veya indirimli ürünlerde seviye indirimleri uygulanmayabilir. Ürün sayfasında bu bilgi belirtilir.'
     }
+    ,
+    // Hpay+ (Cüzdan) Soruları
+    {
+      id: 101,
+      category: 'Hpay+',
+      question: 'Hpay+ nedir?',
+      answer: 'Hpay+, alışverişlerinizden otomatik olarak kazandığınız bir cüzdan puanıdır. Başarılı her alışverişte ödemenizin %3’ü Hpay+ olarak cüzdanınıza eklenir.'
+    },
+    {
+      id: 102,
+      category: 'Hpay+',
+      question: 'Hpay+ nasıl kazanılır?',
+      answer: 'Ödeme başarıyla tamamlandığında sipariş tutarınızın %3’ü Hpay+ olarak cüzdanınıza yatırılır. İşlem geçmişinde mor yıldız ikonu ile “Hpay+ Bonus” olarak görünür.'
+    },
+    {
+      id: 103,
+      category: 'Hpay+',
+      question: 'Hpay+ bakiyemi nerede görebilirim?',
+      answer: 'Cüzdan sayfasında üst bölümde “Hpay+ Bakiyesi” başlığı altında bakiyenizi, istatistiklerde ise “Hpay+ Kazanç” toplamınızı görebilirsiniz.'
+    },
+    {
+      id: 104,
+      category: 'Hpay+',
+      question: 'Hpay+ ile neler yapabilirim?',
+      answer: 'Hpay+ bakiyenizi ilerleyen dönemde tanımlanacak kampanyalarda ve uygun ödemelerde kullanabileceksiniz. Şimdilik Hpay+ birikimleri cüzdan bakiyenize eklenir ve kayıt altına alınır.'
+    },
+    {
+      id: 105,
+      category: 'Hpay+',
+      question: 'Hpay+ ne zaman hesabıma geçer?',
+      answer: 'Ödemeniz onaylandığında Hpay+ anında cüzdanınıza işlenir. İşlem geçmişinde “Hpay+ bonus (%3) - Order #...” açıklamasıyla görürsünüz.'
+    }
   ];
 
   const categories: FAQCategory[] = [
@@ -194,6 +226,7 @@ export const FAQScreen: React.FC<FAQScreenProps> = ({ navigation }) => {
     { name: 'Hesap', icon: 'account-circle', count: mockFAQs.filter(f => f.category === 'Hesap').length },
     { name: 'Ürün', icon: 'inventory', count: mockFAQs.filter(f => f.category === 'Ürün').length },
     { name: 'Seviye Sistemi', icon: 'emoji-events', count: mockFAQs.filter(f => f.category === 'Seviye Sistemi').length },
+    { name: 'Hpay+', icon: 'star', count: mockFAQs.filter(f => f.category === 'Hpay+').length },
   ];
 
   useEffect(() => {
