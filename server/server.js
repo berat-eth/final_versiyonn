@@ -16,6 +16,7 @@ const { createDatabaseSchema } = require('./database-schema');
 const userDataRoutes = require('./routes/user-data');
 const userSpecificDataRoutes = require('./routes/user-specific-data');
 const { RecommendationService } = require('./services/recommendation-service');
+const { authenticateTenant } = require('./middleware/auth');
 const helmet = require('helmet');
 const hpp = require('hpp');
 const rateLimit = require('express-rate-limit');
@@ -727,7 +728,7 @@ try {
   process.nextTick(() => {
     try {
       const recommendationService = new RecommendationService(poolWrapper);
-      const recRouter = recRoutesFactory(poolWrapper, recommendationService);
+      const recRouter = recRoutesFactory(poolWrapper, recommendationService, authenticateTenant);
       app.use('/api/recommendations', recRouter);
       console.log('✅ Recommendations routes mounted at /api/recommendations');
     } catch (e) {
