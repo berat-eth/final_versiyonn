@@ -4341,6 +4341,35 @@ app.get('/api/sync/status', (req, res) => {
   res.json({ success: true, data: status });
 });
 
+// XML Test endpoint
+app.get('/api/sync/test', async (req, res) => {
+  if (!xmlSyncService) {
+    return res.status(503).json({ 
+      success: false, 
+      message: 'XML Sync Service not available' 
+    });
+  }
+  
+  try {
+    const products = await xmlSyncService.testXmlParsing();
+    res.json({ 
+      success: true, 
+      message: 'XML parsing test completed successfully',
+      data: {
+        productCount: products.length,
+        products: products
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error testing XML parsing:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error testing XML parsing',
+      error: error.message
+    });
+  }
+});
+
 // Start server
 async function startServer() {
   await initializeDatabase();

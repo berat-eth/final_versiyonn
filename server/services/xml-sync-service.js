@@ -171,31 +171,66 @@ class XmlSyncService {
 
           // EkSecenekOzellik > Ozellik alanlarını topla (array olabilir)
           const attributes = {};
+          let hasVariationAttributes = false;
+          
           try {
             const ozellik = variation.EkSecenekOzellik?.Ozellik;
-            const attrs = Array.isArray(ozellik) ? ozellik : (ozellik ? [ozellik] : []);
-            attrs.forEach(entry => {
-              // entry örn: { _: 'S', $: { Tanim: 'Beden', Deger: 'S' } } veya { Tanim: 'Beden', Deger: 'S' }
-              const name = (entry?.Tanim || entry?.$?.Tanim || '').toString().trim();
-              const value = (entry?.Deger || entry?.$?.Deger || entry?._ || '').toString().trim();
-              if (name && value) {
-                attributes[name] = value;
-              }
-            });
-          } catch(_) {}
+            
+            // Eğer EkSecenekOzellik boş veya null ise varyasyonsuz ürün
+            if (!ozellik || (typeof ozellik === 'object' && Object.keys(ozellik).length === 0)) {
+              hasVariationAttributes = false;
+            } else {
+              const attrs = Array.isArray(ozellik) ? ozellik : (ozellik ? [ozellik] : []);
+              attrs.forEach(entry => {
+                // entry örn: { _: 'S', $: { Tanim: 'Beden', Deger: 'S' } } veya { Tanim: 'Beden', Deger: 'S' }
+                const name = (entry?.Tanim || entry?.$?.Tanim || '').toString().trim();
+                const value = (entry?.Deger || entry?.$?.Deger || entry?._ || '').toString().trim();
+                if (name && value) {
+                  attributes[name] = value;
+                  hasVariationAttributes = true;
+                }
+              });
+            }
+          } catch(_) {
+            hasVariationAttributes = false;
+          }
 
-          variationDetails.push({
-            varyasyonId: variation.VaryasyonID,
-            attributes, // çoklu özellikler
-            stok: stok,
-            fiyat: fiyat,
-            stokKodu: variation.StokKodu,
-            barkod: variation.Barkod,
-            kdvDahil: String(variation.KDVDahil || '').toLowerCase() === 'true',
-            kdvOrani: parseInt(variation.KdvOrani) || 0,
-            paraBirimi: variation.ParaBirimi || 'TL',
-            paraBirimiKodu: variation.ParaBirimiKodu || 'TRY'
-          });
+          // Varyasyonsuz ürünler için attributes null yap
+          if (!hasVariationAttributes) {
+            variationDetails.push({
+              varyasyonId: variation.VaryasyonID,
+              attributes: null, // varyasyonsuz ürünler için null
+              stok: stok,
+              fiyat: fiyat,
+              stokKodu: variation.StokKodu,
+              barkod: variation.Barkod || null,
+              alisFiyati: this.extractPrice(variation.AlisFiyati),
+              satisFiyati: this.extractPrice(variation.SatisFiyati),
+              indirimliFiyat: this.extractPrice(variation.IndirimliFiyat),
+              kdvDahil: String(variation.KDVDahil || '').toLowerCase() === 'true',
+              kdvOrani: parseInt(variation.KdvOrani) || 0,
+              paraBirimi: variation.ParaBirimi || 'TL',
+              paraBirimiKodu: variation.ParaBirimiKodu || 'TRY',
+              desi: parseInt(variation.Desi) || 1
+            });
+          } else {
+            variationDetails.push({
+              varyasyonId: variation.VaryasyonID,
+              attributes, // çoklu özellikler
+              stok: stok,
+              fiyat: fiyat,
+              stokKodu: variation.StokKodu,
+              barkod: variation.Barkod,
+              alisFiyati: this.extractPrice(variation.AlisFiyati),
+              satisFiyati: this.extractPrice(variation.SatisFiyati),
+              indirimliFiyat: this.extractPrice(variation.IndirimliFiyat),
+              kdvDahil: String(variation.KDVDahil || '').toLowerCase() === 'true',
+              kdvOrani: parseInt(variation.KdvOrani) || 0,
+              paraBirimi: variation.ParaBirimi || 'TL',
+              paraBirimiKodu: variation.ParaBirimiKodu || 'TRY',
+              desi: parseInt(variation.Desi) || 1
+            });
+          }
         });
       }
 
@@ -501,23 +536,57 @@ class XmlSyncService {
       const variationMap = new Map(); // name -> options[]
       
       variationDetails.forEach(variation => {
-        const attrs = variation.attributes || {};
-        const names = Object.keys(attrs);
-        if (names.length === 0) return;
-        names.forEach(name => {
-          const value = (attrs[name] || '').toString();
-          if (!value) return;
-          if (!variationMap.has(name)) {
-            variationMap.set(name, []);
+        // Eğer attributes null ise (varyasyonsuz ürün), genel varyasyon olarak kaydet
+        if (variation.attributes === null) {
+          const generalVariationName = 'Genel';
+          if (!variationMap.has(generalVariationName)) {
+            variationMap.set(generalVariationName, []);
           }
-          variationMap.get(name).push({
-            value,
+          variationMap.get(generalVariationName).push({
+            value: 'Tek Seçenek',
             priceModifier: variation.fiyat || 0,
             stock: variation.stok || 0,
             sku: variation.stokKodu || '',
+            barkod: variation.barkod || null,
+            alisFiyati: variation.alisFiyati || 0,
+            satisFiyati: variation.satisFiyati || 0,
+            indirimliFiyat: variation.indirimliFiyat || 0,
+            kdvDahil: variation.kdvDahil || false,
+            kdvOrani: variation.kdvOrani || 0,
+            paraBirimi: variation.paraBirimi || 'TL',
+            paraBirimiKodu: variation.paraBirimiKodu || 'TRY',
+            desi: variation.desi || 1,
             externalId: variation.varyasyonId
           });
-        });
+        } else {
+          // Varyasyonlu ürün için normal işlem
+          const attrs = variation.attributes || {};
+          const names = Object.keys(attrs);
+          if (names.length === 0) return;
+          names.forEach(name => {
+            const value = (attrs[name] || '').toString();
+            if (!value) return;
+            if (!variationMap.has(name)) {
+              variationMap.set(name, []);
+            }
+            variationMap.get(name).push({
+              value,
+              priceModifier: variation.fiyat || 0,
+              stock: variation.stok || 0,
+              sku: variation.stokKodu || '',
+              barkod: variation.barkod || '',
+              alisFiyati: variation.alisFiyati || 0,
+              satisFiyati: variation.satisFiyati || 0,
+              indirimliFiyat: variation.indirimliFiyat || 0,
+              kdvDahil: variation.kdvDahil || false,
+              kdvOrani: variation.kdvOrani || 0,
+              paraBirimi: variation.paraBirimi || 'TL',
+              paraBirimiKodu: variation.paraBirimiKodu || 'TRY',
+              desi: variation.desi || 1,
+              externalId: variation.varyasyonId
+            });
+          });
+        }
       });
 
       // Her varyasyon türü için kayıt oluştur
@@ -536,8 +605,10 @@ class XmlSyncService {
           const option = options[i];
           await this.pool.execute(
             `INSERT INTO product_variation_options 
-             (tenantId, variationId, value, priceModifier, stock, sku, displayOrder, isActive, createdAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (tenantId, variationId, value, priceModifier, stock, sku, barkod, alisFiyati, satisFiyati, 
+              indirimliFiyat, kdvDahil, kdvOrani, paraBirimi, paraBirimiKodu, desi, externalId, 
+              displayOrder, isActive, createdAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               tenantId,
               variationId,
@@ -545,6 +616,16 @@ class XmlSyncService {
               option.priceModifier,
               option.stock,
               option.sku,
+              option.barkod,
+              option.alisFiyati,
+              option.satisFiyati,
+              option.indirimliFiyat,
+              option.kdvDahil,
+              option.kdvOrani,
+              option.paraBirimi,
+              option.paraBirimiKodu,
+              option.desi,
+              option.externalId,
               i,
               true,
               new Date()
@@ -765,6 +846,245 @@ class XmlSyncService {
       lastSyncTime: this.lastSyncTime,
       stats: this.syncStats
     };
+  }
+
+  // Test XML parsing with sample data
+  async testXmlParsing() {
+    try {
+      console.log('🧪 Testing XML parsing with sample data...');
+      
+      const sampleXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Root>
+<Urunler>
+<Urun>
+<UrunKartiID>17</UrunKartiID>
+<UrunAdi>Gri Basic T-Shirt </UrunAdi>
+<OnYazi>
+<![CDATA[ Gri Basic T-Shirt ]]>
+</OnYazi>
+<Aciklama>
+<![CDATA[ <p>&nbsp;</p> <p>&nbsp;</p> <p><span style="font-size:16px;"><strong>Huğlu Outdoor tişörtler esnek,hafif ve yüksek seviyede nefes alabilen kumaşları sayesinde terlemeyi minimum seviyeye indirir. Gün içinde üst düzey rahatlık ve nem kontrolü sağlar. Bisiklet yaka ve polo yaka stillerde birçok renk çeşiti bulunan Huğlu Outdoor tişörtler yaz aylarının vazgeçilmez ürünleridir.</strong></span></p> <span style="font-size:16px;"> <p>&nbsp;</p> <strong> <p>&nbsp;</p> <p>Cinsiyet: Unisex&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p> <p>Kullanım Alanı: Yürüyüş, Günlük kullanım</p> <p>Kumaş :%95 Pamuk %5 Elastan</p> <p>Malzeme Gramajı : 180 gr/m²</p> <p>Kumaş Özellikleri: Nefes Alabilen,Esnek,Solmaya Karşı dayanıklı,Işık Koruma</p> <p>Yaka Tipi : Bisiklet Yaka</p> <p>Kalıp:Slim Fit</p> <p>Ekstra: Esnek, solmayan ve nefes alabilen kumaş ile üretilmiştir.Bisiklet yakalıdır.Göğsünde kartal logo detayı vardır. Nefes alabilen ve esnek kumaş özelliği terlemeyi azaltır, hareket özgürlüğünüzü kısıtlamaz.Işık koruma özelliği sayesinde güneş ışınlarından dolayı solmaz.</p> <p>&nbsp;</p> <p>&nbsp;</p> <p>Detaylı bakım ve yıkama talimatları için lütfen ürün etiketini kontrol ediniz.</p> <p>&nbsp;</p> <p>&nbsp;</p> <p>&nbsp;</p> <p>Teslimat:</p> <p>Siparişleriniz 1-5 iş günü içerisinde hazırlanarak kargoya teslim edilmektedir.</p> <p>&nbsp;</p> <p>&nbsp;</p> <p>İade ve Değişim:</p> <p>İade işlemlerinizi, yeniden satılabilirlik özelliğini kaybetmemiş olan ürünleri siparişinizle birlikte gönderilen fatura iade formunu doldurarak 14 gün içerisinde iade edebilirsiniz.</p> </strong></span> <p>&nbsp;</p> <p>&nbsp;</p> <p><img alt="" src="https://static.ticimax.cloud/52071/uploads/editoruploads/basic-beden-tablosu.jpg" /></p> ]]>
+</Aciklama>
+<Marka>Huğlu Outdoor</Marka>
+<SatisBirimi>ADET</SatisBirimi>
+<KategoriID>39</KategoriID>
+<Kategori>Sıfır Yaka T-Shirt</Kategori>
+<KategoriTree>T-Shirt/Sıfır Yaka T-Shirt</KategoriTree>
+<UrunUrl>https://www.hugluoutdoor.com/gri-basic-t-shirt-</UrunUrl>
+<Resimler>
+<Resim>https://static.ticimax.cloud/52071/Uploads/UrunResimleri/buyuk/basicgri1gri-basic-t-shirt-hugluoutdoo-6-1607.jpg</Resim>
+<Resim>https://static.ticimax.cloud/52071/Uploads/UrunResimleri/buyuk/basicgri1gri-basic-t-shirt-hugluoutdoo-361-91.jpg</Resim>
+<Resim>https://static.ticimax.cloud/52071/Uploads/UrunResimleri/buyuk/basicgri1gri-basic-t-shirt-hugluoutdoo--4517-.jpg</Resim>
+</Resimler>
+<UrunSecenek>
+<Secenek>
+<VaryasyonID>52</VaryasyonID>
+<StokKodu>Basicgri1</StokKodu>
+<Barkod>Basicgri1</Barkod>
+<StokAdedi>3</StokAdedi>
+<AlisFiyati>0,00</AlisFiyati>
+<SatisFiyati>600,00</SatisFiyati>
+<IndirimliFiyat>600,00</IndirimliFiyat>
+<KDVDahil>true</KDVDahil>
+<KdvOrani>10</KdvOrani>
+<ParaBirimi>TL</ParaBirimi>
+<ParaBirimiKodu>TRY</ParaBirimiKodu>
+<Desi>1</Desi>
+<EkSecenekOzellik>
+<Ozellik Tanim="Beden" Deger="S">S</Ozellik>
+</EkSecenekOzellik>
+</Secenek>
+<Secenek>
+<VaryasyonID>53</VaryasyonID>
+<StokKodu>Basicgri1</StokKodu>
+<Barkod>Basicgri1</Barkod>
+<StokAdedi>2</StokAdedi>
+<AlisFiyati>0,00</AlisFiyati>
+<SatisFiyati>600,00</SatisFiyati>
+<IndirimliFiyat>540,00</IndirimliFiyat>
+<KDVDahil>true</KDVDahil>
+<KdvOrani>10</KdvOrani>
+<ParaBirimi>TL</ParaBirimi>
+<ParaBirimiKodu>TRY</ParaBirimiKodu>
+<Desi>1</Desi>
+<EkSecenekOzellik>
+<Ozellik Tanim="Beden" Deger="M">M</Ozellik>
+</EkSecenekOzellik>
+</Secenek>
+<Secenek>
+<VaryasyonID>54</VaryasyonID>
+<StokKodu>Basicgri1</StokKodu>
+<Barkod>Basicgri1</Barkod>
+<StokAdedi>2</StokAdedi>
+<AlisFiyati>0,00</AlisFiyati>
+<SatisFiyati>600,00</SatisFiyati>
+<IndirimliFiyat>540,00</IndirimliFiyat>
+<KDVDahil>true</KDVDahil>
+<KdvOrani>10</KdvOrani>
+<ParaBirimi>TL</ParaBirimi>
+<ParaBirimiKodu>TRY</ParaBirimiKodu>
+<Desi>1</Desi>
+<EkSecenekOzellik>
+<Ozellik Tanim="Beden" Deger="L">L</Ozellik>
+</EkSecenekOzellik>
+</Secenek>
+<Secenek>
+<VaryasyonID>55</VaryasyonID>
+<StokKodu>Basicgri1</StokKodu>
+<Barkod>Basicgri1</Barkod>
+<StokAdedi>2</StokAdedi>
+<AlisFiyati>0,00</AlisFiyati>
+<SatisFiyati>600,00</SatisFiyati>
+<IndirimliFiyat>540,00</IndirimliFiyat>
+<KDVDahil>true</KDVDahil>
+<KdvOrani>10</KdvOrani>
+<ParaBirimi>TL</ParaBirimi>
+<ParaBirimiKodu>TRY</ParaBirimiKodu>
+<Desi>1</Desi>
+<EkSecenekOzellik>
+<Ozellik Tanim="Beden" Deger="XL">XL</Ozellik>
+</EkSecenekOzellik>
+</Secenek>
+<Secenek>
+<VaryasyonID>694</VaryasyonID>
+<StokKodu>Basicgri1</StokKodu>
+<Barkod>Basicgri1</Barkod>
+<StokAdedi>3</StokAdedi>
+<AlisFiyati>0,00</AlisFiyati>
+<SatisFiyati>600,00</SatisFiyati>
+<IndirimliFiyat>540,00</IndirimliFiyat>
+<KDVDahil>true</KDVDahil>
+<KdvOrani>10</KdvOrani>
+<ParaBirimi>TL</ParaBirimi>
+<ParaBirimiKodu>TRY</ParaBirimiKodu>
+<Desi>1</Desi>
+<EkSecenekOzellik>
+<Ozellik Tanim="Beden" Deger="XS">XS</Ozellik>
+</EkSecenekOzellik>
+</Secenek>
+<Secenek>
+<VaryasyonID>695</VaryasyonID>
+<StokKodu>Basicgri1</StokKodu>
+<Barkod>Basicgri1</Barkod>
+<StokAdedi>3</StokAdedi>
+<AlisFiyati>0,00</AlisFiyati>
+<SatisFiyati>600,00</SatisFiyati>
+<IndirimliFiyat>540,00</IndirimliFiyat>
+<KDVDahil>true</KDVDahil>
+<KdvOrani>10</KdvOrani>
+<ParaBirimi>TL</ParaBirimi>
+<ParaBirimiKodu>TRY</ParaBirimiKodu>
+<Desi>1</Desi>
+<EkSecenekOzellik>
+<Ozellik Tanim="Beden" Deger="XXL">XXL</Ozellik>
+</EkSecenekOzellik>
+</Secenek>
+<Secenek>
+<VaryasyonID>696</VaryasyonID>
+<StokKodu>Basicgri1</StokKodu>
+<Barkod>Basicgri1</Barkod>
+<StokAdedi>3</StokAdedi>
+<AlisFiyati>0,00</AlisFiyati>
+<SatisFiyati>600,00</SatisFiyati>
+<IndirimliFiyat>540,00</IndirimliFiyat>
+<KDVDahil>true</KDVDahil>
+<KdvOrani>10</KdvOrani>
+<ParaBirimi>TL</ParaBirimi>
+<ParaBirimiKodu>TRY</ParaBirimiKodu>
+<Desi>1</Desi>
+<EkSecenekOzellik>
+<Ozellik Tanim="Beden" Deger="XXXL">XXXL</Ozellik>
+</EkSecenekOzellik>
+</Secenek>
+</UrunSecenek>
+<TeknikDetaylar/>
+</Urun>
+<Urun>
+<UrunKartiID>232</UrunKartiID>
+<UrunAdi>Edc Ekonomik model Ergonomik Hafif Özel Tasarım Bıçak</UrunAdi>
+<OnYazi>
+<![CDATA[ ]]>
+</OnYazi>
+<Aciklama>
+<![CDATA[ <p data-end="134" data-start="56"><strong data-end="134" data-start="56">EDC Ekonomik Model Bıçak – Hafif, Ergonomik ve Paslanmaz Çelik Özel Üretim</strong></p> <p data-end="428" data-start="136">EDC (Everyday Carry) kategorisinde yer alan <strong data-end="204" data-start="180">Ekonomik Model Bıçak</strong>, günlük kullanım için özel olarak tasarlanmıştır. <strong data-end="274" data-start="255">Paslanmaz çelik</strong> gövdesi, yüksek dayanıklılık sunarken uzun ömürlü kullanım imkânı sağlar. <strong data-end="364" data-start="349">Özel üretim</strong> olan bu model, hem işlevselliği hem de şıklığı bir arada sunar.</p> <p data-end="668" data-start="430"><strong data-end="461" data-start="430">Hafif ve ergonomik tasarımı</strong>, elinizde mükemmel denge ve kavrama sağlar. Kamp, doğa yürüyüşleri, avcılık veya günlük taşıma için ideal bir seçimdir. Kompakt yapısıyla cebinizde, çantanızda ya da kemerinizde rahatlıkla taşıyabilirsiniz.</p> <p data-end="831" data-start="670">Bu <strong data-end="686" data-start="673">EDC bıçak</strong>, sağlam yapısı, modern tasarımı ve ekonomik fiyatıyla hem profesyonellerin hem de hobi amaçlı kullanıcıların beklentilerini fazlasıyla karşılar.</p> ]]>
+</Aciklama>
+<Marka>Huğlu Outdoor</Marka>
+<SatisBirimi>ADET</SatisBirimi>
+<KategoriID>64</KategoriID>
+<Kategori>Bıçaklar ve Bıçak Aksesuarları</Kategori>
+<KategoriTree>Kamp Ürünleri/Bıçaklar ve Bıçak Aksesuarları</KategoriTree>
+<UrunUrl>https://www.hugluoutdoor.com/edc-ekonomik-model-ergonomik-hafif-ozel-tasarim-bicak</UrunUrl>
+<Resimler>
+<Resim>https://static.ticimax.cloud/52071/Uploads/UrunResimleri/buyuk/t.01.--422c-9946.jpg</Resim>
+<Resim>https://static.ticimax.cloud/52071/Uploads/UrunResimleri/buyuk/t.01.-c79eaae253.jpg</Resim>
+</Resimler>
+<UrunSecenek>
+<Secenek>
+<VaryasyonID>1163</VaryasyonID>
+<StokKodu>T.01.1842</StokKodu>
+<Barkod/>
+<StokAdedi>1</StokAdedi>
+<AlisFiyati>0,00</AlisFiyati>
+<SatisFiyati>2450,00</SatisFiyati>
+<IndirimliFiyat>2250,00</IndirimliFiyat>
+<KDVDahil>true</KDVDahil>
+<KdvOrani>20</KdvOrani>
+<ParaBirimi>TL</ParaBirimi>
+<ParaBirimiKodu>TRY</ParaBirimiKodu>
+<Desi>1</Desi>
+<EkSecenekOzellik/>
+</Secenek>
+</UrunSecenek>
+<TeknikDetaylar/>
+</Urun>
+</Urunler>
+</Root>`;
+
+      const parser = new xml2js.Parser({
+        explicitArray: false,
+        ignoreAttrs: true,
+        trim: true
+      });
+
+      const result = await parser.parseStringPromise(sampleXml);
+      console.log('✅ Sample XML parsed successfully');
+      
+      const source = this.getXmlSources()[0];
+      const products = this.parseXmlToProducts(result, source);
+      
+      console.log(`📦 Parsed ${products.length} products from sample XML`);
+      
+      if (products.length > 0) {
+        const product = products[0];
+        console.log('🔍 Sample product details:');
+        console.log(`   Name: ${product.name}`);
+        console.log(`   Price: ${product.price}`);
+        console.log(`   Stock: ${product.stock}`);
+        console.log(`   Has Variations: ${product.hasVariations}`);
+        console.log(`   Variations Count: ${product.variations}`);
+        console.log(`   Images Count: ${product.totalImages}`);
+        
+        if (product.variationDetails) {
+          const details = JSON.parse(product.variationDetails);
+          console.log(`   Variation Details: ${details.length} variations`);
+          details.forEach((variation, index) => {
+            console.log(`     Variation ${index + 1}:`);
+            console.log(`       Attributes: ${JSON.stringify(variation.attributes)}`);
+            console.log(`       Stock: ${variation.stok}`);
+            console.log(`       Price: ${variation.fiyat}`);
+            console.log(`       SKU: ${variation.stokKodu}`);
+            console.log(`       Barcode: ${variation.barkod}`);
+            console.log(`       KDV Dahil: ${variation.kdvDahil}`);
+            console.log(`       KDV Oranı: ${variation.kdvOrani}%`);
+          });
+        }
+      }
+      
+      return products;
+    } catch (error) {
+      console.error('❌ Error testing XML parsing:', error.message);
+      throw error;
+    }
   }
 }
 

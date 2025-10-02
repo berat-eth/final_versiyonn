@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../theme/colors';
-import { Spacing, Shadows } from '../theme/theme';
+import { Colors, Gradients } from '../theme/colors';
+import { Spacing, Shadows, BorderRadius } from '../theme/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -29,108 +29,129 @@ const tabIcons: { [key: string]: string } = {
   Custom: 'business',
 };
 
+const tabColors: { [key: string]: string[] } = {
+  Home: Gradients.primary,
+  Products: Gradients.accent,
+  Cart: Gradients.pink,
+  Profile: Gradients.green,
+  Custom: Gradients.secondary,
+};
+
 export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigation }) => {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <View style={styles.tabBar}>
-        {state.routes.map((route: any, index: number) => {
-          const { options } = descriptors[route.key];
-          const label = options.tabBarLabel || options.title || route.name;
-          const isFocused = state.index === index;
-          const iconName = tabIcons[route.name] || 'apps';
-          const activeColor = options.tabBarActiveTintColor || Colors.primary;
-          const inactiveColor = options.tabBarInactiveTintColor || Colors.textLight;
-          const iconNode = typeof options.tabBarIcon === 'function'
-            ? options.tabBarIcon({ color: isFocused ? activeColor : inactiveColor, size: 26 })
-            : (
-                <Icon
-                  name={iconName}
-                  size={26}
-                  color={isFocused ? activeColor : inactiveColor}
-                />
-              );
+      {/* Glassmorphism Background */}
+      <View style={styles.glassBackground}>
+        <View style={styles.tabBar}>
+          {state.routes.map((route: any, index: number) => {
+            const { options } = descriptors[route.key];
+            const label = options.tabBarLabel || options.title || route.name;
+            const isFocused = state.index === index;
+            const iconName = tabIcons[route.name] || 'apps';
+            const activeColor = options.tabBarActiveTintColor || Colors.primary;
+            const inactiveColor = options.tabBarInactiveTintColor || Colors.textLight;
+            const gradientColors = tabColors[route.name] || Gradients.primary;
+            
+            const iconNode = typeof options.tabBarIcon === 'function'
+              ? options.tabBarIcon({ color: isFocused ? activeColor : inactiveColor, size: 26 })
+              : (
+                  <Icon
+                    name={iconName}
+                    size={26}
+                    color={isFocused ? activeColor : inactiveColor}
+                  />
+                );
 
-          // Animations
-          const scale = useRef(new Animated.Value(isFocused ? 1.1 : 1)).current;
-          const opacity = useRef(new Animated.Value(isFocused ? 1 : 0.7)).current;
-          const translateY = useRef(new Animated.Value(isFocused ? -2 : 0)).current;
+            // Simple Animations
+            const opacity = useRef(new Animated.Value(isFocused ? 1 : 0.6)).current;
+            const translateY = useRef(new Animated.Value(0)).current;
 
-          useEffect(() => {
-            Animated.parallel([
-              Animated.spring(scale, { toValue: isFocused ? 1.12 : 1, useNativeDriver: true, friction: 6, tension: 120 }),
-              Animated.timing(opacity, { toValue: isFocused ? 1 : 0.7, duration: 180, useNativeDriver: true }),
-              Animated.spring(translateY, { toValue: isFocused ? -3 : 0, useNativeDriver: true, friction: 7, tension: 140 }),
-            ]).start();
-          }, [isFocused]);
+            useEffect(() => {
+              Animated.timing(opacity, { 
+                toValue: isFocused ? 1 : 0.6, 
+                duration: 150, 
+                useNativeDriver: true 
+              }).start();
+            }, [isFocused]);
 
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
+            const onPress = () => {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
 
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
+              if (!isFocused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            };
 
-          const onLongPress = () => {
-            navigation.emit({
-              type: 'tabLongPress',
-              target: route.key,
-            });
-          };
+            const onLongPress = () => {
+              navigation.emit({
+                type: 'tabLongPress',
+                target: route.key,
+              });
+            };
 
-          // Badge value from screen options (supports number or string)
-          const badgeValue = options.tabBarBadge;
+            // Badge value from screen options (supports number or string)
+            const badgeValue = options.tabBarBadge;
 
-          return (
-            <TouchableOpacity
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel}
-              testID={options.tabBarTestID}
-              onPress={onPress}
-              onLongPress={onLongPress}
-              style={styles.tabItem}
-            >
-              <Animated.View
-                style={[
-                  styles.tabContent,
-                  {
-                    transform: [{ translateY }],
-                    backgroundColor: isFocused ? 'rgba(14,165,233,0.12)' : 'transparent',
-                    paddingHorizontal: isFocused ? 10 : 6,
-                    paddingVertical: isFocused ? 6 : 4,
-                    borderRadius: 14,
-                  },
-                ]}
+            return (
+              <TouchableOpacity
+                key={route.key}
+                accessibilityRole="button"
+                accessibilityState={isFocused ? { selected: true } : {}}
+                accessibilityLabel={options.tabBarAccessibilityLabel}
+                testID={options.tabBarTestID}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                style={styles.tabItem}
+                activeOpacity={0.7}
               >
-                <Animated.View style={[styles.iconContainer, { transform: [{ scale }], opacity }]}>
-                  {React.cloneElement(iconNode as any, { size: 28 })}
-                  {badgeValue != null && badgeValue !== 0 && (
-                    <View style={[styles.badge, options.tabBarBadgeStyle]}> 
-                      <Text style={styles.badgeText}>{String(badgeValue)}</Text>
-                    </View>
-                  )}
-                </Animated.View>
-                <Animated.Text
+                <Animated.View 
                   style={[
-                    styles.tabLabel,
-                    { color: isFocused ? activeColor : inactiveColor, opacity },
+                    styles.tabContent,
+                    { transform: [{ translateY }] }
                   ]}
                 >
-                  {label}
-                </Animated.Text>
-                {isFocused && <View style={styles.activeIndicator} />}
-              </Animated.View>
-            </TouchableOpacity>
-          );
-        })}
+                  {/* Simple Active Background */}
+                  {isFocused && (
+                    <View style={styles.activeBackground} />
+                  )}
+                  
+                  <Animated.View style={[styles.iconContainer, { opacity }]}>
+                    {React.cloneElement(iconNode as any, { size: 24 })}
+                    {badgeValue != null && badgeValue !== 0 && (
+                      <View style={[styles.badge, options.tabBarBadgeStyle]}> 
+                        <Text style={styles.badgeText}>{String(badgeValue)}</Text>
+                      </View>
+                    )}
+                  </Animated.View>
+                  
+                  <Animated.Text
+                    style={[
+                      styles.tabLabel,
+                      { 
+                        color: isFocused ? activeColor : inactiveColor, 
+                        opacity,
+                        fontWeight: isFocused ? '600' : '400'
+                      },
+                    ]}
+                  >
+                    {label}
+                  </Animated.Text>
+                  
+                  {/* Simple Active Indicator */}
+                  {isFocused && (
+                    <View style={styles.activeIndicator} />
+                  )}
+                </Animated.View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -138,58 +159,83 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.background,
+    backgroundColor: 'transparent',
+  },
+  glassBackground: {
+    backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    ...Shadows.medium,
   },
   tabBar: {
     flexDirection: 'row',
-    height: 64,
+    height: 60,
     paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xs,
   },
   tabItem: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: Spacing.xs,
   },
   tabContent: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.medium,
+    minWidth: 50,
+    minHeight: 40,
+  },
+  activeBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.small,
   },
   iconContainer: {
     position: 'relative',
-    marginBottom: 4,
+    marginBottom: 1,
+    zIndex: 2,
   },
   tabLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '500',
+    textAlign: 'center',
+    zIndex: 2,
+    letterSpacing: 0.1,
   },
   activeIndicator: {
     position: 'absolute',
-    bottom: -8,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    bottom: -1,
+    left: '50%',
+    marginLeft: -12,
+    width: 24,
+    height: 2,
     backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.small,
   },
   badge: {
     position: 'absolute',
     top: -4,
-    right: -8,
-    backgroundColor: Colors.secondary,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    right: -6,
+    backgroundColor: Colors.red,
+    borderRadius: BorderRadius.round,
+    minWidth: 16,
+    height: 16,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
   },
   badgeText: {
-    fontSize: 10,
+    fontSize: 9,
     color: Colors.textOnPrimary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
 

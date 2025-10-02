@@ -301,6 +301,16 @@ async function createDatabaseSchema(pool) {
         priceModifier DECIMAL(10,2) DEFAULT 0.00,
         stock INT DEFAULT 0,
         sku VARCHAR(100),
+        barkod VARCHAR(100),
+        alisFiyati DECIMAL(10,2) DEFAULT 0.00,
+        satisFiyati DECIMAL(10,2) DEFAULT 0.00,
+        indirimliFiyat DECIMAL(10,2) DEFAULT 0.00,
+        kdvDahil BOOLEAN DEFAULT false,
+        kdvOrani INT DEFAULT 0,
+        paraBirimi VARCHAR(10) DEFAULT 'TL',
+        paraBirimiKodu VARCHAR(10) DEFAULT 'TRY',
+        desi INT DEFAULT 1,
+        externalId VARCHAR(100),
         image VARCHAR(500),
         displayOrder INT DEFAULT 0,
         isActive BOOLEAN DEFAULT true,
@@ -311,11 +321,76 @@ async function createDatabaseSchema(pool) {
         INDEX idx_variation_options (variationId),
         INDEX idx_option_value (value),
         INDEX idx_option_sku (sku),
+        INDEX idx_option_barkod (barkod),
+        INDEX idx_option_external_id (externalId),
         INDEX idx_option_active (isActive),
         UNIQUE KEY unique_variation_option (variationId, value, tenantId)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     console.log('✅ Product variation options table ready');
+
+    // Check if new columns exist in product_variation_options and add them if they don't
+    const [variationOptionColumns] = await pool.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'product_variation_options'
+      AND COLUMN_NAME IN ('barkod', 'alisFiyati', 'satisFiyati', 'indirimliFiyat', 'kdvDahil', 'kdvOrani', 'paraBirimi', 'paraBirimiKodu', 'desi', 'externalId')
+    `);
+    
+    const existingVariationOptionColumns = variationOptionColumns.map(col => col.COLUMN_NAME);
+    
+    if (!existingVariationOptionColumns.includes('barkod')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN barkod VARCHAR(100) AFTER sku');
+      await pool.execute('CREATE INDEX idx_option_barkod ON product_variation_options(barkod)');
+      console.log('✅ Added barkod column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('alisFiyati')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN alisFiyati DECIMAL(10,2) DEFAULT 0.00 AFTER barkod');
+      console.log('✅ Added alisFiyati column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('satisFiyati')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN satisFiyati DECIMAL(10,2) DEFAULT 0.00 AFTER alisFiyati');
+      console.log('✅ Added satisFiyati column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('indirimliFiyat')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN indirimliFiyat DECIMAL(10,2) DEFAULT 0.00 AFTER satisFiyati');
+      console.log('✅ Added indirimliFiyat column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('kdvDahil')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN kdvDahil BOOLEAN DEFAULT false AFTER indirimliFiyat');
+      console.log('✅ Added kdvDahil column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('kdvOrani')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN kdvOrani INT DEFAULT 0 AFTER kdvDahil');
+      console.log('✅ Added kdvOrani column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('paraBirimi')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN paraBirimi VARCHAR(10) DEFAULT "TL" AFTER kdvOrani');
+      console.log('✅ Added paraBirimi column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('paraBirimiKodu')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN paraBirimiKodu VARCHAR(10) DEFAULT "TRY" AFTER paraBirimi');
+      console.log('✅ Added paraBirimiKodu column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('desi')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN desi INT DEFAULT 1 AFTER paraBirimiKodu');
+      console.log('✅ Added desi column to product_variation_options table');
+    }
+    
+    if (!existingVariationOptionColumns.includes('externalId')) {
+      await pool.execute('ALTER TABLE product_variation_options ADD COLUMN externalId VARCHAR(100) AFTER desi');
+      await pool.execute('CREATE INDEX idx_option_external_id ON product_variation_options(externalId)');
+      console.log('✅ Added externalId column to product_variation_options table');
+    }
 
     // Cart table
     await pool.execute(`
