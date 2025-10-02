@@ -638,7 +638,7 @@ class XmlSyncService {
 
         const dedupedOptions = Array.from(mergedByValue.values());
 
-        // Varyasyon seçeneklerini kaydet (tekilleştirilmiş)
+        // Varyasyon seçeneklerini kaydet (tekilleştirilmiş) - upsert ile güvenli
         for (let i = 0; i < dedupedOptions.length; i++) {
           const option = dedupedOptions[i];
           await this.pool.execute(
@@ -646,7 +646,23 @@ class XmlSyncService {
              (tenantId, variationId, value, priceModifier, stock, sku, barkod, alisFiyati, satisFiyati, 
               indirimliFiyat, kdvDahil, kdvOrani, paraBirimi, paraBirimiKodu, desi, externalId, 
               displayOrder, isActive, createdAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE 
+               priceModifier = VALUES(priceModifier),
+               stock = VALUES(stock),
+               sku = VALUES(sku),
+               barkod = VALUES(barkod),
+               alisFiyati = VALUES(alisFiyati),
+               satisFiyati = VALUES(satisFiyati),
+               indirimliFiyat = VALUES(indirimliFiyat),
+               kdvDahil = VALUES(kdvDahil),
+               kdvOrani = VALUES(kdvOrani),
+               paraBirimi = VALUES(paraBirimi),
+               paraBirimiKodu = VALUES(paraBirimiKodu),
+               desi = VALUES(desi),
+               externalId = VALUES(externalId),
+               displayOrder = VALUES(displayOrder),
+               isActive = VALUES(isActive)`,
             [
               tenantId,
               variationId,
