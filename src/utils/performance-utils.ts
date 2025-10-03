@@ -45,21 +45,39 @@ export class PerformanceUtils {
 // Network status monitoring
 export class NetworkMonitor {
   private static isOnline = true;
+  private static connectionType: 'wifi' | 'cellular' | 'unknown' = 'unknown';
   private static listeners: ((isOnline: boolean) => void)[] = [];
 
   static init(): void {
-    // Monitor network status changes (React Native compatible)
-    // React Native'de NetInfo kullanılabilir
-    console.log('🌐 Network monitoring initialized (NetInfo recommended)');
-  }
-
-  static setOnlineStatus(status: boolean): void {
-    this.isOnline = status;
-    this.listeners.forEach(listener => listener(status));
+    try {
+      // Lazy import to avoid bundle warnings if not installed
+      const NetInfo = require('@react-native-community/netinfo').default;
+      NetInfo.addEventListener((state: any) => {
+        this.isOnline = !!state.isConnected;
+        const type = (state.type || '').toLowerCase();
+        if (type === 'wifi') this.connectionType = 'wifi';
+        else if (type === 'cellular') this.connectionType = 'cellular';
+        else this.connectionType = 'unknown';
+        this.listeners.forEach(listener => listener(this.isOnline));
+      });
+      NetInfo.fetch().then((state: any) => {
+        this.isOnline = !!state.isConnected;
+        const type = (state.type || '').toLowerCase();
+        if (type === 'wifi') this.connectionType = 'wifi';
+        else if (type === 'cellular') this.connectionType = 'cellular';
+        else this.connectionType = 'unknown';
+      });
+    } catch {
+      console.log('🌐 NetInfo not available, network type unknown');
+    }
   }
 
   static getOnlineStatus(): boolean {
     return this.isOnline;
+  }
+
+  static getConnectionType(): 'wifi' | 'cellular' | 'unknown' {
+    return this.connectionType;
   }
 
   static addListener(listener: (isOnline: boolean) => void): void {

@@ -28,6 +28,7 @@ import { ModernButton } from '../components/ui/ModernButton';
 import { SocialShareButtons } from '../components/SocialShareButtons';
 import { ImageGallery } from '../components/ImageGallery';
 import * as FileSystem from 'expo-file-system';
+import { NetworkMonitor } from '../utils/performance-utils';
 
 interface ProductDetailScreenProps {
   navigation: any;
@@ -109,24 +110,27 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       // Loading'i hemen kapat - UI'ı bloklamasın
       setLoading(false);
       
-      // Yorumları arka planda yükle
+      // Yorumları arka planda sadece bu ürün için yükle
       loadReviews().catch(() => {});
 
-      // Görselleri arka planda önbelleğe indir (fire-and-forget)
+      // Görselleri arka planda önbelleğe indir (ağ tipine göre kalite/boyut seç)
       setTimeout(() => {
         try {
-          const images = (prod?.images || []).slice(0, 3); // Sadece ilk 3 görsel
+          const isWifi = NetworkMonitor.getConnectionType() === 'wifi';
+          const images = (prod?.images || []).slice(0, 3);
           // Eşzamanlı indirme sayısını düşür
           const downloadPromises = images.map(async (uri: string, index: number) => {
             if (!uri) return;
+            // Basit kalite değişimi: Wi‑Fi değilse medium varyantı iste
+            const optimized = optimizeImageUrl(uri, isWifi ? 'large' : 'medium');
             // Staggered download - her 200ms'de bir başlat
             await new Promise(resolve => setTimeout(resolve, index * 200));
-            const filename = encodeURIComponent(uri.split('/').pop() || `img_${Date.now()}.jpg`);
+            const filename = encodeURIComponent((optimized || uri).split('/').pop() || `img_${Date.now()}.jpg`);
             const local = `${FileSystem.cacheDirectory}${filename}`;
             try {
               const info = await FileSystem.getInfoAsync(local);
               if (!info.exists) {
-                await FileSystem.downloadAsync(uri, local, { cache: true });
+                await FileSystem.downloadAsync(optimized || uri, local, { cache: true });
               }
             } catch {}
           });
@@ -416,6 +420,18 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   };
 
   const galleryImages = gatherGalleryImages();
+
+  // Basit URL optimizasyonu: ticimax cloud için "buyuk" → "orta"/"kucuk" varyantı dene
+  function optimizeImageUrl(url: string, quality: 'large' | 'medium' = 'large'): string | null {
+    try {
+      if (!url) return null;
+      if (quality === 'large') return url;
+      // Heuristik: /UrunResimleri/buyuk/ → medium için /orta/, düşük için /kucuk/
+      const medium = url.replace(/\/UrunResimleri\/buyuk\//i, '/UrunResimleri/orta/');
+      if (medium !== url) return medium;
+      return url;
+    } catch { return null; }
+  }
 
   return (
     <SafeAreaView style={styles.container}>
