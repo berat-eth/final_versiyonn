@@ -3,7 +3,6 @@ import { LogBox } from 'react-native';
 import './src/utils/console-config';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Alert, Linking, Text, TouchableOpacity, ActivityIndicator, Image, View } from 'react-native';
-import ThreeBackground from './src/components/ThreeBackground';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import apiService from './src/utils/api-service';
 import { AppProvider } from './src/contexts/AppContext';
@@ -18,6 +17,9 @@ import UpdateService from './src/services/UpdateService';
 // Bildirim sistemi kaldırıldı
 import { setApiKey as persistApiKey } from './src/services/AuthKeyStore';
 import { installGlobalErrorMonitor, ErrorBoundaryLogger } from './src/utils/error-monitor';
+import { ProductController } from './src/controllers/ProductController';
+import { CampaignController } from './src/controllers/CampaignController';
+import { UserController } from './src/controllers/UserController';
 
 // TurboModule uyarılarını gizle
 LogBox.ignoreLogs([
@@ -161,6 +163,25 @@ export default function App() {
         // Test backend connection'ı arka planda çalıştır (UI'yı bloklama)
         apiService.testConnection().catch(() => {});
 
+        // Splash ekrandayken veri ön-yüklemeyi paralel başlat (bloklamadan)
+        (async () => {
+          try {
+            const isLoggedIn = await UserController.isLoggedIn().catch(() => false);
+            const userId = isLoggedIn ? await UserController.getCurrentUserId().catch(() => null) : null;
+            await Promise.allSettled([
+              // Ürünler ve kategoriler önbelleğe alınır
+              ProductController.getAllProducts(1, 1000),
+              ProductController.getAllCategories(),
+              // Kampanyalar
+              CampaignController.getCampaigns(),
+              // Kullanıcıya özel içerikler (varsa)
+              ...(isLoggedIn && userId ? [
+                CampaignController.getAvailableCampaigns(userId)
+              ] : []),
+            ]);
+          } catch {}
+        })();
+
         // Ntfy bildirim dinleyicisi kaldırıldı
 
         // Açılış health zaten yapıldı
@@ -265,7 +286,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', padding: 24 }} edges={['top', 'bottom']}>
-          <ThreeBackground intensity={0.6} preset="warning" />
+          {/* ThreeJS arka plan kaldırıldı */}
 
           <View style={{ width: '92%', maxWidth: 480, backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 12, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6 }}>
             <View style={{ alignItems: 'center' }}>
@@ -310,7 +331,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }} edges={['top', 'bottom']}>
-          <ThreeBackground intensity={0.5} preset="warning" />
+          {/* ThreeJS arka plan kaldırıldı */}
           <Image source={require('./assets/logo-removebg-preview.png')} style={{ width: 240, height: 240, marginBottom: 16, resizeMode: 'contain' }} />
           <ActivityIndicator size="small" color="#000" />
         </SafeAreaView>

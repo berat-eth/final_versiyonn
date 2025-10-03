@@ -148,7 +148,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       const [productsResult, allCategories] = await Promise.all([
         selectedCategory 
           ? ProductController.getProductsByCategory(selectedCategory)
-          : ProductController.getAllProducts(1, 1000), // Tüm ürünleri tek seferde yükle
+          : ProductController.getAllProducts(page, 40),
         ProductController.getAllCategories(),
       ]);
       
@@ -160,14 +160,14 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         setTotalProducts(allProducts.length);
         setHasMore(false);
       } else {
-        // For all products - load everything at once
-        const { products: allProducts, total } = productsResult as any;
-        const productsArray = Array.isArray(allProducts) ? allProducts : [];
-        
-        setProducts(productsArray);
-        setFilteredProducts(productsArray);
-        setTotalProducts(total || productsArray.length);
-        setHasMore(false); // Tüm ürünler yüklendi, daha fazla yok
+        // Sayfalı yükle
+        const { products: pageItems, total, hasMore: more } = productsResult as any;
+        const pageArray = Array.isArray(pageItems) ? pageItems : [];
+        const next = append ? [...products, ...pageArray] : pageArray;
+        setProducts(next);
+        setFilteredProducts(next);
+        setTotalProducts(total || next.length);
+        setHasMore(Boolean(more));
       }
       
       setCategories(Array.isArray(allCategories) ? allCategories : []);

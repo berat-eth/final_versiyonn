@@ -197,9 +197,9 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      // Load all products for better variety and multi-image support
+      // Daha hafif başlangıç: az sayıda ürün çek
       const [allProductsResponse, cats] = await Promise.all([
-        ProductController.getAllProducts(1, 1000), // Load more products for better variety
+        ProductController.getAllProducts(1, 60),
         ProductController.getAllCategories(),
       ]);
 
@@ -284,7 +284,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
 
   const refreshPopularProducts = useCallback(async () => {
     try {
-      const allProductsResponse = await ProductController.getAllProducts(1, 1000); // Tüm ürünleri al
+      const allProductsResponse = await ProductController.getAllProducts(1, 60);
       const allProducts = allProductsResponse?.products || [];
       if (allProducts && allProducts.length > 0) {
         // Yeni ürünlerle çakışmayacak şekilde random ürünler seç
