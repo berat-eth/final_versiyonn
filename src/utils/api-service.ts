@@ -668,16 +668,17 @@ class ApiService {
   async getProductsByCategory(category: string): Promise<ApiResponse<any[]>> {
     const cacheKey = this.getCacheKey(`/products/category/${category}`);
     const cached = await this.getFromCache<ApiResponse<any[]>>(cacheKey);
-    
-    if (cached) {
-      return cached;
+    if (cached) return cached;
+    const result = await this.request<any>(`/products/category/${encodeURIComponent(category)}`);
+    // Normalize server response which may be { data: [...] } or { data: { products: [...] } }
+    if (result && (result as any).success) {
+      const arr = Array.isArray((result as any).data)
+        ? (result as any).data
+        : ((result as any).data?.products || []);
+      (result as any).data = arr;
+      await this.setCache(cacheKey, result as any, (result as any).isOffline);
     }
-
-    const result = await this.request<any[]>(`/products/category/${encodeURIComponent(category)}`);
-    if (result.success) {
-      await this.setCache(cacheKey, result, result.isOffline);
-    }
-    return result;
+    return result as any;
   }
 
   async searchProducts(query: string): Promise<ApiResponse<any[]>> {

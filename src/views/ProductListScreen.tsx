@@ -76,26 +76,25 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   const [nowTs, setNowTs] = useState<number>(Date.now());
   const nowIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showFlashDeals, setShowFlashDeals] = useState(false);
+  const [showHeaderSection, setShowHeaderSection] = useState(true);
   // Pagination state
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalProducts, setTotalProducts] = useState(0);
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 40;
 
   const searchInputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      await Promise.all([
-        loadData(),
-        loadFavorites(),
-        loadCampaigns(),
-      ]);
-      if (mounted && !nowIntervalRef.current) {
-        nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
-      }
-    })();
+    // Başlangıçta işlemleri paralel başlat, render'ı bekletme
+    loadData();
+    loadFavorites();
+    loadCampaigns();
+    if (mounted && !nowIntervalRef.current) {
+      nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
+    }
 
     const unsubscribeFocus = navigation.addListener('focus', () => {
       if (!nowIntervalRef.current) {
@@ -145,14 +144,15 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         setLoadingMore(true);
       }
       
+      const effectiveCategory = selectedCategory && selectedCategory !== 'Tümü' ? selectedCategory : null;
       const [productsResult, allCategories] = await Promise.all([
-        selectedCategory 
-          ? ProductController.getProductsByCategory(selectedCategory)
-          : ProductController.getAllProducts(page, 40),
+        effectiveCategory 
+          ? ProductController.getProductsByCategory(effectiveCategory)
+          : ProductController.getAllProducts(page, ITEMS_PER_PAGE),
         ProductController.getAllCategories(),
       ]);
       
-      if (selectedCategory) {
+      if (effectiveCategory) {
         // For category products, use legacy method
         const allProducts = Array.isArray(productsResult) ? productsResult : [];
         setProducts(allProducts);
@@ -259,9 +259,16 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   };
 
   const loadMore = async () => {
+    // Sonsuz kaydırma kaldırıldı: artık kullanılmıyor
+    return;
+  };
+
+  const goToPage = async (pageNum: number) => {
+    if (pageNum < 1) return;
     if (selectedCategory) return; // kategori modunda sayfalama yok
-    if (loadingMore || !hasMore) return;
-    await loadData(currentPageNum + 1, true);
+    setCurrentPageNum(pageNum);
+    await loadData(pageNum, false);
+    try { listRef.current?.scrollToOffset({ offset: 0, animated: true }); } catch {}
   };
 
 
@@ -516,27 +523,33 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
 
   const renderFooter = () => {
     if (selectedCategory) return null;
-    
-    if (loadingMore) {
-      return (
-        <View style={styles.footerLoading}>
-          <LoadingIndicator />
-          <Text style={styles.footerLoadingText}>Daha fazla ürün yükleniyor...</Text>
-        </View>
-      );
-    }
-    
-    if (products.length > 0) {
-      return (
-        <View style={styles.footerEnd}>
-          <Text style={styles.footerEndText}>
-            Tüm {totalProducts} ürün yüklendi
-          </Text>
-        </View>
-      );
-    }
-    
-    return null;
+    if (totalProducts <= 0) return null;
+
+    const totalPages = Math.max(1, Math.ceil(totalProducts / ITEMS_PER_PAGE));
+    const canPrev = currentPageNum > 1;
+    const canNext = currentPageNum < totalPages && hasMore;
+
+    return (
+      <View style={styles.paginationWrap}>
+        <TouchableOpacity
+          style={[styles.pageButton, !canPrev && styles.pageButtonDisabled]}
+          disabled={!canPrev}
+          onPress={() => goToPage(currentPageNum - 1)}
+        >
+          <Text style={styles.pageButtonText}>{'<'} Önceki</Text>
+        </TouchableOpacity>
+        <Text style={styles.pageInfo}>
+          Sayfa {currentPageNum} / {totalPages}
+        </Text>
+        <TouchableOpacity
+          style={[styles.pageButton, !canNext && styles.pageButtonDisabled]}
+          disabled={!canNext}
+          onPress={() => goToPage(currentPageNum + 1)}
+        >
+          <Text style={styles.pageButtonText}>Sonraki {'>'}</Text>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   if (loading) {
@@ -555,25 +568,41 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         hasActiveFilters={hasActiveFilters}
       />
       
-      <CategoriesSection
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onCategorySelect={handleCategorySelect}
-        onAllCategoriesPress={handleAllCategoriesPress}
-        showFlashDeals={showFlashDeals}
-        onFlashToggle={handleFlashToggle}
-        getCategoryIcon={getCategoryIcon}
-      />
-      
-      <ProductListControls
-        filteredCount={showFlashDeals ? getFlashDealProducts().length : filteredProducts.length}
-        totalCount={totalProducts}
-        showFlashDeals={showFlashDeals}
-        sortBy={sortBy}
-        viewMode={viewMode}
-        onSortPress={handleSortPress}
-        onViewModeChange={handleViewModeChange}
-      />
+      {/* Kategori & Kontroller - Kapanıp açılabilir */}
+      <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text }}>Kategoriler</Text>
+          <TouchableOpacity
+            onPress={() => setShowHeaderSection(v => !v)}
+            style={{ paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }}
+          >
+            <Text style={{ color: Colors.text }}>{showHeaderSection ? 'Kapat' : 'Aç'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {showHeaderSection && (
+        <>
+          <CategoriesSection
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onCategorySelect={handleCategorySelect}
+            onAllCategoriesPress={handleAllCategoriesPress}
+            showFlashDeals={showFlashDeals}
+            onFlashToggle={handleFlashToggle}
+            getCategoryIcon={getCategoryIcon}
+          />
+          <ProductListControls
+            filteredCount={showFlashDeals ? getFlashDealProducts().length : filteredProducts.length}
+            totalCount={totalProducts}
+            showFlashDeals={showFlashDeals}
+            sortBy={sortBy}
+            viewMode={viewMode}
+            onSortPress={handleSortPress}
+            onViewModeChange={handleViewModeChange}
+          />
+        </>
+      )}
       
       {showFlashDeals && (() => {
         const flashData = getFlashHeaderData();
@@ -585,6 +614,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         );
       })()}
       <FlatList
+        ref={listRef}
         data={showFlashDeals ? getFlashDealProducts() : filteredProducts}
         renderItem={renderProduct}
         keyExtractor={(item, index) => `${item.id}-${index}`}
@@ -610,24 +640,21 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             <Text style={styles.emptyStateText}>Kısa süre sonra tekrar kontrol edin</Text>
           </View>
         ) : renderEmptyState}
-        ListFooterComponent={renderFooter}
+        ListFooterComponent={!showFlashDeals ? renderFooter : null}
         removeClippedSubviews={true}
         maxToRenderPerBatch={20}
         updateCellsBatchingPeriod={100}
         initialNumToRender={50}
         windowSize={15}
-        onEndReachedThreshold={0.5}
-        onEndReached={() => {
-          if (!showFlashDeals) {
-            loadMore();
-          }
-        }}
+        // Sonsuz kaydırma devre dışı (numaralı sayfalama kullanılıyor)
         getItemLayout={viewMode === 'grid' ? undefined : (data, index) => ({
           length: 120,
           offset: 120 * index,
           index,
         })}
       />
+
+      {/* Sayfa altına kayan sayfalama: ListFooterComponent kullanılıyor */}
 
       {filterModalVisible && (
         <FilterModal
@@ -890,6 +917,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textMuted,
     fontStyle: 'italic',
+  },
+  paginationWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xl,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.small,
+  },
+  pageButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pageButtonDisabled: {
+    opacity: 0.5,
+  },
+  pageButtonText: {
+    fontSize: 14,
+    color: Colors.text,
+    fontWeight: '700',
+  },
+  pageInfo: {
+    fontSize: 15,
+    color: Colors.text,
+    fontWeight: '700',
   },
   toggleButton: {
     flexDirection: 'row',

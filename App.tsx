@@ -7,19 +7,11 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import apiService from './src/utils/api-service';
 import { AppProvider } from './src/contexts/AppContext';
 import { BackendErrorProvider } from './src/services/BackendErrorService';
-import { initializeNetworkConfig } from './src/utils/network-config';
-import { IP_SERVER_CANDIDATES } from './src/utils/api-config';
-import { findBestServerForApk } from './src/utils/apk-config';
-import NfcCardService from './src/services/NfcCardService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiBaseUrl, DEFAULT_TENANT_API_KEY, DEFAULT_TENANT_ID } from './src/utils/api-config';
-import UpdateService from './src/services/UpdateService';
 // Bildirim sistemi kaldırıldı
 import { setApiKey as persistApiKey } from './src/services/AuthKeyStore';
 import { installGlobalErrorMonitor, ErrorBoundaryLogger } from './src/utils/error-monitor';
-import { ProductController } from './src/controllers/ProductController';
-import { CampaignController } from './src/controllers/CampaignController';
-import { UserController } from './src/controllers/UserController';
 
 // TurboModule uyarılarını gizle
 LogBox.ignoreLogs([
@@ -43,10 +35,7 @@ export default function App() {
     // Network'ü başlangıçta initialize et (SQLite kaldırıldı)
     const setupApp = async () => {
       try {
-        // OTA updates: yalnızca prod'da çalışsın
-        if (!__DEV__) {
-          UpdateService.checkOnLaunch().catch(() => {});
-        }
+        // OTA updates kaldırıldı
         // API anahtarını runtime'a erken set et (env üzerinden)
         try {
           if (DEFAULT_TENANT_API_KEY) {
@@ -90,118 +79,15 @@ export default function App() {
 
         // Bildirim sistemi kaldırıldı
 
-        // NFC: önce destek kontrolü, sonra init (destek yoksa sessizce geç)
-        try {
-          const supported = await NfcCardService.isSupported();
-          if (supported) {
-            await NfcCardService.init();
-            NfcCardService.ensureEnabledWithPrompt().catch(() => {});
-          }
-        } catch {}
+        // NFC init kaldırıldı
 
-        // Production-ready API detection
-        const quickTestOnce = async (): Promise<string | null> => {
-          // For APK builds, use specialized server detection
-          if (!__DEV__) {
-            try {
-              const bestServer = await findBestServerForApk();
-              return bestServer;
-            } catch (error) {
-              console.error('❌ APK: Server detection failed:', error);
-              // Fallback to domain-based detection
-            }
-          }
-          
-          const candidates: string[] = ['https://api.zerodaysoftware.tr/api'];
-          
-          // Add IP candidates for both development and production
-          if (IP_SERVER_CANDIDATES) {
-            IP_SERVER_CANDIDATES.forEach(ip => {
-              candidates.push(`https://${ip}/api`);
-            });
-          }
-
-          const tests = candidates.map(async (u) => {
-            try {
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 1500);
-              const resp = await fetch(`${u.replace(/\/$/, '')}/health`, { 
-                method: 'GET', 
-                signal: controller.signal,
-                headers: {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json'
-                }
-              });
-              clearTimeout(timeoutId);
-              return resp.ok ? u : null;
-            } catch {
-              return null;
-            }
-          });
-
-          const results = await Promise.all(tests);
-          const found = results.find(Boolean) as string | undefined;
-          return found || null;
-        };
-
-        let workingUrl: string | null = null;
-        for (let attempt = 0; attempt < 1 && !workingUrl; attempt++) {
-          const found = await quickTestOnce();
-          if (found) {
-            workingUrl = found.includes('/api') ? found : `${found}/api`;
-            apiService.setApiUrl(workingUrl);
-            break;
-          }
-        }
-
-        // Uzak URL bulunamazsa yönlendirme yapma; uygulama yüklenmeye devam etsin
-        
-        // Initialize network configuration with auto-detection
-        await initializeNetworkConfig();
-        
-        // Test backend connection'ı arka planda çalıştır (UI'yı bloklama)
-        apiService.testConnection().catch(() => {});
-
-        // Splash ekrandayken veri ön-yüklemeyi paralel başlat (bloklamadan)
-        (async () => {
-          try {
-            const isLoggedIn = await UserController.isLoggedIn().catch(() => false);
-            const userId = isLoggedIn ? await UserController.getCurrentUserId().catch(() => null) : null;
-            await Promise.allSettled([
-              // Ürünler ve kategoriler önbelleğe alınır
-              ProductController.getAllProducts(1, 1000),
-              ProductController.getAllCategories(),
-              // Kampanyalar
-              CampaignController.getCampaigns(),
-              // Kullanıcıya özel içerikler (varsa)
-              ...(isLoggedIn && userId ? [
-                CampaignController.getAvailableCampaigns(userId)
-              ] : []),
-            ]);
-          } catch {}
-        })();
+        // Ağ/önbellek ağır işlemler kaldırıldı
 
         // Ntfy bildirim dinleyicisi kaldırıldı
 
         // Açılış health zaten yapıldı
 
-        // IP'ye hızlı ping (health) kontrolü - yönlendirme kaldırıldı
-        (async () => {
-          try {
-            const targetIp = (IP_SERVER_CANDIDATES && IP_SERVER_CANDIDATES[0]) || '';
-            if (!targetIp) return;
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 1200);
-            const resp = await fetch(`https://${targetIp}/health`, { method: 'GET', signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (!resp.ok) {
-              throw new Error('unreachable');
-            }
-          } catch {
-            // Sessizce geç: kullanıcı uygulamada kalmalı, otomatik yönlendirme yok
-          }
-        })();
+        // IP ping kaldırıldı
 
         // No periodic retries after redirect requirement
         return () => {};
@@ -236,18 +122,7 @@ export default function App() {
     }
   }, [backendReady]);
 
-  // Açılışta bildirim izni modalını göster (sadece 1 kez)
-  useEffect(() => {
-    (async () => {
-      try {
-        const shown = await AsyncStorage.getItem('notificationsPromptShown');
-        if (!shown) {
-          setShowNotifModal(true);
-        }
-        // Bildirim token alma kaldırıldı
-      } catch {}
-    })();
-  }, []);
+  // Bildirim izin akışı kaldırıldı
 
   // Yönlendirme sayacı ve WebView fallback kaldırıldı
 

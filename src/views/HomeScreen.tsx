@@ -158,8 +158,9 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
 
   useEffect(() => {
     const init = async () => {
-      await loadData();
-      await loadFavorites();
+      // Paralel başlat; render'ı bekletme
+      loadData();
+      loadFavorites();
       restoreCountdownAndStart();
     };
     const cleanupSlider = setupSliderTimer();

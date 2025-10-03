@@ -4052,6 +4052,49 @@ app.get('/api/users/:userId/homepage-products', async (req, res) => {
   }
 });
 
+// Account summary (My Account) - Redis hot cache per user
+app.get('/api/users/:userId/account-summary', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid userId' });
+    }
+    const tenantId = req.tenant?.id;
+    if (!tenantId) return res.status(400).json({ success: false, message: 'Tenant missing' });
+
+    // Redis
+    const rkey = `account:summary:${tenantId}:${userId}`;
+    try {
+      if (global.redis) {
+        const cached = await global.redis.get(rkey);
+        if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
+      }
+    } catch {}
+
+    // Aggregate summary
+    const [[user]] = await poolWrapper.execute('SELECT id, name, email, phone, createdAt FROM users WHERE id = ? AND tenantId = ? LIMIT 1', [userId, tenantId]);
+    const [[wallet]] = await poolWrapper.execute('SELECT balance, currency FROM user_wallets WHERE userId = ? AND tenantId = ? LIMIT 1', [userId, tenantId]);
+    const [[orders]] = await poolWrapper.execute('SELECT COUNT(*) as count FROM orders WHERE userId = ? AND tenantId = ?', [userId, tenantId]);
+    const [[favorites]] = await poolWrapper.execute('SELECT COUNT(*) as count FROM user_favorites_v2 WHERE userId = ?', [userId]);
+
+    const summary = {
+      user: user || null,
+      wallet: wallet || { balance: 0, currency: 'TRY' },
+      counts: {
+        orders: orders?.count || 0,
+        favorites: favorites?.count || 0
+      },
+      generatedAt: new Date().toISOString()
+    };
+
+    try { if (global.redis) await global.redis.setEx(rkey, 300, JSON.stringify(summary)); } catch {}
+    return res.json({ success: true, data: summary });
+  } catch (error) {
+    console.error('❌ Account summary error:', error);
+    return res.status(500).json({ success: false, message: 'Error getting account summary' });
+  }
+});
+
 app.get('/api/products/search', async (req, res) => {
   try {
     const { q } = req.query;

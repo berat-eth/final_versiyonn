@@ -162,7 +162,10 @@ export class ProductController {
       // Try API first
       const response = await apiService.getProductsByCategory(category);
       if (response.success && response.data) {
-        const products = response.data.map((apiProduct: any) => this.mapApiProductToAppProduct(apiProduct));
+        const rawList = Array.isArray((response as any).data)
+          ? (response as any).data
+          : ((response as any).data?.products || []);
+        const products = (rawList as any[]).map((apiProduct: any) => this.mapApiProductToAppProduct(apiProduct));
         
         return products;
       }
