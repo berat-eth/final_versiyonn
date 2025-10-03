@@ -145,39 +145,6 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         setLoadingMore(true);
       }
       
-      // 1) Kampanyaları hazırla (flash ürünleri öncelikli yüklemek için)
-      let currentCampaigns = campaigns;
-      if (!currentCampaigns || currentCampaigns.length === 0) {
-        try {
-          currentCampaigns = await CampaignController.getCampaigns();
-          setCampaigns(Array.isArray(currentCampaigns) ? currentCampaigns : []);
-        } catch {}
-      }
-
-      // 2) Flash ürünleri belirle ve önce bunları yükle
-      let preloadedFlash: Product[] = [];
-      try {
-        const flashCamps = (currentCampaigns || []).filter(isFlashCampaign);
-        const ids = new Set<number>();
-        flashCamps.forEach(c => {
-          if (Array.isArray(c.applicableProducts)) {
-            c.applicableProducts.forEach(id => ids.add(Number(id)));
-          }
-        });
-        if (ids.size > 0 && page === 1 && !selectedCategory) {
-          const idList = Array.from(ids).slice(0, 40);
-          const results = await Promise.allSettled(idList.map(pid => ProductController.getProductById(pid)));
-          preloadedFlash = results
-            .map(r => (r.status === 'fulfilled' ? (r as PromiseFulfilledResult<Product | null>).value : null))
-            .filter((p): p is Product => !!p);
-          if (preloadedFlash.length > 0) {
-            setProducts(preloadedFlash);
-            setFilteredProducts(preloadedFlash);
-          }
-        }
-      } catch {}
-
-      // 3) Ana ürünleri getir (sayfalı) ve flash ile birleştir
       const [productsResult, allCategories] = await Promise.all([
         selectedCategory 
           ? ProductController.getProductsByCategory(selectedCategory)
@@ -196,11 +163,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         // Sayfalı yükle
         const { products: pageItems, total, hasMore: more } = productsResult as any;
         const pageArray = Array.isArray(pageItems) ? pageItems : [];
-        // Flash ile deduplikasyon
-        const base = (append ? products : (preloadedFlash.length > 0 ? preloadedFlash : []));
-        const seen = new Set<number>(base.map(p => p.id));
-        const merged = base.concat(pageArray.filter(p => !seen.has(p.id)));
-        const next = merged;
+        const next = append ? [...products, ...pageArray] : pageArray;
         setProducts(next);
         setFilteredProducts(next);
         setTotalProducts(total || next.length);
@@ -563,16 +526,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       );
     }
     
-    if (products.length > 0 && hasMore) {
-      return (
-        <View style={styles.footerLoading}>
-          <LoadingIndicator />
-          <Text style={styles.footerLoadingText}>Daha fazla ürün yüklemek için kaydırın…</Text>
-        </View>
-      );
-    }
-
-    if (products.length > 0 && !hasMore) {
+    if (products.length > 0) {
       return (
         <View style={styles.footerEnd}>
           <Text style={styles.footerEndText}>

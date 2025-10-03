@@ -1173,6 +1173,11 @@ class ApiService {
     return this.request<{balance: number, currency: string, transactions: any[]}>(`/wallet/${userId}`);
   }
 
+  // Homepage products (server-side cached via Redis/DB)
+  async getHomepageProducts(userId: number): Promise<ApiResponse<{ popular: any[]; newProducts: any[]; polar: any[]; generatedAt: string }>> {
+    return this.request<{ popular: any[]; newProducts: any[]; polar: any[]; generatedAt: string }>(`/users/${userId}/homepage-products`);
+  }
+
   async addMoneyToWallet(userId: number, amount: number, paymentMethod: string, description?: string): Promise<ApiResponse<any>> {
     return this.request<any>(`/wallet/${userId}/add-money`, 'POST', {
       amount,

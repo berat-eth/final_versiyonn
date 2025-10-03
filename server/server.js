@@ -662,6 +662,14 @@ async function initializeDatabase() {
       ip: 'localhost',
       userAgent: 'server-init'
     });
+
+    // Create homepage products table once DB/pool is ready
+    try {
+      await ensureHomepageProductsTable();
+      console.log('✅ user_homepage_products table ready');
+    } catch (e) {
+      console.warn('⚠️ ensureHomepageProductsTable warning:', e.message);
+    }
     
   } catch (error) {
     console.error('❌ Database initialization error:', error);
@@ -3866,6 +3874,20 @@ app.get('/api/products', async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
     
+    // Redis hot cache for list page 1 (most requested)
+    if (page === 1) {
+      try {
+        if (global.redis) {
+          const key = `products:list:${req.tenant.id}:p1:${limit}`;
+          const cached = await global.redis.get(key);
+          if (cached) {
+            res.setHeader('Cache-Control', 'public, max-age=30');
+            return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
+          }
+        }
+      } catch {}
+    }
+
     // Get total count
     const [countRows] = await poolWrapper.execute(
       'SELECT COUNT(*) as total FROM products WHERE tenantId = ?',
@@ -3888,17 +3910,136 @@ app.get('/api/products', async (req, res) => {
     
     // Short client cache for list responses
     res.setHeader('Cache-Control', 'public, max-age=60');
-    res.json({ 
-      success: true, 
-      data: {
-        products: cleanedProducts,
-        total: total,
-        hasMore: offset + limit < total
-      }
-    });
+    const payload = {
+      products: cleanedProducts,
+      total: total,
+      hasMore: offset + limit < total
+    };
+    // Save to Redis (page 1 only)
+    if (page === 1) {
+      try { if (global.redis) await global.redis.setEx(`products:list:${req.tenant.id}:p1:${limit}`, 300, JSON.stringify(payload)); } catch {}
+    }
+    res.json({ success: true, data: payload });
   } catch (error) {
     console.error('Error getting products:', error);
     res.status(500).json({ success: false, message: 'Error getting products' });
+  }
+});
+
+// Ensure user_homepage_products table exists (idempotent)
+async function ensureHomepageProductsTable() {
+  try {
+    await poolWrapper.execute(`
+      CREATE TABLE IF NOT EXISTS user_homepage_products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId INT NOT NULL,
+        tenantId INT NOT NULL,
+        payload JSON NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_user_tenant (userId, tenantId)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+  } catch (e) {
+    console.error('❌ ensureHomepageProductsTable error:', e);
+  }
+}
+
+// Called after DB initialization
+
+// Build homepage payload for a user and persist
+async function buildHomepagePayload(tenantId, userId) {
+  // Popular by rating
+  const [popularRows] = await poolWrapper.execute(
+    `SELECT id, name, price, image, brand, category, rating, reviewCount, lastUpdated
+     FROM products WHERE tenantId = ?
+     ORDER BY rating DESC, reviewCount DESC, lastUpdated DESC
+     LIMIT 6`,
+    [tenantId]
+  );
+  // New by lastUpdated
+  const [newRows] = await poolWrapper.execute(
+    `SELECT id, name, price, image, brand, category, rating, reviewCount, lastUpdated
+     FROM products WHERE tenantId = ?
+     ORDER BY lastUpdated DESC
+     LIMIT 6`,
+    [tenantId]
+  );
+  // Polar featured sample
+  const [polarRows] = await poolWrapper.execute(
+    `SELECT id, name, price, image, brand, category, rating, reviewCount, lastUpdated
+     FROM products WHERE tenantId = ? AND (
+       category = 'Polar Bere' OR LOWER(name) LIKE '%polar%' OR LOWER(name) LIKE '%hırka%'
+     )
+     ORDER BY lastUpdated DESC
+     LIMIT 6`,
+    [tenantId]
+  );
+  const payload = {
+    popular: popularRows || [],
+    newProducts: newRows || [],
+    polar: polarRows || [],
+    generatedAt: new Date().toISOString()
+  };
+  // Upsert
+  const [existing] = await poolWrapper.execute(
+    'SELECT id FROM user_homepage_products WHERE userId = ? AND tenantId = ? LIMIT 1',
+    [userId, tenantId]
+  );
+  if (existing && existing.length) {
+    await poolWrapper.execute(
+      'UPDATE user_homepage_products SET payload = ?, updatedAt = NOW() WHERE id = ?',
+      [JSON.stringify(payload), existing[0].id]
+    );
+  } else {
+    await poolWrapper.execute(
+      'INSERT INTO user_homepage_products (userId, tenantId, payload) VALUES (?, ?, ?)',
+      [userId, tenantId, JSON.stringify(payload)]
+    );
+  }
+  return payload;
+}
+
+// Get homepage products for user (cached in DB)
+app.get('/api/users/:userId/homepage-products', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid userId' });
+    }
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      return res.status(400).json({ success: false, message: 'Tenant missing' });
+    }
+
+    // Try Redis first
+    try {
+      if (global.redis) {
+        const rkey = `homepage:${tenantId}:${userId}`;
+        const cached = await global.redis.get(rkey);
+        if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
+      }
+    } catch {}
+
+    // TTL: 6 hours (DB fallback)
+    const [rows] = await poolWrapper.execute(`SELECT payload, updatedAt FROM user_homepage_products WHERE userId = ? AND tenantId = ? LIMIT 1`, [userId, tenantId]);
+    let payload;
+    if (rows && rows.length) {
+      const updatedAt = new Date(rows[0].updatedAt).getTime();
+      const fresh = Date.now() - updatedAt < 6 * 60 * 60 * 1000;
+      if (fresh) {
+        try { payload = typeof rows[0].payload === 'string' ? JSON.parse(rows[0].payload) : rows[0].payload; } catch { payload = rows[0].payload; }
+      }
+    }
+    if (!payload) {
+      payload = await buildHomepagePayload(tenantId, userId);
+    }
+    try { if (global.redis) await global.redis.setEx(`homepage:${tenantId}:${userId}`, 3600, JSON.stringify(payload)); } catch {}
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ success: true, data: payload });
+  } catch (error) {
+    console.error('❌ Error getting homepage products:', error);
+    return res.status(500).json({ success: false, message: 'Error getting homepage products' });
   }
 });
 
@@ -4314,6 +4455,15 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Category and brand endpoints
 app.get('/api/categories', async (req, res) => {
   try {
+    // Try Redis hot cache first
+    try {
+      if (global.redis) {
+        const cached = await global.redis.get(`categories:${req.tenant.id}`);
+        if (cached) {
+          return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
+        }
+      }
+    } catch {}
     // Check cache
     const now = Date.now();
     if (categoriesCache && (now - categoriesCacheTime) < CACHE_DURATION) {
@@ -4338,10 +4488,16 @@ app.get('/api/categories', async (req, res) => {
     // Sadece kategori isimlerini döndür (string array)
     const categoryNames = rows.map(row => row.name).filter(name => name && typeof name === 'string');
     
-    // Update cache
+    // Update in-memory cache
     categoriesCache = categoryNames;
     categoriesCacheTime = now;
     console.log('📋 Categories cached for 5 minutes');
+    // Update Redis hot cache
+    try {
+      if (global.redis) {
+        await global.redis.setEx(`categories:${req.tenant.id}`, 600, JSON.stringify(categoryNames));
+      }
+    } catch {}
     
     res.json({ success: true, data: categoryNames });
   } catch (error) {
@@ -4406,10 +4562,18 @@ function buildCategoryTree(categories) {
 
 app.get('/api/brands', async (req, res) => {
   try {
+    // Redis hot cache
+    try {
+      if (global.redis) {
+        const cached = await global.redis.get(`brands:${req.tenant.id}`);
+        if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
+      }
+    } catch {}
     const [rows] = await poolWrapper.execute(
       'SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL AND brand != ""'
     );
     const brands = rows.map(row => row.brand).sort();
+    try { if (global.redis) await global.redis.setEx(`brands:${req.tenant.id}`, 600, JSON.stringify(brands)); } catch {}
     res.json({ success: true, data: brands });
   } catch (error) {
     console.error('Error getting brands:', error);
@@ -4485,6 +4649,19 @@ app.get('/api/sync/test', async (req, res) => {
 // Start server
 async function startServer() {
   await initializeDatabase();
+  // Initialize Redis (optional, local instance)
+  try {
+    const { createClient } = require('redis');
+    const url = process.env.REDIS_URL || 'redis://localhost:6379';
+    const password = process.env.REDIS_PASSWORD || '38cdfD8217..';
+    const client = createClient({ url, password });
+    client.on('error', (err) => console.warn('⚠️ Redis error:', err.message));
+    await client.connect();
+    global.redis = client;
+    console.log('✅ Redis connected');
+  } catch (e) {
+    console.warn('⚠️ Redis not available:', e.message);
+  }
   // Ensure default tenant API key exists and active
   await ensureDefaultTenantApiKey();
   
@@ -4791,12 +4968,23 @@ async function startServer() {
       const [cartRows] = await poolWrapper.execute(itemsSql, itemsParams);
       const subtotal = cartRows.reduce((sum, r) => sum + (Number(r.price) || 0) * (Number(r.quantity) || 0), 0);
 
-      // Load active campaigns
-      const [campaigns] = await poolWrapper.execute(
-        `SELECT * FROM campaigns WHERE tenantId = ? AND isActive = 1 AND status = 'active'
-         AND (startDate IS NULL OR startDate <= NOW()) AND (endDate IS NULL OR endDate >= NOW())`,
-        [tenantId]
-      );
+      // Load active campaigns (Redis hot cache)
+      let campaigns;
+      try {
+        if (global.redis) {
+          const cached = await global.redis.get(`campaigns:active:${tenantId}`);
+          if (cached) campaigns = JSON.parse(cached);
+        }
+      } catch {}
+      if (!campaigns) {
+        const [rows] = await poolWrapper.execute(
+          `SELECT * FROM campaigns WHERE tenantId = ? AND isActive = 1 AND status = 'active'
+           AND (startDate IS NULL OR startDate <= NOW()) AND (endDate IS NULL OR endDate >= NOW())`,
+          [tenantId]
+        );
+        campaigns = rows;
+        try { if (global.redis) await global.redis.setEx(`campaigns:active:${tenantId}`, 300, JSON.stringify(rows)); } catch {}
+      }
 
       let discountTotal = 0;
       let shipping = subtotal >= 500 ? 0 : 29.9; // default policy fallback
@@ -4856,10 +5044,14 @@ async function startServer() {
   app.get('/api/campaigns', async (req, res) => {
     try {
       const tenantId = req.tenant?.id || 1;
-      const [rows] = await poolWrapper.execute(
-        `SELECT * FROM campaigns WHERE tenantId = ? ORDER BY updatedAt DESC`,
-        [tenantId]
-      );
+      try {
+        if (global.redis) {
+          const cached = await global.redis.get(`campaigns:list:${tenantId}`);
+          if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
+        }
+      } catch {}
+      const [rows] = await poolWrapper.execute(`SELECT * FROM campaigns WHERE tenantId = ? ORDER BY updatedAt DESC`, [tenantId]);
+      try { if (global.redis) await global.redis.setEx(`campaigns:list:${tenantId}`, 300, JSON.stringify(rows)); } catch {}
       res.json({ success: true, data: rows });
     } catch (error) {
       console.error('❌ Error listing campaigns:', error);
@@ -6856,11 +7048,15 @@ app.get('/api/wallet/balance/:userId', async (req, res) => {
     if (!internalUserId) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    
-    const [rows] = await poolWrapper.execute(
-      'SELECT balance FROM user_wallets WHERE userId = ? AND tenantId = ?',
-      [internalUserId, req.tenant.id]
-    );
+    // Redis hot cache
+    try {
+      if (global.redis) {
+        const cached = await global.redis.get(`wallet:balance:${req.tenant.id}:${internalUserId}`);
+        if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
+      }
+    } catch {}
+
+    const [rows] = await poolWrapper.execute('SELECT balance FROM user_wallets WHERE userId = ? AND tenantId = ?', [internalUserId, req.tenant.id]);
     
     if (rows.length === 0) {
       // Cüzdan yoksa oluştur
@@ -6871,7 +7067,9 @@ app.get('/api/wallet/balance/:userId', async (req, res) => {
       return res.json({ success: true, data: { balance: 0 } });
     }
     
-    res.json({ success: true, data: { balance: rows[0].balance } });
+    const data = { balance: rows[0].balance };
+    try { if (global.redis) await global.redis.setEx(`wallet:balance:${req.tenant.id}:${internalUserId}`, 120, JSON.stringify(data)); } catch {}
+    res.json({ success: true, data });
   } catch (error) {
     console.error('❌ Wallet balance error:', error);
     res.status(500).json({ success: false, message: 'Bakiye sorgulanırken hata oluştu' });

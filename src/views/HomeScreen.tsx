@@ -22,6 +22,7 @@ import { ModernCard } from '../components/ui/ModernCard';
 import { ModernButton } from '../components/ui/ModernButton';
 import { Product, ProductVariationOption } from '../utils/types';
 import { ProductController } from '../controllers/ProductController';
+import apiService from '../utils/api-service';
 import { CartController } from '../controllers/CartController';
 import { UserController } from '../controllers/UserController';
 import { CampaignController, Campaign } from '../controllers/CampaignController';
@@ -197,49 +198,61 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      // Daha hafif başlangıç: az sayıda ürün çek
-      const [allProductsResponse, cats] = await Promise.all([
-        ProductController.getAllProducts(1, 60),
-        ProductController.getAllCategories(),
-      ]);
+      // Kullanıcıya özel hazır ana sayfa verisini (Redis/DB cache) dene
+      let homepagePayload: any | null = null;
+      try {
+        const isLoggedIn = await UserController.isLoggedIn();
+        if (isLoggedIn) {
+          const uid = await UserController.getCurrentUserId();
+          const hp = await apiService.get(`/users/${uid}/homepage-products`);
+          if (hp.success && hp.data) homepagePayload = hp.data;
+        }
+      } catch {}
 
-      const allProducts = allProductsResponse?.products || [];
-      if (allProducts && allProducts.length > 0) {
-        // Önce popüler ürünleri yükle (rating'e göre sırala)
-        const popularProducts = allProducts
-          .sort((a, b) => b.rating - a.rating)
-          .slice(0, 6);
-        
-        // Yeni ürünleri popüler ürünlerle çakışmayacak şekilde seç
-        const newProducts = getUniqueProducts(
-          allProducts
-            .sort((a, b) => {
-              const dateA = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
-              const dateB = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
-              return dateB - dateA;
-            }),
-          popularProducts,
-          6
-        );
+      // Kategorileri paralel al
+      const catsPromise = ProductController.getAllCategories();
 
-        // Polar hırka ürünlerini yükle
-        const polarProducts = allProducts
-          .filter(product => 
-            product.category === 'Polar Bere' || 
-            product.name.toLowerCase().includes('polar') ||
-            product.name.toLowerCase().includes('hırka')
-          )
-          .slice(0, 6);
-
-        setPopularProducts(popularProducts);
-        setNewProducts(newProducts);
-        setPolarProducts(polarProducts);
+      if (homepagePayload) {
+        setPopularProducts(homepagePayload.popular || []);
+        setNewProducts(homepagePayload.newProducts || []);
+        setPolarProducts(homepagePayload.polar || []);
       } else {
-        setPopularProducts([]);
-        setNewProducts([]);
-        setPolarProducts([]);
+        // Fallback: az sayıda ürün çekerek hesapla
+        const allProductsResponse = await ProductController.getAllProducts(1, 60);
+        const allProducts = allProductsResponse?.products || [];
+        if (allProducts && allProducts.length > 0) {
+          const popularProducts = allProducts
+            .sort((a, b) => b.rating - a.rating)
+            .slice(0, 6);
+          const newProducts = getUniqueProducts(
+            allProducts
+              .sort((a, b) => {
+                const dateA = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
+                const dateB = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
+                return dateB - dateA;
+              }),
+            popularProducts,
+            6
+          );
+          const polarProducts = allProducts
+            .filter(product => 
+              product.category === 'Polar Bere' || 
+              product.name.toLowerCase().includes('polar') ||
+              product.name.toLowerCase().includes('hırka')
+            )
+            .slice(0, 6);
+          setPopularProducts(popularProducts);
+          setNewProducts(newProducts);
+          setPolarProducts(polarProducts);
+        } else {
+          setPopularProducts([]);
+          setNewProducts([]);
+          setPolarProducts([]);
+        }
       }
-      
+
+      const cats = await catsPromise;
+
       setCategories(Array.isArray(cats) ? cats : []);
 
       // Kampanyaları (login gerektirmeden) yükle
