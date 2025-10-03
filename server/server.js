@@ -24,6 +24,7 @@ const ftp = require('basic-ftp');
 const fs = require('fs');
 const path = require('path');
 const { OAuth2Client } = require('google-auth-library');
+const compression = require('compression');
 
 // Security modules (simplified)
 const DatabaseSecurity = require('./security/database-security');
@@ -225,6 +226,14 @@ function getLocalIPAddress() {
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(hpp());
+// Enable gzip compression for API responses
+app.use(compression({
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.headers['x-no-compress']) return false;
+    return compression.filter(req, res);
+  }
+}));
 
 // CORS - Tüm origin'lere izin ver
 app.use(cors({
