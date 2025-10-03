@@ -60,17 +60,16 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     let mounted = true;
     (async () => {
       // Ürün verilerini paralel yükle
-      const [productResult, userResult] = await Promise.allSettled([
-        loadProduct(),
-        loadCurrentUser()
+      const [productResult] = await Promise.allSettled([
+        loadProduct()
       ]);
       
       if (!mounted) return;
       
-      // Favori kontrolünü kullanıcı verisi geldiğinde yap
-      if (userResult.status === 'fulfilled') {
-        checkIfFavorite();
-      }
+      // Kullanıcı önbellekten hızlıca (ağ beklemeden) al, sonra favori kontrolü yap
+      const quick = await UserController.getCachedUserQuick();
+      if (quick) setCurrentUser(quick);
+      checkIfFavorite();
     })();
     
     // Rastgele izleyici sayısı üret ve göster
@@ -391,14 +390,16 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   // Galeri görsellerini ürünle ilişkili olacak şekilde filtrele
   const gatherGalleryImages = (): string[] => {
     // Boşları at, tekrarları kaldır; tüm geçerli görselleri göster
-    const list: string[] = [
+    const candidates: (string | undefined)[] = [
       product.image1,
       product.image2,
       product.image3,
       product.image4,
       product.image5,
-      ...(Array.isArray(product.images) ? product.images : [])
-    ].filter((u: any) => typeof u === 'string' && u.trim() !== '');
+    ];
+    const arrayImages = Array.isArray(product.images) ? product.images.filter((u: any) => typeof u === 'string') : [];
+    const list: string[] = [...candidates.filter((u): u is string => typeof u === 'string'), ...arrayImages]
+      .filter((u: string) => u.trim() !== '');
 
     const unique: string[] = [];
     const seen = new Set<string>();

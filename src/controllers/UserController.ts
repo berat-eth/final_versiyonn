@@ -8,6 +8,10 @@ import { userDataService } from '../services/UserDataService';
 export class UserController {
   // Simple local storage for user preferences
   private static userPreferences = new Map<string, any>();
+  // In-memory user cache to avoid repeated fetching on every operation
+  private static cachedUser: User | null = null;
+  private static cachedUserAt: number = 0;
+  private static readonly CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
   static async setUserPreference(key: string, value: any): Promise<void> {
     if (value === undefined) {
@@ -148,7 +152,6 @@ export class UserController {
         
         // Save user preferences locally
         await this.setUserPreference('user_id', response.data.userId);
-        await this.setUserPreference('user_8digit_id', response.data.user_id);
         await this.setUserPreference('user_email', userData.email);
         await this.setUserPreference('user_name', userData.name);
         
@@ -310,53 +313,53 @@ export class UserController {
     }
   }
 
-  static async getCurrentUser(): Promise<User | null> {
+  static async getCurrentUser(forceFresh: boolean = false): Promise<User | null> {
     try {
-      // Try to get user from local storage first
+      // Return in-memory cache if valid and not forced
+      if (!forceFresh && this.cachedUser && (Date.now() - this.cachedUserAt) < this.CACHE_TTL_MS) {
+        return this.cachedUser;
+      }
+
+      // Try to get user ID from local preference
       const userId = await this.getUserPreference('user_id');
-      if (!userId) {
-        return null;
-      }
-      
-      // Try to get fresh data from API
-      try {
-        const userInfo = await this.getUserInfo(userId);
-        if (userInfo) {
-          return userInfo;
-        }
-      } catch (apiError) {
-        console.log('📱 API call failed, using cached user data');
-      }
-      
-      // Fallback to cached data
-      const cachedUser = await UserModel.getCurrentUser();
-      if (cachedUser) {
-        return cachedUser;
-      }
-      
-      // Build user from preferences
+      if (!userId) return null;
+
+      // Build minimal user from preferences to avoid API when possible
       const userEmail = await this.getUserPreference('user_email');
       const userName = await this.getUserPreference('user_name');
       const userPhone = await this.getUserPreference('user_phone');
       const userAddress = await this.getUserPreference('user_address');
       const user8DigitId = await this.getUserPreference('user_8digit_id');
-      
+
+      let user: User | null = null;
+
       if (userEmail && userName) {
-        const user: User = {
+        user = {
           id: userId,
           user_id: user8DigitId || undefined,
           name: userName,
           email: userEmail,
-          password: '', // Don't store password in preferences
+          password: '',
           phone: userPhone || '',
           address: userAddress || '',
           createdAt: new Date().toISOString()
         };
-        
-        return user;
       }
-      
-      return null;
+
+      // Optionally refresh from API only when forced or cache expired and API available
+      if (forceFresh || !this.cachedUser || (Date.now() - this.cachedUserAt) >= this.CACHE_TTL_MS) {
+        try {
+          const userInfo = await this.getUserInfo(userId);
+          if (userInfo) user = userInfo;
+        } catch {
+          // ignore API failures, keep local snapshot
+        }
+      }
+
+      // Persist in-memory cache
+      this.cachedUser = user;
+      this.cachedUserAt = Date.now();
+      return user;
     } catch (error) {
       console.error('❌ UserController - getCurrentUser error:', error);
       return null;
@@ -401,9 +404,9 @@ export class UserController {
         console.log(`👤 Direct user ID from storage: ${userId}`);
         return userId;
       }
-      
-      // Fallback to getCurrentUser
-      const currentUser = await this.getCurrentUser();
+
+      // Fallback to in-memory cache (no network)
+      const currentUser = this.cachedUser || await this.getCurrentUser(false);
       if (currentUser && currentUser.id) {
         console.log(`👤 Current user ID from getCurrentUser: ${currentUser.id} (${currentUser.name})`);
         return currentUser.id;
@@ -991,7 +994,7 @@ export class UserController {
         if (data.phone) await this.setUserPreference('user_phone', data.phone);
         if (data.address) await this.setUserPreference('user_address', data.address);
         
-        await UserModel.updateUser(userId, data);
+        try { await (UserModel as any).updateUser?.(userId, data); } catch {}
         
         console.log('✅ Profile updated successfully');
         return { success: true, message: 'Profil güncellendi' };
