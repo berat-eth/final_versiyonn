@@ -74,14 +74,19 @@ async function runFtpBackupNow() {
       'tenants','users','categories','products','product_variations','product_variation_options','orders','order_items','cart','user_wallets','wallet_transactions','wallet_recharge_requests','custom_production_requests','custom_production_items','reviews','security_events','chatbot_analytics','referral_earnings','recommendations','customer_segments','customer_segment_assignments','campaigns','campaign_usage','customer_analytics','discount_wheel_spins'
     ];
     const data = {};
+    const isSafeIdent = (s) => typeof s === 'string' && /^[A-Za-z0-9_]+$/.test(s);
+    const qi = (s) => {
+      if (!isSafeIdent(s)) throw new Error('Invalid identifier');
+      return '`' + s + '`';
+    };
     for (const t of tables) {
       try {
         let rows;
         if (t === 'tenants') {
           [rows] = await poolWrapper.execute('SELECT * FROM tenants WHERE id = ?', [tenantId]);
         } else {
-          try { [rows] = await poolWrapper.execute(`SELECT * FROM ${t} WHERE tenantId = ?`, [tenantId]); }
-          catch { [rows] = await poolWrapper.execute(`SELECT * FROM ${t}`); }
+          try { [rows] = await poolWrapper.execute(`SELECT * FROM ${qi(t)} WHERE tenantId = ?`, [tenantId]); }
+          catch { [rows] = await poolWrapper.execute(`SELECT * FROM ${qi(t)}`); }
         }
         data[t] = rows;
       } catch { data[t] = []; }
@@ -2069,7 +2074,11 @@ app.get('/api/admin/security/login-attempts', authenticateAdmin, async (req, res
     if (q) { where += ' AND (username LIKE ? OR JSON_EXTRACT(details, "$.email") LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
     if (ip) { where += ' AND ip LIKE ?'; params.push(`%${ip}%`); }
     where += ' AND eventType = "BRUTE_FORCE"';
-    const [rows] = await poolWrapper.execute(`SELECT id, eventType, username, ip, userAgent, details, severity, detectedAt, resolved, resolvedAt FROM security_events ${where} ORDER BY detectedAt DESC LIMIT 500`, params);
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, eventType, username, ip, userAgent, details, severity, detectedAt, resolved, resolvedAt 
+       FROM security_events ${where} ORDER BY detectedAt DESC LIMIT 500`, 
+      params
+    );
     const data = rows.map(r => ({
       id: r.id,
       eventType: r.eventType,
@@ -3866,13 +3875,19 @@ app.get('/api/products', async (req, res) => {
     
     // Get paginated products
     const [rows] = await poolWrapper.execute(
-      'SELECT * FROM products WHERE tenantId = ? ORDER BY lastUpdated DESC LIMIT ? OFFSET ?',
+      `SELECT id, name, price, image, brand, category, lastUpdated, rating, reviewCount, stock, sku
+       FROM products
+       WHERE tenantId = ?
+       ORDER BY lastUpdated DESC
+       LIMIT ? OFFSET ?`,
       [req.tenant.id, limit, offset]
     );
     
     // Clean HTML entities from all products
     const cleanedProducts = rows.map(cleanProductData);
     
+    // Short client cache for list responses
+    res.setHeader('Cache-Control', 'public, max-age=60');
     res.json({ 
       success: true, 
       data: {
@@ -3891,54 +3906,90 @@ app.get('/api/products/search', async (req, res) => {
   try {
     const { q } = req.query;
     const search = String(q || '').trim();
-    if (!search) {
+    if (!search || search.length < 2) {
       return res.json({ success: true, data: [] });
     }
 
     // Çoklu kiracı desteği: varsa kimliği doğrulanmış tenant üzerinden filtrele
     // Not: Diğer uç noktalarda kullanılan tenant ara katmanı burada yoksa, tüm ürünlerde arama yapılır
     const tenantId = req.tenant?.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = (page - 1) * limit;
 
-    // İsim/açıklama/marka + stok kodu (externalId) + ürün SKU + varyasyon SKU alanlarında arama
-    // Varyasyon eşleşmesini getirmek için ürün tablosuna JOIN ile eşleştirip DISTINCT seçiyoruz
-    const params = tenantId
-      ? [
-          `%${search}%`, `%${search}%`, `%${search}%`, // name/description/brand
-          `%${search}%`, // externalId
-          `%${search}%`, // product sku
-          `%${search}%`, // option sku
-          tenantId,
-        ]
-      : [
-          `%${search}%`, `%${search}%`, `%${search}%`, // name/description/brand
-          `%${search}%`, // externalId
-          `%${search}%`, // product sku
-          `%${search}%`, // option sku
-        ];
-
+    // Öncelik: FULLTEXT arama (varsa). Düşüş: LIKE + JOIN
     const whereTenant = tenantId ? ' AND p.tenantId = ?' : '';
+    const booleanQuery = search
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(w => `${w}*`)
+      .join(' ');
 
-    const [rows] = await poolWrapper.execute(
-      `SELECT DISTINCT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated
-       FROM products p
-       LEFT JOIN product_variations v ON v.productId = p.id
-       LEFT JOIN product_variation_options o ON o.variationId = v.id
-       WHERE (
-         p.name LIKE ?
-        OR p.brand LIKE ?
-        OR p.description LIKE ?
-         OR p.brand LIKE ?
-         OR p.externalId LIKE ?
-         OR p.sku LIKE ?
-         OR o.sku LIKE ?
-       )${whereTenant}
-       ORDER BY p.lastUpdated DESC
-       LIMIT 200`,
-      params
-    );
+    let rows;
+    try {
+      const paramsFT = tenantId
+        ? [booleanQuery, booleanQuery, tenantId, `%${search}%`, limit, offset]
+        : [booleanQuery, booleanQuery, `%${search}%`, limit, offset];
+
+      const [ftRows] = await poolWrapper.execute(
+        `SELECT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated,
+                MATCH(p.name, p.description, p.brand, p.sku, p.externalId) AGAINST (? IN BOOLEAN MODE) AS score
+         FROM products p
+         LEFT JOIN product_variations v ON v.productId = p.id
+         LEFT JOIN product_variation_options o ON o.variationId = v.id
+         WHERE (
+           MATCH(p.name, p.description, p.brand, p.sku, p.externalId) AGAINST (? IN BOOLEAN MODE)
+           OR o.sku LIKE ?
+         )${whereTenant}
+         GROUP BY p.id
+         ORDER BY score DESC, p.lastUpdated DESC
+         LIMIT ? OFFSET ?`,
+        paramsFT
+      );
+      rows = ftRows;
+    } catch (e) {
+      // FULLTEXT desteklenmiyorsa LIKE'a düş
+      const paramsLike = tenantId
+        ? [
+            `%${search}%`, `%${search}%`, `%${search}%`, // name/brand/description
+            `%${search}%`, // externalId
+            `%${search}%`, // product sku
+            `%${search}%`, // option sku
+            tenantId,
+            limit,
+            offset,
+          ]
+        : [
+            `%${search}%`, `%${search}%`, `%${search}%`,
+            `%${search}%`,
+            `%${search}%`,
+            `%${search}%`,
+            limit,
+            offset,
+          ];
+      const [likeRows] = await poolWrapper.execute(
+        `SELECT DISTINCT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated
+         FROM products p
+         LEFT JOIN product_variations v ON v.productId = p.id
+         LEFT JOIN product_variation_options o ON o.variationId = v.id
+         WHERE (
+           p.name LIKE ?
+           OR p.brand LIKE ?
+           OR p.description LIKE ?
+           OR p.externalId LIKE ?
+           OR p.sku LIKE ?
+           OR o.sku LIKE ?
+         )${whereTenant}
+         ORDER BY p.lastUpdated DESC
+         LIMIT ? OFFSET ?`,
+        paramsLike
+      );
+      rows = likeRows;
+    }
 
     const cleanedProducts = rows.map(cleanProductData);
-    return res.json({ success: true, data: cleanedProducts });
+    res.setHeader('Cache-Control', 'public, max-age=30');
+    return res.json({ success: true, data: cleanedProducts, page, limit, count: cleanedProducts.length });
   } catch (error) {
     console.error('Error searching products:', error);
     return res.status(500).json({ success: false, message: 'Error searching products' });
@@ -3948,9 +3999,11 @@ app.get('/api/products/search', async (req, res) => {
 app.get('/api/products/price-range', async (req, res) => {
   try {
     const [rows] = await poolWrapper.execute(
-      'SELECT MIN(price) as minPrice, MAX(price) as maxPrice FROM products'
+      'SELECT MIN(price) as minPrice, MAX(price) as maxPrice FROM products WHERE tenantId = ?',
+      [req.tenant.id]
     );
     
+    res.setHeader('Cache-Control', 'public, max-age=120');
     res.json({ 
       success: true, 
       data: {
@@ -3967,15 +4020,30 @@ app.get('/api/products/price-range', async (req, res) => {
 app.get('/api/products/category/:category', async (req, res) => {
   try {
     const { category } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 40;
+    const offset = (page - 1) * limit;
+
+    const [countRows] = await poolWrapper.execute(
+      'SELECT COUNT(*) as total FROM products WHERE tenantId = ? AND category = ?',
+      [req.tenant.id, category]
+    );
+    const total = countRows[0].total;
+
     const [rows] = await poolWrapper.execute(
-      'SELECT * FROM products WHERE category = ? ORDER BY lastUpdated DESC',
-      [category]
+      `SELECT id, name, price, image, brand, category, lastUpdated, rating, reviewCount, stock, sku
+       FROM products 
+       WHERE tenantId = ? AND category = ?
+       ORDER BY lastUpdated DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant.id, category, limit, offset]
     );
     
     // Clean HTML entities from category products
     const cleanedProducts = rows.map(cleanProductData);
     
-    res.json({ success: true, data: cleanedProducts });
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.json({ success: true, data: { products: cleanedProducts, total, hasMore: offset + limit < total } });
   } catch (error) {
     console.error('Error getting products by category:', error);
     res.status(500).json({ success: false, message: 'Error getting products' });
