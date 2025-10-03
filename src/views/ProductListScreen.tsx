@@ -168,6 +168,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         setFilteredProducts(next);
         setTotalProducts(total || next.length);
         setHasMore(Boolean(more));
+        setCurrentPageNum(page);
       }
       
       setCategories(Array.isArray(allCategories) ? allCategories : []);
@@ -258,8 +259,9 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   };
 
   const loadMore = async () => {
-    // Artık tüm ürünler tek seferde yükleniyor, loadMore gerekli değil
-    return;
+    if (selectedCategory) return; // kategori modunda sayfalama yok
+    if (loadingMore || !hasMore) return;
+    await loadData(currentPageNum + 1, true);
   };
 
 
@@ -614,6 +616,12 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         updateCellsBatchingPeriod={100}
         initialNumToRender={50}
         windowSize={15}
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (!showFlashDeals) {
+            loadMore();
+          }
+        }}
         getItemLayout={viewMode === 'grid' ? undefined : (data, index) => ({
           length: 120,
           offset: 120 * index,
