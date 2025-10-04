@@ -233,7 +233,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     } catch (error) {
       console.error('Error checking review eligibility:', error);
       setCanUserReview(false);
-      setReviewEligibilityReason('Yorum yapma yetkinizi kontrol ederken bir hata oluştu.');
+      setReviewEligibilityReason(t('reviews.purchaseVerificationError'));
     }
   };
 
@@ -656,8 +656,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
                   onPress={() => {
                     if (canUserReview === false) {
                       Alert.alert(
-                        'Yorum Yapamazsınız',
-                        reviewEligibilityReason || 'Bu ürünü satın almadığınız için yorum yapamazsınız.'
+                        t('reviews.cannotReview'),
+                        reviewEligibilityReason || t('reviews.purchaseRequired')
                       );
                       return;
                     }
@@ -1142,10 +1142,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
     flex: 1,
-  },
-  disabledButton: {
-    backgroundColor: '#E0E0E0',
-    opacity: 0.6,
   },
   disabledButtonText: {
     color: '#999999',

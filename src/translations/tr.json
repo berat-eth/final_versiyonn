@@ -521,7 +521,13 @@
     "other": "Diğer",
     "reportSubmitted": "Rapor gönderildi",
     "thankYou": "Teşekkürler",
-    "deleteError": "Yorum silinirken bir hata oluştu"
+    "deleteError": "Yorum silinirken bir hata oluştu",
+    "purchaseRequired": "Bu ürünü satın almadığınız için yorum yapamazsınız",
+    "orderNotDelivered": "Siparişiniz henüz teslim edilmediği için yorum yapamazsınız",
+    "purchaseVerificationError": "Yorum yapma yetkinizi kontrol ederken bir hata oluştu",
+    "cannotReview": "Yorum Yapamazsınız",
+    "verifiedPurchase": "Doğrulanmış Satın Alma",
+    "purchaseVerification": "Satın Alma Doğrulaması"
   },
   "customProduction": {
     "title": "Özel Üretim",

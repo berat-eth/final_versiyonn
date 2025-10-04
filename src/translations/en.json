@@ -521,7 +521,13 @@
     "other": "Other",
     "reportSubmitted": "Report submitted",
     "thankYou": "Thank You",
-    "deleteError": "An error occurred while deleting the review"
+    "deleteError": "An error occurred while deleting the review",
+    "purchaseRequired": "You cannot review this product because you have not purchased it",
+    "orderNotDelivered": "You cannot review because your order has not been delivered yet",
+    "purchaseVerificationError": "An error occurred while checking your review eligibility",
+    "cannotReview": "Cannot Review",
+    "verifiedPurchase": "Verified Purchase",
+    "purchaseVerification": "Purchase Verification"
   },
   "customProduction": {
     "title": "Custom Production",
