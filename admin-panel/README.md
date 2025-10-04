@@ -40,7 +40,7 @@ npx http-server -p 8080
 
 ## Giriş Bilgileri
 
-- **Admin Key**: `huglu-admin-2024-secure-key`
+- **API Key**: `X-API-Key` header kullanın
 - Bu key backend'de otomatik olarak doğrulanır
 
 ## API Endpoints

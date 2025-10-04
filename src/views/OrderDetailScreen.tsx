@@ -8,7 +8,6 @@ import {
   TouchableOpacity,Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { OrderController } from '../controllers/OrderController';
 import { UserController } from '../controllers/UserController';
 import { Order, OrderStatus } from '../utils/types';
@@ -155,25 +154,6 @@ const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({ navigation, route
     });
   }, []);
 
-  const renderHeader = useCallback(() => (
-    <LinearGradient
-      colors={['#1A1A2E', '#16213E']}
-      style={styles.headerGradient}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Sipariş Detayı</Text>
-        <TouchableOpacity style={styles.headerButton}>
-          <Icon name="share" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-    </LinearGradient>
-  ), [navigation]);
 
   const renderStatusTracker = useCallback(() => {
     if (!order) return null;
@@ -345,7 +325,7 @@ const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({ navigation, route
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <LoadingIndicator />
       </SafeAreaView>
     );
@@ -354,8 +334,7 @@ const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({ navigation, route
   if (!order) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar style="light" />
-        {renderHeader()}
+        <StatusBar style="dark" />
         <View style={styles.errorContainer}>
           <Icon name="error-outline" size={80} color={Colors.textMuted} />
           <Text style={styles.errorText}>Sipariş bulunamadı</Text>
@@ -366,8 +345,7 @@ const OrderDetailScreen: React.FC<OrderDetailScreenProps> = ({ navigation, route
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" backgroundColor="#1A1A2E" />
-      {renderHeader()}
+      <StatusBar style="dark" />
       
       <ScrollView 
         style={styles.content} 
@@ -390,32 +368,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
 
-  // Header Styles
-  headerGradient: {
-    paddingBottom: Spacing.sm,
-    ...Shadows.medium,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
 
   // Content
   content: {

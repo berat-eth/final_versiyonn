@@ -2,21 +2,38 @@
 let __PANEL_CONFIG = null;
 async function loadPanelConfig() {
     try {
-        // Sadece api.json okunur (config.json kaldırıldı)
-        const apiRes = await fetch('api.json', { cache: 'no-cache' });
-        if (apiRes && apiRes.ok) {
-            try {
-                const apiJson = await apiRes.json();
-                __PANEL_CONFIG = { ...(__PANEL_CONFIG || {}), ...apiJson };
-            } catch(_) {}
-        }
-
-        // Persist to localStorage for runtime usage (opsiyonel)
+        console.log('🔧 Loading panel config...');
+        console.log('✅ TENANT_API_KEY already set:', TENANT_API_KEY ? 'Present' : 'Missing');
+        
+        // Try to load from api.json as backup
         try {
-            if (__PANEL_CONFIG && __PANEL_CONFIG.TENANT_API_KEY) localStorage.setItem('TENANT_API_KEY', __PANEL_CONFIG.TENANT_API_KEY);
-            if (__PANEL_CONFIG && __PANEL_CONFIG.API_BASE_URL) localStorage.setItem('API_BASE_OVERRIDE', __PANEL_CONFIG.API_BASE_URL);
-        } catch(_) {}
-    } catch(_) { /* ignore */ }
+            const apiRes = await fetch('api.json', { cache: 'no-cache' });
+            if (apiRes && apiRes.ok) {
+                const apiJson = await apiRes.json();
+                console.log('📋 API config loaded from file:', apiJson);
+                __PANEL_CONFIG = { ...(__PANEL_CONFIG || {}), ...apiJson };
+                
+                // Update if different
+                if (apiJson.TENANT_API_KEY && apiJson.TENANT_API_KEY !== TENANT_API_KEY) {
+                    TENANT_API_KEY = apiJson.TENANT_API_KEY;
+                    console.log('🔄 Updated API key from config file');
+                }
+            }
+        } catch(e) {
+            console.log('⚠️ Could not load api.json, using embedded key');
+        }
+        
+        // Persist to localStorage
+        try {
+            localStorage.setItem('TENANT_API_KEY', TENANT_API_KEY);
+            console.log('💾 API key saved to localStorage');
+        } catch(e) {
+            console.error('❌ Failed to save to localStorage:', e);
+        }
+        
+    } catch(e) { 
+        console.error('❌ Config load error:', e);
+    }
 }
 
 function getApiBase(){
@@ -29,8 +46,7 @@ function getApiBase(){
     } catch(_) { return 'https://api.zerodaysoftware.tr/api'; }
 }
 
-// ADMIN_TOKEN desteği kaldırıldı
-function getAdminToken(){ return ''; }
+// Admin token desteği tamamen kaldırıldı - sadece API key kullanılır
 
 function getTenantApiKey(){
     if (__PANEL_CONFIG && __PANEL_CONFIG.TENANT_API_KEY) return __PANEL_CONFIG.TENANT_API_KEY;
@@ -45,10 +61,9 @@ const API_BASE = (function() {
         return 'https://api.zerodaysoftware.tr/api';
     }
 })();
-// ADMIN_TOKEN kaldırıldı; yalnızca TENANT_API_KEY kullanılacak
-const ADMIN_TOKEN = '';
-// Tenant API Key (X-API-Key)
-const TENANT_API_KEY = (function() { return getTenantApiKey(); })();
+// Admin token tamamen kaldırıldı - sadece API key kullanılır
+// Tenant API Key (X-API-Key) - will be set after config loads
+let TENANT_API_KEY = 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
 
 // DOM Elements
 const sidebar = document.getElementById('sidebar');
@@ -67,11 +82,18 @@ function initializeApp() {
     try {
         const key = TENANT_API_KEY && TENANT_API_KEY.trim();
         const isLoginPage = location.pathname.toLowerCase().endsWith('/login.html') || location.pathname.toLowerCase().endsWith('login.html');
+        console.log(`🔑 API Key check: ${key ? 'Present' : 'Missing'}, Login page: ${isLoginPage}`);
+        console.log(`🔑 API Key value: ${key ? key.substring(0, 10) + '...' : 'None'}`);
+        
         if (!key && !isLoginPage) {
+            console.log('❌ No API key found, redirecting to login');
             window.location.href = 'login.html';
             return;
         }
+        
+        console.log('✅ API key present, initializing dashboard');
     } catch (e) {
+        console.error('❌ Error in initializeApp:', e);
         // herhangi bir hata durumunda login sayfasına yönlendir
         const isLoginPage = location.pathname.toLowerCase().includes('login.html');
         if (!isLoginPage) window.location.href = 'login.html';
@@ -100,15 +122,20 @@ function initializeApp() {
 // Settings: Tenant API Key helpers
 function saveTenantApiKey() {
     try {
-        const el = document.getElementById('tenantApiKeyInput');
+        const el = document.getElementById('tenantApiKeyInput2');
         const val = (el && el.value) ? el.value.trim() : '';
         if (!val) { showNotification('Anahtar boş olamaz', 'error'); return; }
         localStorage.setItem('TENANT_API_KEY', val);
+        TENANT_API_KEY = val; // Update global variable
         showNotification('Tenant API Key kaydedildi', 'success');
     } catch (e) { showNotification('Kaydedilemedi: ' + e.message, 'error'); }
 }
 function clearTenantApiKey() {
-    try { localStorage.removeItem('TENANT_API_KEY'); showNotification('Anahtar silindi', 'success'); } catch(_){}
+    try { 
+        localStorage.removeItem('TENANT_API_KEY'); 
+        TENANT_API_KEY = ''; // Clear global variable
+        showNotification('Anahtar silindi', 'success'); 
+    } catch(_){}
 }
 
 // X-Admin-User kullanılmayacak; ilgili ayarlar kaldırıldı
@@ -379,8 +406,7 @@ async function testConnection() {
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                ...(TENANT_API_KEY ? { 'X-API-Key': TENANT_API_KEY } : {}),
-                ...(ADMIN_TOKEN ? { 'Authorization': 'Bearer ' + ADMIN_TOKEN } : {})
+                ...(TENANT_API_KEY ? { 'X-API-Key': TENANT_API_KEY } : {})
             }
         });
         const pingTime = Date.now() - pingStart;
@@ -858,7 +884,9 @@ async function apiRequest(endpoint, options = {}) {
         console.log(`📡 Requesting: ${url}`);
         const isAdminEndpoint = endpoint.startsWith('/admin/') || endpoint.startsWith('/api/admin/');
         // ADMIN_EMAIL ve X-Admin-User kaldırıldı
-        const tenantKey = getTenantApiKey();
+        const tenantKey = TENANT_API_KEY || getTenantApiKey();
+        console.log(`🔑 Using API Key: ${tenantKey ? 'Present' : 'Missing'}`);
+        console.log(`🔑 API Key value: ${tenantKey ? tenantKey.substring(0, 10) + '...' : 'None'}`);
         const method = (options.method || 'GET').toUpperCase();
         const isCacheableGet = method === 'GET';
         const cacheKey = buildCacheKey(url, options);
@@ -879,7 +907,12 @@ async function apiRequest(endpoint, options = {}) {
             };
             
             // Tüm endpointlerde yalnızca X-API-Key kullan
-            if (tenantKey) headers['X-API-Key'] = tenantKey;
+            if (tenantKey) {
+                headers['X-API-Key'] = tenantKey;
+                console.log(`🔑 Adding X-API-Key header: ${tenantKey.substring(0, 10)}...`);
+            } else {
+                console.log('❌ No API key available for request');
+            }
             
             const response = await fetch(url, {
                 ...options,

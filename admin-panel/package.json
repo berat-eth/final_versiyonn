@@ -1,25 +1,28 @@
 {
   "name": "huglu-admin-panel",
   "version": "1.0.0",
-  "description": "Admin panel for Huglu mobile app management",
-  "main": "index.html",
+  "description": "Huğlu Outdoor Admin Panel with CORS Fix",
+  "main": "cors-fix.js",
   "scripts": {
-    "start": "python server.py",
-    "dev": "python server.py",
-    "build": "echo 'No build process needed for static files'",
-    "serve": "python -m http.server 8080"
+    "start": "node cors-fix.js",
+    "dev": "nodemon cors-fix.js",
+    "cors-fix": "node cors-fix.js",
+    "python-server": "python server.py"
   },
   "dependencies": {
-    "axios": "1.11.0",
-    "chart.js": "4.4.0",
-    "moment": "2.29.4"
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
-    "live-server": "1.2.2"
+    "nodemon": "^3.0.1"
   },
-  "private": true,
-  "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
-  }
+  "keywords": [
+    "admin",
+    "panel",
+    "cors",
+    "huglu",
+    "outdoor"
+  ],
+  "author": "Huğlu Outdoor",
+  "license": "MIT"
 }

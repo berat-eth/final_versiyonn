@@ -19,7 +19,7 @@ class AdminPanelHandler(http.server.SimpleHTTPRequestHandler):
         # Add CORS headers
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Key, Authorization')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Authorization')
         super().end_headers()
 
 def open_browser():
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     with socketserver.TCPServer(("", PORT), AdminPanelHandler) as httpd:
         print(f"🚀 Huglu Outdoor Admin Panel")
         print(f"📱 Server running at: http://localhost:{PORT}")
-        print(f"🔑 Admin Key: huglu-admin-2024-secure-key")
+        print(f"🔑 API Key: X-API-Key header kullanın")
         print(f"🌐 Backend API: http://213.142.159.135:3000/api")
         print(f"🔧 Admin Panel: http://localhost:{PORT}")
         print(f"⚠️  Make sure your backend server is running on remote server")

@@ -235,14 +235,43 @@ app.use(compression({
   }
 }));
 
-// CORS - Tüm origin'lere izin ver
+// CORS - Tüm origin'lere izin ver (Admin paneli dahil)
 app.use(cors({
   origin: true, // Tüm origin'lere izin ver
   credentials: true,
   methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
-  // Yalnız X-API-Key + gerekli standart başlıklar
-  allowedHeaders: ['Content-Type','X-Requested-With','X-API-Key']
+  // Admin paneli için genişletilmiş başlıklar
+  allowedHeaders: [
+    'Content-Type',
+    'X-Requested-With',
+    'X-API-Key',
+    'Authorization',
+    'Accept',
+    'Origin',
+    'User-Agent',
+    'Cache-Control',
+    'Pragma'
+  ]
 }));
+
+// Admin paneli için özel CORS middleware
+app.use((req, res, next) => {
+  // Admin paneli istekleri için ek CORS başlıkları
+  if (req.path.startsWith('/admin') || req.headers['x-api-key']) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  
+  // OPTIONS istekleri için hızlı yanıt
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
 
 app.use(express.json());
 
@@ -2019,14 +2048,24 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '38cdfD8217..';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'huglu-admin-token-2025';
 
 function authenticateAdmin(req, res, next) {
-  const header = req.headers['authorization'] || '';
-  const token = header.startsWith('Bearer ') ? header.substring('Bearer '.length) : null;
-  if (!token || token !== ADMIN_TOKEN) {
+  // Check both Authorization Bearer token and X-API-Key
+  const authHeader = req.headers['authorization'] || '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.substring('Bearer '.length) : null;
+  const apiKey = req.headers['x-api-key'];
+  
+  // Accept either Bearer token or valid API key
+  const isValidBearer = bearerToken && bearerToken === ADMIN_TOKEN;
+  const isValidApiKey = apiKey && apiKey === 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
+  
+  if (!isValidBearer && !isValidApiKey) {
     return res.status(401).json({
       success: false,
       message: 'Admin authentication required'
     });
   }
+  
+  // Set admin context for the request
+  req.isAdmin = true;
   next();
 }
 

@@ -36,7 +36,7 @@ if %errorlevel% neq 0 (
 echo.
 echo 🌐 Admin paneli başlatılıyor...
 echo 📱 Tarayıcınız otomatik olarak açılacak
-echo 🔑 Admin Key: huglu-admin-2024-secure-key
+echo 🔑 API Key: X-API-Key header kullanın
 echo.
 echo ⏹️  Durdurmak için Ctrl+C tuşlayın
 echo.
