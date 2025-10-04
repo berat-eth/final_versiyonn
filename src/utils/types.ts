@@ -49,6 +49,15 @@ export interface Product {
   productUrl?: string;
   salesUnit?: string;
   totalImages?: number;
+  // Çeviri desteği
+  translations?: {
+    [key: string]: {
+      name?: string;
+      description?: string;
+      category?: string;
+      brand?: string;
+    };
+  };
 }
 
 // Review Types
@@ -60,6 +69,19 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: string;
+  images?: ReviewImage[];
+  isVerifiedPurchase?: boolean;
+  helpfulCount?: number;
+  isHelpful?: boolean;
+}
+
+export interface ReviewImage {
+  id: number;
+  reviewId: number;
+  imageUrl: string;
+  thumbnailUrl?: string;
+  uploadedAt: string;
+  order?: number;
 }
 
 // User Types

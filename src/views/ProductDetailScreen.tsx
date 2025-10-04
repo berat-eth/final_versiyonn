@@ -27,6 +27,9 @@ import { Colors } from '../theme/colors';
 import { ModernButton } from '../components/ui/ModernButton';
 import { SocialShareButtons } from '../components/SocialShareButtons';
 import { ImageGallery } from '../components/ImageGallery';
+import { useLanguage } from '../contexts/LanguageContext';
+import { getTranslatedProductName, getTranslatedProductDescription, getTranslatedProductBrand, getTranslatedProductCategory, getTranslatedVariationName } from '../utils/translationUtils';
+import { PurchaseVerificationService } from '../services/PurchaseVerificationService';
 import * as FileSystem from 'expo-file-system';
 import { NetworkMonitor } from '../utils/performance-utils';
 
@@ -39,6 +42,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   navigation,
   route,
 }) => {
+  const { t, currentLanguage, isLoading: languageLoading } = useLanguage();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -48,6 +52,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const [userReview, setUserReview] = useState<Review | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [canUserReview, setCanUserReview] = useState<boolean | null>(null);
+  const [reviewEligibilityReason, setReviewEligibilityReason] = useState<string>('');
   const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: ProductVariationOption }>({});
   const [currentPrice, setCurrentPrice] = useState(0);
   const [currentStock, setCurrentStock] = useState(0);
@@ -69,7 +75,11 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       
       // Kullanıcı önbellekten hızlıca (ağ beklemeden) al, sonra favori kontrolü yap
       const quick = await UserController.getCachedUserQuick();
-      if (quick) setCurrentUser(quick);
+      if (quick) {
+        setCurrentUser(quick);
+        // Yorum yapma yetkisini kontrol et
+        await checkReviewEligibility();
+      }
       checkIfFavorite();
     })();
     
@@ -215,6 +225,18 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     }
   };
 
+  const checkReviewEligibility = async () => {
+    try {
+      const eligibility = await PurchaseVerificationService.canUserReview(productId);
+      setCanUserReview(eligibility.canReview);
+      setReviewEligibilityReason(eligibility.reason || '');
+    } catch (error) {
+      console.error('Error checking review eligibility:', error);
+      setCanUserReview(false);
+      setReviewEligibilityReason('Yorum yapma yetkinizi kontrol ederken bir hata oluştu.');
+    }
+  };
+
   const handleAddToCart = async () => {
     if (!product) return;
 
@@ -265,7 +287,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     }
   };
 
-  const handleReviewSubmit = async (rating: number, comment: string) => {
+  const handleReviewSubmit = async (rating: number, comment: string, images?: string[]) => {
     if (!currentUser) {
       Alert.alert('Hata', 'Yorum yapmak için giriş yapmanız gerekiyor.');
       return;
@@ -285,7 +307,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
           currentUser.id,
           currentUser.name,
           rating,
-          comment
+          comment,
+          images
         );
       }
 
@@ -379,7 +402,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     }
   };
 
-  if (loading) {
+  if (loading || languageLoading) {
     return <LoadingIndicator />;
   }
 
@@ -470,7 +493,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
         <View style={styles.content}>
           <Text style={styles.brand}>{product.brand}</Text>
-          <Text style={styles.name}>{product.name}</Text>
+          <Text style={styles.name}>{getTranslatedProductName(product, currentLanguage)}</Text>
 
           <View style={styles.ratingContainer}>
             <Text style={styles.ratingStar}>⭐</Text>
@@ -525,11 +548,11 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
               {/* Seçilen Varyasyon Özeti */}
               {Object.keys(selectedOptions).length > 0 && (
                 <View style={styles.selectedVariationSummary}>
-                  <Text style={styles.selectedVariationTitle}>Seçilen Varyasyonlar:</Text>
+                  <Text style={styles.selectedVariationTitle}>{t('productDetail.selectedVariations')}:</Text>
                   {Object.entries(selectedOptions).map(([variationId, option]) => (
                     <View key={variationId} style={styles.selectedVariationItem}>
                       <Text style={styles.selectedVariationLabel}>
-                        {product.variations?.find(v => v.id.toString() === variationId)?.name}:
+                        {getTranslatedVariationName(product.variations?.find(v => v.id.toString() === variationId)?.name || '', currentLanguage)}:
                       </Text>
                       <Text style={styles.selectedVariationValue}>
                         {option.value}
@@ -547,8 +570,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
           )}
 
           <View style={styles.descriptionContainer}>
-            <Text style={styles.sectionTitle}>Ürün Açıklaması</Text>
-            <Text style={styles.description}>{product.description}</Text>
+            <Text style={styles.sectionTitle}>{t('productDetail.description')}</Text>
+            <Text style={styles.description}>{getTranslatedProductDescription(product, currentLanguage)}</Text>
           </View>
 
           {/* XML'den gelen ek bilgiler (varsa) */}
@@ -610,11 +633,11 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
           {/* Sosyal Paylaşım Bölümü */}
           <SocialShareButtons
             productId={product.id.toString()}
-            productName={product.name}
+            productName={getTranslatedProductName(product, currentLanguage)}
             productPrice={currentPrice}
             productImage={product.image}
             productBrand={product.brand}
-            productDescription={product.description}
+            productDescription={getTranslatedProductDescription(product, currentLanguage)}
             onShareSuccess={(platform, expGained) => {
               console.log(`Paylaşım başarılı: ${platform}, +${expGained} EXP`);
             }}
@@ -626,10 +649,26 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
               <Text style={styles.sectionTitle}>Değerlendirmeler</Text>
               {currentUser && (
                 <TouchableOpacity
-                  style={styles.addReviewButton}
-                  onPress={() => setShowReviewForm(true)}
+                  style={[
+                    styles.addReviewButton,
+                    canUserReview === false && styles.disabledButton
+                  ]}
+                  onPress={() => {
+                    if (canUserReview === false) {
+                      Alert.alert(
+                        'Yorum Yapamazsınız',
+                        reviewEligibilityReason || 'Bu ürünü satın almadığınız için yorum yapamazsınız.'
+                      );
+                      return;
+                    }
+                    setShowReviewForm(true);
+                  }}
+                  disabled={canUserReview === false}
                 >
-                  <Text style={styles.addReviewButtonText}>
+                  <Text style={[
+                    styles.addReviewButtonText,
+                    canUserReview === false && styles.disabledButtonText
+                  ]}>
                     {userReview ? 'Yorumumu Düzenle' : 'Yorum Yap'}
                   </Text>
                 </TouchableOpacity>
@@ -1103,5 +1142,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
     flex: 1,
+  },
+  disabledButton: {
+    backgroundColor: '#E0E0E0',
+    opacity: 0.6,
+  },
+  disabledButtonText: {
+    color: '#999999',
   },
 });

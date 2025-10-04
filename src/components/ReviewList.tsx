@@ -1,13 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Image,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Review } from '../utils/types';
 import { ReviewController } from '../controllers/ReviewController';
+import { ReviewImageGallery } from './ReviewImageGallery';
+import { useLanguage } from '../contexts/LanguageContext';
+import { Colors } from '../theme/colors';
 
 interface ReviewListProps {
   reviews: Review[];
@@ -15,11 +22,19 @@ interface ReviewListProps {
   onReviewUpdate: () => void;
 }
 
+const { width } = Dimensions.get('window');
+const IMAGE_SIZE = (width - 60) / 4; // 4 sütunlu grid
+
 export const ReviewList: React.FC<ReviewListProps> = ({
   reviews,
   currentUserId,
   onReviewUpdate,
 }) => {
+  const { t, isLoading: languageLoading } = useLanguage();
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('tr-TR', {
@@ -43,19 +58,19 @@ export const ReviewList: React.FC<ReviewListProps> = ({
 
   const handleDeleteReview = async (reviewId: number) => {
     Alert.alert(
-      'Yorumu Sil',
-      'Bu yorumu silmek istediğinizden emin misiniz?',
+      t('reviews.deleteReview'),
+      t('reviews.confirmDelete'),
       [
-        { text: 'İptal', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Sil',
+          text: t('reviews.delete'),
           style: 'destructive',
           onPress: async () => {
             const result = await ReviewController.deleteReview(reviewId);
             if (result.success) {
               onReviewUpdate();
             } else {
-              Alert.alert('Hata', result.message);
+              Alert.alert(languageLoading ? 'Hata' : t('common.error'), result.message);
             }
           },
         },
@@ -63,11 +78,51 @@ export const ReviewList: React.FC<ReviewListProps> = ({
     );
   };
 
+  const handleViewImages = (images: string[], initialIndex: number = 0) => {
+    setSelectedImages(images);
+    setGalleryInitialIndex(initialIndex);
+    setGalleryVisible(true);
+  };
+
+  const renderReviewImages = (review: Review) => {
+    if (!review.images || review.images.length === 0) {
+      return null;
+    }
+
+    const imageUrls = review.images.map(img => img.imageUrl);
+
+    return (
+      <View style={styles.imagesContainer}>
+        <Text style={styles.imagesLabel}>{t('reviews.images')}:</Text>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.imagesScroll}
+        >
+          {imageUrls.map((imageUrl, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.imageContainer}
+              onPress={() => handleViewImages(imageUrls, index)}
+            >
+              <Image source={{ uri: imageUrl }} style={styles.reviewImage} />
+              {imageUrls.length > 3 && index === 2 && (
+                <View style={styles.moreImagesOverlay}>
+                  <Text style={styles.moreImagesText}>+{imageUrls.length - 3}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   if (reviews.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Henüz yorum yapılmamış</Text>
-        <Text style={styles.emptySubtext}>İlk yorumu siz yapın!</Text>
+        <Text style={styles.emptyText}>{t('reviews.noReviews')}</Text>
+        <Text style={styles.emptySubtext}>{t('reviews.noReviewsDescription')}</Text>
       </View>
     );
   }
@@ -78,7 +133,15 @@ export const ReviewList: React.FC<ReviewListProps> = ({
         <View key={review.id} style={styles.reviewItem}>
           <View style={styles.reviewHeader}>
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{review.userName}</Text>
+              <View style={styles.userNameContainer}>
+                <Text style={styles.userName}>{review.userName}</Text>
+                {review.isVerifiedPurchase && (
+                  <View style={styles.verifiedBadge}>
+                    <Icon name="verified" size={16} color={Colors.primary} />
+                    <Text style={styles.verifiedText}>{t('reviews.verifiedPurchase')}</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.reviewDate}>
                 {formatDate(review.createdAt)}
               </Text>
@@ -91,18 +154,48 @@ export const ReviewList: React.FC<ReviewListProps> = ({
 
           <Text style={styles.reviewComment}>{review.comment}</Text>
 
-          {currentUserId === review.userId && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => handleDeleteReview(review.id)}
-              >
-                <Text style={styles.deleteButtonText}>Sil</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {renderReviewImages(review)}
+
+          <View style={styles.reviewFooter}>
+            {review.helpfulCount !== undefined && (
+              <View style={styles.helpfulContainer}>
+                <TouchableOpacity style={styles.helpfulButton}>
+                  <Icon 
+                    name={review.isHelpful ? "thumb-up" : "thumb-up-outlined"} 
+                    size={16} 
+                    color={review.isHelpful ? Colors.primary : Colors.textMuted} 
+                  />
+                  <Text style={[
+                    styles.helpfulText,
+                    review.isHelpful && styles.helpfulTextActive
+                  ]}>
+                    {t('reviews.helpful')} ({review.helpfulCount})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {currentUserId === review.userId && (
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleDeleteReview(review.id)}
+                >
+                  <Icon name="delete" size={16} color={Colors.error} />
+                  <Text style={styles.deleteButtonText}>{t('reviews.delete')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       ))}
+
+      <ReviewImageGallery
+        images={selectedImages}
+        visible={galleryVisible}
+        onClose={() => setGalleryVisible(false)}
+        initialIndex={galleryInitialIndex}
+      />
     </View>
   );
 };
@@ -117,17 +210,17 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: Colors.textMuted,
     marginBottom: 4,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: Colors.textMuted,
   },
   reviewItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: Colors.border,
   },
   reviewHeader: {
     flexDirection: 'row',
@@ -138,15 +231,34 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
   },
+  userNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
+    color: Colors.text,
+    marginRight: 8,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  verifiedText: {
+    fontSize: 10,
+    color: Colors.primary,
+    marginLeft: 2,
+    fontWeight: '500',
   },
   reviewDate: {
     fontSize: 12,
-    color: '#999',
+    color: Colors.textMuted,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -162,28 +274,90 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 14,
-    color: '#666',
+    color: Colors.textMuted,
     marginLeft: 4,
   },
   reviewComment: {
     fontSize: 14,
-    color: '#333',
+    color: Colors.text,
     lineHeight: 20,
+    marginBottom: 12,
+  },
+  imagesContainer: {
+    marginBottom: 12,
+  },
+  imagesLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  imagesScroll: {
+    marginBottom: 8,
+  },
+  imageContainer: {
+    position: 'relative',
+    marginRight: 8,
+  },
+  reviewImage: {
+    width: IMAGE_SIZE,
+    height: IMAGE_SIZE,
+    borderRadius: 8,
+    backgroundColor: Colors.background,
+  },
+  moreImagesOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreImagesText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  reviewFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  helpfulContainer: {
+    flex: 1,
+  },
+  helpfulButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  helpfulText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginLeft: 4,
+  },
+  helpfulTextActive: {
+    color: Colors.primary,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 8,
   },
   actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 4,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.background,
   },
   deleteButtonText: {
+    color: Colors.error,
     fontSize: 12,
-    color: '#F44336',
     fontWeight: '500',
+    marginLeft: 4,
   },
 });

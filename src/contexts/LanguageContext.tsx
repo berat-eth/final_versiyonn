@@ -7,6 +7,7 @@ interface LanguageContextType {
   currentLanguage: SupportedLanguage;
   changeLanguage: (language: SupportedLanguage) => Promise<void>;
   t: (key: string, params?: Record<string, string>) => string;
+  isLoading: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -20,6 +21,7 @@ const STORAGE_KEY = '@app_language';
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
   const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguage>('tr');
   const [translations, setTranslations] = useState<Record<string, any>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadSavedLanguage();
@@ -42,6 +44,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
 
   const loadTranslations = async (language: SupportedLanguage) => {
     try {
+      setIsLoading(true);
       if (__DEV__) console.log('📚 Loading translations for language:', language);
       let translationModule;
       
@@ -76,21 +79,41 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
         if (__DEV__) console.error('❌ Error loading fallback translations:', fallbackError);
         setTranslations({});
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const changeLanguage = async (language: SupportedLanguage) => {
     try {
       console.log('🌍 Changing language from', currentLanguage, 'to', language);
+      
+      // Önce yeni çevirileri yükle
+      await loadTranslations(language);
+      
+      // Sonra dili kaydet ve güncelle
       await AsyncStorage.setItem(STORAGE_KEY, language);
       setCurrentLanguage(language);
+      
       console.log('✅ Language changed successfully to', language);
     } catch (error) {
       console.error('❌ Error saving language:', error);
+      // Hata durumunda fallback olarak Türkçe'ye geç
+      try {
+        await loadTranslations('tr');
+        setCurrentLanguage('tr');
+      } catch (fallbackError) {
+        console.error('❌ Error loading fallback language:', fallbackError);
+      }
     }
   };
 
   const t = (key: string, params?: Record<string, string>): string => {
+    // Eğer çeviriler henüz yüklenmemişse, key'i döndür
+    if (!translations || Object.keys(translations).length === 0) {
+      return key;
+    }
+
     const keys = key.split('.');
     let value: any = translations;
     
@@ -98,13 +121,18 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
       if (value && typeof value === 'object' && k in value) {
         value = value[k];
       } else {
-        console.warn(`Translation key not found: ${key} for language: ${currentLanguage}`);
-        return key; // Return the key itself if translation is not found
+        // Çeviri bulunamazsa, key'i döndür (geliştirme sırasında daha az uyarı)
+        if (__DEV__) {
+          console.warn(`Translation key not found: ${key} for language: ${currentLanguage}`);
+        }
+        return key;
       }
     }
     
     if (typeof value !== 'string') {
-      console.warn(`Translation value is not a string: ${key}`);
+      if (__DEV__) {
+        console.warn(`Translation value is not a string: ${key}`);
+      }
       return key;
     }
     
@@ -122,6 +150,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     currentLanguage,
     changeLanguage,
     t,
+    isLoading,
   };
 
   return (

@@ -33,6 +33,7 @@ import { VariationModal } from '../components/VariationModal';
 import { InstagramStories } from '../components/InstagramStories';
 import { useAppContext } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { getTranslatedProductName, getTranslatedProductBrand, getTranslatedVariationName } from '../utils/translationUtils';
 import { useTheme } from '../contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -47,7 +48,7 @@ const { width, height } = Dimensions.get('window');
 
 export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const { updateCart } = useAppContext();
-  const { t } = useLanguage();
+  const { t, currentLanguage, isLoading: languageLoading } = useLanguage();
   const { colors, isDark } = useTheme();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [popularProducts, setPopularProducts] = useState<Product[]>([]);
@@ -797,15 +798,15 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         )}
       </View>
       <View style={styles.productInfo}>
-        <Text style={styles.productBrand}>{item.brand}</Text>
+        <Text style={styles.productBrand}>{getTranslatedProductBrand(item, currentLanguage)}</Text>
         <Text style={styles.productName} numberOfLines={2}>
-          {item.name}
+          {getTranslatedProductName(item, currentLanguage)}
         </Text>
         
         {/* Beden bilgisi (varyasyonlu ürünler için) */}
         {item.hasVariations && item.variations && item.variations.length > 0 && (
           <View style={styles.sizeContainer}>
-            <Text style={styles.sizeLabel}>Bedenler:</Text>
+            <Text style={styles.sizeLabel}>{t('productDetail.size')}:</Text>
             <View style={styles.sizeList}>
               {item.variations.slice(0, 3).map((variation, index) => (
                 <View key={index} style={styles.sizeChip}>
@@ -1299,7 +1300,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   };
 
 
-  if (loading) {
+  if (loading || languageLoading) {
     return <LoadingIndicator />;
   }
 

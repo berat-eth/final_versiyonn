@@ -7,13 +7,16 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { Review } from '../utils/types';
+import { ImageUploader } from './ImageUploader';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface ReviewFormProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (rating: number, comment: string) => void;
+  onSubmit: (rating: number, comment: string, images?: string[]) => void;
   review?: Review | null;
   loading?: boolean;
 }
@@ -25,26 +28,29 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
   review,
   loading = false,
 }) => {
+  const { t, isLoading: languageLoading } = useLanguage();
   const [rating, setRating] = useState(review?.rating || 5);
   const [comment, setComment] = useState(review?.comment || '');
+  const [images, setImages] = useState<string[]>(review?.images?.map(img => img.imageUrl) || []);
 
   const handleSubmit = () => {
     if (!comment.trim()) {
-      Alert.alert('Hata', 'Lütfen bir yorum yazın.');
+      Alert.alert(languageLoading ? 'Hata' : t('common.error'), languageLoading ? 'Lütfen bir yorum yazın' : t('reviews.commentRequired'));
       return;
     }
 
     if (rating < 1 || rating > 5) {
-      Alert.alert('Hata', 'Lütfen 1-5 arası bir puan verin.');
+      Alert.alert(languageLoading ? 'Hata' : t('common.error'), languageLoading ? 'Lütfen 1-5 arası bir puan verin' : t('reviews.ratingRequired'));
       return;
     }
 
-    onSubmit(rating, comment.trim());
+    onSubmit(rating, comment.trim(), images);
   };
 
   const handleClose = () => {
     setRating(review?.rating || 5);
     setComment(review?.comment || '');
+    setImages(review?.images?.map(img => img.imageUrl) || []);
     onClose();
   };
 
@@ -84,22 +90,30 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.content}>
-            <Text style={styles.label}>Puanınız:</Text>
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            <Text style={styles.label}>{t('reviews.yourRating')}:</Text>
             <View style={styles.starsContainer}>
               {renderStars()}
             </View>
             <Text style={styles.ratingText}>{rating}/5</Text>
 
-            <Text style={styles.label}>Yorumunuz:</Text>
+            <Text style={styles.label}>{t('reviews.yourComment')}:</Text>
             <TextInput
               style={styles.commentInput}
               value={comment}
               onChangeText={setComment}
-              placeholder="Bu ürün hakkında düşüncelerinizi paylaşın..."
+              placeholder={t('reviews.commentPlaceholder')}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
+            />
+
+            <ImageUploader
+              images={images}
+              onImagesChange={setImages}
+              maxImages={5}
+              maxImageSize={5}
+              disabled={loading}
             />
 
             <View style={styles.buttonContainer}>
@@ -108,7 +122,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
                 onPress={handleClose}
                 disabled={loading}
               >
-                <Text style={styles.cancelButtonText}>İptal</Text>
+                <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.submitButton, loading && styles.disabledButton]}
@@ -116,11 +130,11 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
                 disabled={loading}
               >
                 <Text style={styles.submitButtonText}>
-                  {loading ? 'Gönderiliyor...' : (review ? 'Güncelle' : 'Gönder')}
+                  {loading ? t('common.loading') : (review ? t('common.save') : t('reviews.submit'))}
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>

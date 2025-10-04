@@ -4183,6 +4183,7 @@ app.get('/api/products', async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
+    const language = req.query.language || 'tr'; // Default to Turkish
     
     // Redis hot cache for list page 1 (most requested)
     if (page === 1) {

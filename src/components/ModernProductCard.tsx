@@ -14,6 +14,8 @@ import { Spacing, Shadows } from '../theme/theme';
 import { ModernCard } from './ui/ModernCard';
 import { Product } from '../utils/types';
 import { ProductController } from '../controllers/ProductController';
+import { useLanguage } from '../contexts/LanguageContext';
+import { getTranslatedProductName, getTranslatedProductBrand } from '../utils/translationUtils';
 
 interface ModernProductCardProps {
   product: Product;
@@ -36,6 +38,7 @@ export const ModernProductCard: React.FC<ModernProductCardProps> = ({
   variant = 'default',
   width,
 }) => {
+  const { currentLanguage, t, isLoading: languageLoading } = useLanguage();
   const cardWidth = width || (variant === 'horizontal' ? screenWidth - Spacing.lg * 2 : screenWidth * 0.45);
 
   const renderStockStatus = () => {
@@ -92,9 +95,9 @@ export const ModernProductCard: React.FC<ModernProductCardProps> = ({
           <View style={styles.horizontalInfo}>
             <View style={styles.horizontalHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.brandText}>{product.brand}</Text>
+                <Text style={styles.brandText}>{getTranslatedProductBrand(product, currentLanguage)}</Text>
                 <Text style={styles.productName} numberOfLines={2}>
-                  {product.name}
+                  {getTranslatedProductName(product, currentLanguage)}
                 </Text>
               </View>
               {onToggleFavorite && (
@@ -115,7 +118,7 @@ export const ModernProductCard: React.FC<ModernProductCardProps> = ({
             
             <View style={styles.horizontalFooter}>
               <View>
-                <Text style={styles.priceLabel}>Fiyat</Text>
+                <Text style={styles.priceLabel}>{t('product.price')}</Text>
                 <Text style={styles.price}>
                   {ProductController.formatPrice(product.price)}
                 </Text>
@@ -178,7 +181,7 @@ export const ModernProductCard: React.FC<ModernProductCardProps> = ({
         </View>
         <View style={styles.compactInfo}>
           <Text style={styles.compactProductName} numberOfLines={1}>
-            {product.name}
+            {getTranslatedProductName(product, currentLanguage)}
           </Text>
           <Text style={styles.compactPrice}>
             {ProductController.formatPrice(product.price)}
@@ -224,16 +227,16 @@ export const ModernProductCard: React.FC<ModernProductCardProps> = ({
       </View>
       
       <View style={styles.infoContainer}>
-        <Text style={styles.brandText}>{product.brand}</Text>
+        <Text style={styles.brandText}>{getTranslatedProductBrand(product, currentLanguage)}</Text>
         <Text style={styles.productName} numberOfLines={2}>
-          {product.name}
+          {getTranslatedProductName(product, currentLanguage)}
         </Text>
         
         {renderRating()}
         
         <View style={styles.footer}>
           <View>
-            <Text style={styles.priceLabel}>Fiyat</Text>
+            <Text style={styles.priceLabel}>{t('product.price')}</Text>
             <Text style={styles.price}>
               {ProductController.formatPrice(product.price)}
             </Text>

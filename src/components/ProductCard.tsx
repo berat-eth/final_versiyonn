@@ -10,6 +10,8 @@ import {
 import { Product } from '../utils/types';
 import { ProductController } from '../controllers/ProductController';
 import { ImageGallery } from './ImageGallery';
+import { useLanguage } from '../contexts/LanguageContext';
+import { getTranslatedProductName, getTranslatedProductBrand, getTranslatedVariationName } from '../utils/translationUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -20,6 +22,8 @@ const { width } = Dimensions.get('window');
 const cardWidth = (width - 32) / 2; // Reduced margin for cleaner look
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
+  const { currentLanguage, t, isLoading: languageLoading } = useLanguage();
+  
   return (
     <TouchableOpacity
       style={styles.container}
@@ -35,7 +39,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
             product.image4,
             product.image5,
             ...(product.images || [])
-          ].filter(img => img && img.trim() !== '')}
+          ].filter((img): img is string => img !== undefined && img.trim() !== '')}
           mainImage={product.image}
           style={styles.imageGallery}
           showThumbnails={false}
@@ -47,20 +51,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
         )}
         {product.stock === 0 && (
           <View style={styles.outOfStockOverlay}>
-            <Text style={styles.outOfStockText}>Tükendi</Text>
+            <Text style={styles.outOfStockText}>{t('product.outOfStock')}</Text>
           </View>
         )}
       </View>
       
       <View style={styles.content}>
         <Text style={styles.name} numberOfLines={2}>
-          {product.name}
+          {getTranslatedProductName(product, currentLanguage)}
         </Text>
         
         {/* Beden bilgisi (varyasyonlu ürünler için) */}
         {product.hasVariations && product.variations && product.variations.length > 0 && (
           <View style={styles.sizeContainer}>
-            <Text style={styles.sizeLabel}>Bedenler:</Text>
+            <Text style={styles.sizeLabel}>{t('productDetail.size')}:</Text>
             <View style={styles.sizeList}>
               {product.variations.slice(0, 3).map((variation, index) => (
                 <View key={index} style={styles.sizeChip}>

@@ -1,6 +1,7 @@
 import db from '../utils/database';
 import { Review } from '../utils/types';
 import { apiService } from '../utils/api-service';
+import { PurchaseVerificationService } from '../services/PurchaseVerificationService';
 
 // Simple in-memory cache for reviews (SWR-style)
 const reviewsCache = new Map<number, { data: Review[]; ts: number }>();
@@ -106,7 +107,8 @@ export class ReviewController {
     userId: number,
     userName: string,
     rating: number,
-    comment: string
+    comment: string,
+    images?: string[]
   ): Promise<{ success: boolean; message: string; review?: Review }> {
     try {
       console.log(`📝 Adding review for product: ${productId}, user: ${userId}, rating: ${rating}`);
@@ -118,6 +120,16 @@ export class ReviewController {
       
       if (!comment || comment.trim().length < 3) {
         return { success: false, message: 'Yorum en az 3 karakter olmalıdır' };
+      }
+
+      // Satın alma doğrulaması
+      const purchaseCheck = await PurchaseVerificationService.canUserReview(productId);
+      if (!purchaseCheck.canReview) {
+        console.log(`❌ User cannot review product ${productId}: ${purchaseCheck.reason}`);
+        return {
+          success: false,
+          message: purchaseCheck.reason || 'Bu ürün için yorum yapamazsınız.'
+        };
       }
 
       // Kullanıcının daha önce yorum yapıp yapmadığını kontrol et
@@ -136,7 +148,8 @@ export class ReviewController {
         userId,
         userName,
         rating,
-        comment: comment.trim()
+        comment: comment.trim(),
+        images: images || []
       };
 
       const response = await apiService.createReview(reviewData);
@@ -152,7 +165,17 @@ export class ReviewController {
           userName,
           rating,
           comment: comment.trim(),
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          images: images ? images.map((img, index) => ({
+            id: index + 1,
+            reviewId: response.data?.reviewId || 0,
+            imageUrl: img,
+            uploadedAt: new Date().toISOString(),
+            order: index,
+          })) : [],
+          isVerifiedPurchase: purchaseCheck.purchaseInfo?.hasPurchased || false,
+          helpfulCount: 0,
+          isHelpful: false,
         };
 
         return {
@@ -177,7 +200,8 @@ export class ReviewController {
           userId,
           userName,
           rating,
-          comment
+          comment,
+          images: images || []
         });
         return { success: false, message: 'Çevrimdışı mod - yorum ekleme isteği kuyruğa eklendi' };
       }
@@ -299,7 +323,7 @@ export class ReviewController {
       const total = reviews.length;
       const averageRating = reviews.reduce((sum, review) => sum + review.rating, 0) / total;
       
-      const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      const ratingDistribution: { [key: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
       reviews.forEach(review => {
         if (review.rating >= 1 && review.rating <= 5) {
           ratingDistribution[review.rating]++;
@@ -416,7 +440,18 @@ export class ReviewController {
         userName: apiReview.userName || 'Anonymous',
         rating: parseInt(apiReview.rating) || 0,
         comment: apiReview.comment || '',
-        createdAt: apiReview.createdAt || new Date().toISOString()
+        createdAt: apiReview.createdAt || new Date().toISOString(),
+        images: apiReview.images ? apiReview.images.map((img: any) => ({
+          id: img.id,
+          reviewId: img.review_id,
+          imageUrl: img.image_url,
+          thumbnailUrl: img.thumbnail_url,
+          uploadedAt: img.uploaded_at,
+          order: img.order || 0,
+        })) : [],
+        isVerifiedPurchase: apiReview.isVerifiedPurchase || false,
+        helpfulCount: apiReview.helpfulCount || 0,
+        isHelpful: apiReview.isHelpful || false,
       };
     } catch (error) {
       console.error('❌ Error mapping API review:', error, apiReview);
@@ -428,7 +463,11 @@ export class ReviewController {
         userName: 'Error Loading Review',
         rating: 0,
         comment: 'This review could not be loaded properly',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        images: [],
+        isVerifiedPurchase: false,
+        helpfulCount: 0,
+        isHelpful: false,
       };
     }
   }
