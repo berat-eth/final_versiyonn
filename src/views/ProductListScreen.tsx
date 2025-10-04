@@ -576,7 +576,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             onPress={() => setShowHeaderSection(v => !v)}
             style={{ paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }}
           >
-            <Text style={{ color: Colors.text }}>{showHeaderSection ? 'Kapat' : 'Aç'}</Text>
+            <Text style={{ color: Colors.text }}>{showHeaderSection ? 'Gizle' : 'Göster'}</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -57,8 +57,8 @@ export class OrderController {
 
       console.log(`👤 Customer info:`, customerInfo);
 
-      // Backend 'wallet' metodunu desteklemeyebilir; uyumluluk için 'eft' olarak gönder
-      const apiPaymentMethod = paymentMethod === 'wallet' ? 'eft' : paymentMethod;
+      // Cüzdan ödemesi için 'wallet' olarak gönder (artık backend destekliyor)
+      const apiPaymentMethod = paymentMethod;
 
       // API'ye sipariş oluşturma isteği gönder
       const orderData = {

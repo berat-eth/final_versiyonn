@@ -1056,6 +1056,14 @@ app.put('/api/user-addresses/:id/set-default', async (req, res) => {
 // Transfer money between users
 app.post('/api/wallet/transfer', async (req, res) => {
   try {
+    // Tenant kontrolü
+    if (!req.tenant || !req.tenant.id) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Tenant authentication required' 
+      });
+    }
+
     const { fromUserId, toUserId, amount, description } = req.body;
     
     if (!fromUserId || !toUserId || !amount || amount <= 0) {
@@ -1111,36 +1119,49 @@ app.post('/api/wallet/transfer', async (req, res) => {
     }
 
     // Start transaction
+    console.log('🔄 Starting wallet transfer transaction...');
     const connection = await poolWrapper.getConnection();
+    console.log('✅ Database connection obtained');
     await connection.beginTransaction();
+    console.log('✅ Transaction started');
 
     try {
       // Deduct from sender
+      console.log('🔄 Deducting from sender...');
       await connection.execute(
         'UPDATE user_wallets SET balance = balance - ?, updatedAt = NOW() WHERE userId = ? AND tenantId = ?',
         [amount, fromUserId, req.tenant.id]
       );
+      console.log('✅ Sender balance deducted');
 
       // Add to receiver (create wallet if doesn't exist)
+      console.log('🔄 Adding to receiver...');
       await connection.execute(`
         INSERT INTO user_wallets (userId, tenantId, balance, createdAt, updatedAt)
         VALUES (?, ?, ?, NOW(), NOW())
         ON DUPLICATE KEY UPDATE balance = balance + ?, updatedAt = NOW()
       `, [toUserId, req.tenant.id, amount, amount]);
+      console.log('✅ Receiver balance updated');
 
       // Record outgoing transaction for sender
+      console.log('🔄 Recording outgoing transaction...');
       await connection.execute(`
         INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
         VALUES (?, ?, 'transfer_out', ?, ?, ?, NOW())
       `, [fromUserId, req.tenant.id, -amount, description || `Transfer to ${toUser[0].name}`, `TRANSFER_OUT_${Date.now()}`]);
+      console.log('✅ Outgoing transaction recorded');
 
       // Record incoming transaction for receiver
+      console.log('🔄 Recording incoming transaction...');
       await connection.execute(`
         INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
         VALUES (?, ?, 'transfer_in', ?, ?, ?, NOW())
       `, [toUserId, req.tenant.id, amount, description || `Transfer from ${fromUser[0].name}`, `TRANSFER_IN_${Date.now()}`]);
+      console.log('✅ Incoming transaction recorded');
 
+      console.log('🔄 Committing transaction...');
       await connection.commit();
+      console.log('✅ Transaction committed successfully');
 
       res.json({ 
         success: true, 
@@ -1153,14 +1174,258 @@ app.post('/api/wallet/transfer', async (req, res) => {
         }
       });
     } catch (error) {
+      console.error('❌ Transaction error, rolling back...', error.message);
       await connection.rollback();
+      console.log('✅ Transaction rolled back');
       throw error;
     } finally {
+      console.log('🔄 Releasing database connection...');
       connection.release();
+      console.log('✅ Database connection released');
     }
   } catch (error) {
     console.error('❌ Error processing transfer:', error);
-    res.status(500).json({ success: false, message: 'Error processing transfer' });
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      fromUserId,
+      toUserId,
+      amount,
+      tenantId: req.tenant?.id
+    });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error processing transfer',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Create gift card
+app.post('/api/wallet/gift-card', async (req, res) => {
+  try {
+    // Tenant kontrolü
+    if (!req.tenant || !req.tenant.id) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Tenant authentication required' 
+      });
+    }
+
+    const { amount, recipient, message, fromUserId, type } = req.body;
+    
+    if (!amount || !recipient || !fromUserId || amount <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing or invalid required fields' 
+      });
+    }
+
+    // Check sender's balance
+    const [senderBalance] = await poolWrapper.execute(
+      'SELECT balance FROM user_wallets WHERE userId = ? AND tenantId = ?',
+      [fromUserId, req.tenant.id]
+    );
+
+    if (senderBalance.length === 0 || senderBalance[0].balance < amount) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Insufficient balance' 
+      });
+    }
+
+    // Start transaction
+    console.log('🔄 Starting gift card creation transaction...');
+    const connection = await poolWrapper.getConnection();
+    console.log('✅ Database connection obtained');
+    await connection.beginTransaction();
+    console.log('✅ Transaction started');
+
+    try {
+      // Deduct from sender
+      console.log('🔄 Deducting from sender for gift card...');
+      await connection.execute(
+        'UPDATE user_wallets SET balance = balance - ?, updatedAt = NOW() WHERE userId = ? AND tenantId = ?',
+        [amount, fromUserId, req.tenant.id]
+      );
+      console.log('✅ Sender balance deducted for gift card');
+
+      // Create gift card record
+      console.log('🔄 Creating gift card record...');
+      const giftCardCode = `GC-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+      const forSelf = req.body.forSelf || false;
+      const recipientUserId = forSelf ? fromUserId : null;
+      
+      await connection.execute(`
+        INSERT INTO gift_cards (code, fromUserId, recipient, recipientUserId, amount, message, status, tenantId, createdAt, expiresAt)
+        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, NOW(), DATE_ADD(NOW(), INTERVAL 1 YEAR))
+      `, [giftCardCode, fromUserId, recipient, recipientUserId, amount, message || '', req.tenant.id]);
+      console.log('✅ Gift card record created');
+
+      // Record transaction for sender
+      console.log('🔄 Recording gift card transaction...');
+      await connection.execute(`
+        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
+        VALUES (?, ?, 'gift_card', ?, ?, ?, NOW())
+      `, [fromUserId, req.tenant.id, -amount, `Hediye çeki oluşturuldu - ${recipient}`, giftCardCode]);
+      console.log('✅ Gift card transaction recorded');
+
+      console.log('🔄 Committing gift card transaction...');
+      await connection.commit();
+      console.log('✅ Gift card transaction committed successfully');
+
+      res.json({ 
+        success: true, 
+        message: 'Gift card created successfully',
+        data: {
+          giftCardCode,
+          amount,
+          recipient,
+          message: message || '',
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('❌ Gift card transaction error, rolling back...', error.message);
+      await connection.rollback();
+      console.log('✅ Gift card transaction rolled back');
+      throw error;
+    } finally {
+      console.log('🔄 Releasing database connection...');
+      connection.release();
+      console.log('✅ Database connection released');
+    }
+  } catch (error) {
+    console.error('❌ Error creating gift card:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      amount,
+      recipient,
+      fromUserId,
+      tenantId: req.tenant?.id
+    });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error creating gift card',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Use gift card
+app.post('/api/wallet/gift-card/use', async (req, res) => {
+  try {
+    // Tenant kontrolü
+    if (!req.tenant || !req.tenant.id) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Tenant authentication required' 
+      });
+    }
+
+    const { giftCardCode, userId } = req.body;
+    
+    if (!giftCardCode || !userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Gift card code and user ID are required' 
+      });
+    }
+
+    // Check if gift card exists and is valid
+    const [giftCardRows] = await poolWrapper.execute(
+      'SELECT * FROM gift_cards WHERE code = ? AND tenantId = ? AND status = "active" AND expiresAt > NOW()',
+      [giftCardCode, req.tenant.id]
+    );
+
+    if (giftCardRows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Geçersiz veya süresi dolmuş hediye çeki' 
+      });
+    }
+
+    const giftCard = giftCardRows[0];
+
+    // Check if user is authorized to use this gift card
+    if (giftCard.recipientUserId && giftCard.recipientUserId !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Bu hediye çekini kullanma yetkiniz yok' 
+      });
+    }
+
+    // Start transaction
+    console.log('🔄 Starting gift card usage transaction...');
+    const connection = await poolWrapper.getConnection();
+    console.log('✅ Database connection obtained');
+    await connection.beginTransaction();
+    console.log('✅ Transaction started');
+
+    try {
+      // Add amount to user's wallet
+      console.log('🔄 Adding gift card amount to user wallet...');
+      await connection.execute(`
+        INSERT INTO user_wallets (userId, tenantId, balance, createdAt, updatedAt)
+        VALUES (?, ?, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE balance = balance + ?, updatedAt = NOW()
+      `, [userId, req.tenant.id, giftCard.amount, giftCard.amount]);
+      console.log('✅ Gift card amount added to wallet');
+
+      // Update gift card status
+      console.log('🔄 Updating gift card status...');
+      await connection.execute(
+        'UPDATE gift_cards SET status = "used", usedAt = NOW(), usedBy = ? WHERE code = ? AND tenantId = ?',
+        [userId, giftCardCode, req.tenant.id]
+      );
+      console.log('✅ Gift card status updated');
+
+      // Record transaction
+      console.log('🔄 Recording gift card usage transaction...');
+      await connection.execute(`
+        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
+        VALUES (?, ?, 'gift_card_used', ?, ?, ?, NOW())
+      `, [userId, req.tenant.id, giftCard.amount, `Hediye çeki kullanıldı - ${giftCardCode}`, giftCardCode]);
+      console.log('✅ Gift card usage transaction recorded');
+
+      console.log('🔄 Committing gift card usage transaction...');
+      await connection.commit();
+      console.log('✅ Gift card usage transaction committed successfully');
+
+      res.json({ 
+        success: true, 
+        message: 'Hediye çeki başarıyla kullanıldı',
+        data: {
+          amount: giftCard.amount,
+          giftCardCode,
+          remainingBalance: giftCard.amount
+        }
+      });
+    } catch (error) {
+      console.error('❌ Gift card usage transaction error, rolling back...', error.message);
+      await connection.rollback();
+      console.log('✅ Gift card usage transaction rolled back');
+      throw error;
+    } finally {
+      console.log('🔄 Releasing database connection...');
+      connection.release();
+      console.log('✅ Database connection released');
+    }
+  } catch (error) {
+    console.error('❌ Error using gift card:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      giftCardCode: req.body.giftCardCode,
+      userId: req.body.userId,
+      tenantId: req.tenant?.id
+    });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error using gift card',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
@@ -3287,6 +3552,42 @@ app.post('/api/orders', async (req, res) => {
     await connection.beginTransaction();
     
     try {
+      // Cüzdan ödemesi kontrolü
+      if (paymentMethod === 'wallet' || paymentMethod === 'eft') {
+        // Cüzdan bakiyesini kontrol et
+        const [walletRows] = await connection.execute(
+          'SELECT balance FROM user_wallets WHERE userId = ? AND tenantId = ?',
+          [userId, req.tenant.id]
+        );
+        
+        const currentBalance = walletRows.length > 0 ? walletRows[0].balance : 0;
+        
+        if (currentBalance < totalAmount) {
+          await connection.rollback();
+          connection.release();
+          return res.status(400).json({
+            success: false,
+            message: 'Cüzdan bakiyeniz yetersiz',
+            data: { currentBalance, requiredAmount: totalAmount }
+          });
+        }
+        
+        // Cüzdan bakiyesinden düş
+        await connection.execute(
+          'UPDATE user_wallets SET balance = balance - ?, updatedAt = NOW() WHERE userId = ? AND tenantId = ?',
+          [totalAmount, userId, req.tenant.id]
+        );
+        
+        // Cüzdan işlem kaydı oluştur
+        await connection.execute(
+          `INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt) 
+           VALUES (?, ?, 'debit', ?, ?, ?, NOW())`,
+          [userId, req.tenant.id, -totalAmount, `Alışveriş ödemesi - Sipariş #${Date.now()}`, `ORDER_${Date.now()}`]
+        );
+        
+        console.log(`💰 Wallet payment processed: ${totalAmount} TL deducted from user ${userId}`);
+      }
+      
       // Create order
       const [orderResult] = await connection.execute(
         `INSERT INTO orders (tenantId, userId, totalAmount, status, shippingAddress, paymentMethod, city, district, fullAddress, customerName, customerEmail, customerPhone) 

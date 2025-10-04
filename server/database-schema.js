@@ -1137,6 +1137,37 @@ async function createDatabaseSchema(pool) {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     console.log('✅ recommendations table ready');
+
+    // Gift cards table
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS gift_cards (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        code VARCHAR(50) NOT NULL UNIQUE,
+        fromUserId INT NOT NULL,
+        recipient VARCHAR(255) NOT NULL,
+        recipientUserId INT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        message TEXT,
+        status ENUM('active', 'used', 'expired', 'cancelled') DEFAULT 'active',
+        tenantId INT NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expiresAt TIMESTAMP NOT NULL,
+        usedAt TIMESTAMP NULL,
+        usedBy INT NULL,
+        FOREIGN KEY (fromUserId) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+        FOREIGN KEY (recipientUserId) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (usedBy) REFERENCES users(id) ON DELETE SET NULL,
+        INDEX idx_code (code),
+        INDEX idx_from_user (fromUserId),
+        INDEX idx_tenant (tenantId),
+        INDEX idx_recipient_user (recipientUserId),
+        INDEX idx_status (status),
+        INDEX idx_expires_at (expiresAt),
+        INDEX idx_used_by (usedBy)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('✅ Gift cards table ready');
     
     // Re-enable foreign key checks
     await pool.execute('SET FOREIGN_KEY_CHECKS = 1');

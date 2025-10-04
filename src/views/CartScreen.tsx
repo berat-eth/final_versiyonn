@@ -397,63 +397,6 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     );
   }, [cartItems.length, discountCodes.length, appliedDiscount, discountCode, handleApplyDiscountCode, handleRemoveDiscountCode]);
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <View style={styles.headerTop}>
-        <TouchableOpacity 
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Icon name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Icon name="shopping-cart" size={24} color={Colors.primary} />
-          <Text style={styles.headerTitle}>Sepetim</Text>
-        </View>
-        <View style={styles.placeholder} />
-      </View>
-      <Text style={styles.headerSubtitle}>
-        {cartItems.length} ürün sepetinizde
-      </Text>
-
-      {/* Yatay Kupon Listeleme */}
-      {discountCodes && discountCodes.length > 0 && (
-        <View style={styles.couponsContainer}>
-          <Text style={styles.couponsTitle}>Kullanılabilir Kuponlar</Text>
-          <FlatList
-            data={discountCodes}
-            keyExtractor={(c) => String(c.id)}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.couponsList}
-            renderItem={({ item }) => (
-              <View style={styles.couponCard}>
-                <View style={styles.couponLeft}>
-                  <Text style={styles.couponCode}>{DiscountWheelController.formatDiscountCode(item.discountCode)}</Text>
-                  <Text style={styles.couponDesc} numberOfLines={1}>
-                    Min: {(Number(item.minOrderAmount) || 0).toFixed(0)} TL
-                  </Text>
-                  <View style={styles.couponMetaRow}>
-                    <Icon name="event" size={12} color={Colors.textLight} />
-                    <Text style={styles.couponMeta}>Kalan: {DiscountWheelController.getTimeRemaining(item.expiresAt)}</Text>
-                  </View>
-                </View>
-                <View style={styles.couponRight}>
-                  <Text style={styles.couponValue}>{DiscountWheelController.getDiscountDisplay(item.discountValue, item.discountType)}</Text>
-                  <TouchableOpacity
-                    style={styles.couponUseBtn}
-                    onPress={() => setDiscountCode(item.discountCode)}
-                  >
-                    <Text style={styles.couponUseText}>Uygula</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          />
-        </View>
-      )}
-    </View>
-  );
 
   const renderSummary = useCallback(() => {
     const { subtotal, shipping, discount, total, hpayBonus } = cartSummary();
@@ -537,7 +480,6 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
-        {renderHeader()}
         <View style={styles.emptyContainer}>
           <View style={styles.emptyStateContainer}>
             <View style={styles.emptyIconContainer}>

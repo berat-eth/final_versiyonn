@@ -52,11 +52,31 @@ export class TransferService {
     };
   }> {
     try {
+      console.log('🔄 Transferring money:', transferData);
       const response = await apiService.post<{ success: boolean; message?: string; data?: any }>('/wallet/transfer', transferData);
+      console.log('✅ Transfer response:', response);
       return { success: !!response.success, message: response.message || 'Transfer tamamlandı', data: response.data as any };
-    } catch (error) {
-      console.error('Error transferring money:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('❌ Error transferring money:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.status,
+        response: error.response?.data
+      });
+      
+      // API'den gelen hata mesajını kullan
+      if (error.response?.data?.message) {
+        return { 
+          success: false, 
+          message: error.response.data.message 
+        };
+      }
+      
+      // Genel hata mesajı
+      return { 
+        success: false, 
+        message: 'Transfer işlemi sırasında bir hata oluştu' 
+      };
     }
   }
 

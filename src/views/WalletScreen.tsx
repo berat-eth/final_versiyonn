@@ -76,6 +76,17 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'transfers'>('all');
   const [hpayBonusTotal, setHpayBonusTotal] = useState(0);
 
+  // Hediye çeki modal state'leri
+  const [giftCardModalVisible, setGiftCardModalVisible] = useState(false);
+  const [giftCardAmount, setGiftCardAmount] = useState('');
+  const [giftCardRecipient, setGiftCardRecipient] = useState('');
+  const [giftCardMessage, setGiftCardMessage] = useState('');
+  const [giftCardLoading, setGiftCardLoading] = useState(false);
+  const [giftCardForSelf, setGiftCardForSelf] = useState(false);
+  
+  // Ön tanımlı tutarlar
+  const predefinedAmounts = [500, 750, 1000, 1250, 1500, 1750, 2000];
+
   useEffect(() => {
     loadWalletData();
   }, []);
@@ -211,6 +222,71 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
   const handleTransferMoney = () => {
     setTransferModalVisible(true);
   };
+
+  const handleCreateGiftCard = () => {
+    setGiftCardModalVisible(true);
+  };
+
+  const handleGiftCardSubmit = useCallback(async () => {
+    if (!giftCardAmount || parseFloat(giftCardAmount) <= 0) {
+      Alert.alert('Uyarı', 'Lütfen geçerli bir miktar girin');
+      return;
+    }
+
+    if (parseFloat(giftCardAmount) > balance) {
+      Alert.alert('Uyarı', 'Yetersiz bakiye');
+      return;
+    }
+
+    if (!giftCardForSelf && !giftCardRecipient.trim()) {
+      Alert.alert('Uyarı', 'Lütfen alıcı adını girin veya kendiniz için oluşturun');
+      return;
+    }
+
+    try {
+      setGiftCardLoading(true);
+      
+      // Hediye çeki oluşturma API'si
+      const giftCardData = {
+        amount: parseFloat(giftCardAmount),
+        recipient: giftCardForSelf ? 'Kendim için' : giftCardRecipient.trim(),
+        message: giftCardMessage.trim(),
+        fromUserId: userId,
+        type: 'gift_card',
+        forSelf: giftCardForSelf
+      };
+
+      const response = await apiService.post('/wallet/gift-card', giftCardData);
+      
+      if (response.success) {
+        const recipientText = giftCardForSelf ? 'Kendiniz için' : giftCardRecipient;
+        Alert.alert(
+          'Hediye Çeki Oluşturuldu!', 
+          `Hediye çeki kodunuz: ${response.data.giftCardCode}\n\nTutar: ${giftCardAmount} TL\nAlıcı: ${recipientText}`,
+          [
+            {
+              text: 'Tamam',
+              onPress: () => {
+                setGiftCardModalVisible(false);
+                setGiftCardAmount('');
+                setGiftCardRecipient('');
+                setGiftCardMessage('');
+                setGiftCardForSelf(false);
+                loadWalletData();
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Hata', response.message || 'Hediye çeki oluşturulamadı');
+      }
+    } catch (error) {
+      console.error('Error creating gift card:', error);
+      Alert.alert('Hata', 'Hediye çeki oluşturulurken bir hata oluştu');
+    } finally {
+      setGiftCardLoading(false);
+    }
+  }, [giftCardAmount, giftCardRecipient, giftCardMessage, giftCardForSelf, balance, userId, loadWalletData]);
 
   const filteredTransactions = activeTab === 'transfers' 
     ? transactions.filter(tx => tx.type === 'transfer_in' || tx.type === 'transfer_out')
@@ -441,7 +517,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
         <View style={styles.modernBalanceCard}>
           <View style={styles.balanceHeader}>
             <Icon name="account-balance-wallet" size={32} color="#6b7280" />
-            <Text style={styles.modernBalanceTitle}>Hpay+ Bakiyesi</Text>
+            <Text style={styles.modernBalanceTitle}>Hpay+ Bakiyem</Text>
             <View style={{ flex: 1 }} />
             <TouchableOpacity onPress={() => setShowNotice(prev => !prev)} accessibilityLabel="Bilgi">
               <Icon name={showNotice ? 'info' : 'info-outline'} size={20} color="#6b7280" />
@@ -473,11 +549,15 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
           <View style={styles.modernBalanceActions}>
             <TouchableOpacity style={styles.modernActionButton} onPress={handleAddMoney}>
               <Icon name="add" size={20} color="white" />
-              <Text style={styles.modernActionButtonText}>Para Yükle</Text>
+              <Text style={styles.modernActionButtonText}>Bakiye Yükle</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.transferButton} onPress={handleTransferMoney}>
               <Icon name="send" size={20} color="white" />
-              <Text style={styles.transferButtonText}>Transfer Et</Text>
+              <Text style={styles.transferButtonText}>Bakiye Transferi</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.giftCardButton} onPress={handleCreateGiftCard}>
+              <Icon name="card-giftcard" size={20} color="white" />
+              <Text style={styles.giftCardButtonText}>Hediye Çeki</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -696,7 +776,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
             >
               <Icon name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Para Transferi</Text>
+            <Text style={styles.modalTitle}>Bakiye Transferi</Text>
             <TouchableOpacity
               onPress={handleTransfer}
               style={[styles.modalSaveButton, (!selectedUser || !transferAmount || transferLoading) && styles.modalSaveButtonDisabled]}
@@ -882,6 +962,163 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      {/* Hediye Çeki Modal */}
+      <Modal
+        visible={giftCardModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setGiftCardModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setGiftCardModalVisible(false)}
+              style={styles.modalCloseButton}
+            >
+              <Icon name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Hediye Çeki Oluştur</Text>
+            <TouchableOpacity
+              onPress={handleGiftCardSubmit}
+              style={[styles.modalSaveButton, (!giftCardAmount || !giftCardRecipient || giftCardLoading) && styles.modalSaveButtonDisabled]}
+              disabled={!giftCardAmount || !giftCardRecipient || giftCardLoading}
+            >
+              {giftCardLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.modalSaveButtonText}>Oluştur</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Hediye Çeki Miktarı */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Hediye Çeki Miktarı</Text>
+              
+              {/* Ön Tanımlı Tutarlar */}
+              <View style={styles.predefinedAmountsContainer}>
+                {predefinedAmounts.map((amount) => (
+                  <TouchableOpacity
+                    key={amount}
+                    style={[
+                      styles.predefinedAmountButton,
+                      giftCardAmount === amount.toString() && styles.predefinedAmountButtonSelected
+                    ]}
+                    onPress={() => setGiftCardAmount(amount.toString())}
+                  >
+                    <Text style={[
+                      styles.predefinedAmountText,
+                      giftCardAmount === amount.toString() && styles.predefinedAmountTextSelected
+                    ]}>
+                      {ProductController.formatPrice(amount)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              {/* Manuel Tutar Girişi */}
+              <TextInput
+                style={styles.formInput}
+                value={giftCardAmount}
+                onChangeText={setGiftCardAmount}
+                placeholder="Manuel tutar girin..."
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="numeric"
+              />
+              <Text style={styles.balanceInfo}>
+                Mevcut Bakiye: {ProductController.formatPrice(balance)}
+              </Text>
+            </View>
+
+            {/* Kendim İçin / Başkası İçin Seçimi */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Hediye Çeki Kimin İçin?</Text>
+              <View style={styles.recipientOptions}>
+                <TouchableOpacity
+                  style={[
+                    styles.recipientOption,
+                    giftCardForSelf && styles.recipientOptionSelected
+                  ]}
+                  onPress={() => {
+                    setGiftCardForSelf(true);
+                    setGiftCardRecipient('');
+                  }}
+                >
+                  <Icon 
+                    name="person" 
+                    size={20} 
+                    color={giftCardForSelf ? 'white' : Colors.primary} 
+                  />
+                  <Text style={[
+                    styles.recipientOptionText,
+                    giftCardForSelf && styles.recipientOptionTextSelected
+                  ]}>
+                    Kendim İçin
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.recipientOption,
+                    !giftCardForSelf && styles.recipientOptionSelected
+                  ]}
+                  onPress={() => setGiftCardForSelf(false)}
+                >
+                  <Icon 
+                    name="person-add" 
+                    size={20} 
+                    color={!giftCardForSelf ? 'white' : Colors.primary} 
+                  />
+                  <Text style={[
+                    styles.recipientOptionText,
+                    !giftCardForSelf && styles.recipientOptionTextSelected
+                  ]}>
+                    Başkası İçin
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Alıcı Adı (Sadece başkası için seçildiğinde) */}
+            {!giftCardForSelf && (
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Alıcı Adı *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={giftCardRecipient}
+                  onChangeText={setGiftCardRecipient}
+                  placeholder="Alıcının adı soyadı"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+            )}
+
+            {/* Hediye Mesajı */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Hediye Mesajı (İsteğe Bağlı)</Text>
+              <TextInput
+                style={[styles.formInput, styles.textArea]}
+                value={giftCardMessage}
+                onChangeText={setGiftCardMessage}
+                placeholder="Hediye mesajınız..."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* Hediye Çeki Bilgisi */}
+            <View style={styles.giftCardInfo}>
+              <Icon name="card-giftcard" size={20} color={Colors.primary} />
+              <Text style={styles.giftCardInfoText}>
+                Hediye çeki oluşturulduktan sonra alıcıya gönderilecek kodu alacaksınız.
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -1154,7 +1391,8 @@ const styles = StyleSheet.create({
   },
   modernBalanceActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
+    justifyContent: 'space-between',
   },
   noticeBox: {
     flexDirection: 'row',
@@ -1178,17 +1416,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f2937',
     borderRadius: 12,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flex: 1,
   },
   transferButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 12,
     backgroundColor: '#2563eb',
     shadowColor: '#2563eb',
@@ -1196,18 +1435,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 6,
+    flex: 1,
   },
   modernActionButtonText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: 6,
   },
   transferButtonText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
-    marginLeft: 8,
+    marginLeft: 6,
     letterSpacing: 0.2,
   },
   modalOverlay: {
@@ -1653,5 +1893,98 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#6b7280',
     marginTop: 2,
+  },
+  
+  // Hediye Çeki Stilleri
+  giftCardButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  giftCardButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  giftCardInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#10b98110',
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  giftCardInfoText: {
+    fontSize: 12,
+    color: '#1f2937',
+    flex: 1,
+  },
+  
+  // Ön Tanımlı Tutarlar Stilleri
+  predefinedAmountsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  predefinedAmountButton: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  predefinedAmountButtonSelected: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  predefinedAmountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  predefinedAmountTextSelected: {
+    color: 'white',
+  },
+  
+  // Alıcı Seçimi Stilleri
+  recipientOptions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  recipientOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  recipientOptionSelected: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  recipientOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  recipientOptionTextSelected: {
+    color: 'white',
   },
 });

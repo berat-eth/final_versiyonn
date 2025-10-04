@@ -51,9 +51,23 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       if (loadingWallet) return;
       if (walletBalance == null) return Alert.alert('Hata', 'Bakiye bilgisi yüklenemedi');
       if (walletBalance < totalAmount) return Alert.alert('Yetersiz Bakiye', 'Cüzdan bakiyeniz bu ödeme için yetersiz');
-      // Sunucu tarafında cüzdanla ödeme uç noktası henüz yoksa sipariş ödeme yöntemi olarak kaydedip yönlendirme yapılabilir
-      Alert.alert('Bilgi', 'Cüzdan ile ödeme talebiniz alındı. Siparişiniz onaylanacaktır.');
-      return navigation.goBack();
+      
+      // Cüzdan ile ödeme onayı
+      Alert.alert(
+        'Cüzdan ile Ödeme',
+        `${totalAmount} TL tutarındaki ödeme cüzdan bakiyenizden düşülecektir. Devam etmek istiyor musunuz?`,
+        [
+          { text: 'İptal', style: 'cancel' },
+          { text: 'Ödemeyi Tamamla', onPress: () => {
+            // Cüzdan ödemesi için 'wallet' olarak işaretle
+            navigation.navigate('Order', { 
+              paymentMethod: 'wallet',
+              totalAmount: totalAmount
+            });
+          }}
+        ]
+      );
+      return;
     }
     if (method === 'credit_card') {
       if (!cardNumber || cardNumber.replace(/\s/g, '').length < 16) return Alert.alert('Hata', 'Geçerli kart numarası girin');
