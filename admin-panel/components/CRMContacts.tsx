@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PhoneCall, Mail, Phone, Building, MapPin, Calendar, Search, Filter, X, MessageSquare, Send } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -18,12 +18,34 @@ interface Contact {
 }
 
 export default function CRMContacts() {
-    // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
-    const [contacts] = useState<Contact[]>([])
+    // Backend entegrasyonu
+    const [contacts, setContacts] = useState<Contact[]>([])
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     const [viewingContact, setViewingContact] = useState<Contact | null>(null)
 
     // İstatistik kartları kaldırıldı (mock)
+
+    useEffect(() => {
+        let alive = true
+        ;(async()=>{
+            try {
+                setLoading(true)
+                setError(null)
+                const res: any = await (await import('../lib/services/crmService')).crmService.getContacts({ page: 1, limit: 50 })
+                if (alive && res?.success && Array.isArray(res.data)) {
+                    setContacts(res.data)
+                } else {
+                    setContacts([])
+                }
+            } catch (e:any) {
+                setError(e?.message || 'İletişimler yüklenemedi')
+                setContacts([])
+            } finally { setLoading(false) }
+        })()
+        return () => { alive = false }
+    }, [])
 
     return (
         <div className="space-y-6">
@@ -41,6 +63,8 @@ export default function CRMContacts() {
             {/* İstatistik kartları kaldırıldı */}
 
             <div className="bg-white rounded-2xl shadow-sm p-6">
+                {loading && <div className="text-slate-500">Yükleniyor...</div>}
+                {error && <div className="text-red-600">{error}</div>}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                     <div className="flex-1 max-w-md">
                         <div className="relative">

@@ -37,7 +37,7 @@ async function createDatabaseSchema(pool) {
           // Production
           'bill_of_materials', 'bom_items', 'workstations', 'production_orders', 'production_order_items', 'production_steps', 'material_issues', 'finished_goods_receipts',
           // CRM
-          'crm_leads', 'crm_contacts', 'crm_pipeline_stages', 'crm_deals'
+          'crm_leads', 'crm_contacts', 'crm_pipeline_stages', 'crm_deals', 'crm_activities'
       ];
       const missingTables = requiredTables.filter(table => !existingTables.includes(table));
 
@@ -1522,6 +1522,26 @@ async function createDatabaseSchema(pool) {
       FOREIGN KEY (contactId) REFERENCES crm_contacts(id) ON DELETE SET NULL,
       FOREIGN KEY (stageId) REFERENCES crm_pipeline_stages(id) ON DELETE SET NULL,
       FOREIGN KEY (ownerUserId) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_activities (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      contactId INT NULL,
+      type ENUM('meeting','call','email') NOT NULL DEFAULT 'call',
+      title VARCHAR(255) NOT NULL,
+      notes TEXT,
+      status ENUM('planned','completed') DEFAULT 'planned',
+      activityAt DATETIME NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (contactId) REFERENCES crm_contacts(id) ON DELETE SET NULL,
+      INDEX idx_tenant_type_status (tenantId, type, status),
+      INDEX idx_contact (contactId),
+      INDEX idx_activity_at (activityAt)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 

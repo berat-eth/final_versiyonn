@@ -3,6 +3,7 @@
 import { Search, Bell, Mail, User, List } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
+ 
 
 export default function Header() {
   const [showLogs, setShowLogs] = useState(false)

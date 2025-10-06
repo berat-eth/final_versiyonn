@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { UserPlus, Mail, Phone, Building, Calendar, TrendingUp, Search, Filter, X, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
@@ -20,8 +20,10 @@ interface Lead {
 }
 
 export default function CRMLeads() {
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
-  const [leads] = useState<Lead[]>([])
+  // Backend entegrasyonu
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -49,6 +51,27 @@ export default function CRMLeads() {
   }
 
   // İstatistik kartları kaldırıldı (mock)
+
+  useEffect(() => {
+    let alive = true
+    ;(async()=>{
+      try {
+        setLoading(true)
+        setError(null)
+        const mod = await import('../lib/services/crmService')
+        const res: any = await mod.crmService.getLeads({ page: 1, limit: 50 })
+        if (alive && res?.success && Array.isArray(res.data)) {
+          setLeads(res.data)
+        } else {
+          setLeads([])
+        }
+      } catch (e:any) {
+        setError(e?.message || 'Lead listesi yüklenemedi')
+        setLeads([])
+      } finally { setLoading(false) }
+    })()
+    return () => { alive = false }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -317,8 +340,14 @@ export default function CRMLeads() {
                 onClick={async()=>{
                   try {
                     setAdding(true)
-                    const res = await api.post<any>('/admin/leads', { name: name.trim(), email: email.trim(), phone: phone.trim(), company: company.trim(), source })
-                    if ((res as any)?.success) {
+                    const mod = await import('../lib/services/crmService')
+                    const res: any = await mod.crmService.createLead({ name: name.trim(), email: email.trim(), phone: phone.trim(), company: company.trim(), source })
+                    if (res?.success) {
+                      // Başarıda listeyi tazele
+                      try {
+                        const listRes: any = await mod.crmService.getLeads({ page: 1, limit: 50 })
+                        if (listRes?.success && Array.isArray(listRes.data)) setLeads(listRes.data)
+                      } catch {}
                       setShowAdd(false)
                       setName(''); setEmail(''); setPhone(''); setCompany('')
                       alert('Lead oluşturuldu')

@@ -1,14 +1,36 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Target, TrendingUp, DollarSign, Calendar, Search } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function CRMOpportunities() {
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
-  const [opportunities] = useState<any[]>([])
+  // Backend entegrasyonu
+  const [opportunities, setOpportunities] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // İstatistik kartları kaldırıldı (mock)
+
+  useEffect(() => {
+    let alive = true
+    ;(async()=>{
+      try {
+        setLoading(true)
+        setError(null)
+        const res: any = await (await import('../lib/services/crmService')).crmService.getOpportunities({ page: 1, limit: 50 })
+        if (alive && res?.success && Array.isArray(res.data)) {
+          setOpportunities(res.data)
+        } else {
+          setOpportunities([])
+        }
+      } catch (e:any) {
+        setError(e?.message || 'Fırsatlar yüklenemedi')
+        setOpportunities([])
+      } finally { setLoading(false) }
+    })()
+    return () => { alive = false }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -25,6 +47,8 @@ export default function CRMOpportunities() {
       {/* İstatistik kartları kaldırıldı */}
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
+        {loading && <div className="text-slate-500">Yükleniyor...</div>}
+        {error && <div className="text-red-600">{error}</div>}
         <div className="mb-6">
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />

@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calendar, Phone, Mail, Users, Clock, CheckCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function CRMActivities() {
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
-  const [activities] = useState<any[]>([])
+  // Backend entegrasyonu
+  const [activities, setActivities] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const typeIcons = {
     'Toplantı': Users,
@@ -21,6 +23,26 @@ export default function CRMActivities() {
   }
 
   // İstatistik kartları kaldırıldı (mock)
+
+  useEffect(() => {
+    let alive = true
+    ;(async()=>{
+      try {
+        setLoading(true)
+        setError(null)
+        const res: any = await (await import('../lib/services/crmService')).crmService.getActivities({ page: 1, limit: 50 })
+        if (alive && res?.success && Array.isArray(res.data)) {
+          setActivities(res.data)
+        } else {
+          setActivities([])
+        }
+      } catch (e:any) {
+        setError(e?.message || 'Aktiviteler yüklenemedi')
+        setActivities([])
+      } finally { setLoading(false) }
+    })()
+    return () => { alive = false }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -37,6 +59,8 @@ export default function CRMActivities() {
       {/* İstatistik kartları kaldırıldı */}
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
+        {loading && <div className="text-slate-500">Yükleniyor...</div>}
+        {error && <div className="text-red-600">{error}</div>}
         <h3 className="text-xl font-bold text-slate-800 mb-6">Son Aktiviteler</h3>
         <div className="space-y-4">
           {activities.map((activity, index) => {

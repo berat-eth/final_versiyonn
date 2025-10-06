@@ -3165,6 +3165,75 @@ app.get('/api/admin/sql/tables', authenticateAdmin, async (req, res) => {
   }
 });
 
+// =========================
+// ADMIN - FILE MANAGER (READ-ONLY + DELETE)
+// =========================
+const SAFE_BASE_DIR = process.env.FILE_MANAGER_BASE || path.resolve(__dirname);
+
+function isPathInside(base, target) {
+  const rel = path.relative(base, target);
+  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+app.get('/api/admin/files', authenticateAdmin, async (req, res) => {
+  try {
+    const relPath = String(req.query.path || '/');
+    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
+    if (!isPathInside(SAFE_BASE_DIR, targetPath)) return res.status(400).json({ success:false, message:'Invalid path' });
+    if (!fs.existsSync(targetPath)) return res.json({ success:true, data: [] });
+    const stats = fs.statSync(targetPath);
+    if (!stats.isDirectory()) {
+      return res.json({ success:true, data: [] });
+    }
+    const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+    const list = entries.map(e => {
+      const full = path.join(targetPath, e.name);
+      const s = fs.statSync(full);
+      return {
+        name: e.name,
+        path: path.join(relPath === '/' ? '' : relPath, e.name).replace(/\\/g,'/'),
+        type: e.isDirectory() ? 'dir' : 'file',
+        size: s.isFile() ? s.size : undefined,
+        modifiedAt: s.mtime.toISOString()
+      };
+    });
+    res.json({ success:true, data: list });
+  } catch (error) {
+    console.error('❌ files list', error);
+    res.status(500).json({ success:false, message:'Error listing files' });
+  }
+});
+
+app.delete('/api/admin/files', authenticateAdmin, async (req, res) => {
+  try {
+    const relPath = String(req.query.path || '');
+    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
+    if (!isPathInside(SAFE_BASE_DIR, targetPath)) return res.status(400).json({ success:false, message:'Invalid path' });
+    if (!fs.existsSync(targetPath)) return res.status(404).json({ success:false, message:'Not found' });
+    const stats = fs.statSync(targetPath);
+    if (stats.isDirectory()) fs.rmdirSync(targetPath, { recursive: true });
+    else fs.unlinkSync(targetPath);
+    res.json({ success:true });
+  } catch (error) {
+    console.error('❌ file delete', error);
+    res.status(500).json({ success:false, message:'Error deleting file' });
+  }
+});
+
+// Optional: file download (read-only)
+app.get('/api/admin/files/download', authenticateAdmin, async (req, res) => {
+  try {
+    const relPath = String(req.query.path || '');
+    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
+    if (!isPathInside(SAFE_BASE_DIR, targetPath)) return res.status(400).json({ success:false, message:'Invalid path' });
+    if (!fs.existsSync(targetPath)) return res.status(404).json({ success:false, message:'Not found' });
+    return res.download(targetPath);
+  } catch (error) {
+    console.error('❌ file download', error);
+    res.status(500).json({ success:false, message:'Error downloading file' });
+  }
+});
+
 app.post('/api/admin/sql/query', authenticateAdmin, async (req, res) => {
   try {
     const sql = String(req.body?.query || '').trim();
@@ -3319,6 +3388,98 @@ app.post('/api/admin/wallets/adjust', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - Wallets add/remove (shortcut helpers used by admin panel)
+app.post('/api/admin/wallets/add', authenticateAdmin, async (req, res) => {
+  try {
+    const { userId, amount, description } = req.body || {};
+    const adj = parseFloat(amount);
+    if (!userId || isNaN(adj) || adj <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid userId or amount' });
+    }
+    // Reuse adjust with positive amount
+    await poolWrapper.execute(
+      `INSERT INTO user_wallets (tenantId, userId, balance, currency)
+       VALUES (?, ?, 0, 'TRY')
+       ON DUPLICATE KEY UPDATE balance = balance`,
+      [req.tenant?.id || 1, userId]
+    );
+    await poolWrapper.execute('UPDATE user_wallets SET balance = balance + ? WHERE userId = ? AND tenantId = ?', [adj, userId, req.tenant?.id || 1]);
+    await poolWrapper.execute(
+      `INSERT INTO wallet_transactions (tenantId, userId, type, amount, description, status)
+       VALUES (?, ?, 'credit', ?, ?, 'completed')`,
+      [req.tenant?.id || 1, userId, adj, description || 'Admin add']
+    );
+    res.json({ success: true, message: 'Balance increased' });
+  } catch (error) {
+    console.error('❌ Error wallet add:', error);
+    res.status(500).json({ success: false, message: 'Error increasing balance' });
+  }
+});
+
+app.post('/api/admin/wallets/remove', authenticateAdmin, async (req, res) => {
+  try {
+    const { userId, amount, description } = req.body || {};
+    const adj = parseFloat(amount);
+    if (!userId || isNaN(adj) || adj <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid userId or amount' });
+    }
+    await poolWrapper.execute(
+      `INSERT INTO user_wallets (tenantId, userId, balance, currency)
+       VALUES (?, ?, 0, 'TRY')
+       ON DUPLICATE KEY UPDATE balance = balance`,
+      [req.tenant?.id || 1, userId]
+    );
+    await poolWrapper.execute('UPDATE user_wallets SET balance = balance - ? WHERE userId = ? AND tenantId = ?', [adj, userId, req.tenant?.id || 1]);
+    await poolWrapper.execute(
+      `INSERT INTO wallet_transactions (tenantId, userId, type, amount, description, status)
+       VALUES (?, ?, 'debit', ?, ?, 'completed')`,
+      [req.tenant?.id || 1, userId, adj, description || 'Admin remove']
+    );
+    res.json({ success: true, message: 'Balance decreased' });
+  } catch (error) {
+    console.error('❌ Error wallet remove:', error);
+    res.status(500).json({ success: false, message: 'Error decreasing balance' });
+  }
+});
+
+app.post('/api/admin/wallets/transfer', authenticateAdmin, async (req, res) => {
+  try {
+    const { fromUserId, toUserId, amount, description } = req.body || {};
+    const adj = parseFloat(amount);
+    if (!fromUserId || !toUserId || isNaN(adj) || adj <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid transfer parameters' });
+    }
+    const tenantId = req.tenant?.id || 1;
+    // Ensure wallets exist
+    await poolWrapper.execute(
+      `INSERT INTO user_wallets (tenantId, userId, balance, currency)
+       VALUES (?, ?, 0, 'TRY')
+       ON DUPLICATE KEY UPDATE balance = balance`, [tenantId, fromUserId]
+    );
+    await poolWrapper.execute(
+      `INSERT INTO user_wallets (tenantId, userId, balance, currency)
+       VALUES (?, ?, 0, 'TRY')
+       ON DUPLICATE KEY UPDATE balance = balance`, [tenantId, toUserId]
+    );
+    // Move balance
+    await poolWrapper.execute('UPDATE user_wallets SET balance = balance - ? WHERE userId = ? AND tenantId = ?', [adj, fromUserId, tenantId]);
+    await poolWrapper.execute('UPDATE user_wallets SET balance = balance + ? WHERE userId = ? AND tenantId = ?', [adj, toUserId, tenantId]);
+    // Log transactions
+    await poolWrapper.execute(
+      `INSERT INTO wallet_transactions (tenantId, userId, type, amount, description, status)
+       VALUES (?, ?, 'debit', ?, ?, 'completed')`, [tenantId, fromUserId, adj, description || `Transfer to ${toUserId}`]
+    );
+    await poolWrapper.execute(
+      `INSERT INTO wallet_transactions (tenantId, userId, type, amount, description, status)
+       VALUES (?, ?, 'credit', ?, ?, 'completed')`, [tenantId, toUserId, adj, description || `Transfer from ${fromUserId}`]
+    );
+    res.json({ success: true, message: 'Transfer completed' });
+  } catch (error) {
+    console.error('❌ Error wallet transfer:', error);
+    res.status(500).json({ success: false, message: 'Error transferring balance' });
+  }
+});
+
 // Admin - Live user product views (from JSON log for now)
 app.get('/api/admin/live-views', authenticateAdmin, async (req, res) => {
   try {
@@ -3466,6 +3627,699 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
     console.error('❌ Error getting users:', error);
     res.status(500).json({ success: false, message: 'Error getting users' });
   }
+});
+
+// Admin - Users export (CSV)
+app.get('/api/admin/users/export', authenticateAdmin, async (req, res) => {
+  try {
+    const { format = 'csv' } = req.query;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, name, email, phone, createdAt FROM users WHERE tenantId = ? ORDER BY createdAt DESC LIMIT 1000`,
+      [req.tenant?.id || 1]
+    );
+    if ((format || '').toString().toLowerCase() === 'csv') {
+      const header = 'id,name,email,phone,createdAt\n';
+      const csv = header + rows.map(r => [r.id, r.name, r.email, r.phone, r.createdAt && new Date(r.createdAt).toISOString()].map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
+      return res.status(200).send(csv);
+    }
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error exporting users:', error);
+    res.status(500).json({ success: false, message: 'Error exporting users' });
+  }
+});
+
+// Admin - Minimal CRM endpoints for admin panel integration
+app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 50, q = '' } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const where = ['tenantId = ?'];
+    const params = [tenantId];
+    if (q) {
+      where.push('(name LIKE ? OR email LIKE ? OR phone LIKE ?)');
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    params.push(parseInt(limit), parseInt(offset));
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, name, email, phone, source, status, ownerUserId, notes, createdAt, updatedAt
+       FROM crm_leads
+       WHERE ${where.join(' AND ')}
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`, params
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error fetching leads:', error);
+    res.status(500).json({ success: false, message: 'Error fetching leads' });
+  }
+});
+
+app.post('/api/admin/leads', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { name, email, phone, company, source, status = 'new', notes = '' } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: 'Name required' });
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_leads (tenantId, name, email, phone, source, status, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`, [tenantId, name, email || null, phone || null, source || null, status, notes]
+    );
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    console.error('❌ Error creating lead:', error);
+    res.status(500).json({ success: false, message: 'Error creating lead' });
+  }
+});
+
+app.put('/api/admin/leads/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['name','email','phone','source','status','ownerUserId','notes'];
+    const fields = [];
+    const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_leads SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating lead:', error);
+    res.status(500).json({ success: false, message: 'Error updating lead' });
+  }
+});
+
+app.delete('/api/admin/leads/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_leads WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting lead:', error);
+    res.status(500).json({ success: false, message: 'Error deleting lead' });
+  }
+});
+
+app.get('/api/admin/contacts', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 50, q = '' } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const where = ['tenantId = ?'];
+    const params = [tenantId];
+    if (q) { where.push('(name LIKE ? OR email LIKE ? OR phone LIKE ? OR company LIKE ?)'); params.push(`%${q}%`,`%${q}%`,`%${q}%`,`%${q}%`); }
+    params.push(parseInt(limit), parseInt(offset));
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, userId, name, email, phone, company, position, createdAt, updatedAt
+       FROM crm_contacts
+       WHERE ${where.join(' AND ')}
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`, params
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error fetching contacts:', error);
+    res.status(500).json({ success: false, message: 'Error fetching contacts' });
+  }
+});
+app.post('/api/admin/contacts', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { userId = null, name, email, phone, company, position } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: 'Name required' });
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_contacts (tenantId, userId, name, email, phone, company, position)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`, [tenantId, userId, name, email || null, phone || null, company || null, position || null]
+    );
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    console.error('❌ Error creating contact:', error);
+    res.status(500).json({ success: false, message: 'Error creating contact' });
+  }
+});
+app.put('/api/admin/contacts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['userId','name','email','phone','company','position'];
+    const fields = [];
+    const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_contacts SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating contact:', error);
+    res.status(500).json({ success: false, message: 'Error updating contact' });
+  }
+});
+app.delete('/api/admin/contacts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_contacts WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting contact:', error);
+    res.status(500).json({ success: false, message: 'Error deleting contact' });
+  }
+});
+app.get('/api/admin/opportunities', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 50, q = '', stageId = '' } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const where = ['tenantId = ?'];
+    const params = [tenantId];
+    if (q) { where.push('(title LIKE ? )'); params.push(`%${q}%`); }
+    if (stageId) { where.push('stageId = ?'); params.push(parseInt(stageId)); }
+    params.push(parseInt(limit), parseInt(offset));
+    const [rows] = await poolWrapper.execute(
+      `SELECT d.id, d.title, d.value, d.currency, d.stageId, d.status, d.expectedCloseDate, d.createdAt,
+              c.name AS contactName, s.name AS stageName, s.probability
+       FROM crm_deals d
+       LEFT JOIN crm_contacts c ON c.id = d.contactId
+       LEFT JOIN crm_pipeline_stages s ON s.id = d.stageId
+       WHERE ${where.join(' AND ')}
+       ORDER BY d.createdAt DESC
+       LIMIT ? OFFSET ?`, params
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error fetching opportunities:', error);
+    res.status(500).json({ success: false, message: 'Error fetching opportunities' });
+  }
+});
+app.post('/api/admin/opportunities', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { title, contactId = null, value = 0, currency = 'TRY', stageId = null, status = 'open', expectedCloseDate = null, ownerUserId = null } = req.body || {};
+    if (!title) return res.status(400).json({ success: false, message: 'Title required' });
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_deals (tenantId, title, contactId, value, currency, stageId, status, expectedCloseDate, ownerUserId)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [tenantId, title, contactId, value, currency, stageId, status, expectedCloseDate, ownerUserId]
+    );
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    console.error('❌ Error creating opportunity:', error);
+    res.status(500).json({ success: false, message: 'Error creating opportunity' });
+  }
+});
+app.put('/api/admin/opportunities/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['title','contactId','value','currency','stageId','status','expectedCloseDate','ownerUserId'];
+    const fields = [];
+    const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_deals SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating opportunity:', error);
+    res.status(500).json({ success: false, message: 'Error updating opportunity' });
+  }
+});
+app.delete('/api/admin/opportunities/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_deals WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting opportunity:', error);
+    res.status(500).json({ success: false, message: 'Error deleting opportunity' });
+  }
+});
+app.get('/api/admin/activities', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 50, q = '', type = '' } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const where = ['tenantId = ?'];
+    const params = [tenantId];
+    if (q) { where.push('(title LIKE ? OR notes LIKE ?)'); params.push(`%${q}%`,`%${q}%`); }
+    if (type) { where.push('type = ?'); params.push(type); }
+    params.push(parseInt(limit), parseInt(offset));
+    const [rows] = await poolWrapper.execute(
+      `SELECT a.id, a.contactId, a.type, a.title, a.notes, a.status, a.activityAt, a.createdAt,
+              c.name AS contactName
+       FROM crm_activities a
+       LEFT JOIN crm_contacts c ON c.id = a.contactId
+       WHERE ${where.join(' AND ')}
+       ORDER BY a.createdAt DESC
+       LIMIT ? OFFSET ?`, params
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error fetching activities:', error);
+    res.status(500).json({ success: false, message: 'Error fetching activities' });
+  }
+});
+app.post('/api/admin/activities', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { contactId = null, type = 'call', title, notes = '', status = 'planned', activityAt = null } = req.body || {};
+    if (!title) return res.status(400).json({ success: false, message: 'Title required' });
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_activities (tenantId, contactId, type, title, notes, status, activityAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`, [tenantId, contactId, type, title, notes, status, activityAt]
+    );
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    console.error('❌ Error creating activity:', error);
+    res.status(500).json({ success: false, message: 'Error creating activity' });
+  }
+});
+app.put('/api/admin/activities/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['contactId','type','title','notes','status','activityAt'];
+    const fields = [];
+    const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_activities SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating activity:', error);
+    res.status(500).json({ success: false, message: 'Error updating activity' });
+  }
+});
+app.delete('/api/admin/activities/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_activities WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting activity:', error);
+    res.status(500).json({ success: false, message: 'Error deleting activity' });
+  }
+});
+app.get('/api/admin/pipeline', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, name, probability, sequence, createdAt FROM crm_pipeline_stages WHERE tenantId = ? ORDER BY sequence ASC, id ASC`,
+      [tenantId]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error fetching pipeline:', error);
+    res.status(500).json({ success: false, message: 'Error fetching pipeline' });
+  }
+});
+app.post('/api/admin/pipeline', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { name, probability = 0, sequence = 1 } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: 'Name required' });
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_pipeline_stages (tenantId, name, probability, sequence) VALUES (?, ?, ?, ?)`,
+      [tenantId, name, parseInt(probability), parseInt(sequence)]
+    );
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    console.error('❌ Error creating pipeline stage:', error);
+    res.status(500).json({ success: false, message: 'Error creating pipeline stage' });
+  }
+});
+app.put('/api/admin/pipeline/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['name','probability','sequence'];
+    const fields = [];
+    const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_pipeline_stages SET ${fields.join(', ')} WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating pipeline stage:', error);
+    res.status(500).json({ success: false, message: 'Error updating pipeline stage' });
+  }
+});
+app.delete('/api/admin/pipeline/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_pipeline_stages WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting pipeline stage:', error);
+    res.status(500).json({ success: false, message: 'Error deleting pipeline stage' });
+  }
+});
+
+// =========================
+// ADMIN - WAREHOUSE / INVENTORY CRUD
+// =========================
+
+// Warehouses
+app.get('/api/admin/warehouses', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const [rows] = await poolWrapper.execute(
+      'SELECT id, name, code, address, isActive, createdAt, updatedAt FROM warehouses WHERE tenantId = ? ORDER BY id DESC',
+      [tenantId]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) { console.error('❌ warehouses list', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/warehouses', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { name, code = null, address = null, isActive = 1 } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: 'Name required' });
+    const [r] = await poolWrapper.execute(
+      'INSERT INTO warehouses (tenantId, name, code, address, isActive) VALUES (?, ?, ?, ?, ?)',
+      [tenantId, name, code, address, isActive ? 1 : 0]
+    );
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (error) { console.error('❌ warehouses create', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/warehouses/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    const allowed = ['name','code','address','isActive']; const fields = []; const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (!fields.length) return res.json({ success: true });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE warehouses SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ warehouses update', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/warehouses/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM warehouses WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ warehouses delete', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Warehouse Locations
+app.get('/api/admin/warehouse-locations', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { warehouseId } = req.query;
+    const where = ['tenantId = ?']; const params = [tenantId];
+    if (warehouseId) { where.push('warehouseId = ?'); params.push(parseInt(warehouseId)); }
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, warehouseId, name, code, createdAt FROM warehouse_locations WHERE ${where.join(' AND ')} ORDER BY id DESC`, params);
+    res.json({ success: true, data: rows });
+  } catch (error) { console.error('❌ locations list', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/warehouse-locations', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { warehouseId, name, code = null } = req.body || {};
+    if (!warehouseId || !name) return res.status(400).json({ success: false, message: 'warehouseId and name required' });
+    const [r] = await poolWrapper.execute(
+      'INSERT INTO warehouse_locations (tenantId, warehouseId, name, code) VALUES (?, ?, ?, ?)',
+      [tenantId, parseInt(warehouseId), name, code]
+    ); res.json({ success: true, data: { id: r.insertId } });
+  } catch (error) { console.error('❌ locations create', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/warehouse-locations/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    const allowed = ['warehouseId','name','code']; const fields = []; const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (!fields.length) return res.json({ success: true });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE warehouse_locations SET ${fields.join(', ')} WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ locations update', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/warehouse-locations/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM warehouse_locations WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ locations delete', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Bins
+app.get('/api/admin/bins', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { warehouseId, locationId } = req.query;
+    const where = ['tenantId = ?']; const params = [tenantId];
+    if (warehouseId) { where.push('warehouseId = ?'); params.push(parseInt(warehouseId)); }
+    if (locationId) { where.push('locationId = ?'); params.push(parseInt(locationId)); }
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, warehouseId, locationId, code, capacity, createdAt FROM bins WHERE ${where.join(' AND ')} ORDER BY id DESC`, params);
+    res.json({ success: true, data: rows });
+  } catch (error) { console.error('❌ bins list', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/bins', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { warehouseId, locationId = null, code, capacity = 0 } = req.body || {};
+    if (!warehouseId || !code) return res.status(400).json({ success: false, message: 'warehouseId and code required' });
+    const [r] = await poolWrapper.execute(
+      'INSERT INTO bins (tenantId, warehouseId, locationId, code, capacity) VALUES (?, ?, ?, ?, ?)',
+      [tenantId, parseInt(warehouseId), locationId ? parseInt(locationId) : null, code, parseInt(capacity)]
+    ); res.json({ success: true, data: { id: r.insertId } });
+  } catch (error) { console.error('❌ bins create', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/bins/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    const allowed = ['warehouseId','locationId','code','capacity']; const fields = []; const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (!fields.length) return res.json({ success: true });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE bins SET ${fields.join(', ')} WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ bins update', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/bins/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM bins WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ bins delete', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Inventory items
+app.get('/api/admin/inventory', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { productId, warehouseId, binId } = req.query;
+    const where = ['ii.tenantId = ?']; const params = [tenantId];
+    if (productId) { where.push('ii.productId = ?'); params.push(parseInt(productId)); }
+    if (warehouseId) { where.push('ii.warehouseId = ?'); params.push(parseInt(warehouseId)); }
+    if (binId) { where.push('ii.binId = ?'); params.push(parseInt(binId)); }
+    const [rows] = await poolWrapper.execute(
+      `SELECT ii.id, ii.productId, p.name as productName, ii.warehouseId, w.name as warehouseName, ii.binId, b.code as binCode, ii.quantity, ii.reserved, ii.updatedAt
+       FROM inventory_items ii
+       LEFT JOIN products p ON p.id = ii.productId
+       LEFT JOIN warehouses w ON w.id = ii.warehouseId
+       LEFT JOIN bins b ON b.id = ii.binId
+       WHERE ${where.join(' AND ')}
+       ORDER BY ii.id DESC`, params);
+    res.json({ success: true, data: rows });
+  } catch (error) { console.error('❌ inventory list', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/inventory', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { productId, warehouseId, binId = null, quantity = 0 } = req.body || {};
+    if (!productId || !warehouseId) return res.status(400).json({ success: false, message: 'productId and warehouseId required' });
+    const [r] = await poolWrapper.execute(
+      `INSERT INTO inventory_items (tenantId, productId, warehouseId, binId, quantity) VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), updatedAt = CURRENT_TIMESTAMP`,
+      [tenantId, parseInt(productId), parseInt(warehouseId), binId ? parseInt(binId) : null, parseInt(quantity)]);
+    res.json({ success: true, data: { id: r.insertId || null } });
+  } catch (error) { console.error('❌ inventory upsert', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/inventory/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    const allowed = ['productId','warehouseId','binId','quantity','reserved']; const fields = []; const params = [];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (!fields.length) return res.json({ success: true });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE inventory_items SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ inventory update', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/inventory/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM inventory_items WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ inventory delete', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Inventory movements
+app.get('/api/admin/inventory-movements', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, productId, fromWarehouseId, fromBinId, toWarehouseId, toBinId, quantity, reason, referenceType, referenceId, createdAt
+       FROM inventory_movements WHERE tenantId = ? ORDER BY id DESC LIMIT 500`, [tenantId]);
+    res.json({ success: true, data: rows });
+  } catch (error) { console.error('❌ movements list', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/inventory-movements', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1;
+    const { productId, fromWarehouseId = null, fromBinId = null, toWarehouseId = null, toBinId = null, quantity, reason, referenceType = null, referenceId = null } = req.body || {};
+    const qty = parseInt(quantity);
+    if (!productId || !qty || !reason) return res.status(400).json({ success: false, message: 'productId, quantity, reason required' });
+    await poolWrapper.execute(
+      `INSERT INTO inventory_movements (tenantId, productId, fromWarehouseId, fromBinId, toWarehouseId, toBinId, quantity, reason, referenceType, referenceId)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [tenantId, parseInt(productId), fromWarehouseId, fromBinId, toWarehouseId, toBinId, qty, reason, referenceType, referenceId]
+    );
+    res.json({ success: true });
+  } catch (error) { console.error('❌ movements create', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Suppliers
+app.get('/api/admin/suppliers', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const [rows] = await poolWrapper.execute(
+    'SELECT id, name, email, phone, address, taxNumber, isActive, createdAt FROM suppliers WHERE tenantId = ? ORDER BY id DESC', [tenantId]);
+    res.json({ success: true, data: rows });
+  } catch (error) { console.error('❌ suppliers list', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/suppliers', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { name, email = null, phone = null, address = null, taxNumber = null, isActive = 1 } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: 'Name required' });
+    const [r] = await poolWrapper.execute('INSERT INTO suppliers (tenantId, name, email, phone, address, taxNumber, isActive) VALUES (?, ?, ?, ?, ?, ?, ?)', [tenantId, name, email, phone, address, taxNumber, isActive ? 1 : 0]);
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (error) { console.error('❌ suppliers create', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/suppliers/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    const allowed = ['name','email','phone','address','taxNumber','isActive']; const fields=[]; const params=[];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (!fields.length) return res.json({ success: true });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE suppliers SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ suppliers update', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/suppliers/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM suppliers WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ suppliers delete', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Purchase Orders
+app.get('/api/admin/purchase-orders', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1;
+    const [rows] = await poolWrapper.execute(
+      `SELECT po.id, po.supplierId, s.name as supplierName, po.warehouseId, w.name as warehouseName, po.status, po.expectedAt, po.createdAt
+       FROM purchase_orders po
+       LEFT JOIN suppliers s ON s.id = po.supplierId
+       LEFT JOIN warehouses w ON w.id = po.warehouseId
+       WHERE po.tenantId = ? ORDER BY po.id DESC`, [tenantId]);
+    res.json({ success: true, data: rows });
+  } catch (error) { console.error('❌ PO list', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/purchase-orders', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { supplierId, warehouseId, status = 'draft', expectedAt = null, notes = null } = req.body || {};
+    if (!supplierId || !warehouseId) return res.status(400).json({ success: false, message: 'supplierId and warehouseId required' });
+    const [r] = await poolWrapper.execute(
+      'INSERT INTO purchase_orders (tenantId, supplierId, warehouseId, status, expectedAt, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [tenantId, parseInt(supplierId), parseInt(warehouseId), status, expectedAt, notes]
+    ); res.json({ success: true, data: { id: r.insertId } });
+  } catch (error) { console.error('❌ PO create', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/purchase-orders/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    const allowed = ['supplierId','warehouseId','status','expectedAt','notes']; const fields=[]; const params=[];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (!fields.length) return res.json({ success: true });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE purchase_orders SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ PO update', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/purchase-orders/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM purchase_orders WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    await poolWrapper.execute('DELETE FROM purchase_order_items WHERE purchaseOrderId = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ PO delete', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Purchase Order Items
+app.get('/api/admin/purchase-orders/:id/items', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, productId, quantity, receivedQuantity, price FROM purchase_order_items WHERE tenantId = ? AND purchaseOrderId = ? ORDER BY id ASC`, [tenantId, id]);
+    res.json({ success: true, data: rows });
+  } catch (error) { console.error('❌ PO items list', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/purchase-orders/:id/items', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id);
+    const { productId, quantity, price = 0 } = req.body || {};
+    if (!productId || !quantity) return res.status(400).json({ success: false, message: 'productId and quantity required' });
+    const [r] = await poolWrapper.execute('INSERT INTO purchase_order_items (tenantId, purchaseOrderId, productId, quantity, price) VALUES (?, ?, ?, ?, ?)', [tenantId, id, parseInt(productId), parseInt(quantity), parseFloat(price)]);
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (error) { console.error('❌ PO item create', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/purchase-orders/:orderId/items/:itemId', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const orderId = parseInt(req.params.orderId); const itemId = parseInt(req.params.itemId);
+    const allowed = ['productId','quantity','receivedQuantity','price']; const fields=[]; const params=[];
+    for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (!fields.length) return res.json({ success: true });
+    params.push(itemId, orderId, tenantId);
+    await poolWrapper.execute(`UPDATE purchase_order_items SET ${fields.join(', ')} WHERE id = ? AND purchaseOrderId = ? AND tenantId = ?`, params);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ PO item update', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/purchase-orders/:orderId/items/:itemId', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const orderId = parseInt(req.params.orderId); const itemId = parseInt(req.params.itemId);
+    await poolWrapper.execute('DELETE FROM purchase_order_items WHERE id = ? AND purchaseOrderId = ? AND tenantId = ?', [itemId, orderId, tenantId]);
+    res.json({ success: true });
+  } catch (error) { console.error('❌ PO item delete', error); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Workstations
+app.get('/api/admin/workstations', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const [rows] = await poolWrapper.execute('SELECT id, name, code, capacityPerHour, isActive, createdAt FROM workstations WHERE tenantId = ? ORDER BY id DESC', [tenantId]); res.json({ success: true, data: rows }); } catch (e) { console.error('❌ workstations', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/workstations', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { name, code = null, capacityPerHour = 0, isActive = 1 } = req.body || {}; if (!name) return res.status(400).json({ success: false, message: 'Name required' }); const [r] = await poolWrapper.execute('INSERT INTO workstations (tenantId, name, code, capacityPerHour, isActive) VALUES (?, ?, ?, ?, ?)', [tenantId, name, code, parseInt(capacityPerHour), isActive ? 1 : 0]); res.json({ success: true, data: { id: r.insertId } }); } catch (e) { console.error('❌ ws create', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/workstations/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); const allowed=['name','code','capacityPerHour','isActive']; const fields=[]; const params=[]; for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); } if (!fields.length) return res.json({ success:true }); params.push(id, tenantId); await poolWrapper.execute(`UPDATE workstations SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params); res.json({ success: true }); } catch (e) { console.error('❌ ws update', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/workstations/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); await poolWrapper.execute('DELETE FROM workstations WHERE id = ? AND tenantId = ?', [id, tenantId]); res.json({ success: true }); } catch (e) { console.error('❌ ws delete', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Production Orders
+app.get('/api/admin/production-orders', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const [rows] = await poolWrapper.execute(
+    `SELECT po.id, po.productId, p.name as productName, po.quantity, po.status, po.plannedStart, po.plannedEnd, po.actualStart, po.actualEnd, po.createdAt
+     FROM production_orders po LEFT JOIN products p ON p.id = po.productId WHERE po.tenantId = ? ORDER BY po.id DESC`, [tenantId]);
+    res.json({ success: true, data: rows });
+  } catch (e) { console.error('❌ prod orders list', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/production-orders', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const { productId, quantity, status = 'planned', plannedStart = null, plannedEnd = null, warehouseId = null, notes = null } = req.body || {};
+    if (!productId || !quantity) return res.status(400).json({ success: false, message: 'productId and quantity required' });
+    const [r] = await poolWrapper.execute('INSERT INTO production_orders (tenantId, productId, quantity, status, plannedStart, plannedEnd, warehouseId, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [tenantId, parseInt(productId), parseInt(quantity), status, plannedStart, plannedEnd, warehouseId, notes]);
+    res.json({ success: true, data: { id: r.insertId } });
+  } catch (e) { console.error('❌ prod orders create', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/production-orders/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); const allowed=['productId','quantity','status','plannedStart','plannedEnd','actualStart','actualEnd','warehouseId','notes']; const fields=[]; const params=[]; for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); } if (!fields.length) return res.json({ success:true }); params.push(id, tenantId); await poolWrapper.execute(`UPDATE production_orders SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params); res.json({ success: true }); } catch (e) { console.error('❌ prod orders update', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/production-orders/:id', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); await poolWrapper.execute('DELETE FROM production_orders WHERE id = ? AND tenantId = ?', [id, tenantId]); res.json({ success: true }); } catch (e) { console.error('❌ prod orders delete', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// Production Steps
+app.get('/api/admin/production-orders/:id/steps', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); const [rows] = await poolWrapper.execute('SELECT id, workstationId, stepName, sequence, status, startedAt, finishedAt FROM production_steps WHERE tenantId = ? AND productionOrderId = ? ORDER BY sequence ASC', [tenantId, id]); res.json({ success: true, data: rows }); } catch (e) { console.error('❌ steps list', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.post('/api/admin/production-orders/:id/steps', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); const { workstationId = null, stepName, sequence = 1, status = 'pending', startedAt = null, finishedAt = null } = req.body || {}; if (!stepName) return res.status(400).json({ success: false, message: 'stepName required' }); const [r] = await poolWrapper.execute('INSERT INTO production_steps (tenantId, productionOrderId, workstationId, stepName, sequence, status, startedAt, finishedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [tenantId, id, workstationId, stepName, parseInt(sequence), status, startedAt, finishedAt]); res.json({ success: true, data: { id: r.insertId } }); } catch (e) { console.error('❌ steps create', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.put('/api/admin/production-orders/:orderId/steps/:stepId', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const orderId = parseInt(req.params.orderId); const stepId = parseInt(req.params.stepId); const allowed=['workstationId','stepName','sequence','status','startedAt','finishedAt']; const fields=[]; const params=[]; for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); } if (!fields.length) return res.json({ success:true }); params.push(stepId, orderId, tenantId); await poolWrapper.execute(`UPDATE production_steps SET ${fields.join(', ')} WHERE id = ? AND productionOrderId = ? AND tenantId = ?`, params); res.json({ success: true }); } catch (e) { console.error('❌ steps update', e); res.status(500).json({ success: false, message: 'Error' }); }
+});
+app.delete('/api/admin/production-orders/:orderId/steps/:stepId', authenticateAdmin, async (req, res) => {
+  try { const tenantId = req.tenant?.id || 1; const orderId = parseInt(req.params.orderId); const stepId = parseInt(req.params.stepId); await poolWrapper.execute('DELETE FROM production_steps WHERE id = ? AND productionOrderId = ? AND tenantId = ?', [stepId, orderId, tenantId]); res.json({ success: true }); } catch (e) { console.error('❌ steps delete', e); res.status(500).json({ success: false, message: 'Error' }); }
 });
 
 // Admin - Tüm siparişleri listele

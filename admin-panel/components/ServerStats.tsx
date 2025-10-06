@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown } from 'lucide-react'
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Bar, Legend } from 'recharts'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
 
@@ -173,22 +173,20 @@ export default function ServerStats() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-6">CPU Kullanım Grafiği</h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">CPU Kullanımı</h3>
+          <p className="text-slate-500 text-sm mb-4">1, 5 ve 15 dk ortalamaları</p>
+          <ResponsiveContainer width="100%" height={260}>
             {cpuData && cpuData.length > 0 ? (
-            <AreaChart data={cpuData}>
-              <defs>
-                <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <ComposedChart data={cpuData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
               <XAxis dataKey="time" stroke="#94a3b8" />
               <YAxis stroke="#94a3b8" />
               <Tooltip />
-              <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorCpu)" />
-            </AreaChart>
+              <Legend />
+              <Bar dataKey="load1" barSize={18} fill="#3b82f6" radius={[4,4,0,0]} />
+              <Bar dataKey="load5" barSize={18} fill="#8b5cf6" radius={[4,4,0,0]} />
+              <Line type="monotone" dataKey="load15" stroke="#ef4444" strokeWidth={2} dot={false} />
+            </ComposedChart>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
             )}
@@ -196,31 +194,23 @@ export default function ServerStats() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-6">Ağ Trafiği</h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">Ağ Trafiği</h3>
+          <p className="text-slate-500 text-sm mb-4">Download/Upload (Mbps)</p>
+          <ResponsiveContainer width="100%" height={260}>
             {networkData && networkData.length > 0 ? (
-            <LineChart data={networkData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <ComposedChart data={networkData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
               <XAxis dataKey="time" stroke="#94a3b8" />
               <YAxis stroke="#94a3b8" />
               <Tooltip />
-              <Line type="monotone" dataKey="download" stroke="#10b981" strokeWidth={2} />
-              <Line type="monotone" dataKey="upload" stroke="#f59e0b" strokeWidth={2} />
-            </LineChart>
+              <Legend />
+              <Area type="monotone" dataKey="download" stroke="#10b981" fill="#10b98133" strokeWidth={2} />
+              <Line type="monotone" dataKey="upload" stroke="#f59e0b" strokeWidth={2} dot={false} />
+            </ComposedChart>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
             )}
           </ResponsiveContainer>
-          <div className="flex items-center justify-center space-x-6 mt-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-slate-600">Download</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-              <span className="text-sm text-slate-600">Upload</span>
-            </div>
-          </div>
         </div>
       </div>
 

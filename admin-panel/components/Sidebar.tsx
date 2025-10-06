@@ -210,29 +210,29 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-700 bg-slate-900 flex-shrink-0">
+      <div className="p-3 border-t border-slate-700 bg-slate-900 flex-shrink-0">
         <button 
           onClick={() => setActiveTab('settings')}
           title={isCollapsed ? 'Ayarlar' : ''}
           className={`w-full flex items-center ${
-            isCollapsed ? 'justify-center px-2' : 'px-4'
-          } py-3 rounded-lg transition-all ${
+            isCollapsed ? 'justify-center px-2' : 'px-3'
+          } py-2.5 rounded-lg transition-all ${
             activeTab === 'settings'
               ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
               : 'text-slate-300 hover:bg-slate-800/50'
           }`}
         >
-          <Settings className={`w-5 h-5 ${!isCollapsed && 'mr-3'}`} />
+          <Settings className={`w-5 h-5 ${!isCollapsed && 'mr-2'}`} />
           {!isCollapsed && <span>Ayarlar</span>}
         </button>
         <button 
           onClick={handleLogout}
           title={isCollapsed ? 'Çıkış Yap' : ''}
           className={`w-full flex items-center ${
-            isCollapsed ? 'justify-center px-2' : 'px-4'
-          } py-3 text-red-400 hover:bg-red-900/20 rounded-lg transition-all mt-2`}
+            isCollapsed ? 'justify-center px-2' : 'px-3'
+          } py-2.5 text-red-400 hover:bg-red-900/20 rounded-lg transition-all mt-2`}
         >
-          <LogOut className={`w-5 h-5 ${!isCollapsed && 'mr-3'}`} />
+          <LogOut className={`w-5 h-5 ${!isCollapsed && 'mr-2'}`} />
           {!isCollapsed && <span>Çıkış Yap</span>}
         </button>
       </div>

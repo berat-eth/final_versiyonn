@@ -1,14 +1,36 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TrendingUp, DollarSign, Target, ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function CRMPipeline() {
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
-  const stages: any[] = []
+  // Backend entegrasyonu
+  const [stages, setStages] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // İstatistik kartları kaldırıldı (mock)
+
+  useEffect(() => {
+    let alive = true
+    ;(async()=>{
+      try {
+        setLoading(true)
+        setError(null)
+        const res: any = await (await import('../lib/services/crmService')).crmService.getPipeline()
+        if (alive && res?.success && Array.isArray(res.data)) {
+          setStages(res.data)
+        } else {
+          setStages([])
+        }
+      } catch (e:any) {
+        setError(e?.message || 'Satış hunisi yüklenemedi')
+        setStages([])
+      } finally { setLoading(false) }
+    })()
+    return () => { alive = false }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -22,6 +44,8 @@ export default function CRMPipeline() {
       {/* İstatistik kartları kaldırıldı */}
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
+        {loading && <div className="text-slate-500">Yükleniyor...</div>}
+        {error && <div className="text-red-600">{error}</div>}
         <h3 className="text-xl font-bold text-slate-800 mb-6">Satış Aşamaları</h3>
         <div className="space-y-4">
           {stages.map((stage, index) => (
