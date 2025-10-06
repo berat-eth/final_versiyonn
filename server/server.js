@@ -3517,7 +3517,7 @@ app.get('/api/admin/custom-production-requests', authenticateAdmin, async (req, 
     `);
     const names = new Set(cols.map(c => c.COLUMN_NAME));
     const baseCols = [
-      'id','userId','tenantId','status','totalQuantity','totalAmount','notes','createdAt'
+      'id','userId','tenantId','status','totalQuantity','totalAmount','customerName','customerEmail','customerPhone','notes','createdAt'
     ];
     const optionalCols = [
       'quoteAmount','quoteCurrency','quoteNotes','quoteStatus','quotedAt','quoteValidUntil'

@@ -1,18 +1,36 @@
 'use client'
 
-import { FileText, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { FileText, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
+import { api } from '@/lib/api'
 
 export default function Applications() {
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
-  const applications: any[] = []
+  const [applications, setApplications] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string|null>(null)
+
+  const load = async () => {
+    try {
+      setLoading(true); setError(null)
+      const res = await api.get<any>('/dealership/applications')
+      if ((res as any)?.success && Array.isArray((res as any).data)) setApplications((res as any).data)
+      else setApplications([])
+    } catch (e:any) { setError(e?.message || 'Başvurular getirilemedi'); setApplications([]) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(()=>{ load() }, [])
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-slate-800">Bayilik Başvuruları</h2>
-        <p className="text-slate-500 mt-1">Bayilik başvurularını inceleyin ve onaylayın</p>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="px-3 py-2 border rounded-lg text-sm flex items-center gap-2"><RefreshCw className="w-4 h-4"/>Yenile</button>
+        </div>
       </div>
+      <p className="text-slate-500">Bayilik başvurularını inceleyin ve onaylayın</p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm p-5">
@@ -30,6 +48,8 @@ export default function Applications() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
+        {loading && <div className="text-slate-500 text-sm">Yükleniyor...</div>}
+        {error && <div className="text-red-600 text-sm">{error}</div>}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -51,26 +71,26 @@ export default function Applications() {
                   transition={{ delay: index * 0.05 }}
                   className="hover:bg-slate-50"
                 >
-                  <td className="px-6 py-4 font-semibold text-slate-800">{app.name}</td>
-                  <td className="px-6 py-4">{app.company}</td>
+                  <td className="px-6 py-4 font-semibold text-slate-800">{app.fullName}</td>
+                  <td className="px-6 py-4">{app.companyName}</td>
                   <td className="px-6 py-4">{app.phone}</td>
-                  <td className="px-6 py-4 text-slate-600">{app.date}</td>
+                  <td className="px-6 py-4 text-slate-600">{app.createdAt}</td>
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                      app.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      app.status === 'new' ? 'bg-yellow-100 text-yellow-700' :
                       app.status === 'approved' ? 'bg-green-100 text-green-700' :
                       'bg-red-100 text-red-700'
                     }`}>
-                      {app.status === 'pending' ? 'Bekliyor' :
+                      {app.status === 'new' ? 'Bekliyor' :
                        app.status === 'approved' ? 'Onaylandı' : 'Reddedildi'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
-                      <button className="p-2 hover:bg-green-50 rounded-lg">
+                      <button onClick={async()=>{ try{ await api.put(`/dealership/applications/${app.id}/status`, { status:'approved' }); await load() } catch {} }} className="p-2 hover:bg-green-50 rounded-lg">
                         <CheckCircle className="w-5 h-5 text-green-600" />
                       </button>
-                      <button className="p-2 hover:bg-red-50 rounded-lg">
+                      <button onClick={async()=>{ try{ await api.put(`/dealership/applications/${app.id}/status`, { status:'rejected' }); await load() } catch {} }} className="p-2 hover:bg-red-50 rounded-lg">
                         <XCircle className="w-5 h-5 text-red-600" />
                       </button>
                     </div>

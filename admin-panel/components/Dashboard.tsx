@@ -95,15 +95,22 @@ export default function Dashboard() {
   const [liveUsers, setLiveUsers] = useState<Array<any>>([])
   const [liveUserStats, setLiveUserStats] = useState({ total: 0, withCart: 0, totalCartValue: 0, totalCartItems: 0, inCheckout: 0 })
 
+  // Özel toptan üretim istatistikleri
+  const [customProdTotal, setCustomProdTotal] = useState<number>(0)
+  const [customProdInProgress, setCustomProdInProgress] = useState<number>(0)
+  const [customProdCompleted, setCustomProdCompleted] = useState<number>(0)
+  const [customProdAmount, setCustomProdAmount] = useState<number>(0)
+
   useEffect(() => {
     const load = async () => {
       try {
-        const [statsRes, productsRes, adminOrders, adminCategories, categoryStats] = await Promise.all([
+        const [statsRes, productsRes, adminOrders, adminCategories, categoryStats, customRequests] = await Promise.all([
           analyticsService.getStats(),
           productService.getProducts(1, 50),
           api.get<any>('/admin/orders'),
           api.get<any>('/admin/categories'),
-          api.get<any>('/admin/category-stats')
+          api.get<any>('/admin/category-stats'),
+          api.get<any>('/admin/custom-production-requests').catch(()=>({ success:true, data: [] }))
         ])
         // Canlı görüntülemeler (yaklaşık canlı kullanıcı metrikleri için)
         let liveViews: any = { success: true, data: [] as any[] }
@@ -125,6 +132,20 @@ export default function Dashboard() {
             .slice(0, 6)
             .map((p: any) => ({ name: p.name, sales: Number(p.reviewCount||0), revenue: Number(p.price||0) * Number(p.reviewCount||0), trend: 0 }))
           setTopProducts(top)
+        }
+
+        // Özel toptan üretim istatistikleri
+        if ((customRequests as any)?.success && Array.isArray((customRequests as any).data)) {
+          const list = (customRequests as any).data as any[]
+          setCustomProdTotal(list.length)
+          const inProg = list.filter((r:any)=> ['review','design','production','shipped'].includes(String(r.status))).length
+          setCustomProdInProgress(inProg)
+          const compl = list.filter((r:any)=> String(r.status) === 'completed').length
+          setCustomProdCompleted(compl)
+          const sumAmt = list.reduce((s:number, r:any)=> s + (Number(r.totalAmount)||0), 0)
+          setCustomProdAmount(sumAmt)
+        } else {
+          setCustomProdTotal(0); setCustomProdInProgress(0); setCustomProdCompleted(0); setCustomProdAmount(0)
         }
 
         if (statsRes.success && statsRes.data) {
@@ -505,6 +526,57 @@ export default function Dashboard() {
             </motion.div>
           )
         })}
+      </div>
+
+      {/* Özel Toptan Üretim Özet Kartları (B2B) */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">B2B • Özel Toptan Üretim</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 text-sm">Toplam Talep</p>
+              <p className="text-3xl font-bold text-slate-800">{customProdTotal}</p>
+            </div>
+            <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
+              <Package className="w-5 h-5 text-yellow-600" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 text-sm">Devam Eden</p>
+              <p className="text-3xl font-bold text-blue-600">{customProdInProgress}</p>
+            </div>
+            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+              <Activity className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 text-sm">Tamamlanan</p>
+              <p className="text-3xl font-bold text-green-600">{customProdCompleted}</p>
+            </div>
+            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 text-sm">Toplam Tutar</p>
+              <p className="text-3xl font-bold text-purple-600">₺{customProdAmount.toLocaleString('tr-TR')}</p>
+            </div>
+            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-purple-600" />
+            </div>
+          </div>
+        </motion.div>
       </div>
 
       {/* KPI Metrikleri */}

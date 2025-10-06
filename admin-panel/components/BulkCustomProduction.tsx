@@ -132,6 +132,7 @@ export default function BulkCustomProduction() {
               <tr className="border-b border-slate-200">
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Talep No</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Müşteri</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Telefon</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Adet</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Tutar</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Durum</th>
@@ -152,9 +153,13 @@ export default function BulkCustomProduction() {
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
                       <Crown className="w-5 h-5 text-yellow-600" />
-                      <span className="font-semibold text-slate-800">{r.customerName || '-'}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-slate-800">{r.customerName || '-'}</span>
+                        <span className="text-xs text-slate-500">{r.customerEmail || '-'}</span>
+                      </div>
                     </div>
                   </td>
+                  <td className="px-6 py-4">{r.customerPhone || '-'}</td>
                   <td className="px-6 py-4">{r.totalQuantity ?? '-'}</td>
                   <td className="px-6 py-4 font-bold text-green-600">₺{Number(r.totalAmount || 0).toLocaleString('tr-TR')}</td>
                   <td className="px-6 py-4">
@@ -203,17 +208,17 @@ export default function BulkCustomProduction() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Ürün ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Ürün</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Adet</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Özelleştirmeler</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Mesaj/Not</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map((it:any, idx:number)=> (
                   <tr key={it.id || idx} className="hover:bg-slate-50">
-                    <td className="px-6 py-3 font-semibold text-slate-800">{it.productId ?? '-'}</td>
+                    <td className="px-6 py-3 font-semibold text-slate-800">{it.productName || it.productId || '-'}</td>
                     <td className="px-6 py-3 text-slate-700">{it.quantity ?? '-'}</td>
-                    <td className="px-6 py-3 text-slate-700 break-all">{typeof it.customizations === 'string' ? it.customizations : JSON.stringify(it.customizations)}</td>
+                    <td className="px-6 py-3 text-slate-700 break-all">{it.note || (typeof it.customizations === 'string' ? it.customizations : JSON.stringify(it.customizations))}</td>
                   </tr>
                 ))}
                 {items.length === 0 && !itemsLoading && !itemsError && (
