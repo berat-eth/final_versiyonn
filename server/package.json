@@ -46,7 +46,8 @@
     "node-cron": "3.0.3",
     "react-native-async-storage": "0.0.1",
     "sequelize": "6.37.7",
-    "xml2js": "0.6.2"
+    "xml2js": "0.6.2",
+    "systeminformation": "5.25.10"
   },
   "devDependencies": {
     "@types/crypto-js": "4.2.2",

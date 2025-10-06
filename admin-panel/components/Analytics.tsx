@@ -33,6 +33,7 @@ export default function Analytics() {
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Gelir & Gider Analizi</h3>
           <ResponsiveContainer width="100%" height={300}>
+            {monthlyData && monthlyData.length > 0 ? (
             <BarChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" stroke="#94a3b8" />
@@ -50,12 +51,16 @@ export default function Analytics() {
               <Bar dataKey="gider" fill="#f093fb" radius={[8, 8, 0, 0]} />
               <Bar dataKey="kar" fill="#43e97b" radius={[8, 8, 0, 0]} />
             </BarChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Müşteri Davranış Analizi</h3>
           <ResponsiveContainer width="100%" height={300}>
+            {customerBehavior && customerBehavior.length > 0 ? (
             <RadarChart data={customerBehavior}>
               <PolarGrid stroke="#e2e8f0" />
               <PolarAngleAxis dataKey="category" stroke="#64748b" />
@@ -63,6 +68,9 @@ export default function Analytics() {
               <Radar name="Puan" dataKey="value" stroke="#667eea" fill="#667eea" fillOpacity={0.6} />
               <Tooltip />
             </RadarChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
           <div className="mt-4 grid grid-cols-2 gap-4">
             <div className="text-center p-3 bg-blue-50 rounded-lg">
@@ -80,6 +88,7 @@ export default function Analytics() {
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <h3 className="text-xl font-bold text-slate-800 mb-6">Kategori Performansı</h3>
         <ResponsiveContainer width="100%" height={350}>
+          {categoryPerformance && categoryPerformance.length > 0 ? (
           <AreaChart data={categoryPerformance}>
             <defs>
               <linearGradient id="colorSatis" x1="0" y1="0" x2="0" y2="1">
@@ -106,6 +115,9 @@ export default function Analytics() {
             <Area type="monotone" dataKey="satis" stroke="#667eea" strokeWidth={2} fillOpacity={1} fill="url(#colorSatis)" />
             <Area type="monotone" dataKey="siparis" stroke="#f093fb" strokeWidth={2} fillOpacity={1} fill="url(#colorSiparis)" />
           </AreaChart>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+          )}
         </ResponsiveContainer>
       </div>
 

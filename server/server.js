@@ -3037,9 +3037,15 @@ app.get('/api/admin/user-profiles', authenticateAdmin, async (req, res) => {
 });
 
 // Admin - Server stats (read-only, lightweight)
+// In-memory network sampling buffer
+let __netSample = { lastBytesRx: 0, lastBytesTx: 0, lastTs: 0 };
+
 app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
   try {
     const os = require('os');
+    const si = require('systeminformation');
+
+    // CPU and RAM
     const cpus = os.cpus() || [];
     const load = os.loadavg ? os.loadavg()[0] : 0; // 1-min load
     const cpuUsage = cpus.length ? Math.min(100, Math.max(0, (load / cpus.length) * 100)) : 0;
@@ -3048,9 +3054,45 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
     const usedMem = Math.max(0, totalMem - freeMem);
     const ramUsage = totalMem ? (usedMem / totalMem) * 100 : 0;
 
-    // Disk usage requires extra deps; return placeholder 0 and let frontend handle gracefully
-    const diskUsage = 0;
-    const networkSpeed = 0; // Not measurable here without sampling; keep 0
+    // Disk usage via systeminformation
+    let diskUsage = 0;
+    let storageTotal = null;
+    let storageUsed = null;
+    try {
+      const fsList = await si.fsSize();
+      if (Array.isArray(fsList) && fsList.length > 0) {
+        // Aggregate root-like mount points
+        const total = fsList.reduce((s, d) => s + (Number(d.size) || 0), 0);
+        const used = fsList.reduce((s, d) => s + (Number(d.used) || 0), 0);
+        storageTotal = Math.round(total / (1024 * 1024 * 1024));
+        storageUsed = Math.round(used / (1024 * 1024 * 1024));
+        diskUsage = total > 0 ? Math.round((used / total) * 100) : 0;
+      }
+    } catch {}
+
+    // Network speed sampling (approx.)
+    let networkSpeed = 0; // Mbps (download)
+    let networkHistory = [];
+    try {
+      const nets = await si.networkStats();
+      // Sum across interfaces
+      const rx = nets.reduce((s, n) => s + (Number(n.rx_bytes_total || n.rx_bytes || 0)), 0);
+      const tx = nets.reduce((s, n) => s + (Number(n.tx_bytes_total || n.tx_bytes || 0)), 0);
+      const now = Date.now();
+      if (__netSample.lastTs && now > __netSample.lastTs) {
+        const dtSec = (now - __netSample.lastTs) / 1000;
+        const drx = Math.max(0, rx - __netSample.lastBytesRx);
+        // bits/sec to Mbps
+        networkSpeed = Math.round(((drx * 8) / dtSec) / 1e6);
+      }
+      __netSample = { lastBytesRx: rx, lastBytesTx: tx, lastTs: now };
+
+      // Build a tiny history with current point; UI already can show blank gracefully
+      const hh = new Date().toTimeString().slice(0,5);
+      networkHistory = [
+        { time: hh, download: networkSpeed, upload: 0 }
+      ];
+    } catch {}
 
     const uptimeSec = os.uptime ? os.uptime() : Math.floor(process.uptime());
     const serverItem = {
@@ -3065,24 +3107,9 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
       { name: 'node', cpu: Math.round(cpuUsage / 2), memory: Math.round(process.memoryUsage().rss / (1024 * 1024)), status: 'running' }
     ];
 
+    // Simple CPU history snapshot based on current
     const cpuHistory = [
-      { time: '00:00', value: Math.max(0, Math.round(cpuUsage - 15)) },
-      { time: '04:00', value: Math.max(0, Math.round(cpuUsage - 10)) },
-      { time: '08:00', value: Math.max(0, Math.round(cpuUsage - 5)) },
-      { time: '12:00', value: Math.round(cpuUsage) },
-      { time: '16:00', value: Math.max(0, Math.round(cpuUsage - 8)) },
-      { time: '20:00', value: Math.max(0, Math.round(cpuUsage - 12)) },
-      { time: '24:00', value: Math.max(0, Math.round(cpuUsage - 18)) }
-    ];
-
-    const networkHistory = [
-      { time: '00:00', download: 0, upload: 0 },
-      { time: '04:00', download: 0, upload: 0 },
-      { time: '08:00', download: 0, upload: 0 },
-      { time: '12:00', download: 0, upload: 0 },
-      { time: '16:00', download: 0, upload: 0 },
-      { time: '20:00', download: 0, upload: 0 },
-      { time: '24:00', download: 0, upload: 0 }
+      { time: 'now', value: Math.round(cpuUsage) }
     ];
 
     res.json({
@@ -3097,8 +3124,8 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
         servers: [serverItem],
         processes,
         totals: {
-          storageTotal: null,
-          storageUsed: null,
+          storageTotal,
+          storageUsed,
           ramTotal: Math.round(totalMem / (1024 * 1024 * 1024)),
           ramUsed: Math.round(usedMem / (1024 * 1024 * 1024)),
           activeServers: 1,

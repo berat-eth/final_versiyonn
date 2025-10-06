@@ -137,18 +137,17 @@ export default function ServerStats() {
               <HardDrive className="w-6 h-6 text-green-600" />
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-slate-800">{diskUsage}%</p>
+              <p className="text-2xl font-bold text-slate-800">{(typeof diskUsage === 'number' && diskUsage > 0) ? `${diskUsage}%` : 'N/A'}</p>
             </div>
           </div>
           <p className="text-sm text-slate-600 mb-2">Disk Kullanımı</p>
           <div className="w-full bg-slate-200 rounded-full h-2">
             <div
               className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full"
-              style={{ width: `${diskUsage}%` }}
+              style={{ width: `${Math.max(0, Math.min(100, Number(diskUsage)||0))}%` }}
             ></div>
           </div>
         </motion.div>
-
         <motion.div
           animate={{ scale: [1, 1.02, 1] }}
           transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
@@ -159,14 +158,14 @@ export default function ServerStats() {
               <Wifi className="w-6 h-6 text-orange-600" />
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-slate-800">{networkSpeed.toFixed(0)}</p>
+              <p className="text-2xl font-bold text-slate-800">{Number(networkSpeed||0) > 0 ? networkSpeed.toFixed(0) : 'N/A'}</p>
               <p className="text-xs text-slate-500">Mbps</p>
             </div>
           </div>
           <p className="text-sm text-slate-600 mb-2">Ağ Hızı</p>
           <div className="flex items-center space-x-2 text-xs">
             <TrendingUp className="w-3 h-3 text-green-600" />
-            <span className="text-slate-600">Download: {networkSpeed.toFixed(0)} Mbps</span>
+            <span className="text-slate-600">Download: {Number(networkSpeed||0) > 0 ? networkSpeed.toFixed(0) : 0} Mbps</span>
           </div>
         </motion.div>
       </div>
@@ -176,6 +175,7 @@ export default function ServerStats() {
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">CPU Kullanım Grafiği</h3>
           <ResponsiveContainer width="100%" height={250}>
+            {cpuData && cpuData.length > 0 ? (
             <AreaChart data={cpuData}>
               <defs>
                 <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
@@ -189,12 +189,16 @@ export default function ServerStats() {
               <Tooltip />
               <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorCpu)" />
             </AreaChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Ağ Trafiği</h3>
           <ResponsiveContainer width="100%" height={250}>
+            {networkData && networkData.length > 0 ? (
             <LineChart data={networkData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="time" stroke="#94a3b8" />
@@ -203,6 +207,9 @@ export default function ServerStats() {
               <Line type="monotone" dataKey="download" stroke="#10b981" strokeWidth={2} />
               <Line type="monotone" dataKey="upload" stroke="#f59e0b" strokeWidth={2} />
             </LineChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
           <div className="flex items-center justify-center space-x-6 mt-4">
             <div className="flex items-center space-x-2">
@@ -320,29 +327,7 @@ export default function ServerStats() {
         </div>
       </div>
 
-      {/* System Info */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 text-white">
-          <Database className="w-8 h-8 mb-3 opacity-80" />
-          <p className="text-sm opacity-90 mb-1">Toplam Depolama</p>
-          <p className="text-3xl font-bold">2.5 TB</p>
-          <p className="text-sm opacity-75 mt-2">950 GB kullanılıyor</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg p-6 text-white">
-          <Activity className="w-8 h-8 mb-3 opacity-80" />
-          <p className="text-sm opacity-90 mb-1">Toplam RAM</p>
-          <p className="text-3xl font-bold">64 GB</p>
-          <p className="text-sm opacity-75 mt-2">40 GB kullanılıyor</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white">
-          <Server className="w-8 h-8 mb-3 opacity-80" />
-          <p className="text-sm opacity-90 mb-1">Aktif Sunucu</p>
-          <p className="text-3xl font-bold">5/5</p>
-          <p className="text-sm opacity-75 mt-2">Tüm sistemler çalışıyor</p>
-        </div>
-      </div>
+      {/* System Info removed (mock veriler kaldırıldı) */}
     </div>
   )
 }

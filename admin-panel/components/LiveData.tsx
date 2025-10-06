@@ -99,6 +99,7 @@ export default function LiveData() {
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Cihaz Dağılımı</h3>
           <ResponsiveContainer width="100%" height={200}>
+            {deviceData && deviceData.length > 0 ? (
             <PieChart>
               <Pie
                 data={deviceData}
@@ -115,6 +116,9 @@ export default function LiveData() {
               </Pie>
               <Tooltip />
             </PieChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
           <div className="mt-4 space-y-2">
             {deviceData.map((device) => (
@@ -132,6 +136,7 @@ export default function LiveData() {
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Saatlik Aktivite</h3>
           <ResponsiveContainer width="100%" height={200}>
+            {hourlyActivity && hourlyActivity.length > 0 ? (
             <LineChart data={hourlyActivity}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="hour" stroke="#94a3b8" style={{ fontSize: '12px' }} />
@@ -141,6 +146,9 @@ export default function LiveData() {
               <Line type="monotone" dataKey="users" stroke="#3b82f6" strokeWidth={2} name="Kullanıcılar" />
               <Line type="monotone" dataKey="views" stroke="#10b981" strokeWidth={2} name="Görüntüleme" />
             </LineChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
         </div>
       </div>

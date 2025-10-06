@@ -18,30 +18,42 @@ export interface MonthlyData {
 }
 
 export const analyticsService = {
-  // Get dashboard stats
+  // Get dashboard stats (admin endpoints)
   getStats: async () => {
-    // Backend'de analytics endpoint'i yoksa, mevcut endpoint'lerden veri toplayabiliriz
     try {
-      const [productsRes, ordersRes] = await Promise.all([
-        api.get<ApiResponse<{ total: number }>>('/products', { page: 1, limit: 1 }),
-        api.get<ApiResponse<any[]>>('/orders/user/1') // Geçici: uygun admin endpoint yoksa kullanıcı 1
+      const [ordersRes, usersRes] = await Promise.all([
+        api.get<ApiResponse<any[]>>('/admin/orders', { page: 1, limit: 1000 }),
+        api.get<ApiResponse<any[]>>('/admin/users', { page: 1, limit: 1000 })
       ]);
 
       const stats: AnalyticsStats = {
         totalRevenue: 0,
         totalOrders: 0,
         totalCustomers: 0,
-        totalProducts: productsRes.data?.total || 0,
+        totalProducts: 0,
       };
 
-      if (ordersRes.success && ordersRes.data) {
-        stats.totalOrders = ordersRes.data.length;
-        stats.totalRevenue = ordersRes.data.reduce((sum, order) => sum + order.totalAmount, 0);
+      if (ordersRes && (ordersRes as any).success && (ordersRes as any).data) {
+        const orders = (ordersRes as any).data as any[];
+        stats.totalOrders = orders.length;
+        stats.totalRevenue = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+      }
+
+      if (usersRes && (usersRes as any).success && (usersRes as any).data) {
+        const users = (usersRes as any).data as any[];
+        stats.totalCustomers = users.length;
       }
 
       return { success: true, data: stats };
     } catch (error) {
-      throw error;
+      // Admin uçları okunamazsa güvenli defaults
+      const fallback: AnalyticsStats = {
+        totalRevenue: 0,
+        totalOrders: 0,
+        totalCustomers: 0,
+        totalProducts: 0,
+      };
+      return { success: true, data: fallback };
     }
   },
 

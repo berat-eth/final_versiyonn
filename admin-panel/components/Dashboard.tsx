@@ -21,18 +21,7 @@ const LiveUserMap = dynamic(() => import('./LiveUserMap'), {
   ),
 })
 
-const stockAlerts: Array<{ product: string; category: string; stock: number; minStock: number; status: 'critical' | 'warning' }> = []
-
-// Canlı Kullanıcı Verileri
-const liveUsers: Array<any> = []
-
-const liveUserStats = {
-  total: liveUsers.length,
-  withCart: 0,
-  totalCartValue: 0,
-  totalCartItems: 0,
-  inCheckout: 0,
-}
+// Stok uyarıları, canlı kullanıcılar ve istatistikleri state'e alındı
 
 // SMS ve Email İstatistikleri
 const smsStats = {
@@ -102,6 +91,9 @@ export default function Dashboard() {
   const [realtimeActivities, setRealtimeActivities] = useState<Array<any>>([])
   const [kpiMetrics, setKpiMetrics] = useState<Array<{ title: string; value: string; target: string; progress: number; trend: 'up' | 'down'; change: string }>>([])
   const [trafficSources, setTrafficSources] = useState<Array<{ source: string; visitors: number; conversion: number; revenue: number; color: string }>>([])
+  const [stockAlerts, setStockAlerts] = useState<Array<{ product: string; category: string; stock: number; minStock: number; status: 'critical' | 'warning' }>>([])
+  const [liveUsers, setLiveUsers] = useState<Array<any>>([])
+  const [liveUserStats, setLiveUserStats] = useState({ total: 0, withCart: 0, totalCartValue: 0, totalCartItems: 0, inCheckout: 0 })
 
   useEffect(() => {
     const load = async () => {
@@ -113,6 +105,9 @@ export default function Dashboard() {
           api.get<any>('/admin/categories'),
           api.get<any>('/admin/category-stats')
         ])
+        // Canlı görüntülemeler (yaklaşık canlı kullanıcı metrikleri için)
+        let liveViews: any = { success: true, data: [] as any[] }
+        try { liveViews = await api.get<any>('/admin/live-views') } catch {}
         // Kategori dağılımı ve performansı
         if ((adminCategories as any)?.success && (adminCategories as any).data) {
           const cats = (adminCategories as any).data as any[]
@@ -123,7 +118,13 @@ export default function Dashboard() {
         if ((categoryStats as any)?.success && (categoryStats as any).data) {
           const stats = (categoryStats as any).data as any[]
           setCategoryPerformance(stats.slice(0,6).map(s=>({ name: s.name||'Diğer', satis: Math.round(Number(s.revenue)||0), kar: Math.round((Number(s.revenue)||0)*0.3), stok: Number(s.stock)||0, siparisler: Number(s.orders)||0 })))
-          setTopProducts([]) // opsiyonel: gerçek uç yoksa boş bırak
+          // En çok satan ürünler: ürün verisi + basit sıralama (yorum sayısı/rating varsa)
+          const prods = (productsRes as any)?.data?.products || (productsRes as any)?.data || []
+          const top = [...prods]
+            .sort((a: any, b: any) => (Number(b.reviewCount||0) - Number(a.reviewCount||0)) || (Number(b.rating||0) - Number(a.rating||0)))
+            .slice(0, 6)
+            .map((p: any) => ({ name: p.name, sales: Number(p.reviewCount||0), revenue: Number(p.price||0) * Number(p.reviewCount||0), trend: 0 }))
+          setTopProducts(top)
         }
 
         if (statsRes.success && statsRes.data) {
@@ -195,6 +196,52 @@ export default function Dashboard() {
           { source: 'Sosyal', visitors: 600, conversion: 1.2, revenue: totalRevenue*0.1, color: '#8b5cf6' },
           { source: 'E-posta', visitors: 300, conversion: 4.0, revenue: totalRevenue*0.08, color: '#ef4444' },
         ])
+
+        // Stok uyarıları (ürün stok < minStock)
+        try {
+          const productsList = (productsRes as any)?.data?.products || (productsRes as any)?.data || []
+          const alerts: Array<{ product: string; category: string; stock: number; minStock: number; status: 'critical' | 'warning' }> = (productsList as any[])
+            .filter((p:any) => typeof p.stock === 'number' && p.stock >= 0 && p.stock <= 5)
+            .slice(0, 10)
+            .map((p:any) => ({
+              product: String(p.name||'-'),
+              category: String(p.category || '-'),
+              stock: Number(p.stock||0),
+              minStock: 5,
+              status: (Number(p.stock||0) <= 1 ? 'critical' : 'warning'),
+            }))
+          setStockAlerts(alerts)
+        } catch {}
+
+        // Müşteri davranışı (radar) — canlı görüntülemelerden türet
+        try {
+          const views = (liveViews as any)?.data || []
+          const totalViews = views.length
+          const addedToCart = views.filter((v:any)=>v.addedToCart).length
+          const purchases = views.filter((v:any)=>v.purchased).length
+          const score = (n:number, base:number) => Math.min(100, Math.round((n/Math.max(base,1))*100))
+          setCustomerBehavior([
+            { metric: 'Ürün Görüntüleme', value: Math.min(100, totalViews) },
+            { metric: 'Sepete Ekleme', value: score(addedToCart, totalViews || 50) },
+            { metric: 'Satın Alma', value: score(purchases, totalViews || 50) },
+            { metric: 'Etkileşim', value: score(addedToCart + purchases, (totalViews||50)*2) },
+            { metric: 'Dönüşüm', value: score(purchases, addedToCart || 30) },
+          ])
+        } catch {}
+
+        // Canlı kullanıcı istatistikleri (harita için konum verisi yoksa boş)
+        setLiveUsers([])
+        try {
+          const views = (liveViews as any)?.data || []
+          const userIds = Array.from(new Set(views.map((v:any)=>v.userId).filter(Boolean)))
+          setLiveUserStats({
+            total: userIds.length,
+            withCart: views.filter((v:any)=>v.addedToCart).length,
+            totalCartValue: 0,
+            totalCartItems: 0,
+            inCheckout: 0,
+          })
+        } catch {}
       } catch {
         // sessiz geç
       }
@@ -533,6 +580,7 @@ export default function Dashboard() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
+            {salesData && salesData.length > 0 ? (
             <AreaChart data={salesData}>
               <defs>
                 <linearGradient id="colorSatis" x1="0" y1="0" x2="0" y2="1">
@@ -569,12 +617,16 @@ export default function Dashboard() {
                 <Area type="monotone" dataKey="musteri" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorMusteri)" />
               )}
             </AreaChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Kategori Dağılımı</h3>
           <ResponsiveContainer width="100%" height={300}>
+            {categoryData && categoryData.length > 0 ? (
             <PieChart>
               <Pie
                 data={categoryData}
@@ -591,6 +643,9 @@ export default function Dashboard() {
               </Pie>
               <Tooltip />
             </PieChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
           <div className="mt-4 space-y-2">
             {categoryData.map((cat) => (
@@ -916,6 +971,7 @@ export default function Dashboard() {
               Saatlik Tehdit Aktivitesi
             </h4>
             <ResponsiveContainer width="100%" height={150}>
+              {snortThreatData && snortThreatData.length > 0 ? (
               <AreaChart data={snortThreatData}>
                 <defs>
                   <linearGradient id="colorThreats" x1="0" y1="0" x2="0" y2="1">
@@ -943,6 +999,9 @@ export default function Dashboard() {
                   fill="url(#colorThreats)"
                 />
               </AreaChart>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">Veri yok</div>
+              )}
             </ResponsiveContainer>
           </div>
 
@@ -1038,6 +1097,7 @@ export default function Dashboard() {
             <BarChart3 className="w-5 h-5 text-slate-400" />
           </div>
           <ResponsiveContainer width="100%" height={300}>
+            {revenueData && revenueData.length > 0 ? (
             <ComposedChart data={revenueData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" stroke="#94a3b8" />
@@ -1056,6 +1116,9 @@ export default function Dashboard() {
               <Line type="monotone" dataKey="kar" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
               <Line type="monotone" dataKey="hedef" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" />
             </ComposedChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -1065,6 +1128,7 @@ export default function Dashboard() {
             <Activity className="w-5 h-5 text-slate-400" />
           </div>
           <ResponsiveContainer width="100%" height={300}>
+            {hourlyActivity && hourlyActivity.length > 0 ? (
             <AreaChart data={hourlyActivity}>
               <defs>
                 <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
@@ -1091,6 +1155,9 @@ export default function Dashboard() {
               <Area type="monotone" dataKey="orders" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorOrders)" name="Siparişler" />
               <Area type="monotone" dataKey="visitors" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#colorVisitors)" name="Ziyaretçiler" />
             </AreaChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
         </div>
       </div>
@@ -1103,6 +1170,7 @@ export default function Dashboard() {
             <Users className="w-5 h-5 text-slate-400" />
           </div>
           <ResponsiveContainer width="100%" height={300}>
+            {customerBehavior && customerBehavior.length > 0 ? (
             <RadarChart data={customerBehavior}>
               <PolarGrid stroke="#e2e8f0" />
               <PolarAngleAxis dataKey="metric" stroke="#64748b" />
@@ -1110,6 +1178,9 @@ export default function Dashboard() {
               <Radar name="Puan" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
               <Tooltip />
             </RadarChart>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            )}
           </ResponsiveContainer>
           <div className="mt-4 space-y-2">
             {customerBehavior.map((item) => (
@@ -1298,53 +1369,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Trafik Kaynakları */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-slate-800">Trafik Kaynakları</h3>
-          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">Detaylı Analiz</button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {trafficSources.map((source, index) => (
-            <motion.div
-              key={source.source}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="p-5 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl hover:shadow-lg transition-all"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: source.color }} />
-                <TrendingUp className="w-4 h-4 text-green-600" />
-              </div>
-              <h4 className="font-semibold text-slate-800 mb-2">{source.source}</h4>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Ziyaretçi</span>
-                  <span className="text-sm font-bold text-slate-800">{source.visitors.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Dönüşüm</span>
-                  <span className="text-sm font-bold text-blue-600">{source.conversion}%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Gelir</span>
-                  <span className="text-sm font-bold text-green-600">₺{(source.revenue / 1000).toFixed(0)}K</span>
-                </div>
-              </div>
-              <div className="mt-3 h-1 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-1000"
-                  style={{
-                    width: `${(source.visitors / 12450) * 100}%`,
-                    backgroundColor: source.color
-                  }}
-                />
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+      
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow-sm p-6">
