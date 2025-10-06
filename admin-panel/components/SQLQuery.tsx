@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Database, Play, Download, Copy, Trash2, Save, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
 
 interface QueryResult {
   columns: string[]
@@ -28,8 +29,18 @@ export default function SQLQuery() {
   // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
   const [queryHistory, setQueryHistory] = useState<QueryHistory[]>([])
 
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
-  const sampleTables: any[] = []
+  const [tables, setTables] = useState<any[]>([])
+  const [loadingTables, setLoadingTables] = useState(true)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get<any>('/admin/sql/tables')
+        if ((res as any)?.success && (res as any).data) setTables((res as any).data)
+      } finally {
+        setLoadingTables(false)
+      }
+    })()
+  }, [])
 
   const validateQuery = (sql: string): boolean => {
     const normalizedQuery = sql.trim().toUpperCase()
@@ -71,37 +82,34 @@ export default function SQLQuery() {
     }
 
     setIsExecuting(true)
-
-    // Simüle edilmiş sorgu çalıştırma
-    setTimeout(() => {
-      try {
-        // Mock veriler kaldırıldı - Backend'den gerçek sorgu sonucu gelecek
-        const mockResult: QueryResult = {
-          columns: [],
-          rows: [],
-          rowCount: 0,
-          executionTime: 0
+    try {
+      const res = await api.post<any>('/admin/sql/query', { query })
+      if ((res as any)?.success && (res as any).data) {
+        const payload = (res as any).data
+        const parsed: QueryResult = {
+          columns: payload.columns || [],
+          rows: payload.rows || [],
+          rowCount: payload.rowCount || 0,
+          executionTime: payload.executionTime || 0
         }
-
-        setResult(mockResult)
-        
-        // Geçmişe ekle
+        setResult(parsed)
         const newHistory: QueryHistory = {
           id: Date.now(),
           query: query,
           timestamp: new Date().toLocaleString('tr-TR'),
           status: 'success',
-          rowCount: mockResult.rowCount,
-          executionTime: mockResult.executionTime
+          rowCount: parsed.rowCount,
+          executionTime: parsed.executionTime
         }
         setQueryHistory([newHistory, ...queryHistory])
-        
-      } catch (err) {
-        setError('❌ Sorgu çalıştırılırken bir hata oluştu.')
-      } finally {
-        setIsExecuting(false)
+      } else {
+        setError('❌ Sorgu başarısız')
       }
-    }, 1000)
+    } catch (err) {
+      setError('❌ Sorgu çalıştırılırken bir hata oluştu.')
+    } finally {
+      setIsExecuting(false)
+    }
   }
 
   const copyToClipboard = (text: string) => {
@@ -178,7 +186,10 @@ export default function SQLQuery() {
           <div className="bg-white rounded-2xl shadow-sm p-6">
             <h3 className="text-lg font-bold text-slate-800 mb-4">Veritabanı Tabloları</h3>
             <div className="space-y-2">
-              {sampleTables.map((table) => (
+              {loadingTables ? (
+                <p className="text-slate-500">Tablolar yükleniyor...</p>
+              ) : (
+              tables.map((table) => (
                 <button
                   key={table.name}
                   onClick={() => loadSampleQuery(table.name)}
@@ -195,7 +206,8 @@ export default function SQLQuery() {
                     {table.columns.length > 3 && '...'}
                   </div>
                 </button>
-              ))}
+              ))
+              )}
             </div>
 
             <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">

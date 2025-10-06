@@ -2645,6 +2645,341 @@ app.get('/api/admin/carts', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - Gift cards list
+app.get('/api/admin/gift-cards', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, code, fromUserId, recipient, recipientUserId, amount, status, expiresAt, usedAt, createdAt
+       FROM gift_cards
+       WHERE tenantId = ?
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting gift cards:', error);
+    res.status(500).json({ success: false, message: 'Error getting gift cards' });
+  }
+});
+
+// Admin - Create gift card
+app.post('/api/admin/gift-cards', authenticateAdmin, async (req, res) => {
+  try {
+    const { code, amount, recipient, recipientUserId, expiresAt, fromUserId } = req.body || {};
+    if (!code || !amount || !expiresAt) {
+      return res.status(400).json({ success: false, message: 'code, amount, expiresAt required' });
+    }
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO gift_cards (code, fromUserId, recipient, recipientUserId, amount, status, tenantId, createdAt, expiresAt)
+       VALUES (?, ?, ?, ?, ?, 'active', ?, NOW(), ?)` ,
+      [code, fromUserId || 1, recipient || null, recipientUserId || null, amount, req.tenant?.id || 1, expiresAt]
+    );
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    console.error('❌ Error creating gift card:', error);
+    res.status(500).json({ success: false, message: 'Error creating gift card' });
+  }
+});
+
+// Admin - Update gift card status
+app.put('/api/admin/gift-cards/:id/status', authenticateAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { status } = req.body || {};
+    const allowed = ['active','used','expired','cancelled'];
+    if (!allowed.includes(String(status))) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    await poolWrapper.execute(
+      `UPDATE gift_cards SET status = ?, updatedAt = NOW() WHERE id = ? AND tenantId = ?`,
+      [status, id, req.tenant?.id || 1]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating gift card status:', error);
+    res.status(500).json({ success: false, message: 'Error updating gift card status' });
+  }
+});
+
+// Admin - Payment transactions
+app.get('/api/admin/payment-transactions', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, orderId, paymentId, provider, amount, currency, status, createdAt
+       FROM payment_transactions
+       WHERE tenantId = ?
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting payment transactions:', error);
+    res.status(500).json({ success: false, message: 'Error getting payment transactions' });
+  }
+});
+
+// Admin - Return requests
+app.get('/api/admin/return-requests', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT rr.id, rr.userId, rr.orderId, rr.orderItemId, rr.reason, rr.status, rr.requestDate, rr.refundAmount, rr.createdAt,
+              u.name as customerName
+       FROM return_requests rr
+       LEFT JOIN users u ON u.id = rr.userId
+       WHERE rr.tenantId = ?
+       ORDER BY rr.requestDate DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting return requests:', error);
+    res.status(500).json({ success: false, message: 'Error getting return requests' });
+  }
+});
+
+// Admin - User discount codes
+app.get('/api/admin/user-discount-codes', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT udc.id, udc.userId, u.name as userName, udc.code as discountCode, udc.discountType, udc.discountValue, udc.isUsed, udc.expiresAt, udc.createdAt
+       FROM user_discount_codes udc
+       LEFT JOIN users u ON u.id = udc.userId
+       WHERE udc.tenantId = ?
+       ORDER BY udc.createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting user discount codes:', error);
+    res.status(500).json({ success: false, message: 'Error getting user discount codes' });
+  }
+});
+
+// Admin - Wallet recharge requests
+app.get('/api/admin/wallet-recharge-requests', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, userId, amount, paymentMethod, bankInfo, status, errorMessage, approvedBy, createdAt, completedAt
+       FROM wallet_recharge_requests
+       WHERE tenantId = ?
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting wallet recharge requests:', error);
+    res.status(500).json({ success: false, message: 'Error getting wallet recharge requests' });
+  }
+});
+
+app.patch('/api/admin/wallet-recharge-requests/:id/status', authenticateAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const { status } = req.body || {};
+    const allowed = ['pending','pending_approval','completed','failed','cancelled'];
+    if (!allowed.includes(String(status))) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    await poolWrapper.execute(
+      `UPDATE wallet_recharge_requests SET status = ?, completedAt = CASE WHEN ? = 'completed' THEN NOW() ELSE completedAt END WHERE id = ?`,
+      [status, status, id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating recharge request:', error);
+    res.status(500).json({ success: false, message: 'Error updating status' });
+  }
+});
+
+// Admin - Referral earnings
+app.get('/api/admin/referral-earnings', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT re.id, re.referrer_id, rf.name as referrerName, re.referred_id, rd.name as referredName, re.amount, re.status, re.createdAt, re.paidAt
+       FROM referral_earnings re
+       LEFT JOIN users rf ON rf.id = re.referrer_id
+       LEFT JOIN users rd ON rd.id = re.referred_id
+       WHERE re.tenantId = ?
+       ORDER BY re.createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting referral earnings:', error);
+    res.status(500).json({ success: false, message: 'Error getting referral earnings' });
+  }
+});
+
+// Admin - Discount wheel spins
+app.get('/api/admin/discount-wheel-spins', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, userId, deviceId, prize, discountCode, isUsed, usedAt, createdAt, expiresAt
+       FROM discount_wheel_spins
+       WHERE tenantId = ?
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting wheel spins:', error);
+    res.status(500).json({ success: false, message: 'Error getting wheel spins' });
+  }
+});
+
+// Admin - User events
+app.get('/api/admin/user-events', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT ue.id, ue.userId, u.name as userName, ue.productId, ue.eventType, ue.eventValue, ue.searchQuery, ue.createdAt
+       FROM user_events ue
+       LEFT JOIN users u ON u.id = ue.userId
+       WHERE ue.tenantId = ?
+       ORDER BY ue.createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting user events:', error);
+    res.status(500).json({ success: false, message: 'Error getting user events' });
+  }
+});
+
+// Admin - Customer analytics
+app.get('/api/admin/customer-analytics', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT ca.id, ca.userId, u.name as userName, ca.totalOrders, ca.totalSpent, ca.averageOrderValue, ca.lastOrderDate, ca.customerLifetimeValue, ca.lastActivityDate
+       FROM customer_analytics ca
+       LEFT JOIN users u ON u.id = ca.userId
+       WHERE ca.tenantId = ?
+       ORDER BY ca.lastActivityDate DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting customer analytics:', error);
+    res.status(500).json({ success: false, message: 'Error getting customer analytics' });
+  }
+});
+
+// Admin - Recommendations (raw)
+app.get('/api/admin/recommendations', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, userId, recommendedProducts, generatedAt
+       FROM recommendations
+       WHERE tenantId = ?
+       ORDER BY generatedAt DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting recommendations:', error);
+    res.status(500).json({ success: false, message: 'Error getting recommendations' });
+  }
+});
+
+// Admin - User profiles
+app.get('/api/admin/user-profiles', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const [rows] = await poolWrapper.execute(
+      `SELECT up.userId, u.name as userName, up.interests, up.brandPreferences, up.avgPriceMin, up.avgPriceMax, up.discountAffinity, up.lastActive, up.totalEvents
+       FROM user_profiles up
+       LEFT JOIN users u ON u.id = up.userId
+       WHERE up.tenantId = ?
+       ORDER BY up.lastActive DESC
+       LIMIT ? OFFSET ?`,
+      [req.tenant?.id || 1, limit, offset]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting user profiles:', error);
+    res.status(500).json({ success: false, message: 'Error getting user profiles' });
+  }
+});
+
+// Admin - SQL utilities (read-only)
+app.get('/api/admin/sql/tables', authenticateAdmin, async (req, res) => {
+  try {
+    const [tables] = await poolWrapper.execute(
+      `SELECT TABLE_NAME as name
+       FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = DATABASE()
+       ORDER BY TABLE_NAME`
+    );
+    const limit = 5;
+    const result = [];
+    for (const t of tables) {
+      try {
+        const [cols] = await poolWrapper.execute(`SHOW COLUMNS FROM \`${t.name}\``);
+        const [cnt] = await poolWrapper.execute(`SELECT COUNT(*) as c FROM \`${t.name}\``);
+        result.push({ name: t.name, columns: cols.map(c => c.Field), rowCount: cnt[0]?.c || 0 });
+        if (result.length >= 50) break; // avoid heavy payload
+      } catch {}
+    }
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('❌ Error listing tables:', error);
+    res.status(500).json({ success: false, message: 'Error listing tables' });
+  }
+});
+
+app.post('/api/admin/sql/query', authenticateAdmin, async (req, res) => {
+  try {
+    const sql = String(req.body?.query || '').trim();
+    if (!sql) return res.status(400).json({ success: false, message: 'Query required' });
+    const upper = sql.toUpperCase();
+    const forbidden = ['UPDATE','DELETE','DROP','INSERT','ALTER','CREATE','TRUNCATE','REPLACE','GRANT','REVOKE'];
+    if (!upper.startsWith('SELECT')) {
+      return res.status(400).json({ success: false, message: 'Only SELECT queries are allowed' });
+    }
+    if (forbidden.some(k => upper.includes(k))) {
+      return res.status(400).json({ success: false, message: 'Dangerous statements are not allowed' });
+    }
+    const start = Date.now();
+    const [rows, fields] = await poolWrapper.query({ sql, timeout: 5000 });
+    const executionTime = (Date.now() - start) / 1000;
+    const columns = Array.isArray(fields) ? fields.map(f => f.name) : (rows[0] ? Object.keys(rows[0]) : []);
+    res.json({ success: true, data: { columns, rows, rowCount: rows.length, executionTime } });
+  } catch (error) {
+    console.error('❌ SQL query error:', error);
+    res.status(500).json({ success: false, message: 'Query failed' });
+  }
+});
+
 // Admin - panel config read/write (admin-panel/config.json)
 app.get('/api/admin/panel-config', authenticateAdmin, async (req, res) => {
   try {
