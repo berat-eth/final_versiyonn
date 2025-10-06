@@ -4,59 +4,48 @@ import { useState, useEffect } from 'react'
 import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown } from 'lucide-react'
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function ServerStats() {
-  const [cpuUsage, setCpuUsage] = useState(45)
-  const [ramUsage, setRamUsage] = useState(62)
-  const [diskUsage, setDiskUsage] = useState(38)
-  const [networkSpeed, setNetworkSpeed] = useState(125)
+  const [cpuUsage, setCpuUsage] = useState(0)
+  const [ramUsage, setRamUsage] = useState(0)
+  const [diskUsage, setDiskUsage] = useState(0)
+  const [networkSpeed, setNetworkSpeed] = useState(0)
+  const [cpuData, setCpuData] = useState<any[]>([])
+  const [networkData, setNetworkData] = useState<any[]>([])
+  const [servers, setServers] = useState<any[]>([])
+  const [processes, setProcesses] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Simüle edilmiş gerçek zamanlı veri
+  const fetchStats = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await api.get<any>('/admin/server-stats')
+      if ((res as any)?.success && (res as any).data) {
+        const d = (res as any).data
+        setCpuUsage(d.cpuUsage || 0)
+        setRamUsage(d.ramUsage || 0)
+        setDiskUsage(d.diskUsage || 0)
+        setNetworkSpeed(d.networkSpeed || 0)
+        setCpuData(d.cpuHistory || [])
+        setNetworkData(d.networkHistory || [])
+        setServers(d.servers || [])
+        setProcesses(d.processes || [])
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sunucu istatistikleri yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCpuUsage(prev => Math.max(20, Math.min(90, prev + (Math.random() - 0.5) * 10)))
-      setRamUsage(prev => Math.max(30, Math.min(85, prev + (Math.random() - 0.5) * 8)))
-      setNetworkSpeed(prev => Math.max(50, Math.min(200, prev + (Math.random() - 0.5) * 30)))
-    }, 2000)
-
-    return () => clearInterval(interval)
+    fetchStats()
+    const timer = setInterval(fetchStats, 10000)
+    return () => clearInterval(timer)
   }, [])
-
-  const cpuData = [
-    { time: '00:00', value: 35 },
-    { time: '04:00', value: 42 },
-    { time: '08:00', value: 65 },
-    { time: '12:00', value: 78 },
-    { time: '16:00', value: 58 },
-    { time: '20:00', value: 45 },
-    { time: '24:00', value: 38 },
-  ]
-
-  const networkData = [
-    { time: '00:00', download: 85, upload: 45 },
-    { time: '04:00', download: 92, upload: 52 },
-    { time: '08:00', download: 145, upload: 78 },
-    { time: '12:00', download: 168, upload: 95 },
-    { time: '16:00', download: 132, upload: 68 },
-    { time: '20:00', download: 115, upload: 58 },
-    { time: '24:00', download: 98, upload: 48 },
-  ]
-
-  const servers = [
-    { name: 'Web Server 1', status: 'online', uptime: '99.9%', load: 45, ip: '192.168.1.10' },
-    { name: 'Web Server 2', status: 'online', uptime: '99.8%', load: 52, ip: '192.168.1.11' },
-    { name: 'Database Server', status: 'online', uptime: '99.9%', load: 38, ip: '192.168.1.20' },
-    { name: 'Cache Server', status: 'warning', uptime: '98.5%', load: 78, ip: '192.168.1.30' },
-    { name: 'Backup Server', status: 'online', uptime: '99.7%', load: 25, ip: '192.168.1.40' },
-  ]
-
-  const processes = [
-    { name: 'nginx', cpu: 12.5, memory: 256, status: 'running' },
-    { name: 'mysql', cpu: 8.3, memory: 1024, status: 'running' },
-    { name: 'redis', cpu: 3.2, memory: 128, status: 'running' },
-    { name: 'node', cpu: 15.8, memory: 512, status: 'running' },
-    { name: 'php-fpm', cpu: 6.4, memory: 384, status: 'running' },
-  ]
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -90,6 +79,9 @@ export default function ServerStats() {
       </div>
 
       {/* Real-time Stats */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <motion.div
           animate={{ scale: [1, 1.02, 1] }}
