@@ -235,41 +235,24 @@ app.use(compression({
   }
 }));
 
-// CORS - Tüm origin'lere izin ver (Admin paneli dahil)
+// CORS - Sadece gerekli başlıklar, sadece API key doğrulaması
 app.use(cors({
-  origin: true, // Tüm origin'lere izin ver
-  credentials: true,
+  origin: '*', // Tüm origin'lere izin ver
+  credentials: false, // Credentials gerekmez
   methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
-  // Admin paneli için genişletilmiş başlıklar
   allowedHeaders: [
     'Content-Type',
-    'X-Requested-With',
     'X-API-Key',
-    'Authorization',
-    'Accept',
-    'Origin',
-    'User-Agent',
-    'Cache-Control',
-    'Pragma'
+    'Accept'
   ]
 }));
 
-// Admin paneli için özel CORS middleware
+// OPTIONS istekleri için hızlı yanıt
 app.use((req, res, next) => {
-  // Admin paneli istekleri için ek CORS başlıkları
-  if (req.path.startsWith('/admin') || req.headers['x-api-key']) {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Headers', '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-  }
-  
-  // OPTIONS istekleri için hızlı yanıt
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
-  
   next();
 });
 

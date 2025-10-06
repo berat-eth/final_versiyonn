@@ -1,0 +1,356 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown } from 'lucide-react'
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { motion } from 'framer-motion'
+
+export default function ServerStats() {
+  const [cpuUsage, setCpuUsage] = useState(45)
+  const [ramUsage, setRamUsage] = useState(62)
+  const [diskUsage, setDiskUsage] = useState(38)
+  const [networkSpeed, setNetworkSpeed] = useState(125)
+
+  // Simüle edilmiş gerçek zamanlı veri
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCpuUsage(prev => Math.max(20, Math.min(90, prev + (Math.random() - 0.5) * 10)))
+      setRamUsage(prev => Math.max(30, Math.min(85, prev + (Math.random() - 0.5) * 8)))
+      setNetworkSpeed(prev => Math.max(50, Math.min(200, prev + (Math.random() - 0.5) * 30)))
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  const cpuData = [
+    { time: '00:00', value: 35 },
+    { time: '04:00', value: 42 },
+    { time: '08:00', value: 65 },
+    { time: '12:00', value: 78 },
+    { time: '16:00', value: 58 },
+    { time: '20:00', value: 45 },
+    { time: '24:00', value: 38 },
+  ]
+
+  const networkData = [
+    { time: '00:00', download: 85, upload: 45 },
+    { time: '04:00', download: 92, upload: 52 },
+    { time: '08:00', download: 145, upload: 78 },
+    { time: '12:00', download: 168, upload: 95 },
+    { time: '16:00', download: 132, upload: 68 },
+    { time: '20:00', download: 115, upload: 58 },
+    { time: '24:00', download: 98, upload: 48 },
+  ]
+
+  const servers = [
+    { name: 'Web Server 1', status: 'online', uptime: '99.9%', load: 45, ip: '192.168.1.10' },
+    { name: 'Web Server 2', status: 'online', uptime: '99.8%', load: 52, ip: '192.168.1.11' },
+    { name: 'Database Server', status: 'online', uptime: '99.9%', load: 38, ip: '192.168.1.20' },
+    { name: 'Cache Server', status: 'warning', uptime: '98.5%', load: 78, ip: '192.168.1.30' },
+    { name: 'Backup Server', status: 'online', uptime: '99.7%', load: 25, ip: '192.168.1.40' },
+  ]
+
+  const processes = [
+    { name: 'nginx', cpu: 12.5, memory: 256, status: 'running' },
+    { name: 'mysql', cpu: 8.3, memory: 1024, status: 'running' },
+    { name: 'redis', cpu: 3.2, memory: 128, status: 'running' },
+    { name: 'node', cpu: 15.8, memory: 512, status: 'running' },
+    { name: 'php-fpm', cpu: 6.4, memory: 384, status: 'running' },
+  ]
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-100 text-green-700 border-green-200'
+      case 'warning': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+      case 'offline': return 'bg-red-100 text-red-700 border-red-200'
+      default: return 'bg-slate-100 text-slate-700 border-slate-200'
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'online': return <CheckCircle className="w-4 h-4" />
+      case 'warning': return <AlertCircle className="w-4 h-4" />
+      case 'offline': return <AlertCircle className="w-4 h-4" />
+      default: return <Clock className="w-4 h-4" />
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-800">Sunucu İstatistikleri</h2>
+          <p className="text-slate-500 mt-1">Gerçek zamanlı sunucu performans takibi</p>
+        </div>
+        <div className="flex items-center space-x-2 px-4 py-2 bg-green-100 border border-green-200 rounded-xl">
+          <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+          <span className="text-sm font-medium text-green-700">Tüm Sistemler Çalışıyor</span>
+        </div>
+      </div>
+
+      {/* Real-time Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div
+          animate={{ scale: [1, 1.02, 1] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+              <Cpu className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-slate-800">{cpuUsage.toFixed(1)}%</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-600 mb-2">CPU Kullanımı</p>
+          <div className="w-full bg-slate-200 rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${cpuUsage}%` }}
+            ></div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          animate={{ scale: [1, 1.02, 1] }}
+          transition={{ duration: 2, repeat: Infinity, delay: 0.2 }}
+          className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+              <Activity className="w-6 h-6 text-purple-600" />
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-slate-800">{ramUsage.toFixed(1)}%</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-600 mb-2">RAM Kullanımı</p>
+          <div className="w-full bg-slate-200 rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${ramUsage}%` }}
+            ></div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          animate={{ scale: [1, 1.02, 1] }}
+          transition={{ duration: 2, repeat: Infinity, delay: 0.4 }}
+          className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+              <HardDrive className="w-6 h-6 text-green-600" />
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-slate-800">{diskUsage}%</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-600 mb-2">Disk Kullanımı</p>
+          <div className="w-full bg-slate-200 rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full"
+              style={{ width: `${diskUsage}%` }}
+            ></div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          animate={{ scale: [1, 1.02, 1] }}
+          transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
+          className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-orange-500"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+              <Wifi className="w-6 h-6 text-orange-600" />
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-slate-800">{networkSpeed.toFixed(0)}</p>
+              <p className="text-xs text-slate-500">Mbps</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-600 mb-2">Ağ Hızı</p>
+          <div className="flex items-center space-x-2 text-xs">
+            <TrendingUp className="w-3 h-3 text-green-600" />
+            <span className="text-slate-600">Download: {networkSpeed.toFixed(0)} Mbps</span>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h3 className="text-xl font-bold text-slate-800 mb-6">CPU Kullanım Grafiği</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart data={cpuData}>
+              <defs>
+                <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="time" stroke="#94a3b8" />
+              <YAxis stroke="#94a3b8" />
+              <Tooltip />
+              <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorCpu)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h3 className="text-xl font-bold text-slate-800 mb-6">Ağ Trafiği</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={networkData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="time" stroke="#94a3b8" />
+              <YAxis stroke="#94a3b8" />
+              <Tooltip />
+              <Line type="monotone" dataKey="download" stroke="#10b981" strokeWidth={2} />
+              <Line type="monotone" dataKey="upload" stroke="#f59e0b" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+          <div className="flex items-center justify-center space-x-6 mt-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-slate-600">Download</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+              <span className="text-sm text-slate-600">Upload</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Server List */}
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <h3 className="text-xl font-bold text-slate-800 mb-6">Sunucu Durumu</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {servers.map((server, index) => (
+            <motion.div
+              key={server.name}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                    <Server className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800">{server.name}</p>
+                    <p className="text-xs text-slate-500">{server.ip}</p>
+                  </div>
+                </div>
+                <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(server.status)}`}>
+                  {getStatusIcon(server.status)}
+                  <span className="capitalize">{server.status}</span>
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Uptime</span>
+                  <span className="font-semibold text-slate-800">{server.uptime}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Load</span>
+                  <span className="font-semibold text-slate-800">{server.load}%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-1.5">
+                  <div
+                    className={`h-1.5 rounded-full ${
+                      server.load > 70 ? 'bg-red-500' : server.load > 50 ? 'bg-yellow-500' : 'bg-green-500'
+                    }`}
+                    style={{ width: `${server.load}%` }}
+                  ></div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Process List */}
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <h3 className="text-xl font-bold text-slate-800 mb-6">Çalışan Süreçler</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Süreç</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">CPU %</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Bellek (MB)</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Durum</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">İşlem</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {processes.map((process, index) => (
+                <motion.tr
+                  key={process.name}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="hover:bg-slate-50"
+                >
+                  <td className="px-6 py-4">
+                    <div className="flex items-center space-x-3">
+                      <Zap className="w-4 h-4 text-blue-600" />
+                      <span className="font-semibold text-slate-800">{process.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="font-semibold text-slate-800">{process.cpu}%</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="font-semibold text-slate-800">{process.memory} MB</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="inline-flex items-center space-x-1 px-3 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium">
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Çalışıyor</span>
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      Durdur
+                    </button>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* System Info */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 text-white">
+          <Database className="w-8 h-8 mb-3 opacity-80" />
+          <p className="text-sm opacity-90 mb-1">Toplam Depolama</p>
+          <p className="text-3xl font-bold">2.5 TB</p>
+          <p className="text-sm opacity-75 mt-2">950 GB kullanılıyor</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg p-6 text-white">
+          <Activity className="w-8 h-8 mb-3 opacity-80" />
+          <p className="text-sm opacity-90 mb-1">Toplam RAM</p>
+          <p className="text-3xl font-bold">64 GB</p>
+          <p className="text-sm opacity-75 mt-2">40 GB kullanılıyor</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white">
+          <Server className="w-8 h-8 mb-3 opacity-80" />
+          <p className="text-sm opacity-90 mb-1">Aktif Sunucu</p>
+          <p className="text-3xl font-bold">5/5</p>
+          <p className="text-sm opacity-75 mt-2">Tüm sistemler çalışıyor</p>
+        </div>
+      </div>
+    </div>
+  )
+}
