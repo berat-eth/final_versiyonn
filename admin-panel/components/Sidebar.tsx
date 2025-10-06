@@ -115,6 +115,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       items: [
         { id: 'server-stats', label: 'Sunucu İstatistikleri', icon: Settings },
         { id: 'backup', label: 'Veri Yedekleme', icon: Settings },
+        { id: 'file-manager', label: 'Dosya Yöneticisi', icon: FolderTree },
         { id: 'security', label: 'Güvenlik', icon: Shield },
         { id: 'snort-logs', label: 'Snort IDS Logları', icon: AlertTriangle },
         { id: 'sql-query', label: 'SQL Sorgu Penceresi', icon: Database },
@@ -122,11 +123,10 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       ]
     },
     {
-      title: 'Diğer',
+      title: 'B2B',
       items: [
         { id: 'applications', label: 'Bayilik Başvuruları', icon: FileText },
-        { id: 'premium', label: 'Özel Üretim', icon: Crown },
-        { id: 'custom-production-messages', label: 'Özel Üretim Mesajları', icon: MessageSquare },
+        { id: 'bulk-custom-production', label: 'Özel Toptan Üretim', icon: Crown },
       ]
     },
   ]

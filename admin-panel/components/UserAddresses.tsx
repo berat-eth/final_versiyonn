@@ -4,20 +4,33 @@ import { useEffect, useState } from 'react'
 import { MapPin, Search, Filter, Edit2, Trash2, Plus } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { userService } from '@/lib/services'
+import { api } from '@/lib/api'
 
 export default function UserAddresses() {
   const [addresses, setAddresses] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<number | ''>('')
+  const [loadingUsers, setLoadingUsers] = useState(false)
 
   const fetchAddresses = async () => {
     try {
       setLoading(true)
       setError(null)
-      // Admin uç önerisi: /api/admin/users/:id/addresses — şimdilik bir kullanıcı (1) ile test
-      const user = 1
-      const res = await userService.getProfile(user)
+      const uid = Number(selectedUserId || 0)
+      if (!uid) { setAddresses([]); return }
+      // 1) Admin adres ucu
+      try {
+        const adminRes = await api.get<any>(`/admin/users/${uid}/addresses`)
+        if ((adminRes as any)?.success && Array.isArray((adminRes as any).data)) {
+          setAddresses((adminRes as any).data)
+          return
+        }
+      } catch {}
+      // 2) Profil içinde adresler
+      const res = await userService.getProfile(uid)
       if (res.success && (res as any).data?.addresses) setAddresses((res as any).data.addresses)
       else setAddresses([])
     } catch (e) {
@@ -27,7 +40,20 @@ export default function UserAddresses() {
     }
   }
 
-  useEffect(() => { fetchAddresses() }, [])
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        setLoadingUsers(true)
+        const all = await userService.getAllUsers()
+        const list = (all as any)?.data || []
+        setUsers(list)
+        if (list.length && !selectedUserId) setSelectedUserId(Number(list[0]?.id || list[0]?.userId || ''))
+      } finally { setLoadingUsers(false) }
+    }
+    loadUsers()
+  }, [])
+
+  useEffect(() => { fetchAddresses() }, [selectedUserId])
 
   return (
     <div className="space-y-6">
@@ -36,7 +62,19 @@ export default function UserAddresses() {
           <h2 className="text-3xl font-bold text-slate-800">Kullanıcı Adresleri</h2>
           <p className="text-slate-500 mt-1">Müşteri adreslerini görüntüleyin</p>
         </div>
-        <button onClick={fetchAddresses} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg">Yenile</button>
+        <div className="flex items-center gap-2">
+          <select
+            value={String(selectedUserId)}
+            onChange={(e)=>setSelectedUserId(Number(e.target.value) || '')}
+            className="px-3 py-2 border rounded-lg"
+          >
+            <option value="">Kullanıcı seçin</option>
+            {users.map((u)=> (
+              <option key={u.id} value={u.id}>{u.name || u.userName || `#${u.id}`}</option>
+            ))}
+          </select>
+          <button onClick={fetchAddresses} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg">Yenile</button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -57,8 +95,9 @@ export default function UserAddresses() {
           </button>
         </div>
 
+        {loadingUsers && <p className="text-slate-500">Kullanıcılar yükleniyor...</p>}
         {loading ? (
-          <p className="text-slate-500">Yükleniyor...</p>
+          <p className="text-slate-500">Adresler yükleniyor...</p>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
         ) : (

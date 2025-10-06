@@ -19,13 +19,14 @@ import LiveData from '@/components/LiveData'
 
 import Chatbot from '@/components/Chatbot'
 import Security from '@/components/Security'
-import Premium from '@/components/Premium'
+import BulkCustomProduction from '@/components/BulkCustomProduction'
 import Backup from '@/components/Backup'
 import ServerStats from '@/components/ServerStats'
 import PushNotifications from '@/components/PushNotifications'
 import Banners from '@/components/Banners'
 import Coupons from '@/components/Coupons'
 import Reviews from '@/components/Reviews'
+import FileManager from '@/components/FileManager'
 import SnortLogs from '@/components/SnortLogs'
 import UserDatabase from '@/components/UserDatabase'
 import Settings from '@/components/Settings'
@@ -59,7 +60,7 @@ import CustomerAnalytics from '@/components/CustomerAnalytics'
 import UserEvents from '@/components/UserEvents'
 import UserProfiles from '@/components/UserProfiles'
 import Recommendations from '@/components/Recommendations'
-import CustomProductionMessages from '@/components/CustomProductionMessages'
+// CustomProductionMessages merged into BulkCustomProduction
 
 
 export default function DashboardPage() {
@@ -100,6 +101,7 @@ export default function DashboardPage() {
           {activeTab === 'live-data' && <LiveData />}
           {activeTab === 'server-stats' && <ServerStats />}
           {activeTab === 'backup' && <Backup />}
+          {activeTab === 'file-manager' && <FileManager />}
 
           {activeTab === 'chatbot' && <Chatbot />}
           {activeTab === 'security' && <Security />}
@@ -107,7 +109,7 @@ export default function DashboardPage() {
           {activeTab === 'sql-query' && <SQLQuery />}
           {activeTab === 'user-database' && <UserDatabase />}
           {activeTab === 'settings' && <Settings />}
-          {activeTab === 'premium' && <Premium />}
+          {activeTab === 'bulk-custom-production' && <BulkCustomProduction />}
           {activeTab === 'project-ajax' && <ProjectAjax />}
           {activeTab === 'email' && <Email />}
           {activeTab === 'sms' && <SMS />}
@@ -137,7 +139,7 @@ export default function DashboardPage() {
           {activeTab === 'user-events' && <UserEvents />}
           {activeTab === 'user-profiles' && <UserProfiles />}
           {activeTab === 'recommendations' && <Recommendations />}
-          {activeTab === 'custom-production-messages' && <CustomProductionMessages />}
+          {/* removed: custom-production-messages */}
         </main>
       </div>
     </div>
