@@ -5,6 +5,8 @@ import { ShoppingCart, Trash2, RefreshCw, Package, Eye, X, User, Mail, Phone } f
 import { motion, AnimatePresence } from 'framer-motion'
 import { cartService, userService } from '@/lib/services'
 import type { CartItem, User as UserType } from '@/lib/api'
+import { useCallback } from 'react'
+import { api } from '@/lib/api'
 
 interface UserCart {
   userId: number;
@@ -35,7 +37,7 @@ export default function Cart() {
         const users = usersResponse.data
         
         // Her kullanıcının sepetini ve toplamını çek
-        const cartsPromises = users.map(async (user) => {
+        const cartsPromises = users.map(async (user: any) => {
           try {
             const [cartResponse, totalResponse] = await Promise.all([
               cartService.getCart(user.id),
@@ -211,7 +213,7 @@ export default function Cart() {
             <p className="text-slate-500">Henüz hiçbir kullanıcının sepetinde ürün yok</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {filteredCarts.map((cart, index) => (
               <motion.div
                 key={cart.userId}
@@ -254,15 +256,16 @@ export default function Cart() {
                 </div>
 
                 <div className="bg-white rounded-lg p-3 mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-slate-500">Ürün Sayısı</span>
-                    <span className="font-bold text-slate-800">{cart.items.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Toplam</span>
-                    <span className="font-bold text-green-600">
-                      ₺{cart.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                    </span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">Ürün Sayısı</span>
+                      <span className="font-bold text-slate-800">{cart.items.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">Toplam</span>
+                      <span className="font-bold text-green-600">₺{cart.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <DiscountActions userId={cart.userId} />
                   </div>
                 </div>
 
@@ -393,6 +396,48 @@ export default function Cart() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+function DiscountActions({ userId }: { userId: number }) {
+  const [type, setType] = useState<'percentage' | 'fixed'>('percentage')
+  const [value, setValue] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const createCode = useCallback(async () => {
+    const v = parseFloat(value)
+    if (isNaN(v) || v <= 0) { setMsg('Geçerli bir değer girin'); return }
+    try {
+      setLoading(true)
+      setMsg(null)
+      const res = await api.post<any>('/admin/user-discount-codes', {
+        userId,
+        discountType: type,
+        discountValue: v
+      })
+      if ((res as any)?.success && (res as any).data?.code) {
+        setMsg(`Kod oluşturuldu: ${(res as any).data.code}`)
+      } else {
+        setMsg('Kod oluşturulamadı')
+      }
+    } catch (e: any) {
+      setMsg(e?.message || 'Hata')
+    } finally {
+      setLoading(false)
+    }
+  }, [type, value, userId])
+
+  return (
+    <div className="flex items-center justify-end space-x-2">
+      <select value={type} onChange={(e) => setType(e.target.value as any)} className="px-2 py-1 border border-slate-300 rounded-lg text-sm">
+        <option value="percentage">% İndirim</option>
+        <option value="fixed">Net Tutar</option>
+      </select>
+      <input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type==='percentage' ? '% oran' : '₺ tutar'} className="px-2 py-1 border border-slate-300 rounded-lg w-28 text-sm" />
+      <button disabled={loading} onClick={createCode} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50">İndirim Kodu</button>
+      {msg && <span className="text-xs text-slate-500 truncate max-w-[160px]">{msg}</span>}
     </div>
   )
 }

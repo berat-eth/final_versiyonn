@@ -5,57 +5,42 @@ import { Eye, Search, Filter, Download, Clock, CheckCircle, XCircle, Package, X,
 import { motion, AnimatePresence } from 'framer-motion'
 import { orderService } from '@/lib/services'
 import type { Order } from '@/lib/api'
+import { api } from '@/lib/api'
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true)
-        const res = await orderService.getUserOrders(1) // Not: gerçek durumda aktif admin/kullanıcı id'si
-        if (res.success && res.data) setOrders(res.data)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Siparişler yüklenemedi')
-      } finally {
-        setLoading(false)
-      }
+  const reloadOrders = async () => {
+    try {
+      setLoading(true)
+      const res = await api.get<any>('/admin/orders')
+      if ((res as any)?.success && (res as any).data) setOrders((res as any).data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Siparişler yüklenemedi')
+    } finally {
+      setLoading(false)
     }
-    load()
-  }, [])
+  }
+
+  useEffect(() => { reloadOrders() }, [])
 
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null)
   const [showCargoModal, setShowCargoModal] = useState(false)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [selectedOrderForAction, setSelectedOrderForAction] = useState<Order | null>(null)
+  const [updateLoading, setUpdateLoading] = useState(false)
+  const [trackingNumber, setTrackingNumber] = useState('')
+  const [cargoCompany, setCargoCompany] = useState('')
+  const [newStatus, setNewStatus] = useState<any>('processing')
 
-  const statusConfig: Record<NonNullable<Order['status']>, { label: string; color: string; icon: any; dotColor: string }> = {
-    pending: {
-      label: 'Beklemede',
-      color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-      icon: Clock,
-      dotColor: 'bg-yellow-500'
-    },
-    processing: {
-      label: 'İşleniyor',
-      color: 'bg-blue-100 text-blue-700 border-blue-200',
-      icon: Package,
-      dotColor: 'bg-blue-500'
-    },
-    completed: {
-      label: 'Tamamlandı',
-      color: 'bg-green-100 text-green-700 border-green-200',
-      icon: CheckCircle,
-      dotColor: 'bg-green-500'
-    },
-    cancelled: {
-      label: 'İptal',
-      color: 'bg-red-100 text-red-700 border-red-200',
-      icon: XCircle,
-      dotColor: 'bg-red-500'
-    },
+  const statusConfig: Record<any, { label: string; color: string; icon: any; dotColor: string }> = {
+    pending: { label: 'Ödeme Bekleniyor', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: Clock, dotColor: 'bg-yellow-500' },
+    processing: { label: 'Paketleniyor', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: Package, dotColor: 'bg-blue-500' },
+    shipped: { label: 'Kargoya Verildi', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck, dotColor: 'bg-purple-500' },
+    completed: { label: 'Teslim Edildi', color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle, dotColor: 'bg-green-500' },
+    cancelled: { label: 'İptal', color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle, dotColor: 'bg-red-500' },
   }
 
   const cargoStatusConfig: Record<Exclude<Order['cargoStatus'], undefined>, { label: string; color: string }> = {
@@ -76,6 +61,40 @@ export default function Orders() {
   const handleTrackCargo = (order: Order) => {
     if (order.trackingNumber) {
       alert(`📦 Kargo takip: ${order.trackingNumber}\nKargo Firması: ${order.cargoCompany}`)
+    }
+  }
+
+  const updateOrderStatus = async () => {
+    if (!selectedOrderForAction) return
+    try {
+      setUpdateLoading(true)
+      await api.patch(`/admin/orders/${(selectedOrderForAction as any).id}/status`, { status: newStatus })
+      setSelectedOrderForAction(null)
+      setViewingOrder(null)
+      await reloadOrders()
+    } catch (e) {
+      alert('Sipariş durumu güncellenemedi')
+    } finally {
+      setUpdateLoading(false)
+    }
+  }
+
+  const updateShipping = async () => {
+    if (!selectedOrderForAction) return
+    try {
+      setUpdateLoading(true)
+      await api.patch(`/admin/orders/${(selectedOrderForAction as any).id}/shipping`, {
+        trackingNumber,
+        cargoCompany,
+        cargoStatus: 'shipped'
+      })
+      setSelectedOrderForAction(null)
+      setShowCargoModal(false)
+      await reloadOrders()
+    } catch (e) {
+      alert('Kargo bilgisi güncellenemedi')
+    } finally {
+      setUpdateLoading(false)
     }
   }
 
@@ -180,17 +199,20 @@ export default function Orders() {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                          {(order as any).customer?.charAt ? (order as any).customer.charAt(0) : 'U'}
+                          {(order as any).userName?.charAt ? (order as any).userName.charAt(0) : 'U'}
                         </div>
-                        <span className="text-slate-700">{(order as any).customer || '—'}</span>
+                        <div>
+                          <span className="text-slate-700 font-medium">{(order as any).userName || '—'}</span>
+                          <p className="text-xs text-slate-500">{(order as any).userEmail || ''}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-slate-600 text-sm">{order.createdAt}</td>
                     <td className="px-6 py-4">
-                      <span className="text-slate-600 text-sm">{order.items?.length || 0} ürün</span>
+                      <span className="text-slate-600 text-sm">{(order as any).itemCount ?? (order.items?.length || 0)} ürün</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-slate-600 text-sm">{order.paymentMethod}</span>
+                      <span className="text-slate-600 text-sm">{(order as any).paymentMethod || '—'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-slate-800">₺{order.totalAmount.toLocaleString()}</span>
@@ -204,23 +226,25 @@ export default function Orders() {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => setViewingOrder(order)}
+                          onClick={() => { setViewingOrder(order); setNewStatus((order as any).status); }}
                           className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
                           title="Detayları Gör"
                         >
                           <Eye className="w-5 h-5 text-slate-400 group-hover:text-blue-600" />
                         </button>
                         {order.trackingNumber && (
-                          <button
-                            onClick={() => {
-                              setSelectedOrderForAction(order)
-                              setShowCargoModal(true)
-                            }}
-                            className="p-2 hover:bg-purple-50 rounded-lg transition-colors group"
-                            title="Kargo Takip"
-                          >
-                            <Truck className="w-5 h-5 text-slate-400 group-hover:text-purple-600" />
-                          </button>
+                        <button
+                          onClick={() => {
+                            setSelectedOrderForAction(order)
+                            setTrackingNumber((order as any).trackingNumber || '')
+                            setCargoCompany((order as any).cargoCompany || '')
+                            setShowCargoModal(true)
+                          }}
+                          className="p-2 hover:bg-purple-50 rounded-lg transition-colors group"
+                          title="Kargo Takip / Güncelle"
+                        >
+                          <Truck className="w-5 h-5 text-slate-400 group-hover:text-purple-600" />
+                        </button>
                         )}
                         {order.invoiceNumber && (
                           <button
@@ -306,12 +330,15 @@ export default function Orders() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-slate-500 mb-1">Kargo Firması</p>
-                      <p className="text-lg font-bold text-slate-800">{selectedOrderForAction.cargoCompany}</p>
+                      <input value={cargoCompany} onChange={(e)=>setCargoCompany(e.target.value)} placeholder={selectedOrderForAction.cargoCompany || 'Kargo Firması'} className="w-full px-3 py-2 border border-purple-200 rounded-lg" />
                     </div>
                     <div>
                       <p className="text-sm text-slate-500 mb-1">Takip Numarası</p>
-                      <p className="text-lg font-mono font-bold text-purple-600">{selectedOrderForAction.trackingNumber}</p>
+                      <input value={trackingNumber} onChange={(e)=>setTrackingNumber(e.target.value)} placeholder={selectedOrderForAction.trackingNumber || 'Takip No'} className="w-full px-3 py-2 border border-purple-200 rounded-lg font-mono" />
                     </div>
+                  </div>
+                  <div className="mt-4 flex items-center space-x-2">
+                    <button disabled={updateLoading} onClick={updateShipping} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">Kargo Bilgisi Kaydet</button>
                   </div>
                 </div>
 
@@ -600,9 +627,15 @@ export default function Orders() {
                     <p className="text-sm text-slate-500">Sipariş No</p>
                     <p className="text-2xl font-bold text-slate-800">#{viewingOrder.id}</p>
                   </div>
-                  <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg border ${statusConfig[viewingOrder.status as NonNullable<Order['status']>].color}`}>
-                    <div className={`w-2 h-2 rounded-full ${statusConfig[viewingOrder.status as NonNullable<Order['status']>].dotColor}`}></div>
-                    <span className="text-sm font-medium">{statusConfig[viewingOrder.status as NonNullable<Order['status']>].label}</span>
+                  <div className="flex items-center space-x-2">
+                    <select value={newStatus} onChange={(e)=>setNewStatus(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                      <option value="pending">Ödeme Bekleniyor</option>
+                      <option value="processing">Paketleniyor</option>
+                      <option value="shipped">Kargoya Verildi</option>
+                      <option value="completed">Teslim Edildi</option>
+                      <option value="cancelled">İptal</option>
+                    </select>
+                    <button disabled={updateLoading} onClick={updateOrderStatus} className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">Durum Kaydet</button>
                   </div>
                 </div>
 
@@ -611,22 +644,22 @@ export default function Orders() {
                     <p className="text-sm text-slate-500 mb-1">Müşteri</p>
                     <div className="flex items-center space-x-2">
                       <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        {(viewingOrder as any)?.customer?.charAt ? (viewingOrder as any).customer.charAt(0) : 'U'}
+                        {((viewingOrder as any).userName || (viewingOrder as any).customer || 'U').charAt(0)}
                       </div>
-                      <p className="font-bold text-slate-800">{(viewingOrder as any)?.customer || '—'}</p>
+                      <p className="font-bold text-slate-800">{(viewingOrder as any).userName || (viewingOrder as any).customer || '—'}</p>
                     </div>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Tarih</p>
-                    <p className="font-bold text-slate-800">{viewingOrder.date}</p>
+                    <p className="font-bold text-slate-800">{(viewingOrder as any).createdAt || (viewingOrder as any).date || '-'}</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Ödeme Yöntemi</p>
-                    <p className="font-bold text-slate-800">{viewingOrder.payment}</p>
+                    <p className="font-bold text-slate-800">{(viewingOrder as any).paymentMethod || (viewingOrder as any).payment || '-'}</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Ürün Sayısı</p>
-                    <p className="font-bold text-slate-800">{Array.isArray(viewingOrder.items) ? viewingOrder.items.length : (viewingOrder.items as any)} ürün</p>
+                    <p className="font-bold text-slate-800">{Array.isArray((viewingOrder as any).items) ? (viewingOrder as any).items.length : ((viewingOrder as any).items as any)} ürün</p>
                   </div>
                 </div>
 

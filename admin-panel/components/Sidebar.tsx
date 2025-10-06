@@ -105,7 +105,6 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       items: [
         { id: 'payment-transactions', label: 'Ödeme İşlemleri', icon: CreditCard },
         { id: 'user-wallets', label: 'Kullanıcı Cüzdanları', icon: Wallet },
-        { id: 'wallet-transactions', label: 'Cüzdan İşlemleri', icon: Wallet },
         { id: 'wallet-recharge-requests', label: 'Bakiye Yükleme', icon: Wallet },
         { id: 'referral-earnings', label: 'Referans Kazançları', icon: DollarSign },
       ]

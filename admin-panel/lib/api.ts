@@ -54,7 +54,25 @@ class ApiClient {
         throw new Error(error.message || `HTTP ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      try {
+        const logEntry = {
+          method: (fetchOptions.method || 'GET'),
+          url,
+          status: response.status,
+          ok: response.ok,
+          time: new Date().toISOString(),
+          requestBody: fetchOptions.body ? JSON.parse(String(fetchOptions.body)) : undefined,
+          responseBody: data
+        };
+        if (typeof window !== 'undefined') {
+          const logs = JSON.parse(localStorage.getItem('apiLogs') || '[]');
+          logs.unshift(logEntry);
+          localStorage.setItem('apiLogs', JSON.stringify(logs.slice(0, 200)));
+          window.dispatchEvent(new CustomEvent('api-log-updated'));
+        }
+      } catch {}
+      return data;
     } catch (error) {
       console.error('API Request Error:', error);
       throw error;
@@ -78,6 +96,14 @@ class ApiClient {
   async put<T>(endpoint: string, data?: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // PATCH request
+  async patch<T>(endpoint: string, data?: unknown): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }

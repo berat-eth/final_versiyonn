@@ -1,15 +1,54 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Wallet, Search, Filter, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function WalletRechargeRequests() {
-  const [requests, setRequests] = useState([
-    { id: 'REQ-001', userName: 'Ahmet Yılmaz', amount: 500.00, paymentMethod: 'card', status: 'pending', createdAt: '2024-01-15 14:30' },
-    { id: 'REQ-002', userName: 'Ayşe Demir', amount: 1000.00, paymentMethod: 'bank_transfer', status: 'completed', createdAt: '2024-01-14 10:20' },
-  ])
+  const [requests, setRequests] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({})
+
+  const fetchRequests = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await api.get<any>('/admin/wallet-recharge-requests?limit=100')
+      if ((res as any)?.success && (res as any).data) setRequests((res as any).data)
+      else setRequests([])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Yükleme talepleri yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchRequests() }, [])
+
+  const updateStatus = async (id: string, status: 'completed' | 'failed' | 'cancelled' | 'pending_approval') => {
+    try {
+      setActionLoading(prev => ({ ...prev, [id]: true }))
+      await api.post(`/admin/wallet-recharge-requests/${id}/status`, { status })
+      await fetchRequests()
+    } catch (e) {
+      alert('İşlem başarısız')
+    } finally {
+      setActionLoading(prev => ({ ...prev, [id]: false }))
+    }
+  }
+
+  const approveRequest = (req: any) => {
+    if (!confirm(`${req.id} talebini onaylamak istiyor musunuz?`)) return
+    updateStatus(req.id, 'completed')
+  }
+
+  const rejectRequest = (req: any) => {
+    if (!confirm(`${req.id} talebini reddetmek istiyor musunuz?`)) return
+    updateStatus(req.id, 'failed')
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -60,8 +99,15 @@ export default function WalletRechargeRequests() {
           </button>
         </div>
 
+        {loading ? (
+          <p className="text-slate-500">Yükleniyor...</p>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
+        ) : (
         <div className="space-y-3">
-          {requests.map((request, index) => (
+          {requests
+            .filter(r => `${r.userName||''} ${r.id||''}`.toLowerCase().includes(searchTerm.toLowerCase()))
+            .map((request, index) => (
             <motion.div
               key={request.id}
               initial={{ opacity: 0, y: 20 }}
@@ -79,17 +125,34 @@ export default function WalletRechargeRequests() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-bold text-slate-800">₺{request.amount.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-slate-800">₺{Number(request.amount||0).toFixed(2)}</p>
                   <span className={`px-3 py-1 rounded-lg text-xs font-medium flex items-center space-x-1 w-fit ml-auto ${getStatusColor(request.status)}`}>
                     {getStatusIcon(request.status)}
                     <span>{request.status}</span>
                   </span>
                   <p className="text-xs text-slate-500 mt-1">{request.paymentMethod}</p>
+                <div className="flex items-center space-x-2 mt-3">
+                  <button
+                    disabled={actionLoading[request.id]}
+                    onClick={() => approveRequest(request)}
+                    className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    Onayla
+                  </button>
+                  <button
+                    disabled={actionLoading[request.id]}
+                    onClick={() => rejectRequest(request)}
+                    className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  >
+                    Reddet
+                  </button>
+                </div>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
+        )}
       </div>
     </div>
   )

@@ -2724,6 +2724,43 @@ app.get('/api/admin/payment-transactions', authenticateAdmin, async (req, res) =
   }
 });
 
+// Admin - Update order status
+app.patch('/api/admin/orders/:orderId/status', authenticateAdmin, async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.orderId);
+    const { status } = req.body || {};
+    const allowed = ['pending','processing','shipped','completed','cancelled'];
+    if (!allowed.includes(String(status))) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    await poolWrapper.execute(`UPDATE orders SET status = ?, updatedAt = NOW() WHERE id = ? AND tenantId = ?`, [status, orderId, req.tenant?.id || 1]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating order status:', error);
+    res.status(500).json({ success: false, message: 'Error updating order status' });
+  }
+});
+
+// Admin - Update order shipping info
+app.patch('/api/admin/orders/:orderId/shipping', authenticateAdmin, async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.orderId);
+    const { trackingNumber, cargoCompany, cargoStatus } = req.body || {};
+    const cargoAllowed = ['preparing','shipped','in-transit','delivered', null, undefined];
+    if (!cargoAllowed.includes(cargoStatus)) {
+      return res.status(400).json({ success: false, message: 'Invalid cargoStatus' });
+    }
+    await poolWrapper.execute(
+      `UPDATE orders SET trackingNumber = ?, cargoCompany = ?, cargoStatus = ?, updatedAt = NOW() WHERE id = ? AND tenantId = ?`,
+      [trackingNumber || null, cargoCompany || null, cargoStatus || null, orderId, req.tenant?.id || 1]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating shipping info:', error);
+    res.status(500).json({ success: false, message: 'Error updating shipping info' });
+  }
+});
+
 // Admin - Return requests
 app.get('/api/admin/return-requests', authenticateAdmin, async (req, res) => {
   try {
@@ -2767,6 +2804,38 @@ app.get('/api/admin/user-discount-codes', authenticateAdmin, async (req, res) =>
   }
 });
 
+// Admin - Create user discount code
+app.post('/api/admin/user-discount-codes', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { userId, discountType, discountValue, expiresAt, code } = req.body || {};
+    if (!userId || !discountType || typeof discountValue === 'undefined') {
+      return res.status(400).json({ success: false, message: 'userId, discountType, discountValue required' });
+    }
+    const allowed = ['percentage','fixed'];
+    if (!allowed.includes(String(discountType))) {
+      return res.status(400).json({ success: false, message: 'Invalid discountType' });
+    }
+    const valueNum = parseFloat(discountValue);
+    if (isNaN(valueNum) || valueNum <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid discountValue' });
+    }
+
+    // Generate code if not provided
+    const genCode = code || `USR${userId}-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+
+    await poolWrapper.execute(
+      `INSERT INTO user_discount_codes (tenantId, userId, code, discountType, discountValue, expiresAt, isUsed)
+       VALUES (?, ?, ?, ?, ?, ?, 0)`,
+      [tenantId, userId, genCode, discountType, valueNum, expiresAt || new Date(Date.now()+30*86400000)]
+    );
+    res.json({ success: true, data: { code: genCode } });
+  } catch (error) {
+    console.error('❌ Error creating user discount code:', error);
+    res.status(500).json({ success: false, message: 'Error creating discount code' });
+  }
+});
+
 // Admin - Wallet recharge requests
 app.get('/api/admin/wallet-recharge-requests', authenticateAdmin, async (req, res) => {
   try {
@@ -2787,7 +2856,7 @@ app.get('/api/admin/wallet-recharge-requests', authenticateAdmin, async (req, re
   }
 });
 
-app.patch('/api/admin/wallet-recharge-requests/:id/status', authenticateAdmin, async (req, res) => {
+async function handleRechargeStatus(req, res) {
   try {
     const id = String(req.params.id);
     const { status } = req.body || {};
@@ -2795,16 +2864,52 @@ app.patch('/api/admin/wallet-recharge-requests/:id/status', authenticateAdmin, a
     if (!allowed.includes(String(status))) {
       return res.status(400).json({ success: false, message: 'Invalid status' });
     }
+
+    // Fetch request details
+    const [rows] = await poolWrapper.execute(`SELECT * FROM wallet_recharge_requests WHERE id = ?`, [id]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Request not found' });
+    const reqRow = rows[0];
+
+    // Update request status
     await poolWrapper.execute(
       `UPDATE wallet_recharge_requests SET status = ?, completedAt = CASE WHEN ? = 'completed' THEN NOW() ELSE completedAt END WHERE id = ?`,
       [status, status, id]
     );
+
+    // If completed, credit wallet and log transaction
+    if (status === 'completed') {
+      const tenantId = req.tenant?.id || 1;
+      const userId = reqRow.userId;
+      const amount = parseFloat(reqRow.amount || 0);
+      if (!isNaN(amount) && amount > 0 && userId) {
+        await poolWrapper.execute(
+          `INSERT INTO user_wallets (tenantId, userId, balance, currency)
+           VALUES (?, ?, 0, 'TRY')
+           ON DUPLICATE KEY UPDATE balance = balance`,
+          [tenantId, userId]
+        );
+        await poolWrapper.execute(
+          `UPDATE user_wallets SET balance = balance + ? WHERE tenantId = ? AND userId = ?`,
+          [amount, tenantId, userId]
+        );
+        await poolWrapper.execute(
+          `INSERT INTO wallet_transactions (tenantId, userId, type, amount, description, status)
+           VALUES (?, ?, 'credit', ?, 'Admin approved recharge', 'completed')`,
+          [tenantId, userId, amount]
+        );
+      }
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Error updating recharge request:', error);
     res.status(500).json({ success: false, message: 'Error updating status' });
   }
-});
+}
+
+app.patch('/api/admin/wallet-recharge-requests/:id/status', authenticateAdmin, handleRechargeStatus);
+// Alias to support POST from admin panel
+app.post('/api/admin/wallet-recharge-requests/:id/status', authenticateAdmin, handleRechargeStatus);
 
 // Admin - Referral earnings
 app.get('/api/admin/referral-earnings', authenticateAdmin, async (req, res) => {
@@ -3120,17 +3225,42 @@ app.get('/api/admin/carts/:userId', authenticateAdmin, async (req, res) => {
 // Admin - List customer wallets
 app.get('/api/admin/wallets', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.tenant?.id || 1;
     const [rows] = await poolWrapper.execute(`
       SELECT u.id as userId, u.name as userName, u.email as userEmail,
-             COALESCE(w.balance,0) as balance, w.currency
+             COALESCE(w.balance,0) as balance, COALESCE(w.currency,'TRY') as currency
       FROM users u
-      LEFT JOIN user_wallets w ON w.userId = u.id
+      LEFT JOIN user_wallets w ON w.userId = u.id AND w.tenantId = ?
+      WHERE u.tenantId = ?
       ORDER BY balance DESC
-    `);
+    `, [tenantId, tenantId]);
     res.json({ success: true, data: rows });
   } catch (error) {
     console.error('❌ Error listing wallets:', error);
     res.status(500).json({ success: false, message: 'Error listing wallets' });
+  }
+});
+
+// Admin - Wallets summary (totals)
+app.get('/api/admin/wallets/summary', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const [[bal]] = await poolWrapper.execute(
+      `SELECT COALESCE(SUM(balance),0) as totalBalance FROM user_wallets WHERE tenantId = ?`,
+      [tenantId]
+    );
+    const [[cr]] = await poolWrapper.execute(
+      `SELECT COALESCE(SUM(amount),0) as totalCredit FROM wallet_transactions WHERE tenantId = ? AND type = 'credit' AND status = 'completed'`,
+      [tenantId]
+    );
+    const [[db]] = await poolWrapper.execute(
+      `SELECT COALESCE(SUM(amount),0) as totalDebit FROM wallet_transactions WHERE tenantId = ? AND type = 'debit' AND status = 'completed'`,
+      [tenantId]
+    );
+    res.json({ success: true, data: { totalBalance: bal.totalBalance || 0, totalCredit: cr.totalCredit || 0, totalDebit: db.totalDebit || 0 } });
+  } catch (error) {
+    console.error('❌ Error getting wallets summary:', error);
+    res.status(500).json({ success: false, message: 'Error getting wallets summary' });
   }
 });
 
@@ -4259,6 +4389,40 @@ app.get('/api/admin/categories', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error getting categories:', error);
     res.status(500).json({ success: false, message: 'Error getting categories' });
+  }
+});
+
+// Admin - Category stats (sales, orders, stock)
+app.get('/api/admin/category-stats', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant.id;
+    // Sales and orders per category
+    const [salesRows] = await poolWrapper.execute(
+      `SELECT p.category as name,
+              COUNT(oi.id) as orders,
+              COALESCE(SUM(oi.price * oi.quantity),0) as revenue
+       FROM order_items oi
+       JOIN products p ON p.id = oi.productId AND p.tenantId = ?
+       JOIN orders o ON o.id = oi.orderId AND o.tenantId = ?
+       GROUP BY p.category`, [tenantId, tenantId]
+    );
+    // Stock per category
+    const [stockRows] = await poolWrapper.execute(
+      `SELECT category as name, COALESCE(SUM(stock),0) as stock
+       FROM products WHERE tenantId = ? GROUP BY category`, [tenantId]
+    );
+    // Merge
+    const byName = new Map();
+    salesRows.forEach((r)=> byName.set(r.name, { name: r.name, orders: Number(r.orders)||0, revenue: Number(r.revenue)||0, stock: 0 }));
+    stockRows.forEach((r)=> {
+      const cur = byName.get(r.name) || { name: r.name, orders: 0, revenue: 0, stock: 0 };
+      cur.stock = Number(r.stock)||0; byName.set(r.name, cur);
+    });
+    const merged = Array.from(byName.values()).sort((a,b)=>b.revenue - a.revenue);
+    res.json({ success: true, data: merged });
+  } catch (error) {
+    console.error('❌ Error getting category stats:', error);
+    res.status(500).json({ success: false, message: 'Error getting category stats' });
   }
 });
 
