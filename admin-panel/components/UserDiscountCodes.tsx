@@ -1,15 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Ticket, Search, Filter, Plus } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function UserDiscountCodes() {
-  const [codes, setCodes] = useState([
-    { id: 1, userName: 'Ahmet Yılmaz', discountCode: 'WELCOME10', discountType: 'percentage', discountValue: 10, isUsed: false, expiresAt: '2024-12-31' },
-    { id: 2, userName: 'Ayşe Demir', discountCode: 'SAVE50', discountType: 'fixed', discountValue: 50, isUsed: true, expiresAt: '2024-12-31' },
-  ])
+  const [codes, setCodes] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchCodes = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await api.get<any>('/admin/user-discount-codes?limit=100')
+      if ((res as any)?.success && (res as any).data) setCodes((res as any).data)
+      else setCodes([])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'İndirim kodları yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchCodes() }, [])
 
   return (
     <div className="space-y-6">
@@ -42,8 +58,15 @@ export default function UserDiscountCodes() {
           </button>
         </div>
 
+        {loading ? (
+          <p className="text-slate-500">Yükleniyor...</p>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
+        ) : (
         <div className="space-y-3">
-          {codes.map((code, index) => (
+          {codes
+            .filter(code => `${code.userName||''} ${code.discountCode||''}`.toLowerCase().includes(searchTerm.toLowerCase()))
+            .map((code, index) => (
             <motion.div
               key={code.id}
               initial={{ opacity: 0, y: 20 }}
@@ -74,6 +97,7 @@ export default function UserDiscountCodes() {
             </motion.div>
           ))}
         </div>
+        )}
       </div>
     </div>
   )

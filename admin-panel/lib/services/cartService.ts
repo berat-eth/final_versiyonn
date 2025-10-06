@@ -22,9 +22,14 @@ export const cartService = {
     }>>>('/admin/carts');
   },
 
-  // Get cart items
+  // Get cart items (server route: GET /api/cart/:userId)
   getCart: async (userId: number, deviceId?: string) => {
-    return api.get<ApiResponse<CartItem[]>>(`/cart/user/${userId}`, deviceId ? { deviceId } : {});
+    try {
+      return await api.get<ApiResponse<CartItem[]>>(`/cart/${userId}`, deviceId ? { deviceId } : {});
+    } catch (e) {
+      // backward compatibility: older path
+      return api.get<ApiResponse<CartItem[]>>(`/cart/user/${userId}`, deviceId ? { deviceId } : {});
+    }
   },
 
   // Add to cart
@@ -47,7 +52,7 @@ export const cartService = {
     return api.delete<ApiResponse<void>>(`/cart/user/${userId}${deviceId ? `?deviceId=${deviceId}` : ''}`);
   },
 
-  // Get cart total
+  // Get cart total (server route: GET /api/cart/user/:userId/total)
   getCartTotal: async (userId: number, deviceId?: string) => {
     return api.get<ApiResponse<number>>(`/cart/user/${userId}/total`, deviceId ? { deviceId } : {});
   },

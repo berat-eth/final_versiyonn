@@ -1,15 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Gift, Search, Filter, Plus, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { giftCardService } from '@/lib/services/giftCardService'
 
 export default function GiftCards() {
-    const [giftCards, setGiftCards] = useState([
-        { id: 1, code: 'GIFT-2024-001', fromUser: 'Ahmet Yılmaz', recipient: 'Ayşe Demir', amount: 500.00, status: 'active', expiresAt: '2024-12-31' },
-        { id: 2, code: 'GIFT-2024-002', fromUser: 'Mehmet Kaya', recipient: 'Fatma Şahin', amount: 250.00, status: 'used', expiresAt: '2024-12-31' },
-    ])
+    const [giftCards, setGiftCards] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    const fetchGiftCards = async () => {
+        try {
+            setLoading(true)
+            setError(null)
+            const res = await giftCardService.list()
+            if (res.success && res.data) setGiftCards(res.data)
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Hediye kartları yüklenemedi')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchGiftCards() }, [])
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -51,8 +66,15 @@ export default function GiftCards() {
                     </button>
                 </div>
 
+                {loading ? (
+                    <p className="text-slate-500">Yükleniyor...</p>
+                ) : error ? (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
+                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {giftCards.map((card, index) => (
+                    {giftCards
+                      .filter(c => (c.code || '').toLowerCase().includes(searchTerm.toLowerCase()))
+                      .map((card, index) => (
                         <motion.div
                             key={card.id}
                             initial={{ opacity: 0, scale: 0.9 }}
@@ -67,15 +89,16 @@ export default function GiftCards() {
                                 </span>
                             </div>
                             <p className="text-2xl font-bold mb-2">{card.code}</p>
-                            <p className="text-purple-100 text-sm mb-4">₺{card.amount.toFixed(2)}</p>
+                            <p className="text-purple-100 text-sm mb-4">₺{Number(card.amount || 0).toFixed(2)}</p>
                             <div className="border-t border-purple-400 pt-4">
-                                <p className="text-sm text-purple-100">Gönderen: {card.fromUser}</p>
-                                <p className="text-sm text-purple-100">Alıcı: {card.recipient}</p>
+                                {card.fromUser && (<p className="text-sm text-purple-100">Gönderen: {card.fromUser}</p>)}
+                                {card.recipient && (<p className="text-sm text-purple-100">Alıcı: {card.recipient}</p>)}
                                 <p className="text-xs text-purple-200 mt-2">Son kullanma: {card.expiresAt}</p>
                             </div>
                         </motion.div>
                     ))}
                 </div>
+                )}
             </div>
         </div>
     )

@@ -6,3 +6,4 @@ export * from './orderService';
 export * from './walletService';
 export * from './reviewService';
 export * from './analyticsService';
+export * from './giftCardService';

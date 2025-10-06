@@ -30,7 +30,14 @@ async function createDatabaseSchema(pool) {
           'custom_production_items', 'customer_segments', 'campaigns', 'customer_segment_assignments',
           'campaign_usage', 'customer_analytics', 'discount_wheel_spins', 'chatbot_analytics',
           'wallet_recharge_requests', 'user_discount_codes', 'referral_earnings', 'user_events',
-          'user_profiles', 'categories', 'recommendations', 'gift_cards', 'security_events'
+          'user_profiles', 'categories', 'recommendations', 'gift_cards', 'security_events',
+          // Warehouse/Inventory
+          'warehouses', 'warehouse_locations', 'bins', 'inventory_items', 'inventory_movements',
+          'suppliers', 'purchase_orders', 'purchase_order_items',
+          // Production
+          'bill_of_materials', 'bom_items', 'workstations', 'production_orders', 'production_order_items', 'production_steps', 'material_issues', 'finished_goods_receipts',
+          // CRM
+          'crm_leads', 'crm_contacts', 'crm_pipeline_stages', 'crm_deals'
       ];
       const missingTables = requiredTables.filter(table => !existingTables.includes(table));
 
@@ -1176,6 +1183,347 @@ async function createDatabaseSchema(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
       console.log('✅ Gift cards table ready');
+
+      // =========================
+      // WAREHOUSE / INVENTORY
+      // =========================
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS warehouses (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      code VARCHAR(32),
+      address VARCHAR(512),
+      isActive TINYINT(1) DEFAULT 1,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY ux_warehouse_tenant_code (tenantId, code),
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS warehouse_locations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      warehouseId INT NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      code VARCHAR(32),
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY ux_wh_loc (tenantId, warehouseId, code),
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (warehouseId) REFERENCES warehouses(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS bins (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      warehouseId INT NOT NULL,
+      locationId INT NULL,
+      code VARCHAR(64) NOT NULL,
+      capacity INT DEFAULT 0,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY ux_bin (tenantId, warehouseId, code),
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (warehouseId) REFERENCES warehouses(id) ON DELETE CASCADE,
+      FOREIGN KEY (locationId) REFERENCES warehouse_locations(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      productId INT NOT NULL,
+      warehouseId INT NOT NULL,
+      binId INT NULL,
+      quantity INT NOT NULL DEFAULT 0,
+      reserved INT NOT NULL DEFAULT 0,
+      minLevel INT DEFAULT 0,
+      maxLevel INT DEFAULT 0,
+      lastCountedAt DATETIME NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY ux_inventory (tenantId, productId, warehouseId, binId),
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (warehouseId) REFERENCES warehouses(id) ON DELETE CASCADE,
+      FOREIGN KEY (binId) REFERENCES bins(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      productId INT NOT NULL,
+      fromWarehouseId INT NULL,
+      fromBinId INT NULL,
+      toWarehouseId INT NULL,
+      toBinId INT NULL,
+      quantity INT NOT NULL,
+      reason ENUM('purchase','sale','transfer','adjustment','production_in','production_out','return') NOT NULL,
+      referenceType VARCHAR(50),
+      referenceId INT,
+      createdBy INT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS suppliers (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      address VARCHAR(512),
+      taxNumber VARCHAR(32),
+      isActive TINYINT(1) DEFAULT 1,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS purchase_orders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      supplierId INT NOT NULL,
+      warehouseId INT NOT NULL,
+      status ENUM('draft','approved','received','cancelled') DEFAULT 'draft',
+      expectedAt DATETIME NULL,
+      notes TEXT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (supplierId) REFERENCES suppliers(id) ON DELETE CASCADE,
+      FOREIGN KEY (warehouseId) REFERENCES warehouses(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS purchase_order_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      purchaseOrderId INT NOT NULL,
+      productId INT NOT NULL,
+      quantity INT NOT NULL,
+      receivedQuantity INT NOT NULL DEFAULT 0,
+      price DECIMAL(10,2) NOT NULL DEFAULT 0,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (purchaseOrderId) REFERENCES purchase_orders(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      // =========================
+      // PRODUCTION
+      // =========================
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS bill_of_materials (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      productId INT NOT NULL,
+      version VARCHAR(32) DEFAULT 'v1',
+      isActive TINYINT(1) DEFAULT 1,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS bom_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      bomId INT NOT NULL,
+      componentProductId INT NOT NULL,
+      quantity DECIMAL(12,4) NOT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (bomId) REFERENCES bill_of_materials(id) ON DELETE CASCADE,
+      FOREIGN KEY (componentProductId) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS workstations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      code VARCHAR(32),
+      capacityPerHour INT DEFAULT 0,
+      isActive TINYINT(1) DEFAULT 1,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY ux_ws (tenantId, code),
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS production_orders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      productId INT NOT NULL,
+      quantity INT NOT NULL,
+      status ENUM('planned','in_progress','completed','cancelled') DEFAULT 'planned',
+      plannedStart DATETIME NULL,
+      plannedEnd DATETIME NULL,
+      actualStart DATETIME NULL,
+      actualEnd DATETIME NULL,
+      warehouseId INT NULL,
+      notes TEXT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (warehouseId) REFERENCES warehouses(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS production_order_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      productionOrderId INT NOT NULL,
+      productId INT NOT NULL,
+      requiredQty DECIMAL(12,4) NOT NULL,
+      issuedQty DECIMAL(12,4) NOT NULL DEFAULT 0,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (productionOrderId) REFERENCES production_orders(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS production_steps (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      productionOrderId INT NOT NULL,
+      workstationId INT NULL,
+      stepName VARCHAR(100) NOT NULL,
+      sequence INT NOT NULL DEFAULT 1,
+      status ENUM('pending','in_progress','done') DEFAULT 'pending',
+      startedAt DATETIME NULL,
+      finishedAt DATETIME NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (productionOrderId) REFERENCES production_orders(id) ON DELETE CASCADE,
+      FOREIGN KEY (workstationId) REFERENCES workstations(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS material_issues (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      productionOrderId INT NOT NULL,
+      productId INT NOT NULL,
+      warehouseId INT NULL,
+      binId INT NULL,
+      quantity DECIMAL(12,4) NOT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (productionOrderId) REFERENCES production_orders(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS finished_goods_receipts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      productionOrderId INT NOT NULL,
+      productId INT NOT NULL,
+      warehouseId INT NULL,
+      binId INT NULL,
+      quantity INT NOT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (productionOrderId) REFERENCES production_orders(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      // =========================
+      // CRM
+      // =========================
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_leads (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      source VARCHAR(50),
+      status ENUM('new','contacted','qualified','lost','converted') DEFAULT 'new',
+      ownerUserId INT NULL,
+      notes TEXT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (ownerUserId) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_contacts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      userId INT NULL,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      company VARCHAR(255),
+      position VARCHAR(100),
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_pipeline_stages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      probability INT DEFAULT 0,
+      sequence INT DEFAULT 1,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY ux_pipeline_stage (tenantId, name),
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_deals (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      contactId INT NULL,
+      value DECIMAL(12,2) DEFAULT 0,
+      currency VARCHAR(3) DEFAULT 'TRY',
+      stageId INT NULL,
+      status ENUM('open','won','lost') DEFAULT 'open',
+      expectedCloseDate DATE NULL,
+      ownerUserId INT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (contactId) REFERENCES crm_contacts(id) ON DELETE SET NULL,
+      FOREIGN KEY (stageId) REFERENCES crm_pipeline_stages(id) ON DELETE SET NULL,
+      FOREIGN KEY (ownerUserId) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 
       // Re-enable foreign key checks
       await pool.execute('SET FOREIGN_KEY_CHECKS = 1');

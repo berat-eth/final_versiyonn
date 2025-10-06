@@ -1,15 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowUpCircle, ArrowDownCircle, Search, Filter } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { walletService } from '@/lib/services'
 
 export default function WalletTransactions() {
-  const [transactions, setTransactions] = useState([
-    { id: 1, userId: 1, userName: 'Ahmet Yılmaz', type: 'credit', amount: 500.00, description: 'Bakiye yükleme', createdAt: '2024-01-15 14:30' },
-    { id: 2, userId: 1, userName: 'Ahmet Yılmaz', type: 'debit', amount: 150.00, description: 'Sipariş ödemesi', createdAt: '2024-01-15 15:45' },
-  ])
+  const [transactions, setTransactions] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchTx = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      // Admin listesi için backend'te /api/admin/wallet-transactions varsa onu kullanın.
+      // Şimdilik bir kullanıcı ile test: id=1
+      const res = await walletService.getTransactions(1, 1, 50)
+      if (res.success && res.data) setTransactions(res.data.transactions || [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Cüzdan işlemleri yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchTx() }, [])
 
   return (
     <div className="space-y-6">
@@ -38,8 +55,15 @@ export default function WalletTransactions() {
           </button>
         </div>
 
+        {loading ? (
+          <p className="text-slate-500">Yükleniyor...</p>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
+        ) : (
         <div className="space-y-3">
-          {transactions.map((transaction, index) => (
+          {transactions
+            .filter(t => (t.description || '').toLowerCase().includes(searchTerm.toLowerCase()))
+            .map((transaction, index) => (
             <motion.div
               key={transaction.id}
               initial={{ opacity: 0, y: 20 }}
@@ -62,13 +86,14 @@ export default function WalletTransactions() {
                 </div>
                 <div className="text-right">
                   <p className={`text-xl font-bold ${transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-                    {transaction.type === 'credit' ? '+' : '-'}₺{transaction.amount.toFixed(2)}
+                    {transaction.type === 'credit' ? '+' : '-'}₺{Number(transaction.amount || 0).toFixed(2)}
                   </p>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
+        )}
       </div>
     </div>
   )

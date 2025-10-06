@@ -1,15 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CreditCard, Search, Filter, Download, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function PaymentTransactions() {
-  const [transactions, setTransactions] = useState([
-    { id: 1, orderId: 'ORD-001', paymentId: 'PAY-12345', provider: 'iyzico', amount: 1250.00, status: 'success', createdAt: '2024-01-15 14:30' },
-    { id: 2, orderId: 'ORD-002', paymentId: 'PAY-12346', provider: 'iyzico', amount: 850.00, status: 'pending', createdAt: '2024-01-15 15:45' },
-  ])
+  const [transactions, setTransactions] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchPayments = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await api.get<any>('/admin/payment-transactions?limit=100')
+      if ((res as any)?.success && (res as any).data) setTransactions((res as any).data)
+      else setTransactions([])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ödeme işlemleri yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchPayments() }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -61,6 +77,11 @@ export default function PaymentTransactions() {
         </div>
 
         <div className="overflow-x-auto">
+          {loading ? (
+            <p className="text-slate-500">Yükleniyor...</p>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
+          ) : (
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-200">
@@ -73,7 +94,9 @@ export default function PaymentTransactions() {
               </tr>
             </thead>
             <tbody>
-              {transactions.map((transaction, index) => (
+              {transactions
+                .filter(t => `${t.paymentId||''} ${t.orderId||''}`.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map((transaction, index) => (
                 <motion.tr
                   key={transaction.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -89,7 +112,7 @@ export default function PaymentTransactions() {
                   </td>
                   <td className="py-3 px-4 text-slate-600">{transaction.orderId}</td>
                   <td className="py-3 px-4 text-slate-600">{transaction.provider}</td>
-                  <td className="py-3 px-4 font-semibold text-slate-800">₺{transaction.amount.toFixed(2)}</td>
+                  <td className="py-3 px-4 font-semibold text-slate-800">₺{Number(transaction.amount||0).toFixed(2)}</td>
                   <td className="py-3 px-4">
                     <span className={`px-3 py-1 rounded-lg text-xs font-medium flex items-center space-x-1 w-fit ${getStatusColor(transaction.status)}`}>
                       {getStatusIcon(transaction.status)}
@@ -101,6 +124,7 @@ export default function PaymentTransactions() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
       </div>
     </div>

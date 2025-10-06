@@ -31,7 +31,7 @@ export default function Orders() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [selectedOrderForAction, setSelectedOrderForAction] = useState<Order | null>(null)
 
-  const statusConfig = {
+  const statusConfig: Record<NonNullable<Order['status']>, { label: string; color: string; icon: any; dotColor: string }> = {
     pending: {
       label: 'Beklemede',
       color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
@@ -58,7 +58,7 @@ export default function Orders() {
     },
   }
 
-  const cargoStatusConfig = {
+  const cargoStatusConfig: Record<Exclude<Order['cargoStatus'], undefined>, { label: string; color: string }> = {
     preparing: { label: 'Hazırlanıyor', color: 'bg-yellow-100 text-yellow-700' },
     shipped: { label: 'Kargoya Verildi', color: 'bg-blue-100 text-blue-700' },
     'in-transit': { label: 'Yolda', color: 'bg-purple-100 text-purple-700' },
@@ -165,7 +165,7 @@ export default function Orders() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {orders.map((order, index) => {
-                const StatusIcon = statusConfig[order.status].icon
+                const StatusIcon = statusConfig[order.status as NonNullable<Order['status']>].icon
                 return (
                   <motion.tr
                     key={order.id}
@@ -196,9 +196,9 @@ export default function Orders() {
                       <span className="font-bold text-slate-800">₺{order.totalAmount.toLocaleString()}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg border ${statusConfig[order.status].color}`}>
-                        <div className={`w-2 h-2 rounded-full ${statusConfig[order.status].dotColor}`}></div>
-                        <span className="text-xs font-medium">{statusConfig[order.status].label}</span>
+                      <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg border ${statusConfig[order.status as NonNullable<Order['status']>].color}`}>
+                        <div className={`w-2 h-2 rounded-full ${statusConfig[order.status as NonNullable<Order['status']>].dotColor}`}></div>
+                        <span className="text-xs font-medium">{statusConfig[order.status as NonNullable<Order['status']>].label}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -511,19 +511,19 @@ export default function Orders() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-600">Ürün Sayısı:</span>
-                      <span className="font-semibold text-slate-800">{selectedOrderForAction.items} ürün</span>
+                      <span className="font-semibold text-slate-800">{Array.isArray(selectedOrderForAction.items) ? selectedOrderForAction.items.length : (selectedOrderForAction.items as any)} ürün</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-600">Ara Toplam:</span>
-                      <span className="font-semibold text-slate-800">₺{(selectedOrderForAction.total * 0.82).toLocaleString()}</span>
+                      <span className="font-semibold text-slate-800">₺{(((selectedOrderForAction.total ?? selectedOrderForAction.totalAmount) * 0.82)).toLocaleString()}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-600">KDV (%18):</span>
-                      <span className="font-semibold text-slate-800">₺{(selectedOrderForAction.total * 0.18).toLocaleString()}</span>
+                      <span className="font-semibold text-slate-800">₺{(((selectedOrderForAction.total ?? selectedOrderForAction.totalAmount) * 0.18)).toLocaleString()}</span>
                     </div>
                     <div className="pt-2 border-t border-slate-300 flex items-center justify-between">
                       <span className="font-semibold text-slate-800">Toplam:</span>
-                      <span className="text-2xl font-bold text-green-600">₺{selectedOrderForAction.total.toLocaleString()}</span>
+                      <span className="text-2xl font-bold text-green-600">₺{(selectedOrderForAction.total ?? selectedOrderForAction.totalAmount).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -600,9 +600,9 @@ export default function Orders() {
                     <p className="text-sm text-slate-500">Sipariş No</p>
                     <p className="text-2xl font-bold text-slate-800">#{viewingOrder.id}</p>
                   </div>
-                  <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg border ${statusConfig[viewingOrder.status].color}`}>
-                    <div className={`w-2 h-2 rounded-full ${statusConfig[viewingOrder.status].dotColor}`}></div>
-                    <span className="text-sm font-medium">{statusConfig[viewingOrder.status].label}</span>
+                  <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg border ${statusConfig[viewingOrder.status as NonNullable<Order['status']>].color}`}>
+                    <div className={`w-2 h-2 rounded-full ${statusConfig[viewingOrder.status as NonNullable<Order['status']>].dotColor}`}></div>
+                    <span className="text-sm font-medium">{statusConfig[viewingOrder.status as NonNullable<Order['status']>].label}</span>
                   </div>
                 </div>
 
@@ -611,9 +611,9 @@ export default function Orders() {
                     <p className="text-sm text-slate-500 mb-1">Müşteri</p>
                     <div className="flex items-center space-x-2">
                       <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        {viewingOrder.customer.charAt(0)}
+                        {(viewingOrder as any)?.customer?.charAt ? (viewingOrder as any).customer.charAt(0) : 'U'}
                       </div>
-                      <p className="font-bold text-slate-800">{viewingOrder.customer}</p>
+                      <p className="font-bold text-slate-800">{(viewingOrder as any)?.customer || '—'}</p>
                     </div>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
@@ -626,7 +626,7 @@ export default function Orders() {
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Ürün Sayısı</p>
-                    <p className="font-bold text-slate-800">{viewingOrder.items} ürün</p>
+                    <p className="font-bold text-slate-800">{Array.isArray(viewingOrder.items) ? viewingOrder.items.length : (viewingOrder.items as any)} ürün</p>
                   </div>
                 </div>
 
@@ -718,7 +718,7 @@ export default function Orders() {
 
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
                   <p className="text-sm text-slate-500 mb-2">Toplam Tutar</p>
-                  <p className="text-3xl font-bold text-green-600">₺{viewingOrder.total.toLocaleString()}</p>
+                  <p className="text-3xl font-bold text-green-600">₺{(viewingOrder.total ?? viewingOrder.totalAmount).toLocaleString()}</p>
                 </div>
 
                 {/* Hızlı İşlemler */}

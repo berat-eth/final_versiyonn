@@ -1,6 +1,6 @@
 // API Configuration and Utilities
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api';
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
 
 interface ApiRequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
@@ -16,9 +16,15 @@ class ApiClient {
   }
 
   private getHeaders(customHeaders?: HeadersInit): HeadersInit {
-    return {
+    const base: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-API-Key': this.apiKey,
+      'Accept': 'application/json',
+    };
+    if (this.apiKey) {
+      base['X-API-Key'] = this.apiKey;
+    }
+    return {
+      ...base,
       ...customHeaders,
     };
   }
@@ -116,14 +122,28 @@ export interface Product {
 export interface Order {
   id: number;
   totalAmount: number;
-  status: string;
+  status: 'pending' | 'processing' | 'completed' | 'cancelled';
   createdAt: string;
-  shippingAddress: string;
-  paymentMethod: string;
+  shippingAddress?: string;
+  paymentMethod?: string;
   city?: string;
   district?: string;
   fullAddress?: string;
   items: OrderItem[];
+  // Optional fields used by UI
+  customer?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  billingAddress?: string;
+  date?: string;
+  payment?: string;
+  total?: number;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  taxNumber?: string;
+  trackingNumber?: string;
+  cargoCompany?: string;
+  cargoStatus?: 'preparing' | 'shipped' | 'in-transit' | 'delivered';
 }
 
 export interface OrderItem {

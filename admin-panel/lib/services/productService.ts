@@ -1,6 +1,10 @@
 import { api, ApiResponse, Product } from '../api';
 
 export const productService = {
+  // Get categories (string[])
+  getCategories: async () => {
+    return api.get<ApiResponse<string[]>>('/categories');
+  },
   // Get products with pagination
   getProducts: async (page = 1, limit = 20) => {
     return api.get<ApiResponse<{ products: Product[]; total: number; hasMore: boolean }>>(

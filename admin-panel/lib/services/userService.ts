@@ -61,17 +61,17 @@ export const userService = {
 
   // Get all users (admin) - using a workaround with common search term
   getAllUsers: async () => {
-    // Backend'de /admin/users endpoint'i yoksa, yaygın bir isimle arama yapıyoruz
-    // Alternatif: 'a' harfi ile arama (çoğu isimde bulunur)
+    // Admin endpoint mevcut: GET /api/admin/users (paginated)
     try {
-      const response = await api.get<ApiResponse<User[]>>('/users/search', { 
-        query: 'a',
-        excludeUserId: 0 
-      });
+      const response = await api.get<ApiResponse<User[]>>('/admin/users', { page: 1, limit: 50 });
       return response;
     } catch (error) {
-      // Eğer bu da çalışmazsa boş array döndür
-      return { success: true, data: [] };
+      // Geriye dönük: arama uçunu 2+ karakter ile dener
+      try {
+        return await api.get<ApiResponse<User[]>>('/users/search', { query: 'an', excludeUserId: 0 });
+      } catch {
+        return { success: true, data: [] } as any;
+      }
     }
   },
 };

@@ -1,15 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MapPin, Search, Filter, Edit2, Trash2, Plus } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { userService } from '@/lib/services'
 
 export default function UserAddresses() {
-  const [addresses, setAddresses] = useState([
-    { id: 1, userName: 'Ahmet Yılmaz', addressType: 'shipping', fullName: 'Ahmet Yılmaz', phone: '0532 123 4567', city: 'İstanbul', district: 'Kadıköy', address: 'Moda Cad. No:123', isDefault: true },
-    { id: 2, userName: 'Ayşe Demir', addressType: 'billing', fullName: 'Ayşe Demir', phone: '0533 987 6543', city: 'Ankara', district: 'Çankaya', address: 'Kızılay Mah. No:45', isDefault: false },
-  ])
+  const [addresses, setAddresses] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchAddresses = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      // Admin uç önerisi: /api/admin/users/:id/addresses — şimdilik bir kullanıcı (1) ile test
+      const user = 1
+      const res = await userService.getProfile(user)
+      if (res.success && (res as any).data?.addresses) setAddresses((res as any).data.addresses)
+      else setAddresses([])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Adresler yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchAddresses() }, [])
 
   return (
     <div className="space-y-6">
@@ -38,8 +56,15 @@ export default function UserAddresses() {
           </button>
         </div>
 
+        {loading ? (
+          <p className="text-slate-500">Yükleniyor...</p>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {addresses.map((address, index) => (
+          {addresses
+            .filter(a => `${a.fullName || ''} ${a.address || ''}`.toLowerCase().includes(searchTerm.toLowerCase()))
+            .map((address, index) => (
             <motion.div
               key={address.id}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -71,6 +96,7 @@ export default function UserAddresses() {
             </motion.div>
           ))}
         </div>
+        )}
       </div>
     </div>
   )

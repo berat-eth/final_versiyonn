@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Mail, Lock, Eye, EyeOff, ShoppingBag, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import { userService } from '../../lib/services/userService'
 
 const ForestBackground = dynamic(() => import('@/components/ForestBackground'), {
   ssr: false,
@@ -20,15 +21,29 @@ export default function LoginPage() {
     password: ''
   })
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    
-    // Simüle edilmiş login işlemi
-    setTimeout(() => {
+    setErrorMsg(null)
+
+    try {
+      const res = await userService.login({
+        email: formData.email,
+        password: formData.password,
+      })
+
+      if ((res as any)?.success) {
+        router.push('/dashboard')
+      } else {
+        setErrorMsg((res as any)?.message || 'Giriş başarısız')
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Beklenmeyen bir hata oluştu')
+    } finally {
       setIsLoading(false)
-      router.push('/dashboard')
-    }, 1500)
+    }
   }
 
   return (
@@ -128,6 +143,9 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+          {errorMsg && (
+            <div className="mt-4 text-sm text-red-600 text-center">{errorMsg}</div>
+          )}
         </div>
 
         {/* Demo Credentials */}
