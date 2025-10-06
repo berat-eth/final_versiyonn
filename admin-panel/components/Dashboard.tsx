@@ -61,7 +61,7 @@ const snortThreatData: Array<{ hour: string; threats: number }> = []
 const recentThreats: Array<{ type: string; severity: 'high' | 'medium' | 'low'; ip: string; time: string; status: 'blocked' | 'alert' }> = []
 
 export default function Dashboard() {
-  const [timeRange, setTimeRange] = useState('7days')
+  const [timeRange, setTimeRange] = useState('1day')
   const [activeChart, setActiveChart] = useState('sales')
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [showStockAlerts, setShowStockAlerts] = useState(false)
