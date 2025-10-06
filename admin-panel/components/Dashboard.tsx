@@ -895,7 +895,7 @@ export default function Dashboard() {
             </div>
           </div>
           <button
-            onClick={() => window.location.href = '#snort-logs'}
+            onClick={() => window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'snort-logs' } }))}
             className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm font-medium"
           >
             Detaylı Görünüm
@@ -1450,11 +1450,11 @@ export default function Dashboard() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {[
-            { icon: Package, label: 'Yeni Ürün', color: 'blue', action: () => window.location.href = '#products' },
-            { icon: ShoppingCart, label: 'Sipariş Oluştur', color: 'green', action: () => window.location.href = '#orders' },
-            { icon: Users, label: 'Müşteri Ekle', color: 'purple', action: () => window.location.href = '#customers' },
-            { icon: TrendingUp, label: 'Kampanya', color: 'orange', action: () => window.location.href = '#campaigns' },
-            { icon: MessageSquare, label: 'Destek', color: 'pink', action: () => alert('💬 Destek sistemi açılıyor...') },
+            { icon: Package, label: 'Yeni Ürün', color: 'blue', action: () => window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'products' } })) },
+            { icon: ShoppingCart, label: 'Sipariş Oluştur', color: 'green', action: () => window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'orders' } })) },
+            { icon: Users, label: 'Müşteri Ekle', color: 'purple', action: () => window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'customers' } })) },
+            { icon: TrendingUp, label: 'Kampanya', color: 'orange', action: () => window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'campaigns' } })) },
+            { icon: MessageSquare, label: 'Destek', color: 'pink', action: () => window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'chatbot' } })) },
             { icon: BarChart3, label: 'Rapor', color: 'cyan', action: () => downloadReport() },
           ].map((action, index) => {
             const Icon = action.icon

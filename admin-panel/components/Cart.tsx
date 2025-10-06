@@ -39,18 +39,29 @@ export default function Cart() {
         // Her kullanıcının sepetini ve toplamını çek
         const cartsPromises = users.map(async (user: any) => {
           try {
-            const [cartResponse, totalResponse] = await Promise.all([
+            const [cartResponse, totalResponse, detailedTotal] = await Promise.all([
               cartService.getCart(user.id),
-              cartService.getCartTotal(user.id)
+              cartService.getCartTotal(user.id),
+              cartService.getCartTotalDetailed(user.id).catch(() => ({ success: false }))
             ])
-            
+
+            const items = cartResponse.success ? cartResponse.data || [] : []
+            const computedFromItems = items.reduce((sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0)
+            const totalSimple = totalResponse.success ? (totalResponse.data || 0) : 0
+            const dtData = (detailedTotal as any)?.success ? (detailedTotal as any).data : null
+            const totalDetailed = dtData && typeof dtData.total === 'number' ? dtData.total : 0
+            const subtotalDetailed = dtData && typeof dtData.subtotal === 'number' ? dtData.subtotal : 0
+            // Eğer detaylı toplam subtotal>0 ise onu kullan; aksi halde güvenilir kaynaklara düş
+            const preferred = subtotalDetailed > 0 ? totalDetailed : 0
+            const finalTotal = Number(preferred || totalSimple || computedFromItems) || 0
+
             return {
               userId: user.id,
               userName: user.name,
               userEmail: user.email,
               userPhone: user.phone,
-              items: cartResponse.success ? cartResponse.data || [] : [],
-              total: totalResponse.success ? totalResponse.data || 0 : 0
+              items,
+              total: finalTotal
             }
           } catch (err) {
             console.error(`Error fetching cart for user ${user.id}:`, err)
@@ -263,7 +274,7 @@ export default function Cart() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500">Toplam</span>
-                      <span className="font-bold text-green-600">₺{cart.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                      <span className="font-bold text-green-600">₺{Number(cart.total || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <DiscountActions userId={cart.userId} />
                   </div>
@@ -405,6 +416,7 @@ function DiscountActions({ userId }: { userId: number }) {
   const [value, setValue] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const createCode = useCallback(async () => {
     const v = parseFloat(value)
@@ -412,6 +424,7 @@ function DiscountActions({ userId }: { userId: number }) {
     try {
       setLoading(true)
       setMsg(null)
+      setError(null)
       const res = await api.post<any>('/admin/user-discount-codes', {
         userId,
         discountType: type,
@@ -419,11 +432,18 @@ function DiscountActions({ userId }: { userId: number }) {
       })
       if ((res as any)?.success && (res as any).data?.code) {
         setMsg(`Kod oluşturuldu: ${(res as any).data.code}`)
+        setValue('')
       } else {
-        setMsg('Kod oluşturulamadı')
+        setError('Kod oluşturulamadı')
       }
     } catch (e: any) {
-      setMsg(e?.message || 'Hata')
+      const message = e?.message || 'Hata'
+      // 500 durumunda daha anlaşılır mesaj
+      if (String(message).toLowerCase().includes('creating discount code')) {
+        setError('Sunucu hatası: İndirim kodu oluşturulamadı. Lütfen daha sonra tekrar deneyin.')
+      } else {
+        setError(message)
+      }
     } finally {
       setLoading(false)
     }
@@ -437,7 +457,8 @@ function DiscountActions({ userId }: { userId: number }) {
       </select>
       <input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type==='percentage' ? '% oran' : '₺ tutar'} className="px-2 py-1 border border-slate-300 rounded-lg w-28 text-sm" />
       <button disabled={loading} onClick={createCode} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50">İndirim Kodu</button>
-      {msg && <span className="text-xs text-slate-500 truncate max-w-[160px]">{msg}</span>}
+      {msg && <span className="text-xs text-emerald-600 truncate max-w-[160px]">{msg}</span>}
+      {error && <span className="text-xs text-red-600 truncate max-w-[160px]">{error}</span>}
     </div>
   )
 }

@@ -1,16 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Activity, Search, Filter, Eye, MousePointer, ShoppingCart, Heart } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function UserEvents() {
-  const [events, setEvents] = useState([
-    { id: 1, userName: 'Ahmet Yılmaz', productName: 'iPhone 15 Pro', eventType: 'view', eventValue: 1, createdAt: '2024-01-15 14:30' },
-    { id: 2, userName: 'Ayşe Demir', productName: 'Samsung Galaxy S24', eventType: 'add_to_cart', eventValue: 1, createdAt: '2024-01-15 15:45' },
-    { id: 3, userName: 'Mehmet Kaya', productName: 'MacBook Pro', eventType: 'purchase', eventValue: 1, createdAt: '2024-01-15 16:20' },
-  ])
+  const [events, setEvents] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(()=>{
+    let alive = true
+    ;(async()=>{
+      try{
+        setLoading(true)
+        setError(null)
+        const res = await api.get<any>('/admin/user-events')
+        if (alive && (res as any)?.success && Array.isArray((res as any).data)) setEvents((res as any).data)
+        else setEvents([])
+      } catch (e:any) {
+        setError(e?.message || 'Etkinlikler getirilemedi')
+        // fallback: boş bırak
+        setEvents([])
+      } finally { setLoading(false) }
+    })()
+    return ()=>{ alive = false }
+  }, [])
 
   const getEventIcon = (type: string) => {
     switch (type) {
@@ -62,6 +79,8 @@ export default function UserEvents() {
         </div>
 
         <div className="space-y-3">
+          {loading && <div className="text-slate-500 text-sm">Yükleniyor...</div>}
+          {error && <div className="text-red-600 text-sm">{error}</div>}
           {events.map((event, index) => (
             <motion.div
               key={event.id}

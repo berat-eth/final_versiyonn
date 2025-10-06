@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { productService } from '@/lib/services'
 import type { Product } from '@/lib/api'
+import { AnimatePresence } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([])
@@ -15,6 +17,11 @@ export default function Products() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalProducts, setTotalProducts] = useState(0)
   const [hasMore, setHasMore] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState<{ open: boolean; product?: Product | null }>({ open: false, product: null })
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<any>({ name:'', price:'', category:'', image:'', images:[] as string[], stock:0, brand:'', taxRate:0, priceIncludesTax:false, description:'' , hasVariations:false, isActive:true, excludeFromXml:false })
+  const [formErrors, setFormErrors] = useState<Record<string,string>>({})
 
   const categories = ['Tümü', 'Kamp Malzemeleri', 'Outdoor Giyim', 'Ayakkabı', 'Aksesuar']
 
@@ -82,6 +89,52 @@ export default function Products() {
     return matchesCategory
   })
 
+  const openEdit = (p: Product) => {
+    setShowEditModal({ open: true, product: p })
+    setForm({
+      name: p.name || '',
+      price: p.price ?? '',
+      category: (p as any).category || '',
+      image: p.image || '',
+      images: Array.isArray((p as any).images) ? (p as any).images : [],
+      stock: p.stock ?? 0,
+      brand: p.brand || '',
+      taxRate: (p as any).taxRate ?? 0,
+      priceIncludesTax: (p as any).priceIncludesTax ?? false,
+      description: (p as any).description || '',
+      hasVariations: (p as any).hasVariations ?? false,
+      isActive: (p as any).isActive ?? true,
+      excludeFromXml: (p as any).excludeFromXml ?? false
+    })
+  }
+
+  const validateForm = (): boolean => {
+    const errs: Record<string,string> = {}
+    if (!String(form.name).trim()) errs.name = 'Ad zorunlu'
+    const priceNum = Number(form.price)
+    if (isNaN(priceNum) || priceNum < 0) errs.price = 'Geçerli bir fiyat girin'
+    const stockNum = Number(form.stock)
+    if (isNaN(stockNum) || stockNum < 0) errs.stock = 'Geçerli stok girin'
+    setFormErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const buildUpdatePayload = () => {
+    const payload: any = {}
+    if (form.name !== undefined) payload.name = form.name
+    if (form.description !== undefined) payload.description = form.description
+    if (form.price !== undefined) payload.price = Number(form.price)
+    if (form.taxRate !== undefined) payload.taxRate = Number(form.taxRate)
+    if (form.priceIncludesTax !== undefined) payload.priceIncludesTax = !!form.priceIncludesTax
+    if (form.category !== undefined) payload.category = form.category
+    if (form.image !== undefined) payload.image = form.image
+    if (form.images !== undefined) payload.images = form.images
+    if (form.stock !== undefined) payload.stock = Number(form.stock)
+    if (form.brand !== undefined) payload.brand = form.brand
+    if (form.hasVariations !== undefined) payload.hasVariations = !!form.hasVariations
+    return payload
+  }
+
   const getStockStatus = (stock: number = 0): 'active' | 'low-stock' | 'out-of-stock' => {
     if (stock > 20) return 'active'
     if (stock > 0) return 'low-stock'
@@ -121,13 +174,22 @@ export default function Products() {
           <h2 className="text-3xl font-bold text-slate-800">Ürün Yönetimi</h2>
           <p className="text-slate-500 mt-1">Backend'den gelen ürünler</p>
         </div>
-        <button
-          onClick={() => fetchProducts(currentPage)}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow"
-        >
-          <RefreshCw className="w-5 h-5 mr-2" />
-          Yenile
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl flex items-center hover:shadow-lg transition-shadow"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Ürün Ekle
+          </button>
+          <button
+            onClick={() => fetchProducts(currentPage)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-xl flex items-center hover:shadow-lg transition-shadow"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Yenile
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -186,6 +248,178 @@ export default function Products() {
         </div>
       </div>
 
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAddModal(false)}>
+            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white rounded-2xl shadow-2xl w-full max-w-xl" onClick={(e)=>e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-xl font-bold">Yeni Ürün</h3>
+                <button onClick={()=>setShowAddModal(false)} className="px-2 py-1 rounded hover:bg-slate-100">X</button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <input placeholder="Ad" className="px-3 py-2 border rounded" value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})} />
+                  <input placeholder="Fiyat" type="number" className="px-3 py-2 border rounded" value={form.price} onChange={(e)=>setForm({...form,price:e.target.value})} />
+                  <input placeholder="Kategori" className="px-3 py-2 border rounded" value={form.category} onChange={(e)=>setForm({...form,category:e.target.value})} />
+                  <input placeholder="Marka" className="px-3 py-2 border rounded" value={form.brand} onChange={(e)=>setForm({...form,brand:e.target.value})} />
+                  <input placeholder="Stok" type="number" className="px-3 py-2 border rounded" value={form.stock} onChange={(e)=>setForm({...form,stock:Number(e.target.value)||0})} />
+                  <input placeholder="Görsel URL" className="px-3 py-2 border rounded" value={form.image} onChange={(e)=>setForm({...form,image:e.target.value})} />
+                  <input placeholder="KDV Oranı (%)" type="number" className="px-3 py-2 border rounded" value={form.taxRate} onChange={(e)=>setForm({...form,taxRate:Number(e.target.value)||0})} />
+                  <div className="flex items-center gap-2">
+                    <input id="incl" type="checkbox" checked={form.priceIncludesTax} onChange={(e)=>setForm({...form,priceIncludesTax:e.target.checked})} />
+                    <label htmlFor="incl" className="text-sm text-slate-700">Fiyata KDV dahil</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input id="active" type="checkbox" checked={form.isActive} onChange={(e)=>setForm({...form,isActive:e.target.checked})} />
+                    <label htmlFor="active" className="text-sm text-slate-700">Aktif</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input id="xml" type="checkbox" checked={form.excludeFromXml} onChange={(e)=>setForm({...form,excludeFromXml:e.target.checked})} />
+                    <label htmlFor="xml" className="text-sm text-slate-700">XML güncellemesinden muaf</label>
+                  </div>
+                </div>
+                <textarea placeholder="Açıklama" className="w-full px-3 py-2 border rounded" value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})} />
+                <div className="flex justify-end gap-2">
+                  <button onClick={()=>setShowAddModal(false)} className="px-4 py-2 border rounded">Vazgeç</button>
+                  <button disabled={saving} onClick={async()=>{
+                    try {
+                      setSaving(true)
+                      await api.post('/admin/products', {
+                        name: form.name,
+                        description: form.description,
+                        price: Number(form.price),
+                        category: form.category,
+                        image: form.image,
+                        stock: Number(form.stock)||0,
+                        brand: form.brand,
+                        taxRate: Number(form.taxRate)||0,
+                        priceIncludesTax: !!form.priceIncludesTax
+                      })
+                      setShowAddModal(false)
+                      setForm({ name:'', price:'', category:'', image:'', stock:0, brand:'', taxRate:0, priceIncludesTax:false, description:'', isActive:true, excludeFromXml:false })
+                      await fetchProducts(currentPage)
+                    } catch { alert('Ürün eklenemedi') } finally { setSaving(false) }
+                  }} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">Kaydet</button>
+                </div>
+                <p className="text-xs text-slate-500">Not: Pasife alma ve XML muafiyet bayrakları için backend alanları gereklidir. Şu an yalnızca UI hazırlanmıştır.</p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showEditModal.open && showEditModal.product && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowEditModal({ open: false, product: null })}>
+            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl" onClick={(e)=>e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-xl font-bold">Ürün Güncelle</h3>
+                <button onClick={()=>setShowEditModal({ open:false, product:null })} className="px-2 py-1 rounded hover:bg-slate-100">X</button>
+              </div>
+              <div className="p-5 space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-slate-700">Ad</label>
+                    <input placeholder="Ürün adı" className={`px-3 py-2 border rounded w-full ${formErrors.name?'border-red-300':''}`} value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})} />
+                    {formErrors.name && <span className="text-xs text-red-600">{formErrors.name}</span>}
+
+                    <label className="text-sm font-medium text-slate-700">Açıklama</label>
+                    <textarea placeholder="Kısa açıklama" className="w-full px-3 py-2 border rounded min-h-[90px]" value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})} />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Fiyat</label>
+                        <input placeholder="0" type="number" className={`px-3 py-2 border rounded w-full ${formErrors.price?'border-red-300':''}`} value={form.price} onChange={(e)=>setForm({...form,price:e.target.value})} />
+                        {formErrors.price && <span className="text-xs text-red-600">{formErrors.price}</span>}
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">KDV (%)</label>
+                        <input placeholder="0" type="number" className="px-3 py-2 border rounded w-full" value={form.taxRate} onChange={(e)=>setForm({...form,taxRate:Number(e.target.value)||0})} />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input id="incl-edit" type="checkbox" checked={form.priceIncludesTax} onChange={(e)=>setForm({...form,priceIncludesTax:e.target.checked})} />
+                      <label htmlFor="incl-edit" className="text-sm text-slate-700">Fiyata KDV dahil</label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Kategori</label>
+                        <input placeholder="Kategori" className="px-3 py-2 border rounded w-full" value={form.category} onChange={(e)=>setForm({...form,category:e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-700">Marka</label>
+                        <input placeholder="Marka" className="px-3 py-2 border rounded w-full" value={form.brand} onChange={(e)=>setForm({...form,brand:e.target.value})} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Stok</label>
+                      <input placeholder="0" type="number" className={`px-3 py-2 border rounded w-full ${formErrors.stock?'border-red-300':''}`} value={form.stock} onChange={(e)=>setForm({...form,stock:Number(e.target.value)||0})} />
+                      {formErrors.stock && <span className="text-xs text-red-600">{formErrors.stock}</span>}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input id="hasVar" type="checkbox" checked={form.hasVariations} onChange={(e)=>setForm({...form,hasVariations:e.target.checked})} />
+                      <label htmlFor="hasVar" className="text-sm text-slate-700">Varyasyonlu ürün</label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-slate-700">Kapak Görseli</label>
+                    <input placeholder="Görsel URL" className="px-3 py-2 border rounded w-full" value={form.image} onChange={(e)=>setForm({...form,image:e.target.value})} />
+                    {form.image && (
+                      <div className="border rounded-lg p-2">
+                        <img src={form.image} alt="preview" className="w-full h-40 object-cover rounded" />
+                      </div>
+                    )}
+
+                    <label className="text-sm font-medium text-slate-700">Ek Görseller</label>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input placeholder="Görsel URL ekle" className="flex-1 px-3 py-2 border rounded" value={form._newImage || ''} onChange={(e)=>setForm({...form,_newImage:e.target.value})} />
+                        <button onClick={()=>{ if (form._newImage && String(form._newImage).trim()) { setForm({...form, images:[...form.images, String(form._newImage).trim()], _newImage:''}) } }} className="px-3 py-2 bg-slate-800 text-white rounded">Ekle</button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(form.images||[]).map((url:string,idx:number)=>(
+                          <div key={idx} className="relative border rounded overflow-hidden">
+                            <img src={url} className="w-full h-24 object-cover" />
+                            <button onClick={()=>setForm({...form, images: form.images.filter((_:any,i:number)=>i!==idx)})} className="absolute top-1 right-1 bg-white/80 rounded px-1 text-xs">Sil</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                      <p className="text-xs text-slate-600">Not: "Aktif" ve "XML muaf" alanları için backend alanları eklenmeden kalıcı değildir.</p>
+                      <div className="mt-2 flex items-center gap-4">
+                        <label className="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={form.isActive} onChange={(e)=>setForm({...form,isActive:e.target.checked})} />Aktif</label>
+                        <label className="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={form.excludeFromXml} onChange={(e)=>setForm({...form,excludeFromXml:e.target.checked})} />XML muaf</label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                  <button onClick={()=>setShowEditModal({ open:false, product:null })} className="px-4 py-2 border rounded">Vazgeç</button>
+                  <button disabled={saving} onClick={async()=>{
+                    try {
+                      if (!validateForm()) return
+                      setSaving(true)
+                      const payload = buildUpdatePayload()
+                      await api.put(`/admin/products/${(showEditModal.product as any).id}` , payload)
+                      setShowEditModal({ open:false, product:null })
+                      await fetchProducts(currentPage)
+                    } catch { alert('Ürün güncellenemedi') } finally { setSaving(false) }
+                  }} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">Güncelle</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div className="flex-1 max-w-md">
@@ -225,6 +459,7 @@ export default function Products() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Marka</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Durum</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">SKU</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">İşlem</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -287,6 +522,13 @@ export default function Products() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-slate-500 font-mono">{product.sku || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openEdit(product)} className="p-2 hover:bg-blue-50 rounded-lg" title="Güncelle">
+                          <Edit className="w-4 h-4 text-blue-600" />
+                        </button>
+                      </div>
                     </td>
                   </motion.tr>
                 )

@@ -41,7 +41,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       title: 'Müşteri Yönetimi',
       items: [
         { id: 'customers', label: 'Kullanıcılar', icon: Users },
-        { id: 'user-database', label: 'Kullanıcı Veritabanı', icon: UsersRound },
+        { id: 'user-database', label: 'Kullanıcı Seviyesi', icon: UsersRound },
         { id: 'user-addresses', label: 'Kullanıcı Adresleri', icon: MapPin },
         { id: 'user-profiles', label: 'Kullanıcı Profilleri', icon: User },
         { id: 'user-events', label: 'Kullanıcı Etkinlikleri', icon: Activity },

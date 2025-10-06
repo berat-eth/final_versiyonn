@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Eye, Search, Filter, Download, Clock, CheckCircle, XCircle, Package, X, Truck, FileText, Printer, Send, MapPin, Phone, Mail, CreditCard, Calendar } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { orderService } from '@/lib/services'
+import { generateShippingLabelHTML } from '@/lib/printTemplates'
 import type { Order } from '@/lib/api'
 import { api } from '@/lib/api'
 
@@ -34,6 +35,10 @@ export default function Orders() {
   const [trackingNumber, setTrackingNumber] = useState('')
   const [cargoCompany, setCargoCompany] = useState('')
   const [newStatus, setNewStatus] = useState<any>('processing')
+  const [detailLoading, setDetailLoading] = useState<boolean>(false)
+  const [generatingLabelId, setGeneratingLabelId] = useState<number | null>(null)
+  const [autoInvoicingId, setAutoInvoicingId] = useState<number | null>(null)
+  const [autoInvoiceSupported, setAutoInvoiceSupported] = useState<boolean>(true)
 
   const statusConfig: Record<any, { label: string; color: string; icon: any; dotColor: string }> = {
     pending: { label: 'Ödeme Bekleniyor', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: Clock, dotColor: 'bg-yellow-500' },
@@ -61,6 +66,69 @@ export default function Orders() {
   const handleTrackCargo = (order: Order) => {
     if (order.trackingNumber) {
       alert(`📦 Kargo takip: ${order.trackingNumber}\nKargo Firması: ${order.cargoCompany}`)
+    }
+  }
+
+  const handleGenerateShippingLabel = async (order: Order) => {
+    try {
+      setGeneratingLabelId(order.id)
+      const res = await api.post<any>(`/admin/orders/${(order as any).id}/shipping-label`)
+      const data = (res as any)?.data
+      if (data) {
+        const html = generateShippingLabelHTML(data)
+        const w = window.open('', '_blank')
+        if (w) {
+          w.document.open()
+          w.document.write(html)
+          w.document.close()
+        } else {
+          alert(`Kargo fişi oluşturuldu\nBarkod: ${data.barcode}\nAlıcı: ${data.shipTo?.name}`)
+        }
+      } else {
+        alert('Kargo fişi oluşturulamadı')
+      }
+    } catch (e) {
+      alert('Kargo fişi oluşturulurken hata oluştu')
+    } finally {
+      setGeneratingLabelId(null)
+    }
+  }
+
+  const handleAutoInvoice = async (order: Order) => {
+    try {
+      setAutoInvoicingId(order.id)
+      // Tek dene: olmayan uç için 404 aldığımızda özelliği kapat ve kullanıcıyı bilgilendir
+      const r1 = await api.post<any>(`/admin/orders/${(order as any).id}/invoice/auto`).catch((err: any) => err)
+      const success = (r1 as any)?.success === true
+      if (success) {
+        alert('Fatura otomatik oluşturuldu')
+        await reloadOrders()
+      } else {
+        setAutoInvoiceSupported(false)
+        alert('Otomatik fatura özelliği şu anda sunucuda desteklenmiyor (404).')
+      }
+    } catch (e) {
+      setAutoInvoiceSupported(false)
+      alert('Otomatik fatura özelliği şu anda sunucuda desteklenmiyor.')
+    } finally {
+      setAutoInvoicingId(null)
+    }
+  }
+
+  const openOrderDetails = async (order: Order) => {
+    try {
+      setNewStatus((order as any).status)
+      setViewingOrder(order)
+      setDetailLoading(true)
+      const res = await api.get<any>(`/admin/orders/${(order as any).id}`)
+      if ((res as any)?.success && (res as any).data) {
+        setViewingOrder((res as any).data)
+        setNewStatus(((res as any).data as any).status)
+      }
+    } catch (e) {
+      // Sessiz düş; mevcut listedeki veriyi göster
+    } finally {
+      setDetailLoading(false)
     }
   }
 
@@ -118,7 +186,39 @@ export default function Orders() {
           <h2 className="text-3xl font-bold text-slate-800">Sipariş Yönetimi</h2>
           <p className="text-slate-500 mt-1">Tüm siparişlerinizi takip edin</p>
         </div>
-        <button className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-shadow">
+        <button
+          onClick={() => {
+            try {
+              const csvRows: string[] = []
+              csvRows.push('Sipariş No,Müşteri,Email,Tarih,Ödeme,Tutar,Durum')
+              orders.forEach((o) => {
+                const id = `#${o.id}`
+                const name = (o as any).userName || (o as any).customer || ''
+                const email = (o as any).userEmail || (o as any).customerEmail || ''
+                const date = (o as any).createdAt || (o as any).date || ''
+                const payment = (o as any).paymentMethod || (o as any).payment || ''
+                const amount = (o.totalAmount ?? (o as any).total) as any
+                const status = String((o as any).status || '')
+                const row = [id, name, email, date, payment, String(amount), status]
+                  .map(v => String(v).replaceAll('"', '""'))
+                  .map(v => `"${v}"`).join(',')
+                csvRows.push(row)
+              })
+              const blob = new Blob(['\ufeff' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `siparisler-${new Date().toISOString().slice(0,10)}.csv`
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+              URL.revokeObjectURL(url)
+            } catch {
+              alert('Rapor indirilemedi')
+            }
+          }}
+          className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-shadow"
+        >
           <Download className="w-5 h-5" />
           <span>Rapor İndir</span>
         </button>
@@ -226,12 +326,30 @@ export default function Orders() {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => { setViewingOrder(order); setNewStatus((order as any).status); }}
+                          onClick={() => { openOrderDetails(order) }}
                           className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
                           title="Detayları Gör"
                         >
                           <Eye className="w-5 h-5 text-slate-400 group-hover:text-blue-600" />
                         </button>
+                        <button
+                          onClick={() => handleGenerateShippingLabel(order)}
+                          disabled={generatingLabelId === order.id}
+                          className="p-2 hover:bg-emerald-50 rounded-lg transition-colors group disabled:opacity-50"
+                          title="Kargo Fişi Oluştur"
+                        >
+                          <Printer className="w-5 h-5 text-slate-400 group-hover:text-emerald-600" />
+                        </button>
+                        {autoInvoiceSupported && (
+                          <button
+                            onClick={() => handleAutoInvoice(order)}
+                            disabled={autoInvoicingId === order.id}
+                            className="p-2 hover:bg-green-50 rounded-lg transition-colors group disabled:opacity-50"
+                            title="Otomatik Fatura Kes"
+                          >
+                            <FileText className="w-5 h-5 text-slate-400 group-hover:text-green-600" />
+                          </button>
+                        )}
                         {order.trackingNumber && (
                         <button
                           onClick={() => {
@@ -304,7 +422,7 @@ export default function Orders() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-[min(40rem,calc(100vw-2rem))] max-h-[calc(100vh-4rem)] overflow-y-auto"
             >
               <div className="p-6 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
@@ -622,6 +740,9 @@ export default function Orders() {
               </div>
 
               <div className="p-6 space-y-6">
+                {detailLoading && (
+                  <div className="text-sm text-slate-500">Detaylar yükleniyor...</div>
+                )}
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-500">Sipariş No</p>
@@ -651,7 +772,12 @@ export default function Orders() {
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Tarih</p>
-                    <p className="font-bold text-slate-800">{(viewingOrder as any).createdAt || (viewingOrder as any).date || '-'}</p>
+                    <p className="font-bold text-slate-800">{(() => {
+                      const raw = (viewingOrder as any).createdAt || (viewingOrder as any).date
+                      if (!raw) return '-'
+                      const d = new Date(raw)
+                      return isNaN(d.getTime()) ? String(raw) : d.toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })
+                    })()}</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Ödeme Yöntemi</p>
@@ -663,17 +789,48 @@ export default function Orders() {
                   </div>
                 </div>
 
+                {/* Ürünler */}
+                {Array.isArray(viewingOrder.items) && viewingOrder.items.length > 0 && (
+                  <div className="bg-white rounded-xl border border-slate-200">
+                    <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-700">Ürünler</p>
+                      <span className="text-xs text-slate-500">{viewingOrder.items.length} kalem</span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {viewingOrder.items.map((it, idx) => (
+                        <div key={idx} className="p-4 flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            {it.productImage ? (
+                              <img src={it.productImage} alt={it.productName} className="w-12 h-12 rounded object-cover border border-slate-200" />
+                            ) : (
+                              <div className="w-12 h-12 rounded bg-slate-100 border border-slate-200" />
+                            )}
+                            <div>
+                              <p className="font-medium text-slate-800">{it.productName}</p>
+                              <p className="text-xs text-slate-500">Adet: {it.quantity}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-slate-800">₺{(it.price * it.quantity).toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">Birim: ₺{it.price.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* İletişim Bilgileri */}
                 <div className="bg-slate-50 rounded-xl p-4">
                   <p className="text-sm font-semibold text-slate-700 mb-3">İletişim Bilgileri</p>
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2 text-sm">
                       <Mail className="w-4 h-4 text-slate-500" />
-                      <span className="text-slate-700">{viewingOrder.customerEmail}</span>
+                      <span className="text-slate-700">{(viewingOrder as any).userEmail || (viewingOrder as any).customerEmail || '-'}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-sm">
                       <Phone className="w-4 h-4 text-slate-500" />
-                      <span className="text-slate-700">{viewingOrder.customerPhone}</span>
+                      <span className="text-slate-700">{(viewingOrder as any).customerPhone || '-'}</span>
                     </div>
                   </div>
                 </div>
@@ -692,7 +849,7 @@ export default function Orders() {
                       <FileText className="w-4 h-4 text-purple-600" />
                       <p className="text-sm font-semibold text-slate-700">Fatura Adresi</p>
                     </div>
-                    <p className="text-sm text-slate-600">{viewingOrder.billingAddress}</p>
+                    <p className="text-sm text-slate-600">{(viewingOrder as any).billingAddress || (viewingOrder as any).fullAddress || viewingOrder.shippingAddress || '-'}</p>
                   </div>
                 </div>
 
@@ -750,8 +907,29 @@ export default function Orders() {
                 )}
 
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-                  <p className="text-sm text-slate-500 mb-2">Toplam Tutar</p>
-                  <p className="text-3xl font-bold text-green-600">₺{(viewingOrder.total ?? viewingOrder.totalAmount).toLocaleString()}</p>
+                  <p className="text-sm text-slate-500 mb-3">Sipariş Özeti</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Ara Toplam</span>
+                      <span className="font-semibold text-slate-800">₺{(() => {
+                        const total = (viewingOrder as any).total ?? viewingOrder.totalAmount
+                        const subtotal = typeof total === 'number' ? total * 0.82 : total
+                        return Number(subtotal).toLocaleString()
+                      })()}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">KDV (%18)</span>
+                      <span className="font-semibold text-slate-800">₺{(() => {
+                        const total = (viewingOrder as any).total ?? viewingOrder.totalAmount
+                        const vat = typeof total === 'number' ? total * 0.18 : 0
+                        return Number(vat).toLocaleString()
+                      })()}</span>
+                    </div>
+                    <div className="pt-2 border-t border-emerald-200 flex items-center justify-between">
+                      <span className="font-semibold text-slate-800">Toplam</span>
+                      <span className="text-2xl font-bold text-green-600">₺{((viewingOrder as any).total ?? viewingOrder.totalAmount).toLocaleString()}</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Hızlı İşlemler */}

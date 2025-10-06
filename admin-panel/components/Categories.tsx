@@ -1,14 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FolderTree, Plus, Edit2, Trash2, Search, Filter, Download, Upload } from 'lucide-react'
+import { FolderTree, Plus, Edit2, Trash2, Search, Filter, Download, Upload, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { productService } from '@/lib/services'
+import { api } from '@/lib/api'
 
 export default function Categories() {
   const [categories, setCategories] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -99,6 +102,48 @@ export default function Categories() {
           </div>
         )}
       </div>
+
+      {/* Yeni Kategori Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full" onClick={(e)=>e.stopPropagation()}>
+            <div className="p-6 border-b flex items-center justify-between">
+              <h3 className="text-2xl font-bold">Yeni Kategori</h3>
+              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Kategori Adı</label>
+                <input value={newCategoryName} onChange={(e)=>setNewCategoryName(e.target.value)} placeholder="Örn: Polar Bere" className="w-full px-4 py-3 border rounded-xl" />
+              </div>
+              <div className="flex space-x-3 pt-2">
+                <button
+                  disabled={saving || !newCategoryName.trim()}
+                  onClick={async()=>{
+                    try {
+                      setSaving(true)
+                      const res = await api.post<any>('/admin/categories', { name: newCategoryName.trim() })
+                      if ((res as any)?.success) {
+                        setCategories([newCategoryName.trim(), ...categories])
+                        setNewCategoryName('')
+                        setShowAddModal(false)
+                      } else {
+                        alert('Kategori eklenemedi')
+                      }
+                    } catch {
+                      alert('Kategori eklenemedi')
+                    } finally { setSaving(false) }
+                  }}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
+                >Kaydet</button>
+                <button onClick={()=>setShowAddModal(false)} className="px-6 py-3 border rounded-xl">İptal</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

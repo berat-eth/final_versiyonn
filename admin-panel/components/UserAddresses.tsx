@@ -36,6 +36,7 @@ export default function UserAddresses() {
           <h2 className="text-3xl font-bold text-slate-800">Kullanıcı Adresleri</h2>
           <p className="text-slate-500 mt-1">Müşteri adreslerini görüntüleyin</p>
         </div>
+        <button onClick={fetchAddresses} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg">Yenile</button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-6">

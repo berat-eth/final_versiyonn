@@ -1,22 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TrendingUp, Users, DollarSign, ShoppingCart, BarChart3 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { api } from '@/lib/api'
 
 export default function CustomerAnalytics() {
-  const [analytics, setAnalytics] = useState([
-    { id: 1, userName: 'Ahmet Yılmaz', totalOrders: 15, totalSpent: 3500.00, averageOrderValue: 233.33, customerLifetimeValue: 5000.00, lastOrderDate: '2024-01-15' },
-    { id: 2, userName: 'Ayşe Demir', totalOrders: 8, totalSpent: 1800.00, averageOrderValue: 225.00, customerLifetimeValue: 2500.00, lastOrderDate: '2024-01-14' },
-  ])
+  const [analytics, setAnalytics] = useState<any[]>([])
+  const [chartData, setChartData] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const chartData = [
-    { month: 'Oca', orders: 45, revenue: 12500 },
-    { month: 'Şub', orders: 52, revenue: 15200 },
-    { month: 'Mar', orders: 48, revenue: 13800 },
-    { month: 'Nis', orders: 61, revenue: 17500 },
-  ]
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const [top, monthly] = await Promise.all([
+          api.get<any>('/admin/analytics/top-customers').catch(() => null),
+          api.get<any>('/admin/analytics/orders-monthly').catch(() => null)
+        ])
+        if (alive && top && (top as any).success && Array.isArray((top as any).data)) setAnalytics((top as any).data)
+        if (alive && monthly && (monthly as any).success && Array.isArray((monthly as any).data)) setChartData((monthly as any).data)
+      } catch (e: any) {
+        setError(e?.message || 'Analitik verileri getirilemedi')
+      } finally {
+        setLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -31,22 +46,22 @@ export default function CustomerAnalytics() {
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 text-white">
           <Users className="w-8 h-8 mb-3" />
           <p className="text-blue-100 text-sm">Toplam Müşteri</p>
-          <p className="text-3xl font-bold">2</p>
+          <p className="text-3xl font-bold">{analytics.length}</p>
         </div>
         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg p-6 text-white">
           <ShoppingCart className="w-8 h-8 mb-3" />
           <p className="text-green-100 text-sm">Toplam Sipariş</p>
-          <p className="text-3xl font-bold">23</p>
+          <p className="text-3xl font-bold">{Array.isArray(chartData) ? chartData.reduce((s:any,m:any)=> s + (Number(m.orders)||0), 0) : 0}</p>
         </div>
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white">
           <DollarSign className="w-8 h-8 mb-3" />
           <p className="text-purple-100 text-sm">Toplam Gelir</p>
-          <p className="text-3xl font-bold">₺5,300</p>
+          <p className="text-3xl font-bold">₺{Array.isArray(chartData) ? Number(chartData.reduce((s:any,m:any)=> s + (Number(m.revenue)||0), 0)).toLocaleString('tr-TR') : 0}</p>
         </div>
         <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg p-6 text-white">
           <TrendingUp className="w-8 h-8 mb-3" />
           <p className="text-orange-100 text-sm">Ort. Sipariş Değeri</p>
-          <p className="text-3xl font-bold">₺230</p>
+          <p className="text-3xl font-bold">₺{(() => { const o = Array.isArray(chartData) ? chartData.reduce((s:any,m:any)=> s + (Number(m.orders)||0), 0) : 0; const r = Array.isArray(chartData) ? chartData.reduce((s:any,m:any)=> s + (Number(m.revenue)||0), 0) : 0; return o>0 ? (r/o).toFixed(0) : '0'; })()}</p>
         </div>
       </div>
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { UsersRound, Plus, Users, TrendingUp, X, ShoppingBag, DollarSign, Mail, Phone, MapPin, Eye, Award } from 'lucide-react'
+import { api } from '@/lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface Segment {
@@ -28,6 +29,11 @@ interface SegmentUser {
 export default function Segments() {
   const [viewingSegment, setViewingSegment] = useState<Segment | null>(null)
   const [showUsers, setShowUsers] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [criteria, setCriteria] = useState('')
+  const [color, setColor] = useState('from-blue-500 to-blue-600')
   
   // Mock segment verileri kaldırıldı - Backend entegrasyonu için hazır
   const segments: Segment[] = []
@@ -52,7 +58,7 @@ export default function Segments() {
           <h2 className="text-3xl font-bold text-slate-800">Müşteri Segmentleri</h2>
           <p className="text-slate-500 mt-1">Müşterilerinizi segmentlere ayırın</p>
         </div>
-        <button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg">
+        <button onClick={()=>setShowAdd(true)} className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg">
           <Plus className="w-5 h-5 mr-2" />
           Yeni Segment
         </button>
@@ -340,6 +346,55 @@ export default function Segments() {
           </motion.div>
         )}
       </AnimatePresence>
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=>setShowAdd(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full" onClick={(e)=>e.stopPropagation()}>
+            <div className="p-6 border-b flex items-center justify-between">
+              <h3 className="text-2xl font-bold">Yeni Segment</h3>
+              <button onClick={()=>setShowAdd(false)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-6 h-6"/></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Ad</label>
+                <input value={name} onChange={(e)=>setName(e.target.value)} className="w-full px-4 py-3 border rounded-xl" placeholder="Örn: VIP"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Kriter</label>
+                <input value={criteria} onChange={(e)=>setCriteria(e.target.value)} className="w-full px-4 py-3 border rounded-xl" placeholder="Örn: Toplam harcama > 5000"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Renk</label>
+                <select value={color} onChange={(e)=>setColor(e.target.value)} className="w-full px-4 py-3 border rounded-xl">
+                  <option value="from-blue-500 to-blue-600">Mavi</option>
+                  <option value="from-green-500 to-green-600">Yeşil</option>
+                  <option value="from-purple-500 to-purple-600">Mor</option>
+                  <option value="from-orange-500 to-orange-600">Turuncu</option>
+                </select>
+              </div>
+              <div className="flex space-x-3 pt-2">
+                <button
+                  disabled={adding || !name.trim()}
+                  onClick={async()=>{
+                    try {
+                      setAdding(true)
+                      const res = await api.post<any>('/admin/segments', { name: name.trim(), criteria: criteria.trim(), color })
+                      if ((res as any)?.success) {
+                        setShowAdd(false)
+                        setName(''); setCriteria('')
+                        alert('Segment oluşturuldu')
+                      } else {
+                        alert('Segment eklenemedi')
+                      }
+                    } catch { alert('Segment eklenemedi') } finally { setAdding(false) }
+                  }}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
+                >Kaydet</button>
+                <button onClick={()=>setShowAdd(false)} className="px-6 py-3 border rounded-xl">İptal</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

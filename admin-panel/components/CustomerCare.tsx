@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Wallet, ArrowUpRight, ArrowDownRight, Plus, Minus, ArrowLeftRight, X, Save, History } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { api } from '@/lib/api'
 
 interface Balance {
   id: number
@@ -25,7 +26,6 @@ interface Transaction {
 }
 
 export default function CustomerCare() {
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
   const [balances, setBalances] = useState<Balance[]>([])
 
   const [transactions, setTransactions] = useState<Transaction[]>([
@@ -50,7 +50,23 @@ export default function CustomerCare() {
     setShowModal(true)
   }
 
-  const handleTransaction = () => {
+  useEffect(()=>{
+    let alive = true
+    ;(async()=>{
+      try {
+        const res = await api.get<any>('/admin/wallets')
+        if (alive && (res as any)?.success && Array.isArray((res as any).data)) {
+          const list = (res as any).data as any[]
+          setBalances(list.map((w:any)=>({ id: w.id, customer: w.customerName || w.customer || `#${w.userId}` , balance: Number(w.balance||0), lastTransaction: '', date: w.updatedAt || w.createdAt || '', type: 'credit' })))
+        } else {
+          setBalances([])
+        }
+      } catch { setBalances([]) }
+    })()
+    return ()=>{ alive = false }
+  }, [])
+
+  const handleTransaction = async () => {
     if (!selectedCustomer || !amount) {
       alert('Lütfen tüm alanları doldurun!')
       return
@@ -72,23 +88,21 @@ export default function CustomerCare() {
     }
 
     if (modalType === 'add') {
-      setBalances(balances.map(b => 
-        b.id === selectedCustomer.id 
-          ? { ...b, balance: b.balance + amountNum, lastTransaction: `+₺${amountNum}`, type: 'credit' }
-          : b
-      ))
-      alert(`✅ ${selectedCustomer.customer} hesabına ₺${amountNum} eklendi!`)
+      try {
+        await api.post('/admin/wallets/add', { userId: selectedCustomer.id, amount: amountNum, description })
+        setBalances(balances.map(b => b.id === selectedCustomer.id ? { ...b, balance: b.balance + amountNum, lastTransaction: `+₺${amountNum}`, type: 'credit' } : b))
+        alert(`✅ ${selectedCustomer.customer} hesabına ₺${amountNum} eklendi!`)
+      } catch { alert('İşlem başarısız') }
     } else if (modalType === 'remove') {
       if (selectedCustomer.balance < amountNum) {
         alert('❌ Yetersiz bakiye!')
         return
       }
-      setBalances(balances.map(b => 
-        b.id === selectedCustomer.id 
-          ? { ...b, balance: b.balance - amountNum, lastTransaction: `-₺${amountNum}`, type: 'debit' }
-          : b
-      ))
-      alert(`✅ ${selectedCustomer.customer} hesabından ₺${amountNum} çıkarıldı!`)
+      try {
+        await api.post('/admin/wallets/remove', { userId: selectedCustomer.id, amount: amountNum, description })
+        setBalances(balances.map(b => b.id === selectedCustomer.id ? { ...b, balance: b.balance - amountNum, lastTransaction: `-₺${amountNum}`, type: 'debit' } : b))
+        alert(`✅ ${selectedCustomer.customer} hesabından ₺${amountNum} çıkarıldı!`)
+      } catch { alert('İşlem başarısız') }
     } else if (modalType === 'transfer') {
       if (!transferTo) {
         alert('Lütfen transfer yapılacak müşteriyi seçin!')
@@ -99,21 +113,18 @@ export default function CustomerCare() {
         return
       }
       
-      setBalances(balances.map(b => {
-        if (b.id === selectedCustomer.id) {
-          return { ...b, balance: b.balance - amountNum, lastTransaction: `-₺${amountNum}`, type: 'debit' }
-        }
-        if (b.id === parseInt(transferTo)) {
-          return { ...b, balance: b.balance + amountNum, lastTransaction: `+₺${amountNum}`, type: 'credit' }
-        }
-        return b
-      }))
-      
-      const toCustomer = balances.find(b => b.id === parseInt(transferTo))
-      newTransaction.fromCustomer = selectedCustomer.customer
-      newTransaction.toCustomer = toCustomer?.customer
-      
-      alert(`✅ ${selectedCustomer.customer} → ${toCustomer?.customer} transfer tamamlandı!`)
+      try {
+        await api.post('/admin/wallets/transfer', { fromUserId: selectedCustomer.id, toUserId: parseInt(transferTo), amount: amountNum, description })
+        setBalances(balances.map(b => {
+          if (b.id === selectedCustomer.id) { return { ...b, balance: b.balance - amountNum, lastTransaction: `-₺${amountNum}`, type: 'debit' } }
+          if (b.id === parseInt(transferTo)) { return { ...b, balance: b.balance + amountNum, lastTransaction: `+₺${amountNum}`, type: 'credit' } }
+          return b
+        }))
+        const toCustomer = balances.find(b => b.id === parseInt(transferTo))
+        newTransaction.fromCustomer = selectedCustomer.customer
+        newTransaction.toCustomer = toCustomer?.customer
+        alert(`✅ ${selectedCustomer.customer} → ${toCustomer?.customer} transfer tamamlandı!`)
+      } catch { alert('İşlem başarısız') }
     }
 
     setTransactions([newTransaction, ...transactions])

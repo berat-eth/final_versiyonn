@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { UserPlus, Mail, Phone, Building, Calendar, TrendingUp, Search, Filter, X, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { api } from '@/lib/api'
 
 interface Lead {
   id: number
@@ -23,6 +24,13 @@ export default function CRMLeads() {
   const [leads] = useState<Lead[]>([])
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [company, setCompany] = useState('')
+  const [source, setSource] = useState('Form')
 
   const statusColors = {
     'Yeni': 'bg-blue-100 text-blue-700 border-blue-200',
@@ -49,7 +57,7 @@ export default function CRMLeads() {
           <h2 className="text-3xl font-bold text-slate-800">Potansiyel Müşteriler</h2>
           <p className="text-slate-500 mt-1">Lead'lerinizi takip edin ve yönetin</p>
         </div>
-        <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-shadow font-medium flex items-center space-x-2">
+        <button onClick={()=>setShowAdd(true)} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-shadow font-medium flex items-center space-x-2">
           <UserPlus className="w-5 h-5" />
           <span>Yeni Lead Ekle</span>
         </button>
@@ -268,6 +276,65 @@ export default function CRMLeads() {
           </motion.div>
         )}
       </AnimatePresence>
+      {showAdd && (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=>setShowAdd(false)}>
+        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full" onClick={(e)=>e.stopPropagation()}>
+          <div className="p-6 border-b flex items-center justify-between">
+            <h3 className="text-2xl font-bold">Yeni Lead</h3>
+            <button onClick={()=>setShowAdd(false)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-6 h-6"/></button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Ad Soyad</label>
+                <input value={name} onChange={(e)=>setName(e.target.value)} className="w-full px-4 py-3 border rounded-xl"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Şirket</label>
+                <input value={company} onChange={(e)=>setCompany(e.target.value)} className="w-full px-4 py-3 border rounded-xl"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">E-posta</label>
+                <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} className="w-full px-4 py-3 border rounded-xl"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Telefon</label>
+                <input value={phone} onChange={(e)=>setPhone(e.target.value)} className="w-full px-4 py-3 border rounded-xl"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Kaynak</label>
+                <select value={source} onChange={(e)=>setSource(e.target.value)} className="w-full px-4 py-3 border rounded-xl">
+                  <option>Form</option>
+                  <option>Kampanya</option>
+                  <option>Telefon</option>
+                  <option>E-posta</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex space-x-3 pt-2">
+              <button
+                disabled={adding || !name.trim() || !email.trim()}
+                onClick={async()=>{
+                  try {
+                    setAdding(true)
+                    const res = await api.post<any>('/admin/leads', { name: name.trim(), email: email.trim(), phone: phone.trim(), company: company.trim(), source })
+                    if ((res as any)?.success) {
+                      setShowAdd(false)
+                      setName(''); setEmail(''); setPhone(''); setCompany('')
+                      alert('Lead oluşturuldu')
+                    } else {
+                      alert('Lead eklenemedi')
+                    }
+                  } catch { alert('Lead eklenemedi') } finally { setAdding(false) }
+                }}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
+              >Kaydet</button>
+              <button onClick={()=>setShowAdd(false)} className="px-6 py-3 border rounded-xl">İptal</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
     </div>
   )
 }

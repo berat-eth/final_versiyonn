@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Dashboard from '@/components/Dashboard'
 import Sidebar from '@/components/Sidebar'
 import Products from '@/components/Products'
@@ -64,6 +64,16 @@ import CustomProductionMessages from '@/components/CustomProductionMessages'
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('dashboard')
+
+  // Hızlı eylemler ve bileşenler arası basit gezinme için custom event dinleyicisi
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail as { tab?: string }
+      if (detail?.tab) setActiveTab(String(detail.tab))
+    }
+    window.addEventListener('goto-tab', handler as EventListener)
+    return () => window.removeEventListener('goto-tab', handler as EventListener)
+  }, [])
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">

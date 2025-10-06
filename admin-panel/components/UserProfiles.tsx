@@ -1,35 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { User, Search, Filter, TrendingUp, Tag, DollarSign } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function UserProfiles() {
-  const [profiles, setProfiles] = useState([
-    { 
-      id: 1, 
-      userName: 'Ahmet Yılmaz', 
-      interests: ['Elektronik', 'Teknoloji'], 
-      brandPreferences: ['Apple', 'Samsung'],
-      avgPriceMin: 1000,
-      avgPriceMax: 5000,
-      discountAffinity: 0.75,
-      totalEvents: 145,
-      lastActive: '2024-01-15'
-    },
-    { 
-      id: 2, 
-      userName: 'Ayşe Demir', 
-      interests: ['Giyim', 'Moda'], 
-      brandPreferences: ['Zara', 'H&M'],
-      avgPriceMin: 200,
-      avgPriceMax: 1000,
-      discountAffinity: 0.85,
-      totalEvents: 98,
-      lastActive: '2024-01-14'
-    },
-  ])
+  const [profiles, setProfiles] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const res = await api.get<any>('/admin/user-profiles', { limit: 100, offset: 0 })
+        if (alive && (res as any)?.success && Array.isArray((res as any).data)) {
+          setProfiles((res as any).data)
+        }
+      } catch {}
+    })()
+    return () => { alive = false }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -59,9 +50,11 @@ export default function UserProfiles() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {profiles.map((profile, index) => (
+          {profiles
+            .filter(p => !searchTerm || String(p.userName||'').toLowerCase().includes(searchTerm.toLowerCase()))
+            .map((profile: any, index) => (
             <motion.div
-              key={profile.id}
+              key={profile.userId || profile.id || index}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.1 }}
@@ -73,7 +66,7 @@ export default function UserProfiles() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-800">{profile.userName}</h3>
-                  <p className="text-xs text-slate-500">Son aktif: {profile.lastActive}</p>
+                  <p className="text-xs text-slate-500">Son aktif: {profile.lastActive || '-'}</p>
                 </div>
               </div>
 
@@ -84,7 +77,7 @@ export default function UserProfiles() {
                     İlgi Alanları
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {profile.interests.map((interest, i) => (
+                    {(profile.interests||[]).map((interest: string, i: number) => (
                       <span key={i} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs">
                         {interest}
                       </span>
@@ -95,7 +88,7 @@ export default function UserProfiles() {
                 <div>
                   <p className="text-xs text-slate-500 mb-1">Tercih Edilen Markalar</p>
                   <div className="flex flex-wrap gap-1">
-                    {profile.brandPreferences.map((brand, i) => (
+                    {(profile.brandPreferences||[]).map((brand: string, i: number) => (
                       <span key={i} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs">
                         {brand}
                       </span>
@@ -106,17 +99,17 @@ export default function UserProfiles() {
                 <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200">
                   <div>
                     <p className="text-xs text-slate-500">Fiyat Aralığı</p>
-                    <p className="font-semibold text-slate-800 text-sm">₺{profile.avgPriceMin} - ₺{profile.avgPriceMax}</p>
+                    <p className="font-semibold text-slate-800 text-sm">₺{profile.avgPriceMin ?? 0} - ₺{profile.avgPriceMax ?? 0}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">İndirim İlgisi</p>
-                    <p className="font-semibold text-green-600 text-sm">%{(profile.discountAffinity * 100).toFixed(0)}</p>
+                    <p className="font-semibold text-green-600 text-sm">%{(Number(profile.discountAffinity||0) * 100).toFixed(0)}</p>
                   </div>
                 </div>
 
                 <div className="pt-3 border-t border-slate-200">
                   <p className="text-xs text-slate-500">Toplam Etkinlik</p>
-                  <p className="font-bold text-slate-800">{profile.totalEvents}</p>
+                  <p className="font-bold text-slate-800">{profile.totalEvents ?? 0}</p>
                 </div>
               </div>
             </motion.div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Users, Search, Filter, Download, Eye, Edit, Trash2, X, Save, Plus, Mail, Phone, MapPin, Calendar, Heart, ShoppingBag, TrendingUp, Award, Clock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -33,116 +33,7 @@ interface User {
 }
 
 export default function UserDatabase() {
-    const [users, setUsers] = useState<User[]>([
-        {
-            id: 1,
-            name: 'Ahmet Yılmaz',
-            email: 'ahmet.yilmaz@example.com',
-            phone: '+90 532 123 4567',
-            age: 32,
-            gender: 'Erkek',
-            birthDate: '1992-05-15',
-            address: 'Atatürk Cad. No: 123 Daire: 5',
-            city: 'İstanbul',
-            country: 'Türkiye',
-            postalCode: '34000',
-            registrationDate: '2023-01-15',
-            lastLogin: '2024-01-20 14:30',
-            status: 'active',
-            interests: ['Teknoloji', 'Spor', 'Seyahat', 'Müzik'],
-            favoriteCategories: ['Elektronik', 'Spor Giyim', 'Kitap'],
-            totalOrders: 45,
-            totalSpent: 125000,
-            averageOrderValue: 2777,
-            loyaltyPoints: 12500,
-            membershipLevel: 'Gold',
-            preferredPayment: 'Kredi Kartı',
-            newsletter: true,
-            smsNotifications: true,
-            notes: 'VIP müşteri, özel kampanyalara dahil edilmeli'
-        },
-        {
-            id: 2,
-            name: 'Ayşe Demir',
-            email: 'ayse.demir@example.com',
-            phone: '+90 533 234 5678',
-            age: 28,
-            gender: 'Kadın',
-            birthDate: '1996-08-22',
-            address: 'Cumhuriyet Mah. Barış Sok. No: 45',
-            city: 'Ankara',
-            country: 'Türkiye',
-            postalCode: '06000',
-            registrationDate: '2023-03-20',
-            lastLogin: '2024-01-20 10:15',
-            status: 'active',
-            interests: ['Moda', 'Güzellik', 'Yoga', 'Organik Ürünler'],
-            favoriteCategories: ['Giyim', 'Kozmetik', 'Sağlık'],
-            totalOrders: 32,
-            totalSpent: 85000,
-            averageOrderValue: 2656,
-            loyaltyPoints: 8500,
-            membershipLevel: 'Silver',
-            preferredPayment: 'Havale',
-            newsletter: true,
-            smsNotifications: false,
-            notes: 'Organik ürünlere ilgi gösteriyor'
-        },
-        {
-            id: 3,
-            name: 'Mehmet Kaya',
-            email: 'mehmet.kaya@example.com',
-            phone: '+90 534 345 6789',
-            age: 45,
-            gender: 'Erkek',
-            birthDate: '1979-12-10',
-            address: 'Konak Mah. Deniz Cad. No: 78',
-            city: 'İzmir',
-            country: 'Türkiye',
-            postalCode: '35000',
-            registrationDate: '2022-06-10',
-            lastLogin: '2024-01-19 16:45',
-            status: 'active',
-            interests: ['Bahçe', 'DIY', 'Teknoloji', 'Otomotiv'],
-            favoriteCategories: ['Ev & Yaşam', 'Elektronik', 'Bahçe'],
-            totalOrders: 67,
-            totalSpent: 210000,
-            averageOrderValue: 3134,
-            loyaltyPoints: 21000,
-            membershipLevel: 'Platinum',
-            preferredPayment: 'Kredi Kartı',
-            newsletter: true,
-            smsNotifications: true,
-            notes: 'En sadık müşterilerimizden, yüksek harcama profili'
-        },
-        {
-            id: 4,
-            name: 'Fatma Şahin',
-            email: 'fatma.sahin@example.com',
-            phone: '+90 535 456 7890',
-            age: 35,
-            gender: 'Kadın',
-            birthDate: '1989-03-18',
-            address: 'Nilüfer Mah. Lale Sok. No: 12',
-            city: 'Bursa',
-            country: 'Türkiye',
-            postalCode: '16000',
-            registrationDate: '2023-09-05',
-            lastLogin: '2024-01-15 09:20',
-            status: 'inactive',
-            interests: ['Kitap', 'Sanat', 'Kahve', 'Fotoğrafçılık'],
-            favoriteCategories: ['Kitap', 'Hobi', 'Elektronik'],
-            totalOrders: 12,
-            totalSpent: 45000,
-            averageOrderValue: 3750,
-            loyaltyPoints: 4500,
-            membershipLevel: 'Bronze',
-            preferredPayment: 'Kapıda Ödeme',
-            newsletter: false,
-            smsNotifications: false,
-            notes: 'Son 2 aydır aktif değil, geri kazanma kampanyası düşünülebilir'
-        }
-    ])
+    const [users, setUsers] = useState<User[]>([])
 
     const [viewingUser, setViewingUser] = useState<User | null>(null)
     const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -150,6 +41,29 @@ export default function UserDatabase() {
     const [searchTerm, setSearchTerm] = useState('')
     const [filterStatus, setFilterStatus] = useState('all')
     const [filterMembership, setFilterMembership] = useState('all')
+
+    // Load users from remote API (admin endpoint), fallback to search endpoint
+    useEffect(() => {
+        let alive = true
+        ;(async () => {
+            try {
+                const res = await fetch('https://api.zerodaysoftware.tr/api/admin/users?page=1&limit=100', { headers: { Accept: 'application/json' } })
+                if (res.ok) {
+                    const data = await res.json()
+                    if (alive && data?.success && Array.isArray(data.data)) {
+                        setUsers(data.data as any)
+                        return
+                    }
+                }
+                const res2 = await fetch('https://api.zerodaysoftware.tr/api/users/search?query=an&excludeUserId=0', { headers: { Accept: 'application/json' } })
+                if (alive && res2.ok) {
+                    const data2 = await res2.json()
+                    if (data2?.success && Array.isArray(data2.data)) setUsers(data2.data as any)
+                }
+            } catch {}
+        })()
+        return () => { alive = false }
+    }, [])
 
     const filteredUsers = users.filter(user => {
         const matchesSearch =
@@ -192,8 +106,40 @@ export default function UserDatabase() {
         }
     }
 
-    const exportData = () => {
-        alert('Kullanıcı verileri CSV formatında indiriliyor...')
+    const exportData = async () => {
+        try {
+            // Sunucu CSV export ucu: text/csv beklenir
+            const res = await fetch('https://api.zerodaysoftware.tr/api/admin/users/export?format=csv', { headers: { Accept: 'text/csv' } })
+            if (res.ok) {
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `kullanicilar-${new Date().toISOString().slice(0,10)}.csv`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+                return
+            }
+            // Fallback: mevcut users ile istemci tarafı CSV oluştur
+            const header = ['ID','Ad','Email','Telefon','Şehir','Üyelik','Durum','Sipariş','Harcama']
+            const rows = users.map(u => [u.id, u.name, u.email, u.phone, u.city, u.membershipLevel, u.status, u.totalOrders, u.totalSpent])
+            const csv = [header, ...rows]
+              .map(r => r.map(v => String(v).replaceAll('"','""')).map(v => `"${v}"`).join(','))
+              .join('\n')
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `kullanicilar-${new Date().toISOString().slice(0,10)}.csv`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+        } catch {
+            alert('Export indirilemedi')
+        }
     }
 
     return (
@@ -202,7 +148,7 @@ export default function UserDatabase() {
                 <div>
                     <h2 className="text-3xl font-bold text-slate-800 flex items-center">
                         <Users className="w-8 h-8 text-blue-600 mr-3" />
-                        Kullanıcı Veritabanı
+                        Kullanıcı Seviyesi
                     </h2>
                     <p className="text-slate-500 mt-1">Tüm kullanıcı verilerini detaylı şekilde yönetin</p>
                 </div>
