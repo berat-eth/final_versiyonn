@@ -51,4 +51,20 @@ export const productService = {
   getPriceRange: async () => {
     return api.get<ApiResponse<{ min: number; max: number }>>('/products/price-range');
   },
+
+  // Get lowest stock products
+  getLowStockProducts: async (limit = 20, category?: string) => {
+    const params: Record<string, string | number> = { limit };
+    if (category) params.category = category;
+    return api.get<ApiResponse<Array<{ id: number; name: string; sku?: string; stock: number; image?: string; category?: string }>>>('/products/low-stock', params);
+  },
+
+  // Notify production need with quantities per size/variant
+  notifyProductionNeed: async (payload: {
+    productId: number;
+    notes?: string;
+    variants: Array<{ size?: string; quantity: number }>;
+  }) => {
+    return api.post<ApiResponse<{ success: boolean }>>('/production/notify', payload);
+  },
 };

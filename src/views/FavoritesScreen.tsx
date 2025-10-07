@@ -19,7 +19,7 @@ import { ProductController } from '../controllers/ProductController';
 import { UserController } from '../controllers/UserController';
 import { CartController } from '../controllers/CartController';
 import { useAppContext } from '../contexts/AppContext';
-// VariationModal removed
+import { VariationModal } from '../components/VariationModal';
 
 interface FavoritesScreenProps {
   navigation: any;

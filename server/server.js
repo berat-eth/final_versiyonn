@@ -9666,6 +9666,120 @@ app.get('/api/user-level/:userId', async (req, res) => {
   }
 });
 
+// Admin: Get EXP transactions for a user
+app.get('/api/admin/user-exp/:userId', authenticateAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const tenantId = req.tenant?.id || 1;
+    const { limit = 50, offset = 0 } = req.query;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, source, amount, description, orderId, productId, timestamp
+       FROM user_exp_transactions
+       WHERE userId = ? AND tenantId = ?
+       ORDER BY timestamp DESC
+       LIMIT ? OFFSET ?`,
+      [userId, tenantId, parseInt(limit), parseInt(offset)]
+    );
+    const [[agg]] = await poolWrapper.execute(
+      `SELECT COALESCE(SUM(amount),0) as totalExp FROM user_exp_transactions WHERE userId = ? AND tenantId = ?`,
+      [userId, tenantId]
+    );
+    res.json({ success: true, data: { totalExp: Number(agg.totalExp||0), transactions: rows } });
+  } catch (error) {
+    console.error('❌ Error getting user EXP:', error);
+    res.status(500).json({ success: false, message: 'Error getting user EXP' });
+  }
+});
+
+// Admin: Adjust EXP (add positive, subtract negative)
+app.post('/api/admin/user-exp/adjust', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { userId, amount, description } = req.body || {};
+    const adj = parseInt(amount, 10);
+    if (!userId || !Number.isFinite(adj) || adj === 0) {
+      return res.status(400).json({ success: false, message: 'userId and non-zero integer amount required' });
+    }
+    const source = adj >= 0 ? 'manual_add' : 'manual_remove';
+    await poolWrapper.execute(
+      `INSERT INTO user_exp_transactions (userId, tenantId, source, amount, description)
+       VALUES (?, ?, ?, ?, ?)`,
+      [String(userId), String(tenantId), source, Math.abs(adj) * (adj >= 0 ? 1 : -1), description || 'Admin manual EXP']
+    );
+    const [[agg]] = await poolWrapper.execute(
+      `SELECT COALESCE(SUM(amount),0) as totalExp FROM user_exp_transactions WHERE userId = ? AND tenantId = ?`,
+      [String(userId), String(tenantId)]
+    );
+    res.json({ success: true, message: 'EXP adjusted', data: { totalExp: Number(agg.totalExp||0) } });
+  } catch (error) {
+    console.error('❌ Error adjusting EXP:', error);
+    res.status(500).json({ success: false, message: 'Error adjusting EXP' });
+  }
+});
+
+// Admin: List users with total EXP and derived level (paginated)
+app.get('/api/admin/user-levels', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    const search = String(req.query.search || '').trim();
+
+    // Base users query
+    let usersQuery = `SELECT u.id, u.name, u.email FROM users u WHERE u.tenantId = ?`;
+    const params = [tenantId];
+    if (search) {
+      usersQuery += ` AND (u.name LIKE ? OR u.email LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    usersQuery += ` ORDER BY u.id DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const [users] = await poolWrapper.execute(usersQuery, params);
+
+    // Fetch EXP totals for listed users
+    const ids = users.map((u) => u.id);
+    let expMap = new Map();
+    if (ids.length) {
+      const placeholders = ids.map(()=>'?').join(',');
+      const [expRows] = await poolWrapper.execute(
+        `SELECT userId, COALESCE(SUM(amount),0) as totalExp
+         FROM user_exp_transactions
+         WHERE tenantId = ? AND userId IN (${placeholders})
+         GROUP BY userId`,
+        [tenantId, ...ids]
+      );
+      for (const r of expRows) expMap.set(Number(r.userId), Number(r.totalExp||0));
+    }
+
+    // Level calculation consistent with single-user endpoint
+    const levels = [
+      { id: 'bronze', displayName: 'Bronz', minExp: 0, maxExp: 1500, color: '#CD7F32', multiplier: 1.0 },
+      { id: 'iron', displayName: 'Demir', minExp: 1500, maxExp: 4500, color: '#C0C0C0', multiplier: 1.2 },
+      { id: 'gold', displayName: 'Altın', minExp: 4500, maxExp: 10500, color: '#FFD700', multiplier: 1.5 },
+      { id: 'platinum', displayName: 'Platin', minExp: 10500, maxExp: 22500, color: '#E5E4E2', multiplier: 2.0 },
+      { id: 'diamond', displayName: 'Elmas', minExp: 22500, maxExp: Infinity, color: '#B9F2FF', multiplier: 3.0 }
+    ];
+
+    const data = users.map((u) => {
+      const totalExp = expMap.get(Number(u.id)) || 0;
+      let currentLevel = levels[0];
+      for (let i = levels.length - 1; i >= 0; i--) {
+        if (totalExp >= levels[i].minExp) { currentLevel = levels[i]; break; }
+      }
+      const nextLevel = levels.find(l => l.minExp > totalExp) || null;
+      const expToNextLevel = nextLevel ? (nextLevel.minExp - totalExp) : 0;
+      const progressPercentage = nextLevel ? Math.min(100, ((totalExp - currentLevel.minExp) / (nextLevel.minExp - currentLevel.minExp)) * 100) : 100;
+      return { userId: u.id, name: u.name, email: u.email, totalExp, currentLevel, expToNextLevel, progressPercentage };
+    });
+
+    res.json({ success: true, data: { users: data, pagination: { limit, offset, count: data.length } } });
+  } catch (error) {
+    console.error('❌ Error listing user levels:', error);
+    res.status(500).json({ success: false, message: 'Error listing user levels' });
+  }
+});
+
 // Add EXP to user
 app.post('/api/user-level/:userId/add-exp', async (req, res) => {
   try {

@@ -1,5 +1,24 @@
 // Product Types
-// Variations removed
+// Varyasyon tipleri (opsiyonel) geri eklendi
+
+export interface ProductVariationOption {
+  id: number | string;
+  variationId?: number | string;
+  value: string;
+  priceModifier?: number;
+  stock?: number;
+  sku?: string;
+  image?: string;
+  isActive?: boolean;
+}
+
+export interface ProductVariation {
+  id: number | string;
+  productId?: number;
+  name: string;
+  displayOrder?: number;
+  options: ProductVariationOption[];
+}
 
 export interface Product {
   id: number;
@@ -18,7 +37,8 @@ export interface Product {
   brand: string;
   rating: number;
   reviewCount: number;
-  // variations removed
+  // Opsiyonel varyasyon bilgisi (bazı ekranlar kullanıyor)
+  variations?: ProductVariation[];
   hasVariations?: boolean;
   lastUpdated?: string; // API'den gelen son güncelleme tarihi
   externalId?: string; // Dış sistem ID'si

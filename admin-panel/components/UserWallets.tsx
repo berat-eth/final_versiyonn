@@ -66,11 +66,19 @@ export default function UserWallets() {
     try {
       setAdjustLoading(true)
       setAdjustError(null)
-      await api.post('/admin/wallets/adjust', {
-        userId: selectedWallet.userId,
-        amount: sign * amt,
-        reason: adjustNote || (sign > 0 ? 'Admin balance increase' : 'Admin balance decrease')
-      })
+      if (sign > 0) {
+        await api.post('/admin/wallets/add', {
+          userId: selectedWallet.userId,
+          amount: amt,
+          description: adjustNote || 'Admin balance increase'
+        })
+      } else {
+        await api.post('/admin/wallets/remove', {
+          userId: selectedWallet.userId,
+          amount: amt,
+          description: adjustNote || 'Admin balance decrease'
+        })
+      }
       await fetchWallets()
       await openTransactions(selectedWallet)
       setAdjustAmount('')

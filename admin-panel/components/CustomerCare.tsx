@@ -28,11 +28,7 @@ interface Transaction {
 export default function CustomerCare() {
   const [balances, setBalances] = useState<Balance[]>([])
 
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    { id: 1, customerId: 1, type: 'add', amount: 500, description: 'Bakiye yükleme', date: '2024-01-15 14:30' },
-    { id: 2, customerId: 2, type: 'remove', amount: 300, description: 'Sipariş ödemesi', date: '2024-01-16 10:20' },
-    { id: 3, customerId: 3, type: 'add', amount: 1200, description: 'İade işlemi', date: '2024-01-17 16:45' },
-  ])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
 
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState<'add' | 'remove' | 'transfer' | 'history'>('add')

@@ -41,7 +41,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       title: 'Müşteri Yönetimi',
       items: [
         { id: 'customers', label: 'Kullanıcılar', icon: Users },
-        { id: 'user-database', label: 'Kullanıcı Seviyesi', icon: UsersRound },
+        { id: 'user-levels', label: 'Kullanıcı Seviyesi', icon: UsersRound },
         { id: 'user-addresses', label: 'Kullanıcı Adresleri', icon: MapPin },
         { id: 'user-profiles', label: 'Kullanıcı Profilleri', icon: User },
         { id: 'user-events', label: 'Kullanıcı Etkinlikleri', icon: Activity },
@@ -50,18 +50,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         { id: 'segments', label: 'Müşteri Segmentleri', icon: UsersRound },
       ]
     },
-    {
-      title: 'CRM',
-      items: [
-        { id: 'crm-leads', label: 'Potansiyel Müşteriler', icon: UserPlus },
-        { id: 'crm-contacts', label: 'İletişim Yönetimi', icon: PhoneCall },
-        { id: 'crm-opportunities', label: 'Fırsatlar', icon: Target },
-        { id: 'crm-activities', label: 'Aktiviteler', icon: Calendar },
-        { id: 'crm-pipeline', label: 'Satış Hunisi', icon: TrendingUp },
-        { id: 'crm-deals', label: 'Anlaşmalar', icon: Briefcase },
-        { id: 'crm-tasks', label: 'Görevler', icon: FileCheck },
-      ]
-    },
+    // CRM grubu kaldırıldı
     {
       title: 'Üretim & Lojistik',
       items: [

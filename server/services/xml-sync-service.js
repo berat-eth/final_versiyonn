@@ -274,7 +274,10 @@ class XmlSyncService {
         salesUnit: item.SatisBirimi || 'ADET',
         totalImages: images.length, // Toplam görsel sayısı
         hasVariations: variations.length > 0,
-        sku: variations.length > 0 ? variations[0].StokKodu : '' // İlk varyasyonun stok kodu
+        sku: variations.length > 0 ? variations[0].StokKodu : '', // İlk varyasyonun stok kodu
+        // Yeni tek tablo alanları
+        xmlOptions: JSON.stringify({ options: variationDetails }),
+        xmlRaw: JSON.stringify(item)
       };
 
       // Gerekli alanları kontrol et
@@ -375,7 +378,7 @@ class XmlSyncService {
       let productId;
               // Önce external ID ile mevcut ürünü kontrol et
         const [existing] = await this.pool.execute(
-          'SELECT id, name, price, stock, image, images, image1, image2, image3, image4, image5, hasVariations FROM products WHERE externalId = ? AND tenantId = ?',
+          'SELECT id, name, price, stock, image, images, image1, image2, image3, image4, image5, hasVariations, sku, categoryTree, productUrl, salesUnit, totalImages, xmlOptions FROM products WHERE externalId = ? AND tenantId = ?',
           [product.externalId, tenantId]
         );
 
@@ -431,6 +434,26 @@ class XmlSyncService {
           updates.push('sku = ?');
           hasChanges = true;
         }
+        if (existingProduct.categoryTree !== product.categoryTree) {
+          updates.push('categoryTree = ?');
+          hasChanges = true;
+        }
+        if (existingProduct.productUrl !== product.productUrl) {
+          updates.push('productUrl = ?');
+          hasChanges = true;
+        }
+        if (existingProduct.salesUnit !== product.salesUnit) {
+          updates.push('salesUnit = ?');
+          hasChanges = true;
+        }
+        if (existingProduct.totalImages !== product.totalImages) {
+          updates.push('totalImages = ?');
+          hasChanges = true;
+        }
+        if (existingProduct.xmlOptions !== product.xmlOptions) {
+          updates.push('xmlOptions = ?');
+          hasChanges = true;
+        }
 
         if (hasChanges) {
           await this.pool.execute(
@@ -447,6 +470,11 @@ class XmlSyncService {
               ...(updates.includes('image5 = ?') ? [product.image5] : []),
               ...(updates.includes('hasVariations = ?') ? [product.hasVariations] : []),
               ...(updates.includes('sku = ?') ? [product.sku] : []),
+              ...(updates.includes('categoryTree = ?') ? [product.categoryTree] : []),
+              ...(updates.includes('productUrl = ?') ? [product.productUrl] : []),
+              ...(updates.includes('salesUnit = ?') ? [product.salesUnit] : []),
+              ...(updates.includes('totalImages = ?') ? [product.totalImages] : []),
+              ...(updates.includes('xmlOptions = ?') ? [product.xmlOptions] : []),
               product.lastUpdated,
               existingProduct.id
             ]
@@ -458,8 +486,8 @@ class XmlSyncService {
       } else {
         // Yeni ürün ekle
         const [insertResult] = await this.pool.execute(
-          `INSERT INTO products (tenantId, name, description, price, category, image, images, image1, image2, image3, image4, image5, stock, brand, rating, reviewCount, externalId, source, hasVariations, sku, lastUpdated) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO products (tenantId, name, description, price, category, image, images, image1, image2, image3, image4, image5, stock, brand, rating, reviewCount, externalId, source, hasVariations, sku, lastUpdated, categoryTree, productUrl, salesUnit, totalImages, xmlOptions, xmlRaw) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             tenantId,
             product.name,
@@ -481,7 +509,13 @@ class XmlSyncService {
             product.source,
             product.hasVariations,
             product.sku,
-            product.lastUpdated
+            product.lastUpdated,
+            product.categoryTree,
+            product.productUrl,
+            product.salesUnit,
+            product.totalImages,
+            product.xmlOptions,
+            product.xmlRaw
           ]
         );
         productId = insertResult.insertId;

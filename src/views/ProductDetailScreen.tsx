@@ -560,7 +560,43 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             {ProductController.formatPrice(currentPrice)}
           </Text>
 
-          {/* Mevcut Bedenler ve Stok alanı kaldırıldı */}
+          {/* Mevcut Bedenler (XML'den zenginleştirilen varyasyonlardan) */}
+          {Array.isArray(product.variations) && product.variations.length > 0 && (
+            (() => {
+              // Beden/Size odaklı varyasyonları bul
+              const sizeLike = (name: string = '') => {
+                const n = (name || '').toLowerCase();
+                return n.includes('beden') || n.includes('size') || n.includes('numara');
+              };
+              const sizeVariations = product.variations.filter(v => sizeLike(v.name || ''));
+              const fallbacks = sizeVariations.length > 0 ? sizeVariations : product.variations;
+              const options = fallbacks.flatMap(v => Array.isArray(v.options) ? v.options : []);
+              const uniqueValues: string[] = [];
+              const seen = new Set<string>();
+              options.forEach((opt) => {
+                const val = String(opt?.value || '').trim();
+                if (!val) return;
+                const key = val.toLowerCase();
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  uniqueValues.push(val);
+                }
+              });
+              if (uniqueValues.length === 0) return null;
+              return (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={styles.variationLabel}>Mevcut Bedenler</Text>
+                  <View style={styles.availableSizes}>
+                    {uniqueValues.map((val, idx) => (
+                      <View key={`${val}-${idx}`} style={styles.sizeChip}>
+                        <Text style={styles.sizeText}>{val}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              );
+            })()
+          )}
 
           <View style={styles.stockContainer}>
             {currentStock > 0 ? (
@@ -605,9 +641,9 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
                       </Text>
                       <Text style={styles.selectedVariationValue}>
                         {option.value}
-                        {option.priceModifier > 0 && (
+                        {typeof option.priceModifier === 'number' && option.priceModifier > 0 && (
                           <Text style={styles.priceModifier}>
-                            {' '}(+{ProductController.formatPrice(option.priceModifier)})
+                            {' '}(+{ProductController.formatPrice(Number(option.priceModifier || 0))})
                           </Text>
                         )}
                       </Text>

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { Factory, Package, Calendar, TrendingUp, AlertCircle, CheckCircle, Clock, Plus, Search, Filter, Edit, Trash2, ClipboardList, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Factory, Package, Calendar, TrendingUp, AlertCircle, CheckCircle, Clock, Plus, Search, Filter, Edit, Trash2, ClipboardList, X, BarChart3, Users, Zap, LayoutGrid, List, ChevronDown, Eye, PlayCircle, PauseCircle } from 'lucide-react'
+import { productService } from '@/lib/services'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface ProductionPlan {
@@ -17,14 +18,37 @@ interface ProductionPlan {
   priority: 'Düşük' | 'Orta' | 'Yüksek' | 'Acil'
   factory: string
   notes: string
+  assignedTeam?: string
+  estimatedDays?: number
 }
 
 export default function ProductionPlanning() {
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
   const [plans, setPlans] = useState<ProductionPlan[]>([])
-
+  const [lowStock, setLowStock] = useState<Array<{ id: number; name: string; sku?: string; stock: number; image?: string }>>([])
+  const [loadingLowStock, setLoadingLowStock] = useState(false)
+  const [errorLowStock, setErrorLowStock] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searching, setSearching] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingPlan, setEditingPlan] = useState<ProductionPlan | null>(null)
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
+  const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [filterPriority, setFilterPriority] = useState<string>('all')
+  const [filterFactory, setFilterFactory] = useState<string>('all')
+  const [showFilters, setShowFilters] = useState(false)
+  const [showSizeModal, setShowSizeModal] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string; sku?: string; stock: number; image?: string } | null>(null)
+  const [sizeQuantities, setSizeQuantities] = useState<Record<string, number>>({
+    'XS': 0,
+    'S': 0,
+    'M': 0,
+    'L': 0,
+    'XL': 0,
+    '2XL': 0,
+    '3XL': 0,
+    '4XL': 0,
+    '5XL': 0,
+  })
 
   const statusColors = {
     'Planlandı': 'bg-blue-100 text-blue-700 border-blue-200',
@@ -48,64 +72,428 @@ export default function ProductionPlanning() {
   }
 
   // İstatistik kartları kaldırıldı (mock)
+  useEffect(() => {
+    let alive = true
+      ; (async () => {
+        try {
+          setLoadingLowStock(true)
+          setErrorLowStock(null)
+          // Normal ürün API'si: tüm ürünler, stok artan sırada
+          const res = await productService.getProducts(1, 50)
+          if (alive && (res as any)?.success && Array.isArray((res as any)?.data?.products)) {
+            const products = (res as any).data.products as Array<{ id: number; name: string; sku?: string; stock?: number; image?: string }>
+            const sorted = [...products].sort((a, b) => (a.stock ?? 0) - (b.stock ?? 0))
+            setLowStock(sorted.map(p => ({ id: p.id, name: p.name, sku: (p as any).sku, stock: p.stock ?? 0, image: p.image })))
+          } else {
+            setLowStock([])
+          }
+        } catch (e: any) {
+          setErrorLowStock(e?.message || 'Düşük stok listesi alınamadı')
+          setLowStock([])
+        } finally { setLoadingLowStock(false) }
+      })()
+    return () => { alive = false }
+  }, [])
+
+  // Arama: 300ms debounce ile ürünleri isim/SKU'ya göre getir
+  useEffect(() => {
+    let alive = true
+    const t = setTimeout(async () => {
+      try {
+        setSearching(true)
+        if (searchQuery.trim().length >= 2) {
+          const res = await productService.searchProducts(searchQuery.trim(), 1, 50)
+          if (alive && (res as any)?.success && Array.isArray((res as any)?.data)) {
+            const results = (res as any).data as Array<{ id: number; name: string; sku?: string; stock?: number; image?: string }>
+            const sorted = [...results].sort((a, b) => (a.stock ?? 0) - (b.stock ?? 0))
+            setLowStock(sorted.map(p => ({ id: p.id, name: p.name, sku: (p as any).sku, stock: p.stock ?? 0, image: p.image })))
+          }
+        } else {
+          const res = await productService.getProducts(1, 50)
+          if (alive && (res as any)?.success && Array.isArray((res as any)?.data?.products)) {
+            const products = (res as any).data.products as Array<{ id: number; name: string; sku?: string; stock?: number; image?: string }>
+            const sorted = [...products].sort((a, b) => (a.stock ?? 0) - (b.stock ?? 0))
+            setLowStock(sorted.map(p => ({ id: p.id, name: p.name, sku: (p as any).sku, stock: p.stock ?? 0, image: p.image })))
+          }
+        }
+      } finally { setSearching(false) }
+    }, 300)
+    return () => { alive = false; clearTimeout(t) }
+  }, [searchQuery])
 
   const getProgressPercentage = (plan: ProductionPlan) => {
     return Math.round((plan.producedQuantity / plan.plannedQuantity) * 100)
   }
 
+  const filteredPlans = plans.filter(plan => {
+    if (filterStatus !== 'all' && plan.status !== filterStatus) return false
+    if (filterPriority !== 'all' && plan.priority !== filterPriority) return false
+    if (filterFactory !== 'all' && plan.factory !== filterFactory) return false
+    return true
+  })
+
+  const stats = {
+    total: plans.length,
+    planned: plans.filter(p => p.status === 'Planlandı').length,
+    inProgress: plans.filter(p => p.status === 'Üretimde').length,
+    completed: plans.filter(p => p.status === 'Tamamlandı').length,
+    delayed: plans.filter(p => p.status === 'Gecikmiş').length,
+    totalProduction: plans.reduce((sum, p) => sum + p.producedQuantity, 0),
+    totalPlanned: plans.reduce((sum, p) => sum + p.plannedQuantity, 0),
+  }
+
+  const kanbanColumns = [
+    { status: 'Planlandı', color: 'blue', icon: Clock },
+    { status: 'Üretimde', color: 'yellow', icon: Factory },
+    { status: 'Tamamlandı', color: 'green', icon: CheckCircle },
+  ]
+
+  const handleProductSelect = (product: { id: number; name: string; sku?: string; stock: number; image?: string }) => {
+    setSelectedProduct(product)
+    setSizeQuantities({
+      'XS': 0,
+      'S': 0,
+      'M': 0,
+      'L': 0,
+      'XL': 0,
+      '2XL': 0,
+      '3XL': 0,
+      '4XL': 0,
+      '5XL': 0,
+    })
+    setShowSizeModal(true)
+  }
+
+  const handleSizeQuantityChange = (size: string, value: number) => {
+    setSizeQuantities(prev => ({
+      ...prev,
+      [size]: Math.max(0, value)
+    }))
+  }
+
+  const getTotalQuantity = () => {
+    return Object.values(sizeQuantities).reduce((sum, qty) => sum + qty, 0)
+  }
+
+  const handleCreateProductionRequest = () => {
+    const totalQty = getTotalQuantity()
+    if (totalQty === 0) {
+      alert('Lütfen en az bir beden için miktar girin')
+      return
+    }
+
+    // Burada backend'e istek atılacak
+    console.log('Üretim talebi oluşturuluyor:', {
+      product: selectedProduct,
+      sizes: sizeQuantities,
+      total: totalQty
+    })
+
+    alert(`${selectedProduct?.name} için toplam ${totalQty} adet üretim talebi oluşturuldu!`)
+    setShowSizeModal(false)
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-800">Üretim Planlama</h2>
-          <p className="text-slate-500 mt-1">Fabrika üretim planlarını yönetin</p>
+          <p className="text-slate-500 mt-1">Fabrika üretim planlarını görselleştirin ve yönetin</p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-shadow font-medium flex items-center space-x-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Yeni Plan Ekle</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`px-4 py-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-4 py-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-shadow font-medium flex items-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Yeni Plan</span>
+          </button>
+        </div>
       </div>
 
-      {/* İstatistik kartları kaldırıldı */}
+      {/* İstatistik Kartları */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <ClipboardList className="w-6 h-6" />
+            </div>
+            <span className="text-3xl font-bold">{stats.total}</span>
+          </div>
+          <p className="text-blue-100 text-sm">Toplam Plan</p>
+        </motion.div>
 
-      {/* Filtreler */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl p-6 text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <Factory className="w-6 h-6" />
+            </div>
+            <span className="text-3xl font-bold">{stats.inProgress}</span>
+          </div>
+          <p className="text-orange-100 text-sm">Üretimde</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <CheckCircle className="w-6 h-6" />
+            </div>
+            <span className="text-3xl font-bold">{stats.completed}</span>
+          </div>
+          <p className="text-green-100 text-sm">Tamamlandı</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+            <span className="text-3xl font-bold">{stats.totalPlanned > 0 ? Math.round((stats.totalProduction / stats.totalPlanned) * 100) : 0}%</span>
+          </div>
+          <p className="text-purple-100 text-sm">Genel İlerleme</p>
+        </motion.div>
+      </div>
+
+      {/* Filtreler ve Arama */}
       <div className="bg-white rounded-2xl shadow-sm p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div className="flex-1 max-w-md">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <div className="flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Ürün ara..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Ürün adı, kodu veya fabrika ara..."
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <button className="flex items-center space-x-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center space-x-2 px-4 py-3 rounded-xl transition-all ${showFilters ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-700 border-slate-200'} border`}
+            >
               <Filter className="w-4 h-4" />
-              <span>Filtrele</span>
+              <span>Filtreler</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
-            <select className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option>Tüm Durumlar</option>
-              <option>Planlandı</option>
-              <option>Üretimde</option>
-              <option>Tamamlandı</option>
-              <option>Gecikmiş</option>
+
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Tüm Durumlar</option>
+              <option value="Planlandı">Planlandı</option>
+              <option value="Üretimde">Üretimde</option>
+              <option value="Tamamlandı">Tamamlandı</option>
+              <option value="Gecikmiş">Gecikmiş</option>
+            </select>
+
+            <select
+              value={filterPriority}
+              onChange={e => setFilterPriority(e.target.value)}
+              className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Tüm Öncelikler</option>
+              <option value="Düşük">Düşük</option>
+              <option value="Orta">Orta</option>
+              <option value="Yüksek">Yüksek</option>
+              <option value="Acil">Acil</option>
             </select>
           </div>
         </div>
 
-        {/* Üretim Planları Listesi */}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="mt-4 pt-4 border-t border-slate-200"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Fabrika</label>
+                  <select
+                    value={filterFactory}
+                    onChange={e => setFilterFactory(e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tüm Fabrikalar</option>
+                    <option value="Fabrika 1">Fabrika 1</option>
+                    <option value="Fabrika 2">Fabrika 2</option>
+                    <option value="Fabrika 3">Fabrika 3</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tarih Aralığı</label>
+                  <input
+                    type="date"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setFilterStatus('all')
+                      setFilterPriority('all')
+                      setFilterFactory('all')
+                      setSearchQuery('')
+                    }}
+                    className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                  >
+                    Filtreleri Temizle
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Düşük Stoklu Ürünler */}
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-slate-800">Düşük Stoklu Ürünler</h3>
+            <p className="text-slate-500 text-sm mt-1">Üretim talebi oluşturmak için ürün seçin</p>
+          </div>
+          <button
+            onClick={() => {
+              (async () => {
+                try {
+                  setLoadingLowStock(true)
+                  const res = await productService.getProducts(1, 50)
+                  if ((res as any)?.success && Array.isArray((res as any)?.data?.products)) {
+                    const products = (res as any).data.products as Array<{ id: number; name: string; sku?: string; stock?: number; image?: string }>
+                    const sorted = [...products].sort((a, b) => (a.stock ?? 0) - (b.stock ?? 0))
+                    setLowStock(sorted.map(p => ({ id: p.id, name: p.name, sku: (p as any).sku, stock: p.stock ?? 0, image: p.image })))
+                  }
+                } finally { setLoadingLowStock(false) }
+              })()
+            }}
+            className="px-4 py-2 bg-slate-100 rounded-lg text-slate-700 hover:bg-slate-200 text-sm transition-colors"
+          >
+            Yenile
+          </button>
+        </div>
+
+        {(loadingLowStock || searching) && (
+          <div className="text-center py-8 text-slate-500">
+            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+            Yükleniyor...
+          </div>
+        )}
+
+        {errorLowStock && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {errorLowStock}
+          </div>
+        )}
+
+        {!loadingLowStock && !searching && !errorLowStock && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Görsel</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Ürün Adı</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">SKU</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Stok</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">İşlem</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {lowStock.map((product, index) => (
+                  <motion.tr
+                    key={product.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="hover:bg-slate-50 transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="w-14 h-14 rounded-lg object-cover border border-slate-200 shadow-sm" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-200 flex items-center justify-center">
+                          <Package className="w-6 h-6 text-slate-400" />
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-slate-800">{product.name}</p>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 font-mono text-sm">{product.sku || '-'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${product.stock === 0 ? 'bg-red-100 text-red-700' :
+                          product.stock < 10 ? 'bg-orange-100 text-orange-700' :
+                            'bg-yellow-100 text-yellow-700'
+                        }`}>
+                        {product.stock} adet
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleProductSelect(product)}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all font-medium text-sm"
+                      >
+                        Seç
+                      </button>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Üretim Planları Listesi */}
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <h3 className="text-xl font-bold text-slate-800 mb-4">Aktif Üretim Planları</h3>
         <div className="space-y-4">
           {plans.map((plan, index) => {
             const StatusIcon = statusIcons[plan.status]
             const progress = getProgressPercentage(plan)
-            
+
             return (
               <motion.div
                 key={plan.id}
@@ -140,7 +528,7 @@ export default function ProductionPlanning() {
                           {plan.startDate} - {plan.endDate}
                         </span>
                       </div>
-                      
+
                       {/* İlerleme Çubuğu */}
                       <div className="mb-2">
                         <div className="flex items-center justify-between text-sm mb-1">
@@ -148,17 +536,16 @@ export default function ProductionPlanning() {
                           <span className="font-bold text-slate-800">{progress}%</span>
                         </div>
                         <div className="w-full bg-slate-200 rounded-full h-3">
-                          <div 
-                            className={`h-3 rounded-full transition-all ${
-                              progress === 100 ? 'bg-green-500' : 
-                              progress >= 70 ? 'bg-blue-500' : 
-                              progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-                            }`}
+                          <div
+                            className={`h-3 rounded-full transition-all ${progress === 100 ? 'bg-green-500' :
+                                progress >= 70 ? 'bg-blue-500' :
+                                  progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
                             style={{ width: `${progress}%` }}
                           />
                         </div>
                       </div>
-                      
+
                       <p className="text-xs text-slate-500">{plan.notes}</p>
                     </div>
                   </div>
@@ -184,9 +571,9 @@ export default function ProductionPlanning() {
                       <StatusIcon className="w-4 h-4 mr-2" />
                       {plan.status}
                     </span>
-                    
+
                     <div className="flex items-center gap-2">
-                      <button 
+                      <button
                         onClick={() => setEditingPlan(plan)}
                         className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
                       >
@@ -289,9 +676,189 @@ export default function ProductionPlanning() {
                   <button className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium">
                     Planı Kaydet
                   </button>
-                  <button 
+                  <button
                     onClick={() => setShowAddModal(false)}
                     className="flex-1 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl hover:bg-slate-200 transition-colors font-medium"
+                  >
+                    İptal
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Beden Seçim ve Üretim Talebi Modalı */}
+      <AnimatePresence>
+        {showSizeModal && selectedProduct && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowSizeModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-3xl">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    {selectedProduct.image ? (
+                      <img src={selectedProduct.image} alt={selectedProduct.name} className="w-20 h-20 rounded-xl object-cover border-2 border-white shadow-lg" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-xl bg-white/20 border-2 border-white flex items-center justify-center">
+                        <Package className="w-10 h-10" />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="text-2xl font-bold mb-1">{selectedProduct.name}</h3>
+                      <p className="text-blue-100 text-sm">SKU: {selectedProduct.sku || 'N/A'} • Mevcut Stok: {selectedProduct.stock} adet</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowSizeModal(false)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6">
+                <div className="mb-6">
+                  <h4 className="text-lg font-bold text-slate-800 mb-2">Beden Seçimi ve Miktar Belirleme</h4>
+                  <p className="text-slate-500 text-sm">Her beden için üretilecek miktarı girin</p>
+                </div>
+
+                {/* Beden Grid */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  {Object.keys(sizeQuantities).map((size) => (
+                    <motion.div
+                      key={size}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border-2 border-slate-200 hover:border-blue-400 transition-all"
+                    >
+                      <label className="block mb-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-lg font-bold text-slate-800">{size}</span>
+                          <span className={`px-2 py-1 rounded-md text-xs font-semibold ${sizeQuantities[size] > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'
+                            }`}>
+                            {sizeQuantities[size] > 0 ? `${sizeQuantities[size]} adet` : 'Boş'}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            value={sizeQuantities[size]}
+                            onChange={(e) => handleSizeQuantityChange(size, parseInt(e.target.value) || 0)}
+                            className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-lg font-semibold"
+                            placeholder="0"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1">
+                            <button
+                              onClick={() => handleSizeQuantityChange(size, sizeQuantities[size] + 1)}
+                              className="w-6 h-6 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center text-xs"
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={() => handleSizeQuantityChange(size, Math.max(0, sizeQuantities[size] - 1))}
+                              className="w-6 h-6 bg-slate-400 text-white rounded hover:bg-slate-500 flex items-center justify-center text-xs"
+                            >
+                              -
+                            </button>
+                          </div>
+                        </div>
+                      </label>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Özet Bilgiler */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 mb-6 border border-blue-200">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <p className="text-sm text-slate-600 mb-1">Toplam Miktar</p>
+                      <p className="text-3xl font-bold text-blue-600">{getTotalQuantity()}</p>
+                      <p className="text-xs text-slate-500">adet</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-slate-600 mb-1">Seçilen Beden</p>
+                      <p className="text-3xl font-bold text-purple-600">
+                        {Object.values(sizeQuantities).filter(q => q > 0).length}
+                      </p>
+                      <p className="text-xs text-slate-500">beden</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-slate-600 mb-1">Mevcut Stok</p>
+                      <p className="text-3xl font-bold text-orange-600">{selectedProduct.stock}</p>
+                      <p className="text-xs text-slate-500">adet</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hızlı Seçim Butonları */}
+                <div className="mb-6">
+                  <p className="text-sm font-medium text-slate-700 mb-3">Hızlı Miktar Seçimi (Tüm Bedenler)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {[10, 25, 50, 100, 200].map(qty => (
+                      <button
+                        key={qty}
+                        onClick={() => {
+                          const newQuantities = { ...sizeQuantities }
+                          Object.keys(newQuantities).forEach(size => {
+                            newQuantities[size] = qty
+                          })
+                          setSizeQuantities(newQuantities)
+                        }}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors text-sm font-medium"
+                      >
+                        {qty} adet
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const newQuantities = { ...sizeQuantities }
+                        Object.keys(newQuantities).forEach(size => {
+                          newQuantities[size] = 0
+                        })
+                        setSizeQuantities(newQuantities)
+                      }}
+                      className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors text-sm font-medium"
+                    >
+                      Temizle
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleCreateProductionRequest}
+                    disabled={getTotalQuantity() === 0}
+                    className={`flex-1 py-4 rounded-xl font-bold text-lg transition-all ${getTotalQuantity() === 0
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-xl hover:scale-[1.02]'
+                      }`}
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <Factory className="w-6 h-6" />
+                      Üretim Talebi Oluştur
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setShowSizeModal(false)}
+                    className="px-8 py-4 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-bold text-lg"
                   >
                     İptal
                   </button>

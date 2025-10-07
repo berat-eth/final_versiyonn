@@ -34,13 +34,6 @@ import SQLQuery from '@/components/SQLQuery'
 import ProjectAjax from '@/components/ProjectAjax'
 import Email from '@/components/Email'
 import SMS from '@/components/SMS'
-import CRMLeads from '@/components/CRMLeads'
-import CRMContacts from '@/components/CRMContacts'
-import CRMOpportunities from '@/components/CRMOpportunities'
-import CRMActivities from '@/components/CRMActivities'
-import CRMPipeline from '@/components/CRMPipeline'
-import CRMDeals from '@/components/CRMDeals'
-import CRMTasks from '@/components/CRMTasks'
 import ProductionPlanning from '@/components/ProductionPlanning'
 import ProductionOrders from '@/components/ProductionOrders'
 import ProductionTracking from '@/components/ProductionTracking'
@@ -61,6 +54,7 @@ import UserEvents from '@/components/UserEvents'
 import UserProfiles from '@/components/UserProfiles'
 import Recommendations from '@/components/Recommendations'
 // CustomProductionMessages merged into BulkCustomProduction
+import UserLevels from '@/components/UserLevels'
 
 
 export default function DashboardPage() {
@@ -108,18 +102,12 @@ export default function DashboardPage() {
           {activeTab === 'snort-logs' && <SnortLogs />}
           {activeTab === 'sql-query' && <SQLQuery />}
           {activeTab === 'user-database' && <UserDatabase />}
+          {activeTab === 'user-levels' && <UserLevels />}
           {activeTab === 'settings' && <Settings />}
           {activeTab === 'bulk-custom-production' && <BulkCustomProduction />}
           {activeTab === 'project-ajax' && <ProjectAjax />}
           {activeTab === 'email' && <Email />}
           {activeTab === 'sms' && <SMS />}
-          {activeTab === 'crm-leads' && <CRMLeads />}
-          {activeTab === 'crm-contacts' && <CRMContacts />}
-          {activeTab === 'crm-opportunities' && <CRMOpportunities />}
-          {activeTab === 'crm-activities' && <CRMActivities />}
-          {activeTab === 'crm-pipeline' && <CRMPipeline />}
-          {activeTab === 'crm-deals' && <CRMDeals />}
-          {activeTab === 'crm-tasks' && <CRMTasks />}
           {activeTab === 'production-planning' && <ProductionPlanning />}
           {activeTab === 'production-orders' && <ProductionOrders />}
           {activeTab === 'production-tracking' && <ProductionTracking />}

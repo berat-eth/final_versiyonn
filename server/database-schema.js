@@ -261,6 +261,33 @@ async function createDatabaseSchema(pool) {
           console.log('✅ Added priceIncludesTax to products');
       }
 
+      // Ensure XML-related columns exist in products for single-table storage
+      if (!prodColNames.includes('categoryTree')) {
+          await pool.execute('ALTER TABLE products ADD COLUMN categoryTree TEXT AFTER category');
+          console.log('✅ Added categoryTree to products');
+      }
+      if (!prodColNames.includes('productUrl')) {
+          await pool.execute('ALTER TABLE products ADD COLUMN productUrl VARCHAR(1000) AFTER categoryTree');
+          await pool.execute('CREATE INDEX idx_product_url ON products(productUrl(191))');
+          console.log('✅ Added productUrl to products');
+      }
+      if (!prodColNames.includes('salesUnit')) {
+          await pool.execute('ALTER TABLE products ADD COLUMN salesUnit VARCHAR(50) AFTER productUrl');
+          console.log('✅ Added salesUnit to products');
+      }
+      if (!prodColNames.includes('totalImages')) {
+          await pool.execute('ALTER TABLE products ADD COLUMN totalImages INT DEFAULT 0 AFTER image5');
+          console.log('✅ Added totalImages to products');
+      }
+      if (!prodColNames.includes('xmlOptions')) {
+          await pool.execute('ALTER TABLE products ADD COLUMN xmlOptions JSON AFTER hasVariations');
+          console.log('✅ Added xmlOptions (JSON) to products');
+      }
+      if (!prodColNames.includes('xmlRaw')) {
+          await pool.execute('ALTER TABLE products ADD COLUMN xmlRaw JSON AFTER xmlOptions');
+          console.log('✅ Added xmlRaw (JSON) to products');
+      }
+
       // Ensure image columns exist in products
       if (!prodColNames.includes('image1')) {
           await pool.execute('ALTER TABLE products ADD COLUMN image1 VARCHAR(500) AFTER images');
@@ -1453,97 +1480,7 @@ async function createDatabaseSchema(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-      // =========================
-      // CRM
-      // =========================
-      await pool.execute(`
-    CREATE TABLE IF NOT EXISTS crm_leads (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      tenantId INT NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      email VARCHAR(255),
-      phone VARCHAR(50),
-      source VARCHAR(50),
-      status ENUM('new','contacted','qualified','lost','converted') DEFAULT 'new',
-      ownerUserId INT NULL,
-      notes TEXT,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (ownerUserId) REFERENCES users(id) ON DELETE SET NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-
-      await pool.execute(`
-    CREATE TABLE IF NOT EXISTS crm_contacts (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      tenantId INT NOT NULL,
-      userId INT NULL,
-      name VARCHAR(255) NOT NULL,
-      email VARCHAR(255),
-      phone VARCHAR(50),
-      company VARCHAR(255),
-      position VARCHAR(100),
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-
-      await pool.execute(`
-    CREATE TABLE IF NOT EXISTS crm_pipeline_stages (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      tenantId INT NOT NULL,
-      name VARCHAR(100) NOT NULL,
-      probability INT DEFAULT 0,
-      sequence INT DEFAULT 1,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE KEY ux_pipeline_stage (tenantId, name),
-      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-
-      await pool.execute(`
-    CREATE TABLE IF NOT EXISTS crm_deals (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      tenantId INT NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      contactId INT NULL,
-      value DECIMAL(12,2) DEFAULT 0,
-      currency VARCHAR(3) DEFAULT 'TRY',
-      stageId INT NULL,
-      status ENUM('open','won','lost') DEFAULT 'open',
-      expectedCloseDate DATE NULL,
-      ownerUserId INT NULL,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (contactId) REFERENCES crm_contacts(id) ON DELETE SET NULL,
-      FOREIGN KEY (stageId) REFERENCES crm_pipeline_stages(id) ON DELETE SET NULL,
-      FOREIGN KEY (ownerUserId) REFERENCES users(id) ON DELETE SET NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-
-      await pool.execute(`
-    CREATE TABLE IF NOT EXISTS crm_activities (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      tenantId INT NOT NULL,
-      contactId INT NULL,
-      type ENUM('meeting','call','email') NOT NULL DEFAULT 'call',
-      title VARCHAR(255) NOT NULL,
-      notes TEXT,
-      status ENUM('planned','completed') DEFAULT 'planned',
-      activityAt DATETIME NULL,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (contactId) REFERENCES crm_contacts(id) ON DELETE SET NULL,
-      INDEX idx_tenant_type_status (tenantId, type, status),
-      INDEX idx_contact (contactId),
-      INDEX idx_activity_at (activityAt)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
+      // CRM tabloları kaldırıldı
 
       // Re-enable foreign key checks
       await pool.execute('SET FOREIGN_KEY_CHECKS = 1');

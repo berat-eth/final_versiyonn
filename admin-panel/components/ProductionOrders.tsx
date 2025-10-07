@@ -1,12 +1,54 @@
 'use client'
 
 import { useState } from 'react'
-import { ClipboardList, Package, Calendar, User, CheckCircle, Clock, AlertCircle } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { ClipboardList, Package, Calendar, User, CheckCircle, Clock, AlertCircle, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function ProductionOrders() {
   // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
   const [orders] = useState<any[]>([])
+  const [showCreate, setShowCreate] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    productId: '',
+    quantity: '',
+    plannedStart: '',
+    plannedEnd: '',
+    notes: ''
+  })
+
+  const handleCreate = async () => {
+    setError(null)
+    const productId = parseInt(String(form.productId || '').trim(), 10)
+    const quantity = parseInt(String(form.quantity || '').trim(), 10)
+    if (!productId || !quantity || quantity < 1) {
+      setError('Ürün ID ve adet zorunludur')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await api.post<any>('/admin/production-orders', {
+        productId,
+        quantity,
+        status: 'planned',
+        plannedStart: form.plannedStart || null,
+        plannedEnd: form.plannedEnd || null,
+        warehouseId: null,
+        notes: form.notes || null
+      })
+      setShowCreate(false)
+      setForm({ productId: '', quantity: '', plannedStart: '', plannedEnd: '', notes: '' })
+      if (typeof window !== 'undefined') {
+        window.alert('Üretim emri oluşturuldu')
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Üretim emri oluşturulamadı')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const statusColors = {
     'Başlamadı': 'bg-slate-100 text-slate-700',
@@ -24,7 +66,10 @@ export default function ProductionOrders() {
           <h2 className="text-3xl font-bold text-slate-800">Üretim Emirleri</h2>
           <p className="text-slate-500 mt-1">Üretim emirlerini takip edin</p>
         </div>
-        <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-shadow font-medium">
+        <button
+          onClick={() => setShowCreate(true)}
+          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-shadow font-medium"
+        >
           Yeni Emir Oluştur
         </button>
       </div>
@@ -84,6 +129,110 @@ export default function ProductionOrders() {
           ))}
         </div>
       </div>
+
+      {/* Yeni Emir Modal */}
+      <AnimatePresence>
+        {showCreate && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+              initial={{ scale: 0.95, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-xl font-semibold text-slate-800">Yeni Üretim Emri</h4>
+                <button className="p-2 rounded-lg hover:bg-slate-100" onClick={() => setShowCreate(false)}>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Ürün ID</label>
+                  <input
+                    type="number"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.productId}
+                    onChange={(e) => setForm({ ...form, productId: e.target.value })}
+                    placeholder="Örn: 123"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Adet</label>
+                  <input
+                    type="number"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.quantity}
+                    onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                    placeholder="Örn: 100"
+                    min={1}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Planlanan Başlangıç</label>
+                    <input
+                      type="date"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={form.plannedStart}
+                      onChange={(e) => setForm({ ...form, plannedStart: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Planlanan Bitiş</label>
+                    <input
+                      type="date"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={form.plannedEnd}
+                      onChange={(e) => setForm({ ...form, plannedEnd: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Notlar</label>
+                  <textarea
+                    rows={3}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                    placeholder="Opsiyonel açıklama"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="mt-3 text-sm text-red-600 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+                  onClick={() => setShowCreate(false)}
+                  disabled={submitting}
+                >
+                  Vazgeç
+                </button>
+                <button
+                  className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  onClick={handleCreate}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Oluşturuluyor...' : 'Oluştur'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
