@@ -394,6 +394,18 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Tenant cache middleware (preload tenant from Redis if available)
 const tenantCache = require('./middleware/tenantCache');
 const { getJson, setJsonEx, delKey, withLock, sha256 } = require('./redis');
+const rateLimit = require('express-rate-limit');
+
+// Relaxed rate limiter for cart endpoints (reduce 429 while Redis cache active)
+const isPrivateIp = (ip) => /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(ip || '');
+const relaxedCartLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${req.headers['x-api-key'] || 'no-key'}:${req.ip}`,
+  skip: (req) => isPrivateIp(req.ip) || req.headers['x-internal-proxy'] === '1'
+});
 app.use('/api', tenantCache);
 
 // Global API Key Authentication for all API routes (except health and admin login)
@@ -6556,6 +6568,10 @@ async function startServer() {
   // Initialize flash deals table
   await createFlashDealsTable();
   
+  // Cart endpoints (apply relaxed limiter)
+  app.use('/api/cart', relaxedCartLimiter);
+  app.use('/api/cart/user', relaxedCartLimiter);
+
   // Cart endpoints
   app.get('/api/cart/:userId', async (req, res) => {
     try {
