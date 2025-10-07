@@ -1206,7 +1206,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
       [resolvedFromId, req.tenant.id]
     );
 
-    if (senderBalance.length === 0 || senderBalance[0].balance < amount) {
+    if (senderBalance.length === 0 || senderBalance[0].balance < parsedAmount) {
       return res.status(400).json({ 
         success: false, 
         message: 'Insufficient balance' 
@@ -1225,7 +1225,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
       console.log('🔄 Deducting from sender...');
       await connection.execute(
         'UPDATE user_wallets SET balance = balance - ?, updatedAt = NOW() WHERE userId = ? AND tenantId = ?',
-        [amount, fromUserId, req.tenant.id]
+        [parsedAmount, resolvedFromId, req.tenant.id]
       );
       console.log('✅ Sender balance deducted');
 
@@ -1241,17 +1241,17 @@ app.post('/api/wallet/transfer', async (req, res) => {
       // Record outgoing transaction for sender
       console.log('🔄 Recording outgoing transaction...');
       await connection.execute(`
-        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
-        VALUES (?, ?, 'transfer_out', ?, ?, ?, NOW())
-      `, [resolvedFromId, req.tenant.id, -parsedAmount, description || `Transfer to ${toUser[0].name}`, `TRANSFER_OUT_${Date.now()}:${resolvedToId}`]);
+        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, createdAt)
+        VALUES (?, ?, 'debit', ?, ?, NOW())
+      `, [resolvedFromId, req.tenant.id, parsedAmount, (description || `Transfer to ${toUser[0].name}`)]);
       console.log('✅ Outgoing transaction recorded');
 
       // Record incoming transaction for receiver
       console.log('🔄 Recording incoming transaction...');
       await connection.execute(`
-        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
-        VALUES (?, ?, 'transfer_in', ?, ?, ?, NOW())
-      `, [resolvedToId, req.tenant.id, parsedAmount, description || `Transfer from ${fromUser[0].name}`, `TRANSFER_IN_${Date.now()}:${resolvedFromId}`]);
+        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, createdAt)
+        VALUES (?, ?, 'credit', ?, ?, NOW())
+      `, [resolvedToId, req.tenant.id, parsedAmount, (description || `Transfer from ${fromUser[0].name}`)]);
       console.log('✅ Incoming transaction recorded');
 
       console.log('🔄 Committing transaction...');
@@ -1283,9 +1283,9 @@ app.post('/api/wallet/transfer', async (req, res) => {
     console.error('❌ Error details:', {
       message: error.message,
       stack: error.stack,
-      fromUserId,
-      toUserId,
-      amount,
+      fromUserId: req.body?.fromUserId,
+      toUserId: req.body?.toUserId,
+      amount: req.body?.amount,
       tenantId: req.tenant?.id
     });
     res.status(500).json({ 
@@ -1360,9 +1360,9 @@ app.post('/api/wallet/gift-card', async (req, res) => {
       // Record transaction for sender
       console.log('🔄 Recording gift card transaction...');
       await connection.execute(`
-        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
-        VALUES (?, ?, 'gift_card', ?, ?, ?, NOW())
-      `, [fromUserId, req.tenant.id, -amount, `Hediye çeki oluşturuldu - ${recipient}`, giftCardCode]);
+        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, createdAt)
+        VALUES (?, ?, 'debit', ?, ?, NOW())
+      `, [fromUserId, req.tenant.id, amount, `Hediye çeki oluşturuldu - ${recipient}`]);
       console.log('✅ Gift card transaction recorded');
 
       console.log('🔄 Committing gift card transaction...');
@@ -1479,9 +1479,9 @@ app.post('/api/wallet/gift-card/use', async (req, res) => {
       // Record transaction
       console.log('🔄 Recording gift card usage transaction...');
       await connection.execute(`
-        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
-        VALUES (?, ?, 'gift_card_used', ?, ?, ?, NOW())
-      `, [userId, req.tenant.id, giftCard.amount, `Hediye çeki kullanıldı - ${giftCardCode}`, giftCardCode]);
+        INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, createdAt)
+        VALUES (?, ?, 'credit', ?, ?, NOW())
+      `, [userId, req.tenant.id, giftCard.amount, `Hediye çeki kullanıldı - ${giftCardCode}`]);
       console.log('✅ Gift card usage transaction recorded');
 
       console.log('🔄 Committing gift card usage transaction...');
@@ -5107,9 +5107,9 @@ app.post('/api/orders', async (req, res) => {
         
         // Cüzdan işlem kaydı oluştur
         await connection.execute(
-          `INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt) 
-           VALUES (?, ?, 'debit', ?, ?, ?, NOW())`,
-          [userId, req.tenant.id, -totalAmount, `Alışveriş ödemesi - Sipariş #${Date.now()}`, `ORDER_${Date.now()}`]
+          `INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, createdAt) 
+           VALUES (?, ?, 'debit', ?, ?, NOW())`,
+          [userId, req.tenant.id, totalAmount, `Alışveriş ödemesi - Sipariş #${Date.now()}`]
         );
         
         console.log(`💰 Wallet payment processed: ${totalAmount} TL deducted from user ${userId}`);

@@ -113,7 +113,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     {
       title: 'Sistem',
       items: [
-        { id: 'server-stats', label: 'Sunucu İstatistikleri', icon: Settings },
+        { id: 'server-stats', label: 'Sunucu İstatistikleri', icon: Activity },
         { id: 'backup', label: 'Veri Yedekleme', icon: Settings },
         { id: 'file-manager', label: 'Dosya Yöneticisi', icon: FolderTree },
         { id: 'security', label: 'Güvenlik', icon: Shield },
