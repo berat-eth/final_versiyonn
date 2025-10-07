@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Eye, Search, Filter, Download, Clock, CheckCircle, XCircle, Package, X, Truck, FileText, Printer, Send, MapPin, Phone, Mail, CreditCard, Calendar } from 'lucide-react'
+import { Eye, Search, Filter, Download, Clock, CheckCircle, XCircle, Package, X, Truck, FileText, Printer, Send, MapPin, Phone, Mail, CreditCard, Calendar, Copy } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { orderService } from '@/lib/services'
 import { generateShippingLabelHTML } from '@/lib/printTemplates'
@@ -9,6 +9,24 @@ import type { Order } from '@/lib/api'
 import { api } from '@/lib/api'
 
 export default function Orders() {
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('Kopyalandı')
+    } catch {
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+        alert('Kopyalandı')
+      } catch {
+        alert('Kopyalanamadı')
+      }
+    }
+  }
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -794,7 +812,20 @@ export default function Orders() {
                   <div className="bg-white rounded-xl border border-slate-200">
                     <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
                       <p className="text-sm font-semibold text-slate-700">Ürünler</p>
-                      <span className="text-xs text-slate-500">{viewingOrder.items.length} kalem</span>
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => {
+                            const lines = viewingOrder.items.map(it => `${it.productName} x${it.quantity} - ₺${(it.price * it.quantity).toLocaleString()}`)
+                            copyToClipboard(lines.join('\n'))
+                          }}
+                          className="p-1.5 border border-slate-300 rounded-lg hover:bg-slate-100"
+                          title="Ürünleri kopyala"
+                          aria-label="Ürünleri kopyala"
+                        >
+                          <Copy className="w-4 h-4 text-slate-600" />
+                        </button>
+                        <span className="text-xs text-slate-500">{viewingOrder.items.length} kalem</span>
+                      </div>
                     </div>
                     <div className="divide-y divide-slate-100">
                       {viewingOrder.items.map((it, idx) => (
@@ -827,10 +858,26 @@ export default function Orders() {
                     <div className="flex items-center space-x-2 text-sm">
                       <Mail className="w-4 h-4 text-slate-500" />
                       <span className="text-slate-700">{(viewingOrder as any).userEmail || (viewingOrder as any).customerEmail || '-'}</span>
+                      <button
+                        onClick={() => copyToClipboard(String((viewingOrder as any).userEmail || (viewingOrder as any).customerEmail || ''))}
+                        className="ml-auto p-1.5 border border-slate-300 rounded-lg hover:bg-slate-100"
+                        title="E-posta kopyala"
+                        aria-label="E-posta kopyala"
+                      >
+                        <Copy className="w-4 h-4 text-slate-600" />
+                      </button>
                     </div>
                     <div className="flex items-center space-x-2 text-sm">
                       <Phone className="w-4 h-4 text-slate-500" />
                       <span className="text-slate-700">{(viewingOrder as any).customerPhone || '-'}</span>
+                      <button
+                        onClick={() => copyToClipboard(String((viewingOrder as any).customerPhone || ''))}
+                        className="ml-auto p-1.5 border border-slate-300 rounded-lg hover:bg-slate-100"
+                        title="Telefon kopyala"
+                        aria-label="Telefon kopyala"
+                      >
+                        <Copy className="w-4 h-4 text-slate-600" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -842,14 +889,34 @@ export default function Orders() {
                       <MapPin className="w-4 h-4 text-blue-600" />
                       <p className="text-sm font-semibold text-slate-700">Teslimat Adresi</p>
                     </div>
-                    <p className="text-sm text-slate-600">{viewingOrder.shippingAddress}</p>
+                    <div className="flex items-start space-x-2">
+                      <p className="flex-1 text-sm text-slate-600">{viewingOrder.shippingAddress}</p>
+                      <button
+                        onClick={() => copyToClipboard(String(viewingOrder.shippingAddress || ''))}
+                        className="p-1.5 border border-blue-300 rounded-lg hover:bg-blue-100"
+                        title="Teslimat adresini kopyala"
+                        aria-label="Teslimat adresini kopyala"
+                      >
+                        <Copy className="w-4 h-4 text-blue-600" />
+                      </button>
+                    </div>
                   </div>
                   <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
                     <div className="flex items-center space-x-2 mb-2">
                       <FileText className="w-4 h-4 text-purple-600" />
                       <p className="text-sm font-semibold text-slate-700">Fatura Adresi</p>
                     </div>
-                    <p className="text-sm text-slate-600">{(viewingOrder as any).billingAddress || (viewingOrder as any).fullAddress || viewingOrder.shippingAddress || '-'}</p>
+                    <div className="flex items-start space-x-2">
+                      <p className="flex-1 text-sm text-slate-600">{(viewingOrder as any).billingAddress || (viewingOrder as any).fullAddress || viewingOrder.shippingAddress || '-'}</p>
+                      <button
+                        onClick={() => copyToClipboard(String((viewingOrder as any).billingAddress || (viewingOrder as any).fullAddress || viewingOrder.shippingAddress || ''))}
+                        className="p-1.5 border border-purple-300 rounded-lg hover:bg-purple-100"
+                        title="Fatura adresini kopyala"
+                        aria-label="Fatura adresini kopyala"
+                      >
+                        <Copy className="w-4 h-4 text-purple-600" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 

@@ -391,6 +391,11 @@ const inputValidator = new InputValidation();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Tenant cache middleware (preload tenant from Redis if available)
+const tenantCache = require('./middleware/tenantCache');
+const { getJson, setJsonEx, delKey, withLock } = require('./redis');
+app.use('/api', tenantCache);
+
 // Global API Key Authentication for all API routes (except health and admin login)
 app.use('/api', (req, res, next) => {
   // req.path burada '/api' mount edildiği için relatif: '/health', '/admin/...'
@@ -417,6 +422,11 @@ app.use('/api', (req, res, next) => {
     });
   }
 
+  // X-API-Key doğrulaması (tenant tablosu) - Redis ile önbellek kullan, tenantCache doldurmuşsa DB atla
+  if ((req && req.tenant && req.tenant.id) || (res.locals && res.locals.tenant && res.locals.tenant.id)) {
+    if (!req.tenant && res.locals && res.locals.tenant) req.tenant = res.locals.tenant;
+    return next();
+  }
   // X-API-Key doğrulaması (tenant tablosu)
   poolWrapper.execute(
     'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE apiKey = ? AND isActive = true',
@@ -6504,16 +6514,46 @@ async function startServer() {
   app.get('/api/cart/:userId', async (req, res) => {
     try {
       const { userId } = req.params;
-      
-      const [rows] = await poolWrapper.execute(
-        `SELECT c.*, p.name, p.price, p.image, p.stock 
+      const tenantId = req.tenant?.id || 1;
+
+      const cacheKey = `cart:${tenantId}:${userId}:-`;
+      const lockKey = `${cacheKey}:lock`;
+
+      const cached = await getJson(cacheKey);
+      if (Array.isArray(cached)) {
+        return res.json({ success: true, data: cached });
+      }
+
+      let rows;
+      await withLock(lockKey, 5, async () => {
+        const again = await getJson(cacheKey);
+        if (Array.isArray(again)) {
+          rows = again;
+          return;
+        }
+        const q = `SELECT c.*, p.name, p.price, p.image, p.stock 
          FROM cart c 
          JOIN products p ON c.productId = p.id 
          WHERE c.userId = ? AND c.tenantId = ?
-         ORDER BY c.createdAt DESC`,
-        [userId, req.tenant?.id || 1]
-      );
-      
+         ORDER BY c.createdAt DESC`;
+        const params = [userId, tenantId];
+        const [dbRows] = await poolWrapper.execute(q, params);
+        rows = dbRows;
+        await setJsonEx(cacheKey, 60, rows);
+      });
+
+      if (!rows) {
+        const q = `SELECT c.*, p.name, p.price, p.image, p.stock 
+         FROM cart c 
+         JOIN products p ON c.productId = p.id 
+         WHERE c.userId = ? AND c.tenantId = ?
+         ORDER BY c.createdAt DESC`;
+        const params = [userId, tenantId];
+        const [dbRows] = await poolWrapper.execute(q, params);
+        rows = dbRows;
+        await setJsonEx(cacheKey, 60, rows);
+      }
+
       res.json({ success: true, data: rows });
     } catch (error) {
       console.error('❌ Error getting cart:', error);
@@ -6574,6 +6614,12 @@ async function startServer() {
         );
         
         console.log(`✅ Server: Updated cart item ${existingItem[0].id} with quantity ${newQuantity}`);
+        try {
+          const cacheKey = `cart:${tenantId}:${userId}:${userId === 1 ? (deviceId || '') : '-'}`;
+          const fallbackKey = `cart:${tenantId}:${userId}:-`;
+          await delKey(cacheKey);
+          await delKey(fallbackKey);
+        } catch (_) {}
         res.json({ 
           success: true, 
           message: 'Sepete eklendi',
@@ -6587,6 +6633,12 @@ async function startServer() {
         );
         
         console.log(`✅ Server: Added new cart item ${result.insertId} for user ${userId}`);
+        try {
+          const cacheKey = `cart:${tenantId}:${userId}:${userId === 1 ? (deviceId || '') : '-'}`;
+          const fallbackKey = `cart:${tenantId}:${userId}:-`;
+          await delKey(cacheKey);
+          await delKey(fallbackKey);
+        } catch (_) {}
         res.json({ 
           success: true, 
           message: 'Ürün sepete eklendi',
@@ -6675,7 +6727,17 @@ async function startServer() {
           'DELETE FROM cart WHERE id = ?',
           [cartItemId]
         );
-        
+        try {
+          const tenantId = req.tenant?.id || 1;
+          // cartItemId'den userId ve deviceId'yi bulup anahtarları sil
+          const [info] = await poolWrapper.execute('SELECT userId, deviceId FROM cart WHERE id = ?', [cartItemId]);
+          const uId = info?.[0]?.userId;
+          const dId = info?.[0]?.deviceId || '';
+          if (uId) {
+            await delKey(`cart:${tenantId}:${uId}:${uId === 1 ? dId : '-'}`);
+            await delKey(`cart:${tenantId}:${uId}:-`);
+          }
+        } catch (_) {}
         return res.json({ 
           success: true, 
           message: 'Item removed from cart' 
@@ -6686,7 +6748,16 @@ async function startServer() {
         'UPDATE cart SET quantity = ? WHERE id = ?',
         [quantity, cartItemId]
       );
-      
+      try {
+        const tenantId = req.tenant?.id || 1;
+        const [info] = await poolWrapper.execute('SELECT userId, deviceId FROM cart WHERE id = ?', [cartItemId]);
+        const uId = info?.[0]?.userId;
+        const dId = info?.[0]?.deviceId || '';
+        if (uId) {
+          await delKey(`cart:${tenantId}:${uId}:${uId === 1 ? dId : '-'}`);
+          await delKey(`cart:${tenantId}:${uId}:-`);
+        }
+      } catch (_) {}
       res.json({ 
         success: true, 
         message: 'Cart item updated' 
@@ -6700,7 +6771,17 @@ async function startServer() {
   app.delete('/api/cart/:cartItemId', async (req, res) => {
     try {
       const { cartItemId } = req.params;
-      
+      try {
+        const tenantId = req.tenant?.id || 1;
+        const [info] = await poolWrapper.execute('SELECT userId, deviceId FROM cart WHERE id = ?', [cartItemId]);
+        const uId = info?.[0]?.userId;
+        const dId = info?.[0]?.deviceId || '';
+        if (uId) {
+          await delKey(`cart:${tenantId}:${uId}:${uId === 1 ? dId : '-'}`);
+          await delKey(`cart:${tenantId}:${uId}:-`);
+        }
+      } catch (_) {}
+
       await poolWrapper.execute(
         'DELETE FROM cart WHERE id = ?',
         [cartItemId]
@@ -6724,6 +6805,8 @@ async function startServer() {
       
       // Tenant ID from authentication
       const tenantId = req.tenant?.id || 1;
+      const cacheKey = `cart:${tenantId}:${userId}:${deviceId ? String(deviceId) : '-'}`;
+      const lockKey = `${cacheKey}:lock`;
       
       let getCartSql = `SELECT c.*, p.name, p.price, p.image, p.stock 
          FROM cart c 
@@ -6739,8 +6822,27 @@ async function startServer() {
       
       getCartSql += ' ORDER BY c.createdAt DESC';
 
-      const [rows] = await poolWrapper.execute(getCartSql, getCartParams);
-      
+      const cached = await getJson(cacheKey);
+      if (Array.isArray(cached)) {
+        console.log(`✅ Server: Cache hit for user ${userId}`);
+        return res.json({ success: true, data: cached });
+      }
+
+      let rows;
+      await withLock(lockKey, 5, async () => {
+        const again = await getJson(cacheKey);
+        if (Array.isArray(again)) { rows = again; return; }
+        const [dbRows] = await poolWrapper.execute(getCartSql, getCartParams);
+        rows = dbRows;
+        await setJsonEx(cacheKey, 60, rows);
+      });
+
+      if (!rows) {
+        const [dbRows] = await poolWrapper.execute(getCartSql, getCartParams);
+        rows = dbRows;
+        await setJsonEx(cacheKey, 60, rows);
+      }
+
       console.log(`✅ Server: Found ${rows.length} cart items for user ${userId}`);
       res.json({ success: true, data: rows });
     } catch (error) {
