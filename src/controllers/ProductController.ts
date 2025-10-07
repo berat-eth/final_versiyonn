@@ -1,5 +1,5 @@
 import { ProductModel, FilterOptions } from '../models/Product';
-import { Product, ProductVariationOption } from '../utils/types';
+import { Product, ProductVariationOption, ProductVariation } from '../utils/types';
 import { XmlProductService, XmlProduct } from '../services/XmlProductService';
 import { apiService } from '../utils/api-service';
 import { CacheService, CacheTTL } from '../services/CacheService';
@@ -517,7 +517,7 @@ export class ProductController {
       if (selectedVariations && Object.keys(selectedVariations).length > 0) {
         // Check stock for specific variations
         const optionIds = Object.values(selectedVariations).map(option => option.id);
-        const minStock = Math.min(...Object.values(selectedVariations).map(option => option.stock));
+        const minStock = Math.min(...Object.values(selectedVariations).map(option => Number(option.stock || 0)));
         return minStock >= quantity;
       } else {
         // Check base product stock
@@ -601,15 +601,21 @@ export class ProductController {
       // Check if product has variations from API
       const hasVariations = apiProduct.hasVariations === true || 
                            (apiProduct.variations && Array.isArray(apiProduct.variations) && apiProduct.variations.length > 0);
-      
-      return {
+      // Normalize images (handle JSON string)
+      let normalizedImages: string[] = [];
+      try {
+        if (Array.isArray(apiProduct.images)) normalizedImages = apiProduct.images as string[];
+        else if (typeof apiProduct.images === 'string') normalizedImages = JSON.parse(apiProduct.images);
+      } catch { normalizedImages = []; }
+
+      const mapped: Product = {
         id: parseInt(apiProduct.id) || 0,
         name: apiProduct.name || 'Unknown Product',
         description: apiProduct.description || '',
         price: parseFloat(apiProduct.price) || 0,
         category: apiProduct.category || '',
         image: apiProduct.image || 'https://via.placeholder.com/300x300?text=No+Image',
-        images: apiProduct.images || [],
+        images: normalizedImages || [],
         stock: parseInt(apiProduct.stock) || 0,
         brand: apiProduct.brand || '',
         rating: parseFloat(apiProduct.rating) || 0,
@@ -621,6 +627,63 @@ export class ProductController {
         externalId: apiProduct.externalId || apiProduct.id?.toString(),
         source: apiProduct.source || 'API'
       };
+
+      // If no variations provided but xmlOptions exist in single-table schema, derive variations
+      if ((!mapped.hasVariations || !Array.isArray(mapped.variations) || mapped.variations.length === 0) && apiProduct.xmlOptions) {
+        try {
+          const parsed = typeof apiProduct.xmlOptions === 'string' ? JSON.parse(apiProduct.xmlOptions) : apiProduct.xmlOptions;
+          const opts: any[] = Array.isArray(parsed?.options) ? parsed.options : [];
+          if (opts.length > 0) {
+            const attrNameToValues: Map<string, { value: string; stock?: number; priceModifier?: number }[]> = new Map();
+            for (const o of opts) {
+              const attributes = o?.attributes || null;
+              const stock = typeof o?.stok === 'number' ? o.stok : (typeof o?.stock === 'number' ? o.stock : undefined);
+              const price = typeof o?.fiyat === 'number' ? o.fiyat : (typeof o?.price === 'number' ? o.price : undefined);
+              if (attributes && typeof attributes === 'object') {
+                for (const key of Object.keys(attributes)) {
+                  const val = String(attributes[key] ?? '').trim();
+                  if (!val) continue;
+                  if (!attrNameToValues.has(key)) attrNameToValues.set(key, []);
+                  attrNameToValues.get(key)!.push({ value: val, stock, priceModifier: price });
+                }
+              }
+            }
+            // Build ProductVariation[]
+            const derived: any[] = [];
+            let displayOrder = 0;
+            for (const [name, values] of attrNameToValues.entries()) {
+              const merged = new Map<string, { value: string; stock?: number; priceModifier?: number }>();
+              values.forEach(v => {
+                if (!merged.has(v.value)) merged.set(v.value, { ...v });
+                else {
+                  const m = merged.get(v.value)!;
+                  m.stock = (m.stock || 0) + (v.stock || 0);
+                  if (typeof v.priceModifier === 'number') m.priceModifier = typeof m.priceModifier === 'number' ? Math.min(m.priceModifier, v.priceModifier) : v.priceModifier;
+                }
+              });
+              derived.push({
+                id: `${mapped.id}-${name}`,
+                productId: mapped.id,
+                name,
+                displayOrder: displayOrder++,
+                options: Array.from(merged.values()).map(m => ({
+                  id: `${mapped.id}-${name}-${m.value}`,
+                  variationId: `${mapped.id}-${name}`,
+                  value: m.value,
+                  priceModifier: typeof m.priceModifier === 'number' ? m.priceModifier : 0,
+                  stock: typeof m.stock === 'number' ? m.stock : 0,
+                }))
+              });
+            }
+            if (derived.length > 0) {
+              mapped.variations = derived as any;
+              mapped.hasVariations = true;
+            }
+          }
+        } catch {}
+      }
+
+      return mapped;
     } catch (error) {
       console.error('❌ Error mapping API product:', error, apiProduct);
       // Return a safe fallback product
@@ -654,9 +717,7 @@ export class ProductController {
     }
 
     variations.forEach(variation => {
-      if (variation.name && variation.value) {
-        result[variation.name.toLowerCase()] = variation.value;
-      }
+      // ProductVariationOption doesn't have 'name'; this utility is legacy and unused in new flow
     });
 
     return result;
@@ -671,9 +732,7 @@ export class ProductController {
     }
 
     variations.forEach(variation => {
-      if (variation.name && variation.value) {
-        result[variation.name.toLowerCase()] = variation.value;
-      }
+      // New structure: each variation has name and options[]; summary not required
     });
 
     return result;
