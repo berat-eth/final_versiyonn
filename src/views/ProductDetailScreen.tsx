@@ -319,7 +319,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const handleAddToCart = async () => {
     if (!product) return;
 
-    if (product.hasVariations && !isAllVariationsSelected()) {
+    // Sadece beden seçimini zorunlu tut
+    if (isSizeSelectionRequired() && !isSizeSelected()) {
       Alert.alert(
         'Beden Seçimi Gerekli', 
         'Bu ürünü sepete eklemek için önce beden seçimi yapmanız gerekiyor. Lütfen istediğiniz bedeni seçin.',
