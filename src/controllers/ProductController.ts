@@ -77,9 +77,14 @@ export class ProductController {
       if (response.success && response.data) {
         let product = this.mapApiProductToAppProduct(response.data);
         
-        // Varyasyonları veritabanından çek
+        // Varyasyonları veritabanından çek (varsa), aksi halde API/xmlOptions üzerinden türetilmiş olanları koru
         if (product.hasVariations) {
-          product.variations = await this.getProductVariationsFromDB(id);
+          try {
+            const dbVariations = await this.getProductVariationsFromDB(id);
+            if (Array.isArray(dbVariations) && dbVariations.length > 0) {
+              product.variations = dbVariations as any;
+            }
+          } catch {}
         }
 
         // Enrichment: API ürünü yetersiz görsel/varyasyon içeriyorsa XML'den zenginleştir

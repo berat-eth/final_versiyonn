@@ -156,10 +156,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const calculateCurrentPrice = () => {
     if (!product) return;
     
-    let totalPrice = product.price;
-    const priceModifier = ProductVariationService.calculateTotalPriceModifier(selectedOptions);
-    totalPrice += priceModifier;
-    setCurrentPrice(totalPrice);
+    // Varyasyonlar ürün fiyatına ek fiyat eklemesin
+    setCurrentPrice(product.price);
   };
 
   const calculateCurrentStock = () => {
@@ -193,6 +191,34 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     const hasVariationsArray = Array.isArray(product.variations) && product.variations.length > 0;
     if (!hasVariationsArray) return '';
     return ProductVariationService.getSelectedVariationString((product.variations as any[]) || [], selectedOptions);
+  };
+
+  // Beden seçimi için yardımcılar
+  const getSizeVariationIds = (): string[] => {
+    try {
+      const variationsArray: any[] = Array.isArray((product as any)?.variations) ? ((product as any).variations as any[]) : [];
+      const ids: string[] = [];
+      const sizeLike = (name: string = '') => {
+        const n = (name || '').toLowerCase();
+        return n.includes('beden') || n.includes('size') || n.includes('numara');
+      };
+      variationsArray.forEach((v: any) => {
+        const vid = String(v.id ?? v.name ?? 'var');
+        if (sizeLike(v.name || '')) ids.push(vid);
+      });
+      return ids;
+    } catch { return []; }
+  };
+
+  const isSizeSelectionRequired = (): boolean => {
+    const sizeIds = getSizeVariationIds();
+    return sizeIds.length > 0;
+  };
+
+  const isSizeSelected = (): boolean => {
+    const sizeIds = getSizeVariationIds();
+    if (sizeIds.length === 0) return true;
+    return sizeIds.every(id => !!selectedOptions[id]);
   };
 
   // Basit inline varyasyon seçici (beden/renk vs.)
@@ -560,43 +586,69 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             {ProductController.formatPrice(currentPrice)}
           </Text>
 
-          {/* Mevcut Bedenler (XML'den zenginleştirilen varyasyonlardan) */}
-          {Array.isArray(product.variations) && product.variations.length > 0 && (
-            (() => {
-              // Beden/Size odaklı varyasyonları bul
-              const sizeLike = (name: string = '') => {
-                const n = (name || '').toLowerCase();
-                return n.includes('beden') || n.includes('size') || n.includes('numara');
-              };
-              const sizeVariations = product.variations.filter(v => sizeLike(v.name || ''));
-              const fallbacks = sizeVariations.length > 0 ? sizeVariations : product.variations;
-              const options = fallbacks.flatMap(v => Array.isArray(v.options) ? v.options : []);
-              const uniqueValues: string[] = [];
-              const seen = new Set<string>();
-              options.forEach((opt) => {
-                const val = String(opt?.value || '').trim();
-                if (!val) return;
-                const key = val.toLowerCase();
-                if (!seen.has(key)) {
-                  seen.add(key);
-                  uniqueValues.push(val);
-                }
-              });
-              if (uniqueValues.length === 0) return null;
-              return (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={styles.variationLabel}>Mevcut Bedenler</Text>
-                  <View style={styles.availableSizes}>
-                    {uniqueValues.map((val, idx) => (
-                      <View key={`${val}-${idx}`} style={styles.sizeChip}>
-                        <Text style={styles.sizeText}>{val}</Text>
-                      </View>
-                    ))}
+          {/* Mevcut Bedenler (seçim zorunlu, stokta olmayanlar kırmızı çarpı ile) */}
+          {Array.isArray(product.variations) && product.variations.length > 0 && (() => {
+            const sizeLike = (name: string = '') => {
+              const n = (name || '').toLowerCase();
+              return n.includes('beden') || n.includes('size') || n.includes('numara');
+            };
+            const sizeVariations: any[] = (product.variations as any[]).filter(v => sizeLike(v.name || '')) as any[];
+            if (!sizeVariations || sizeVariations.length === 0) return null;
+            return (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={styles.variationLabel}>Mevcut Bedenler</Text>
+                {sizeVariations.map((variation: any) => {
+                  const variationId = String(variation.id ?? variation.name ?? 'var');
+                  const options: any[] = Array.isArray(variation.options) ? variation.options : [];
+                  return (
+                    <View key={variationId} style={styles.availableSizes}>
+                      {options.map((opt: any, idx: number) => {
+                        const disabled = Number(opt?.stock || 0) <= 0;
+                        const isSelected = String(selectedOptions[variationId]?.value) === String(opt.value);
+                        return (
+                          <TouchableOpacity
+                            key={`${variationId}-${idx}`}
+                            style={[
+                              styles.sizeChip,
+                              isSelected && { backgroundColor: '#111827', borderColor: '#111827' },
+                              disabled && { opacity: 0.6 }
+                            ]}
+                            onPress={() => {
+                              if (disabled) return;
+                              const next: any = { ...selectedOptions };
+                              next[variationId] = {
+                                ...(opt as ProductVariationOption),
+                                value: String(opt.value || ''),
+                                stock: Number(opt.stock || 0)
+                              } as any;
+                              setSelectedOptions(next);
+                            }}
+                            disabled={disabled}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.sizeText, isSelected && { color: '#FFFFFF' }]}>
+                              {String(opt.value || '-')}
+                            </Text>
+                            {disabled && (
+                              <View style={{ position: 'absolute', right: -6, top: -8 }}>
+                                <Text style={{ color: '#FF3B30', fontWeight: '800', fontSize: 14 }}>🚫</Text>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+                {!isSizeSelected() && (
+                  <View style={styles.variationWarning}>
+                    <Icon name="warning" size={20} color="#FF6B35" />
+                    <Text style={styles.variationWarningText}>Sepete eklemek için beden seçimi yapmanız gerekiyor!</Text>
                   </View>
-                </View>
-              );
-            })()
-          )}
+                )}
+              </View>
+            );
+          })()}
 
           <View style={styles.stockContainer}>
             {currentStock > 0 ? (
@@ -611,48 +663,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             )}
           </View>
 
-          {Array.isArray(product.variations) && product.variations.length > 0 && (
-            <View style={styles.variationSection}>
-              <Text style={styles.sectionTitle}>Varyasyonlar</Text>
-              <Text style={styles.variationSubtitle}>
-                Lütfen istediğiniz varyasyonları seçin
-              </Text>
-              
-              {/* Beden Seçimi Zorunluluğu Uyarısı */}
-              {!isAllVariationsSelected() && (
-                <View style={styles.variationWarning}>
-                  <Icon name="warning" size={20} color="#FF6B35" />
-                  <Text style={styles.variationWarningText}>
-                    Sepete eklemek için beden seçimi yapmanız gerekiyor!
-                  </Text>
-                </View>
-              )}
-              
-              {renderVariationSelector()}
-              
-              {/* Seçilen Varyasyon Özeti */}
-              {Object.keys(selectedOptions).length > 0 && (
-                <View style={styles.selectedVariationSummary}>
-                  <Text style={styles.selectedVariationTitle}>{t('productDetail.selectedVariations')}:</Text>
-                  {Object.entries(selectedOptions).map(([variationId, option]) => (
-                    <View key={variationId} style={styles.selectedVariationItem}>
-                      <Text style={styles.selectedVariationLabel}>
-                        {getTranslatedVariationName(product.variations?.find(v => v.id.toString() === variationId)?.name || '', currentLanguage)}:
-                      </Text>
-                      <Text style={styles.selectedVariationValue}>
-                        {option.value}
-                        {typeof option.priceModifier === 'number' && option.priceModifier > 0 && (
-                          <Text style={styles.priceModifier}>
-                            {' '}(+{ProductController.formatPrice(Number(option.priceModifier || 0))})
-                          </Text>
-                        )}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
+          {/* Varyasyonlar bölümü kaldırıldı */}
 
           <View style={styles.descriptionContainer}>
             <Text style={styles.sectionTitle}>{t('productDetail.description')}</Text>
@@ -795,15 +806,14 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
         <View style={styles.footer}>
           <TouchableOpacity
             style={[
-              styles.addToCartButton, 
-              (addingToCart || (product.hasVariations && !isAllVariationsSelected())) && styles.disabledButton
+              styles.addToCartButton,
+              (addingToCart || (isSizeSelectionRequired() && !isSizeSelected())) && styles.disabledButton
             ]}
             onPress={handleAddToCart}
-            disabled={addingToCart || (product.hasVariations && !isAllVariationsSelected())}
+            disabled={addingToCart || (isSizeSelectionRequired() && !isSizeSelected())}
           >
             <Text style={styles.addToCartText}>
-              {addingToCart ? 'Ekleniyor...' : 
-               product.hasVariations && !isAllVariationsSelected() ? 'Beden Seçin' : 'Sepete Ekle'}
+              {addingToCart ? 'Ekleniyor...' : (isSizeSelectionRequired() && !isSizeSelected() ? 'Beden Seçin' : 'Sepete Ekle')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1177,8 +1187,8 @@ const styles = StyleSheet.create({
   availableSizes: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 16,
   },
   sizeStockGrid: {
     flexDirection: 'row',
@@ -1198,17 +1208,18 @@ const styles = StyleSheet.create({
   },
   sizeChip: {
     backgroundColor: '#F0F0F0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    minWidth: 56,
+    alignItems: 'center',
   },
   sizeText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#333333',
-    fontWeight: '500',
-    marginBottom: 2,
+    fontWeight: '600',
   },
   variationWarning: {
     flexDirection: 'row',

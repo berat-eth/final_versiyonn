@@ -251,7 +251,6 @@ export class CartController {
               productId: item.body?.productId || 0,
               quantity: item.body?.quantity || 1,
               variationString: item.body?.variationString || '',
-              selectedVariations: item.body?.selectedVariations || undefined,
               product: undefined // Would need to fetch product details
             }));
           }
@@ -362,14 +361,7 @@ export class CartController {
         if (item.product) {
           let itemPrice = item.product.price;
           
-          // Add variation price modifiers
-          if (item.selectedVariations && Object.keys(item.selectedVariations).length > 0) {
-            Object.values(item.selectedVariations).forEach(option => {
-              if (option && typeof option.priceModifier === 'number') {
-                itemPrice += option.priceModifier;
-              }
-            });
-          }
+          // Varyasyon ek fiyatları devre dışı: ürünün temel fiyatı kullanılacak
           
           return total + (itemPrice * item.quantity);
         }
@@ -492,8 +484,10 @@ export class CartController {
     
     Object.keys(selectedVariations).forEach(key => {
       const variation = selectedVariations[key];
-      if (variation && variation.name && variation.value) {
-        result[variation.name.toLowerCase()] = variation.value;
+      // ProductVariationOption tipinde 'name' zorunlu değil; güvenli kontrol yap
+      const variationName = (variation as any)?.name;
+      if (variation && variationName && variation.value) {
+        result[String(variationName).toLowerCase()] = variation.value;
       }
     });
 
@@ -507,8 +501,9 @@ export class CartController {
     const variations: string[] = [];
     Object.keys(selectedVariations).forEach(key => {
       const variation = selectedVariations[key];
-      if (variation && variation.name && variation.value) {
-        variations.push(`${variation.name}: ${variation.value}`);
+      const variationName = (variation as any)?.name;
+      if (variation && variationName && variation.value) {
+        variations.push(`${variationName}: ${variation.value}`);
       }
     });
 
