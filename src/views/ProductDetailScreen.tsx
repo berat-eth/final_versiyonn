@@ -195,6 +195,59 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     return ProductVariationService.getSelectedVariationString((product.variations as any[]) || [], selectedOptions);
   };
 
+  // Basit inline varyasyon seçici (beden/renk vs.)
+  const renderVariationSelector = () => {
+    try {
+      const variationsArray: any[] = Array.isArray((product as any)?.variations) ? ((product as any).variations as any[]) : [];
+      if (!variationsArray || variationsArray.length === 0) return null;
+
+      return (
+        <View>
+          {variationsArray.map((variation: any) => {
+            const variationId = String(variation.id ?? variation.name ?? 'var');
+            const options: any[] = Array.isArray(variation.options) ? variation.options : [];
+            return (
+              <View key={variationId} style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1A1A1A', marginBottom: 8 }}>
+                  {variation.name || 'Varyasyon'}
+                </Text>
+                <View style={styles.availableSizes}>
+                  {options.map((opt: any, idx: number) => {
+                    const isSelected = selectedOptions[variationId]?.value === opt.value;
+                    const disabled = (opt.stock ?? 0) <= 0;
+                    return (
+                      <TouchableOpacity
+                        key={idx}
+                        style={[styles.sizeChip, isSelected && { backgroundColor: '#111827', borderColor: '#111827' }, disabled && { opacity: 0.5 }]}
+                        onPress={() => {
+                          if (disabled) return;
+                          const next: any = { ...selectedOptions };
+                          next[variationId] = {
+                            ...(opt as ProductVariationOption),
+                            value: String(opt.value || ''),
+                            priceModifier: Number(opt.priceModifier || 0),
+                            stock: Number(opt.stock || 0)
+                          } as any;
+                          setSelectedOptions(next);
+                        }}
+                        disabled={disabled}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.sizeText, isSelected && { color: '#FFFFFF' }]}>{String(opt.value || '-')}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      );
+    } catch {
+      return null;
+    }
+  };
+
   const loadCurrentUser = async () => {
     try {
       const user = await UserController.getCurrentUser();
@@ -539,11 +592,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
                 </View>
               )}
               
-              <VariationSelector
-                variations={product.variations}
-                selectedOptions={selectedOptions}
-                onVariationChange={handleVariationChange}
-              />
+              {renderVariationSelector()}
               
               {/* Seçilen Varyasyon Özeti */}
               {Object.keys(selectedOptions).length > 0 && (

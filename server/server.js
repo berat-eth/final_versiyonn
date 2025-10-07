@@ -6639,22 +6639,24 @@ async function startServer() {
   // Cart endpoints (apply relaxed limiter)
   app.use('/api/cart', relaxedCartLimiter);
   app.use('/api/cart/user', relaxedCartLimiter);
-  // Variations API stubs (return empty)
-  app.get('/api/products/:productId/variations', async (req, res) => {
-    res.json({ success: true, data: [] });
-  });
-  app.post('/api/products/:productId/variations', async (req, res) => {
-    res.json({ success: true, data: false, message: 'Variations disabled' });
-  });
-  app.get('/api/variations/:variationId/options', async (req, res) => {
-    res.json({ success: true, data: [] });
-  });
-  app.get('/api/variations/options/:optionId', async (req, res) => {
-    res.json({ success: true, data: null });
-  });
-  app.put('/api/variations/options/:optionId/stock', async (req, res) => {
-    res.json({ success: true, data: false, message: 'Variations disabled' });
-  });
+  // Variations API stubs (return empty) - sadece açıkça devreye alınırsa
+  if (process.env.DISABLE_VARIATIONS === '1') {
+    app.get('/api/products/:productId/variations', async (req, res) => {
+      res.json({ success: true, data: [] });
+    });
+    app.post('/api/products/:productId/variations', async (req, res) => {
+      res.json({ success: true, data: false, message: 'Variations disabled' });
+    });
+    app.get('/api/variations/:variationId/options', async (req, res) => {
+      res.json({ success: true, data: [] });
+    });
+    app.get('/api/variations/options/:optionId', async (req, res) => {
+      res.json({ success: true, data: null });
+    });
+    app.put('/api/variations/options/:optionId/stock', async (req, res) => {
+      res.json({ success: true, data: false, message: 'Variations disabled' });
+    });
+  }
 
   // Cart endpoints
   app.get('/api/cart/:userId', async (req, res) => {
@@ -7831,7 +7833,7 @@ app.post('/api/sync/products', async (req, res) => {
     let message = 'OK';
     let success = true;
     try {
-      await xmlSyncService.syncProducts();
+      await xmlSyncService.triggerManualSync();
     } catch (innerErr) {
       success = false;
       message = innerErr && innerErr.message ? innerErr.message : 'Unknown error';
