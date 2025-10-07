@@ -393,7 +393,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Tenant cache middleware (preload tenant from Redis if available)
 const tenantCache = require('./middleware/tenantCache');
-const { getJson, setJsonEx, delKey, withLock } = require('./redis');
+const { getJson, setJsonEx, delKey, withLock, sha256 } = require('./redis');
 app.use('/api', tenantCache);
 
 // Global API Key Authentication for all API routes (except health and admin login)
@@ -427,32 +427,78 @@ app.use('/api', (req, res, next) => {
     if (!req.tenant && res.locals && res.locals.tenant) req.tenant = res.locals.tenant;
     return next();
   }
-  // X-API-Key doğrulaması (tenant tablosu)
-  poolWrapper.execute(
-    'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE apiKey = ? AND isActive = true',
-    [apiKey]
-  ).then(([rows]) => {
-    if (rows.length === 0) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid or inactive API key' 
+  // Redis'te tenant cache kontrolü
+  (async () => {
+    try {
+      const cacheKey = `tenant:apikey:${sha256(String(apiKey))}`;
+      const cached = await getJson(cacheKey);
+      if (cached && cached.id) {
+        req.tenant = cached;
+        if (cached.settings && typeof cached.settings === 'string') {
+          try { req.tenant.settings = JSON.parse(cached.settings); } catch (_) {}
+        }
+        return next();
+      }
+
+      const lockKey = `${cacheKey}:lock`;
+      let resolved = false;
+      await withLock(lockKey, 5, async () => {
+        const again = await getJson(cacheKey);
+        if (again && again.id) {
+          req.tenant = again;
+          resolved = true;
+          return;
+        }
+        const [rows] = await poolWrapper.execute(
+          'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE apiKey = ? AND isActive = true',
+          [apiKey]
+        );
+        if (!rows || rows.length === 0) {
+          return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
+        }
+        const t = rows[0];
+        if (t && t.settings) { try { t.settings = JSON.parse(t.settings); } catch (_) {} }
+        req.tenant = t;
+        await setJsonEx(cacheKey, 300, t);
+        resolved = true;
+      });
+
+      if (resolved) return next();
+
+      // Lock alınamadıysa/başkası çözemediyse DB'ye düş
+      const [rows] = await poolWrapper.execute(
+        'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE apiKey = ? AND isActive = true',
+        [apiKey]
+      );
+      if (rows.length === 0) {
+        return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
+      }
+      req.tenant = rows[0];
+      if (req.tenant.settings) {
+        try { req.tenant.settings = JSON.parse(req.tenant.settings); } catch(_) {}
+      }
+      try { await setJsonEx(cacheKey, 300, req.tenant); } catch (_) {}
+      return next();
+    } catch (error) {
+      // Hata durumunda mevcut akışa geri dön: DB sorgusu
+      poolWrapper.execute(
+        'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE apiKey = ? AND isActive = true',
+        [apiKey]
+      ).then(([rows]) => {
+        if (rows.length === 0) {
+          return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
+        }
+        req.tenant = rows[0];
+        if (req.tenant.settings) {
+          try { req.tenant.settings = JSON.parse(req.tenant.settings); } catch(_) {}
+        }
+        next();
+      }).catch(err => {
+        console.error('❌ Error authenticating API key:', err);
+        res.status(500).json({ success: false, message: 'Error authenticating API key' });
       });
     }
-    
-    req.tenant = rows[0];
-    if (req.tenant.settings) {
-      try { 
-        req.tenant.settings = JSON.parse(req.tenant.settings); 
-      } catch(_) {} 
-    }
-    next();
-  }).catch(error => {
-    console.error('❌ Error authenticating API key:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error authenticating API key' 
-    });
-  });
+  })();
 });
 
 // Global SQL Injection Guard for all API routes
