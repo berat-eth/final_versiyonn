@@ -29,7 +29,7 @@ import { CampaignController, Campaign } from '../controllers/CampaignController'
 import { PersonalizationController, PersonalizedContent } from '../controllers/PersonalizationController';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Chatbot } from '../components/Chatbot';
-import { VariationModal } from '../components/VariationModal';
+// VariationModal removed
 import { InstagramStories } from '../components/InstagramStories';
 import { useAppContext } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';

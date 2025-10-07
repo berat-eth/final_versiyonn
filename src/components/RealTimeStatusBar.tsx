@@ -52,10 +52,8 @@ export const RealTimeStatusBar: React.FC = () => {
     checkNetworkStatus();
   };
 
-  // Don't show if everything is normal
-  if (networkStatus.isOnline && networkStatus.queueLength === 0) {
-    return null;
-  }
+  // Offline bar'ı tamamen gizle
+  return null;
 
   return (
     <View style={[

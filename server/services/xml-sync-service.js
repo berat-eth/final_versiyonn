@@ -862,10 +862,10 @@ class XmlSyncService {
 
   // Cron job başlat
   startScheduledSync() {
-    console.log('⏰ Starting scheduled XML sync (every 4 hours)...');
+    console.log('⏰ Starting scheduled XML sync (every 7 hours)...');
     
-    // Her 4 saatte bir çalıştır (saat 00:00, 04:00, 08:00, 12:00, 16:00, 20:00)
-    cron.schedule('0 */4 * * *', async () => {
+    // Her 7 saatte bir çalıştır
+    cron.schedule('0 */7 * * *', async () => {
       console.log(`\n🕐 Scheduled sync triggered at ${new Date().toLocaleString()}`);
       
       // Server load kontrolü

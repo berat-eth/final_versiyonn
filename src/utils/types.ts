@@ -1,21 +1,5 @@
 // Product Types
-export interface ProductVariation {
-  id: number;
-  productId: number;
-  name: string; // e.g., "Size", "Color", "Material"
-  options: ProductVariationOption[];
-}
-
-export interface ProductVariationOption {
-  id: number;
-  variationId: number;
-  name: string; // e.g., "Size", "Color", "Material"
-  value: string; // e.g., "XL", "Red", "Cotton"
-  priceModifier: number; // Additional cost for this option
-  stock: number;
-  sku?: string;
-  image?: string;
-}
+// Variations removed
 
 export interface Product {
   id: number;
@@ -34,8 +18,8 @@ export interface Product {
   brand: string;
   rating: number;
   reviewCount: number;
-  variations?: ProductVariation[];
-  hasVariations: boolean;
+  // variations removed
+  hasVariations?: boolean;
   lastUpdated?: string; // API'den gelen son güncelleme tarihi
   externalId?: string; // Dış sistem ID'si
   source?: string; // Veri kaynağı
@@ -105,7 +89,7 @@ export interface CartItem {
   quantity: number;
   userId: number;
   product?: Product;
-  selectedVariations?: { [key: string]: ProductVariationOption };
+  // variations removed
   variationString?: string; // Human readable variation string
 }
 

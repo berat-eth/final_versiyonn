@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield, UploadCloud, Activity } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { productService } from '@/lib/services'
 import type { Product } from '@/lib/api'
@@ -22,6 +22,8 @@ export default function Products() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<any>({ name:'', price:'', category:'', image:'', images:[] as string[], stock:0, brand:'', taxRate:0, priceIncludesTax:false, description:'' , hasVariations:false, isActive:true, excludeFromXml:false })
   const [formErrors, setFormErrors] = useState<Record<string,string>>({})
+  const [syncing, setSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<{ running: boolean; last?: string; message?: string } | null>(null)
 
   const categories = ['Tümü', 'Kamp Malzemeleri', 'Outdoor Giyim', 'Ayakkabı', 'Aksesuar']
 
@@ -71,6 +73,22 @@ export default function Products() {
   useEffect(() => {
     fetchProducts(currentPage)
   }, [currentPage])
+
+  // Sync status fetcher
+  const fetchSyncStatus = async () => {
+    try {
+      const res = await api.get<any>('/sync/status')
+      if (res?.success && res?.data) {
+        setSyncStatus({ running: !!res.data.isRunning, last: res.data.lastSyncTime })
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchSyncStatus()
+    const t = setInterval(fetchSyncStatus, 15000)
+    return () => clearInterval(t)
+  }, [])
 
   useEffect(() => {
     const delaySearch = setTimeout(() => {
@@ -183,6 +201,21 @@ export default function Products() {
             Ürün Ekle
           </button>
           <button
+            onClick={async()=>{
+              try {
+                setSyncing(true)
+                await api.post('/sync/products')
+                await fetchSyncStatus()
+                await fetchProducts(currentPage)
+              } catch { alert('Senkron başlatılamadı') } finally { setSyncing(false) }
+            }}
+            disabled={syncing}
+            className="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-4 py-2 rounded-xl flex items-center hover:shadow-lg transition-shadow disabled:opacity-60"
+          >
+            <UploadCloud className="w-4 h-4 mr-2" />
+            {syncing ? 'Senkron Başlatılıyor...' : 'XML Senkronu Başlat'}
+          </button>
+          <button
             onClick={() => fetchProducts(currentPage)}
             className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-xl flex items-center hover:shadow-lg transition-shadow"
           >
@@ -190,6 +223,20 @@ export default function Products() {
             Yenile
           </button>
         </div>
+      </div>
+
+      {/* Sync status panel */}
+      <div className="bg-white rounded-xl shadow-sm p-4 card-hover flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${syncStatus?.running ? 'bg-green-100' : 'bg-slate-100'}`}>
+            <Activity className={`w-5 h-5 ${syncStatus?.running ? 'text-green-600 animate-pulse' : 'text-slate-600'}`} />
+          </div>
+          <div>
+            <p className="text-slate-700 font-semibold">XML Senkron Durumu</p>
+            <p className="text-sm text-slate-500">{syncStatus?.running ? 'Çalışıyor' : 'Beklemede'}{syncStatus?.last ? ` • Son: ${new Date(syncStatus.last).toLocaleString('tr-TR')}` : ''}</p>
+          </div>
+        </div>
+        <div className="text-sm text-slate-500">Kaynak: Ticimax XML</div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

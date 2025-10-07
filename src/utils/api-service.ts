@@ -695,27 +695,33 @@ class ApiService {
 
   // Product variations endpoints
   async getProductVariations(productId: number): Promise<ApiResponse<any[]>> {
-    return this.request(`/products/${productId}/variations`);
+    // Variations disabled
+    return { success: true, data: [] } as any;
   }
 
   async saveProductVariations(tenantId: number, productId: number, variations: any[]): Promise<ApiResponse<boolean>> {
-    return this.request(`/products/${productId}/variations`, 'POST', { tenantId, variations });
+    // Variations disabled
+    return { success: true, data: false } as any;
   }
 
   async updateProductHasVariations(productId: number, hasVariations: boolean): Promise<ApiResponse<boolean>> {
-    return this.request(`/products/${productId}/has-variations`, 'PUT', { hasVariations });
+    // Variations disabled
+    return { success: true, data: false } as any;
   }
 
   async getVariationOptions(variationId: number): Promise<ApiResponse<any[]>> {
-    return this.request(`/variations/${variationId}/options`);
+    // Variations disabled
+    return { success: true, data: [] } as any;
   }
 
   async getVariationOptionById(optionId: number): Promise<ApiResponse<any>> {
-    return this.request(`/variations/options/${optionId}`);
+    // Variations disabled
+    return { success: true, data: null } as any;
   }
 
   async updateVariationOptionStock(optionId: number, quantity: number): Promise<ApiResponse<boolean>> {
-    return this.request(`/variations/options/${optionId}/stock`, 'PUT', { quantity });
+    // Variations disabled
+    return { success: true, data: false } as any;
   }
 
   // Enhanced cart endpoints

@@ -35,26 +35,9 @@ export const useRealTimeUpdates = () => {
 
   // Check network status
   const checkNetworkStatus = useCallback(async () => {
-    try {
-      const isOnline = await apiService.checkNetworkStatus();
-      const status = apiService.getNetworkStatus();
-      
-      setNetworkStatus({
-        isOnline: isOnline,
-        queueLength: status.queueLength,
-        lastCheck: new Date()
-      });
-
-      return isOnline;
-    } catch (error) {
-      console.error('❌ Error checking network status:', error);
-      setNetworkStatus(prev => ({
-        ...prev,
-        isOnline: false,
-        lastCheck: new Date()
-      }));
-      return false;
-    }
+    // Offline modu devre dışı: her zaman online kabul et
+    setNetworkStatus({ isOnline: true, queueLength: 0, lastCheck: new Date() });
+    return true;
   }, []);
 
   // Process offline queue when back online
@@ -67,27 +50,9 @@ export const useRealTimeUpdates = () => {
     setIsProcessing(true);
     
     try {
-      console.log('🔄 Processing offline queue...');
-      
-      // Process cart operations
-      await CartController.processOfflineCartOperations();
-      
-      // Process order operations
-      await OrderController.processOfflineOrderOperations();
-      
-      // Process review operations
-      await ReviewController.processOfflineReviewOperations();
-      
-      // Process API offline queue
+      // Offline kuyruğu devre dışı
       await apiService.processOfflineQueue();
-      
-      console.log('✅ Offline queue processing completed');
-      
-      // Update network status
       await checkNetworkStatus();
-      
-    } catch (error) {
-      console.error('❌ Error processing offline queue:', error);
     } finally {
       setIsProcessing(false);
     }

@@ -390,11 +390,12 @@ const inputValidator = new InputValidation();
 // Basic request size limiting
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// XML gövdeleri için text parser (text/xml, application/xml)
+app.use(express.text({ type: ['text/xml', 'application/xml'], limit: '20mb' }));
 
 // Tenant cache middleware (preload tenant from Redis if available)
 const tenantCache = require('./middleware/tenantCache');
 const { getJson, setJsonEx, delKey, withLock, sha256 } = require('./redis');
-const rateLimit = require('express-rate-limit');
 
 // Relaxed rate limiter for cart endpoints (reduce 429 while Redis cache active)
 const isPrivateIp = (ip) => /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(ip || '');
@@ -6546,6 +6547,73 @@ app.get('/api/sync/test', async (req, res) => {
   }
 });
 
+// XML içeriğini doğrudan POST gövdesinden alarak senkronize et
+app.post('/api/sync/import-xml', async (req, res) => {
+  try {
+    if (!xmlSyncService) {
+      return res.status(503).json({ success: false, message: 'XML Sync Service not available' });
+    }
+
+    const contentType = (req.headers['content-type'] || '').toLowerCase();
+    const isXml = contentType.includes('xml');
+    const rawBody = typeof req.body === 'string' ? req.body : '';
+
+    if (!isXml || !rawBody) {
+      return res.status(400).json({ success: false, message: 'Lütfen Content-Type: text/xml veya application/xml ve geçerli XML gövde gönderin.' });
+    }
+
+    const xml2js = require('xml2js');
+    const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: true, trim: true });
+    const parsed = await parser.parseStringPromise(rawBody);
+
+    const source = xmlSyncService.getXmlSources()[0] || { name: 'Manual', type: 'ticimax' };
+    const products = xmlSyncService.parseXmlToProducts(parsed, source) || [];
+
+    // Kategorileri çıkar ve upsert et
+    const categories = xmlSyncService.extractCategoriesFromProducts(products);
+    const tenantId = (req.tenant && req.tenant.id) ? req.tenant.id : 1;
+    await xmlSyncService.upsertCategories(categories, tenantId);
+
+    let newCount = 0;
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    for (const p of products) {
+      const ok = await xmlSyncService.upsertProduct(p, tenantId);
+      if (ok) {
+        // upsertProduct istatistikleri xmlSyncService.syncStats üzerinde tutuluyor
+        // Burada kaba bir tahminle sayacağız; gerçek dağılım loglarda mevcut
+        if (p && p.externalId) {
+          // Dışarıya sadece toplamları raporlamak yeterli
+        }
+      } else {
+        errorCount++;
+      }
+    }
+
+    // İstatistikleri servis içinden çek (daha doğru sayımlar için)
+    const stats = xmlSyncService.getSyncStatus().stats || {};
+    newCount = stats.newProducts || 0;
+    updatedCount = stats.updatedProducts || 0;
+    if (errorCount === 0) errorCount = stats.errors || 0;
+
+    return res.json({
+      success: true,
+      message: 'XML import tamamlandı',
+      data: {
+        receivedProducts: products.length,
+        categories: categories.length,
+        newProducts: newCount,
+        updatedProducts: updatedCount,
+        errors: errorCount
+      }
+    });
+  } catch (e) {
+    console.error('❌ Error importing XML:', e.message);
+    return res.status(500).json({ success: false, message: 'XML import hatası: ' + e.message });
+  }
+});
+
 // Start server
 async function startServer() {
   await initializeDatabase();
@@ -6571,6 +6639,22 @@ async function startServer() {
   // Cart endpoints (apply relaxed limiter)
   app.use('/api/cart', relaxedCartLimiter);
   app.use('/api/cart/user', relaxedCartLimiter);
+  // Variations API stubs (return empty)
+  app.get('/api/products/:productId/variations', async (req, res) => {
+    res.json({ success: true, data: [] });
+  });
+  app.post('/api/products/:productId/variations', async (req, res) => {
+    res.json({ success: true, data: false, message: 'Variations disabled' });
+  });
+  app.get('/api/variations/:variationId/options', async (req, res) => {
+    res.json({ success: true, data: [] });
+  });
+  app.get('/api/variations/options/:optionId', async (req, res) => {
+    res.json({ success: true, data: null });
+  });
+  app.put('/api/variations/options/:optionId/stock', async (req, res) => {
+    res.json({ success: true, data: false, message: 'Variations disabled' });
+  });
 
   // Cart endpoints
   app.get('/api/cart/:userId', async (req, res) => {

@@ -21,7 +21,7 @@ import { Product, Review, ProductVariationOption } from '../utils/types';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ReviewForm } from '../components/ReviewForm';
 import { ReviewList } from '../components/ReviewList';
-import { VariationSelector } from '../components/VariationSelector';
+// VariationSelector removed
 import { ProductVariationService } from '../services/ProductVariationService';
 import { Colors } from '../theme/colors';
 import { ModernButton } from '../components/ui/ModernButton';
