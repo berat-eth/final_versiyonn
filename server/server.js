@@ -2925,10 +2925,13 @@ app.get('/api/admin/wallet-recharge-requests', authenticateAdmin, async (req, re
     const limit = parseInt(req.query.limit) || 100;
     const offset = parseInt(req.query.offset) || 0;
     const [rows] = await poolWrapper.execute(
-      `SELECT id, userId, amount, paymentMethod, bankInfo, status, errorMessage, approvedBy, createdAt, completedAt
-       FROM wallet_recharge_requests
-       WHERE tenantId = ?
-       ORDER BY createdAt DESC
+      `SELECT 
+         w.id, w.userId, u.name AS userName, u.email AS userEmail, u.phone AS userPhone,
+         w.amount, w.paymentMethod, w.bankInfo, w.status, w.errorMessage, w.approvedBy, w.createdAt, w.completedAt
+       FROM wallet_recharge_requests w
+       LEFT JOIN users u ON u.id = w.userId
+       WHERE w.tenantId = ?
+       ORDER BY w.createdAt DESC
        LIMIT ? OFFSET ?`,
       [req.tenant?.id || 1, limit, offset]
     );
