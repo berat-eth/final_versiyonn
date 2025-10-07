@@ -24,6 +24,9 @@ export default function Products() {
   const [formErrors, setFormErrors] = useState<Record<string,string>>({})
   const [syncing, setSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<{ running: boolean; last?: string; message?: string } | null>(null)
+  const [sizesMap, setSizesMap] = useState<Record<number, string[]>>({})
+  const [sizesLoading, setSizesLoading] = useState<Record<number, boolean>>({})
+  const [showViewModal, setShowViewModal] = useState<{ open: boolean; product?: Product | null; details?: any; variations?: any[] }>({ open: false, product: null, details: null, variations: [] })
 
   const categories = ['Tümü', 'Kamp Malzemeleri', 'Outdoor Giyim', 'Ayakkabı', 'Aksesuar']
 
@@ -101,6 +104,51 @@ export default function Products() {
 
     return () => clearTimeout(delaySearch)
   }, [searchTerm])
+
+  // Fetch sizes (variations) for current page of products
+  useEffect(() => {
+    const loadSizes = async () => {
+      try {
+        const base = products
+          .filter(p => (selectedCategory === 'Tümü' || p.category === selectedCategory))
+          .slice(0, 100)
+        const missing = base.filter(p => sizesMap[p.id] === undefined).slice(0, 50)
+        if (missing.length === 0) return
+        const updates: Record<number, string[]> = {}
+        await Promise.all(missing.map(async (p) => {
+          try {
+            setSizesLoading(prev => ({ ...prev, [p.id]: true }))
+            const res = await productService.getProductVariations(p.id)
+            const vars = (res?.data || []) as any[]
+            const sizeLike = (name: string = '') => {
+              const n = (name || '').toLowerCase()
+              return n.includes('beden') || n.includes('size') || n.includes('numara')
+            }
+            const values: string[] = []
+            const seen = new Set<string>()
+            vars.forEach((v: any) => {
+              if (!v) return
+              if (!v.name || !sizeLike(v.name)) return
+              const opts: any[] = Array.isArray(v.options) ? v.options : []
+              opts.forEach((o: any) => {
+                const val = String(o?.value || '').trim()
+                if (!val) return
+                const k = val.toLowerCase()
+                if (!seen.has(k)) { seen.add(k); values.push(val) }
+              })
+            })
+            updates[p.id] = values
+          } catch {
+            updates[p.id] = []
+          } finally {
+            setSizesLoading(prev => ({ ...prev, [p.id]: false }))
+          }
+        }))
+        if (Object.keys(updates).length > 0) setSizesMap(prev => ({ ...prev, ...updates }))
+      } catch {}
+    }
+    loadSizes()
+  }, [products, selectedCategory])
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'Tümü' || product.category === selectedCategory
@@ -503,6 +551,7 @@ export default function Products() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Kategori</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Fiyat</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Stok</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Bedenler</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Marka</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Durum</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">SKU</th>
@@ -555,6 +604,26 @@ export default function Products() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
+                      {sizesLoading[product.id] && (
+                        <span className="text-xs text-slate-500">Yükleniyor...</span>
+                      )}
+                      {!sizesLoading[product.id] && (
+                        <div className="flex flex-wrap gap-1 max-w-xs">
+                          {(sizesMap[product.id] || []).slice(0, 6).map((s, i) => (
+                            <span key={`${product.id}-size-${i}`} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs border border-slate-200">
+                              {s}
+                            </span>
+                          ))}
+                          {Array.isArray(sizesMap[product.id]) && sizesMap[product.id].length > 6 && (
+                            <span className="px-2 py-0.5 bg-slate-50 text-slate-500 rounded text-xs border border-slate-200">+{sizesMap[product.id].length - 6}</span>
+                          )}
+                          {Array.isArray(sizesMap[product.id]) && sizesMap[product.id].length === 0 && (
+                            <span className="text-xs text-slate-400">-</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
                       <span className="text-slate-700 font-medium">{product.brand}</span>
                     </td>
                     <td className="px-6 py-4">
@@ -572,6 +641,19 @@ export default function Products() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
+                        <button onClick={async () => {
+                          try {
+                            const [detailsRes, varsRes] = await Promise.all([
+                              productService.getProductById(product.id),
+                              productService.getProductVariations(product.id)
+                            ])
+                            setShowViewModal({ open: true, product, details: detailsRes?.data || product, variations: varsRes?.data || [] })
+                          } catch {
+                            setShowViewModal({ open: true, product, details: product, variations: sizesMap[product.id] || [] })
+                          }
+                        }} className="p-2 hover:bg-slate-50 rounded-lg" title="Görüntüle">
+                          <Eye className="w-4 h-4 text-slate-600" />
+                        </button>
                         <button onClick={() => openEdit(product)} className="p-2 hover:bg-blue-50 rounded-lg" title="Güncelle">
                           <Edit className="w-4 h-4 text-blue-600" />
                         </button>
@@ -609,6 +691,47 @@ export default function Products() {
           </div>
         </div>
       </div>
+      {/* View modal - full product data */}
+      <AnimatePresence>
+        {showViewModal.open && showViewModal.product && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowViewModal({ open: false, product: null, details: null, variations: [] })}>
+            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-xl font-bold">Ürün Detayları #{showViewModal.product.id}</h3>
+                <button onClick={()=>setShowViewModal({ open:false, product:null, details:null, variations:[] })} className="px-2 py-1 rounded hover:bg-slate-100">Kapat</button>
+              </div>
+              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5 overflow-auto">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-700 mb-2">Temel Bilgiler</h4>
+                  <div className="space-y-1 text-sm text-slate-700">
+                    <div><span className="text-slate-500">Ad:</span> {showViewModal.product.name}</div>
+                    <div><span className="text-slate-500">Marka:</span> {showViewModal.product.brand}</div>
+                    <div><span className="text-slate-500">Kategori:</span> {showViewModal.product.category}</div>
+                    <div><span className="text-slate-500">Fiyat:</span> ₺{showViewModal.product.price?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
+                    <div><span className="text-slate-500">Stok:</span> {showViewModal.product.stock ?? 0}</div>
+                    <div><span className="text-slate-500">SKU:</span> {showViewModal.product.sku || '-'}</div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-700 mb-2">Bedenler</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {(sizesMap[showViewModal.product.id] || []).map((s, i) => (
+                      <span key={`view-size-${i}`} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs border border-slate-200">{s}</span>
+                    ))}
+                    {Array.isArray(sizesMap[showViewModal.product.id]) && sizesMap[showViewModal.product.id].length === 0 && (
+                      <span className="text-xs text-slate-400">-</span>
+                    )}
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <h4 className="text-sm font-semibold text-slate-700 mb-2">Tüm Veriler</h4>
+                  <pre className="text-xs bg-slate-50 border border-slate-200 rounded p-3 overflow-auto max-h-64">{JSON.stringify(showViewModal.details || showViewModal.product, null, 2)}</pre>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
