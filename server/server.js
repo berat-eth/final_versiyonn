@@ -1145,16 +1145,30 @@ app.post('/api/wallet/transfer', async (req, res) => {
       });
     }
 
-    const { fromUserId, toUserId, amount, description } = req.body;
+    let { fromUserId, toUserId, amount, description } = req.body || {};
+
+    // Harici kimlik varsa iç id'ye çevir
+    const tenantId = req.tenant.id;
+    const resolvedFromId = await resolveInternalUserId(fromUserId, tenantId);
+    const resolvedToId = await resolveInternalUserId(toUserId, tenantId);
+
+    // Tutarı güvenli parse et (virgül nokta dönüşümü, 2 ondalık hassasiyet)
+    const parsedAmount = (() => {
+      try {
+        const n = parseFloat(String(amount).replace(/,/g, '.'));
+        if (!isFinite(n)) return NaN;
+        return Math.round(n * 100) / 100;
+      } catch { return NaN }
+    })();
     
-    if (!fromUserId || !toUserId || !amount || amount <= 0) {
+    if (!resolvedFromId || !resolvedToId || !parsedAmount || parsedAmount <= 0) {
       return res.status(400).json({ 
         success: false, 
         message: 'Missing or invalid required fields' 
       });
     }
 
-    if (fromUserId === toUserId) {
+    if (resolvedFromId === resolvedToId) {
       return res.status(400).json({ 
         success: false, 
         message: 'Cannot transfer to yourself' 
@@ -1164,12 +1178,12 @@ app.post('/api/wallet/transfer', async (req, res) => {
     // Check if both users exist
     const [fromUser] = await poolWrapper.execute(
       'SELECT id, name FROM users WHERE id = ? AND tenantId = ?',
-      [fromUserId, req.tenant.id]
+      [resolvedFromId, req.tenant.id]
     );
     
     const [toUser] = await poolWrapper.execute(
       'SELECT id, name FROM users WHERE id = ? AND tenantId = ?',
-      [toUserId, req.tenant.id]
+      [resolvedToId, req.tenant.id]
     );
 
     if (fromUser.length === 0) {
@@ -1189,7 +1203,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
     // Check sender's balance
     const [senderBalance] = await poolWrapper.execute(
       'SELECT balance FROM user_wallets WHERE userId = ? AND tenantId = ?',
-      [fromUserId, req.tenant.id]
+      [resolvedFromId, req.tenant.id]
     );
 
     if (senderBalance.length === 0 || senderBalance[0].balance < amount) {
@@ -1221,7 +1235,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
         INSERT INTO user_wallets (userId, tenantId, balance, createdAt, updatedAt)
         VALUES (?, ?, ?, NOW(), NOW())
         ON DUPLICATE KEY UPDATE balance = balance + ?, updatedAt = NOW()
-      `, [toUserId, req.tenant.id, amount, amount]);
+      `, [resolvedToId, req.tenant.id, parsedAmount, parsedAmount]);
       console.log('✅ Receiver balance updated');
 
       // Record outgoing transaction for sender
@@ -1229,7 +1243,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
       await connection.execute(`
         INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
         VALUES (?, ?, 'transfer_out', ?, ?, ?, NOW())
-      `, [fromUserId, req.tenant.id, -amount, description || `Transfer to ${toUser[0].name}`, `TRANSFER_OUT_${Date.now()}`]);
+      `, [resolvedFromId, req.tenant.id, -parsedAmount, description || `Transfer to ${toUser[0].name}`, `TRANSFER_OUT_${Date.now()}:${resolvedToId}`]);
       console.log('✅ Outgoing transaction recorded');
 
       // Record incoming transaction for receiver
@@ -1237,7 +1251,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
       await connection.execute(`
         INSERT INTO wallet_transactions (userId, tenantId, type, amount, description, referenceId, createdAt)
         VALUES (?, ?, 'transfer_in', ?, ?, ?, NOW())
-      `, [toUserId, req.tenant.id, amount, description || `Transfer from ${fromUser[0].name}`, `TRANSFER_IN_${Date.now()}`]);
+      `, [resolvedToId, req.tenant.id, parsedAmount, description || `Transfer from ${fromUser[0].name}`, `TRANSFER_IN_${Date.now()}:${resolvedFromId}`]);
       console.log('✅ Incoming transaction recorded');
 
       console.log('🔄 Committing transaction...');
@@ -1249,7 +1263,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
         message: 'Transfer completed successfully',
         data: {
           transferId: `TRANSFER_${Date.now()}`,
-          amount,
+          amount: parsedAmount,
           fromUser: fromUser[0].name,
           toUser: toUser[0].name
         }

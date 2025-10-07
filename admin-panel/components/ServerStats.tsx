@@ -17,6 +17,9 @@ export default function ServerStats() {
   const [processes, setProcesses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [liveSeries, setLiveSeries] = useState<any[]>([])
+  const [lastAlertAt, setLastAlertAt] = useState<number>(0)
+  const [alertActive, setAlertActive] = useState(false)
 
   const fetchStats = async () => {
     try {
@@ -43,9 +46,54 @@ export default function ServerStats() {
 
   useEffect(() => {
     fetchStats()
-    const timer = setInterval(fetchStats, 10000)
+    const timer = setInterval(fetchStats, 45000)
     return () => clearInterval(timer)
   }, [])
+
+  // Eşik aşımı için sesli uyarı ve banner tetikle
+  useEffect(() => {
+    const cpuHigh = cpuUsage >= 80
+    const ramHigh = ramUsage >= 50
+    setAlertActive(cpuHigh || ramHigh)
+
+    if (cpuHigh || ramHigh) {
+      const now = Date.now()
+      if (now - lastAlertAt > 30000) { // 30 sn debounce
+        setLastAlertAt(now)
+        try {
+          const AudioContextCtor: any = (window as any).AudioContext || (window as any).webkitAudioContext
+          if (AudioContextCtor) {
+            const ctx = new AudioContextCtor()
+            const o = ctx.createOscillator()
+            const g = ctx.createGain()
+            o.type = 'sine'
+            o.frequency.value = 880
+            o.connect(g)
+            g.connect(ctx.destination)
+            g.gain.setValueAtTime(0.0001, ctx.currentTime)
+            g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01)
+            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4)
+            o.start()
+            o.stop(ctx.currentTime + 0.42)
+          }
+        } catch {}
+      }
+    }
+  }, [cpuUsage, ramUsage])
+
+  // Akan canlı grafik için seri oluştur
+  useEffect(() => {
+    const point = {
+      t: new Date().toLocaleTimeString('tr-TR', { minute: '2-digit', second: '2-digit' }),
+      cpu: Number(cpuUsage || 0),
+      ram: Number(ramUsage || 0)
+    }
+    setLiveSeries(prev => {
+      const next = [...prev, point]
+      if (next.length > 30) next.shift() // son ~5 dakika (10sn aralıkta)
+      return next
+    })
+  }, [cpuUsage, ramUsage])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -72,10 +120,17 @@ export default function ServerStats() {
           <h2 className="text-3xl font-bold text-slate-800">Sunucu İstatistikleri</h2>
           <p className="text-slate-500 mt-1">Gerçek zamanlı sunucu performans takibi</p>
         </div>
-        <div className="flex items-center space-x-2 px-4 py-2 bg-green-100 border border-green-200 rounded-xl">
-          <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
-          <span className="text-sm font-medium text-green-700">Tüm Sistemler Çalışıyor</span>
-        </div>
+        {!alertActive ? (
+          <div className="flex items-center space-x-2 px-4 py-2 bg-green-100 border border-green-200 rounded-xl">
+            <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-green-700">Tüm Sistemler Çalışıyor</span>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2 px-4 py-2 bg-red-100 border border-red-200 rounded-xl animate-pulse">
+            <AlertCircle className="w-4 h-4 text-red-600" />
+            <span className="text-sm font-medium text-red-700">Yüksek kullanım uyarısı</span>
+          </div>
+        )}
       </div>
 
       {/* Real-time Stats */}
@@ -168,6 +223,23 @@ export default function ServerStats() {
             <span className="text-slate-600">Download: {Number(networkSpeed||0) > 0 ? networkSpeed.toFixed(0) : 0} Mbps</span>
           </div>
         </motion.div>
+      </div>
+
+      {/* Akan Canlı Grafik (CPU/RAM) */}
+      <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
+        <h3 className="text-xl font-bold text-slate-800 mb-2">Canlı CPU ve RAM</h3>
+        <p className="text-slate-500 text-sm mb-4">Son ölçümler • 10sn aralık</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <ComposedChart data={liveSeries}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
+            <XAxis dataKey="t" stroke="#94a3b8" interval={4} />
+            <YAxis stroke="#94a3b8" domain={[0, 100]} />
+            <Tooltip />
+            <Legend />
+            <Area type="monotone" dataKey="cpu" stroke="#ef4444" fill="#ef444433" strokeWidth={2} isAnimationActive />
+            <Line type="monotone" dataKey="ram" stroke="#8b5cf6" strokeWidth={2} dot={false} isAnimationActive />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Charts */}
