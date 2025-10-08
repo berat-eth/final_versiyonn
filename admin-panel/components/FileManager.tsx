@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Folder, File, Upload, Download, Trash2, RefreshCw, Plus, ArrowLeft } from 'lucide-react'
+import { Folder, File, Upload, Download, Trash2, RefreshCw, Plus, ArrowLeft, Edit, Save, X, Code } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
 
@@ -18,6 +18,10 @@ export default function FileManager() {
   const [items, setItems] = useState<FsItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editingFile, setEditingFile] = useState<string | null>(null)
+  const [fileContent, setFileContent] = useState<string>('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const loadList = async (dir: string) => {
     try {
@@ -40,6 +44,86 @@ export default function FileManager() {
     parts.pop()
     const parent = '/' + parts.join('/')
     setCwd(parent || '/')
+  }
+
+  const getFileLanguage = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase()
+    const langMap: { [key: string]: string } = {
+      'js': 'javascript',
+      'ts': 'typescript',
+      'py': 'python',
+      'java': 'java',
+      'cpp': 'cpp',
+      'cs': 'csharp',
+      'php': 'php',
+      'rb': 'ruby',
+      'go': 'go',
+      'rs': 'rust',
+      'html': 'html',
+      'css': 'css',
+      'scss': 'scss',
+      'json': 'json',
+      'xml': 'xml',
+      'yml': 'yaml',
+      'yaml': 'yaml',
+      'sql': 'sql',
+      'md': 'markdown',
+      'txt': 'plaintext'
+    }
+    return langMap[extension || ''] || 'plaintext'
+  }
+
+  const handleEditFile = async (filePath: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const response = await api.get('/admin/files/content', { path: filePath })
+      if ((response as any)?.success) {
+        setFileContent((response as any).data.content || '')
+        setEditingFile(filePath)
+        setIsEditing(true)
+      } else {
+        setError('Dosya içeriği yüklenemedi')
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Dosya yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSaveFile = async () => {
+    if (!editingFile) return
+    
+    try {
+      setIsSaving(true)
+      setError(null)
+      
+      const response = await api.post('/admin/files/save-content', {
+        path: editingFile,
+        content: fileContent
+      })
+      
+      if ((response as any)?.success) {
+        alert('Dosya başarıyla kaydedildi!')
+        setIsEditing(false)
+        setEditingFile(null)
+        setFileContent('')
+      } else {
+        alert('Dosya kaydedilemedi!')
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Dosya kaydedilemedi')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    setEditingFile(null)
+    setFileContent('')
   }
 
   return (
@@ -78,7 +162,10 @@ export default function FileManager() {
                 </div>
                 <div className="flex items-center gap-2">
                   {it.type==='file' && (
-                    <a href={`#`} onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); window.open(`${location.origin}/api/admin/files/download?path=${encodeURIComponent(it.path)}`,'_blank') }} title="İndir" className="p-2 hover:bg-slate-100 rounded-lg"><Download className="w-4 h-4"/></a>
+                    <>
+                      <button onClick={(e)=>{ e.stopPropagation(); handleEditFile(it.path) }} title="Düzenle" className="p-2 hover:bg-slate-100 rounded-lg"><Edit className="w-4 h-4"/></button>
+                      <a href={`#`} onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); window.open(`${location.origin}/api/admin/files/download?path=${encodeURIComponent(it.path)}`,'_blank') }} title="İndir" className="p-2 hover:bg-slate-100 rounded-lg"><Download className="w-4 h-4"/></a>
+                    </>
                   )}
                   <button onClick={async (e)=>{ e.stopPropagation(); try{ await api.delete<any>(`/admin/files?path=${encodeURIComponent(it.path)}`); await loadList(cwd) } catch { alert('Silinemedi'); } }} title="Sil" className="p-2 hover:bg-slate-100 rounded-lg"><Trash2 className="w-4 h-4"/></button>
                 </div>
@@ -90,6 +177,60 @@ export default function FileManager() {
           )}
         </div>
       </div>
+
+      {/* Dosya Editörü */}
+      {isEditing && editingFile && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl shadow-sm overflow-hidden"
+        >
+          <div className="bg-slate-900 text-slate-100 p-4 border-b border-slate-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <Code className="w-4 h-4" />
+                <span className="font-medium">{editingFile.split('/').pop()}</span>
+                <span className="text-slate-400">•</span>
+                <span className="text-slate-400">{getFileLanguage(editingFile)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveFile}
+                  disabled={isSaving}
+                  className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 text-sm"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-3 py-1 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2 text-sm"
+                >
+                  <X className="w-4 h-4" />
+                  İptal
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="relative">
+            <textarea
+              value={fileContent}
+              onChange={(e) => setFileContent(e.target.value)}
+              className="w-full h-96 p-4 font-mono text-sm bg-slate-900 text-slate-100 border-0 outline-none resize-none"
+              placeholder="Dosya içeriği yükleniyor..."
+              spellCheck={false}
+              style={{
+                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                lineHeight: '1.5',
+                tabSize: 2
+              }}
+            />
+            <div className="absolute top-4 right-4 text-xs text-slate-500">
+              {fileContent.split('\n').length} satır
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   )
 }

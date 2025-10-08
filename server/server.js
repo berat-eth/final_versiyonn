@@ -3253,23 +3253,47 @@ app.get('/api/admin/sql/tables', authenticateAdmin, async (req, res) => {
 // =========================
 // ADMIN - FILE MANAGER (READ-ONLY + DELETE)
 // =========================
-const SAFE_BASE_DIR = process.env.FILE_MANAGER_BASE || path.resolve(__dirname);
+const SAFE_BASE_DIR = process.env.FILE_MANAGER_BASE || path.resolve(__dirname, '..');
 
 function isPathInside(base, target) {
   const rel = path.relative(base, target);
+  // Root path için özel kontrol
+  if (rel === '') return true;
   return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
 app.get('/api/admin/files', authenticateAdmin, async (req, res) => {
   try {
-    const relPath = String(req.query.path || '/');
-    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
-    if (!isPathInside(SAFE_BASE_DIR, targetPath)) return res.status(400).json({ success:false, message:'Invalid path' });
-    if (!fs.existsSync(targetPath)) return res.json({ success:true, data: [] });
+    let relPath = String(req.query.path || '/');
+    
+    // Path normalization ve güvenlik kontrolleri
+    if (relPath.includes('..') || relPath.includes('//')) {
+      return res.status(400).json({ success:false, message:'Invalid path' });
+    }
+    
+    // Root path için özel kontrol
+    if (relPath === '/' || relPath === '') {
+      relPath = '/';
+    }
+    
+    // Root path için direkt base directory kullan
+    const targetPath = relPath === '/' ? SAFE_BASE_DIR : path.resolve(SAFE_BASE_DIR, '.' + relPath);
+    
+    // Path güvenlik kontrolü
+    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+      console.log('Path security check failed:', { SAFE_BASE_DIR, targetPath, relPath });
+      return res.status(400).json({ success:false, message:'Invalid path' });
+    }
+    
+    if (!fs.existsSync(targetPath)) {
+      return res.json({ success:true, data: [] });
+    }
+    
     const stats = fs.statSync(targetPath);
     if (!stats.isDirectory()) {
       return res.json({ success:true, data: [] });
     }
+    
     const entries = fs.readdirSync(targetPath, { withFileTypes: true });
     const list = entries.map(e => {
       const full = path.join(targetPath, e.name);
@@ -3291,13 +3315,31 @@ app.get('/api/admin/files', authenticateAdmin, async (req, res) => {
 
 app.delete('/api/admin/files', authenticateAdmin, async (req, res) => {
   try {
-    const relPath = String(req.query.path || '');
-    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
-    if (!isPathInside(SAFE_BASE_DIR, targetPath)) return res.status(400).json({ success:false, message:'Invalid path' });
-    if (!fs.existsSync(targetPath)) return res.status(404).json({ success:false, message:'Not found' });
+    let relPath = String(req.query.path || '');
+    
+    // Path normalization ve güvenlik kontrolleri
+    if (relPath.includes('..') || relPath.includes('//')) {
+      return res.status(400).json({ success:false, message:'Invalid path' });
+    }
+    
+    // Root path için direkt base directory kullan
+    const targetPath = relPath === '/' ? SAFE_BASE_DIR : path.resolve(SAFE_BASE_DIR, '.' + relPath);
+    
+    // Path güvenlik kontrolü
+    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+      return res.status(400).json({ success:false, message:'Invalid path' });
+    }
+    
+    if (!fs.existsSync(targetPath)) {
+      return res.status(404).json({ success:false, message:'Not found' });
+    }
+    
     const stats = fs.statSync(targetPath);
-    if (stats.isDirectory()) fs.rmdirSync(targetPath, { recursive: true });
-    else fs.unlinkSync(targetPath);
+    if (stats.isDirectory()) {
+      fs.rmdirSync(targetPath, { recursive: true });
+    } else {
+      fs.unlinkSync(targetPath);
+    }
     res.json({ success:true });
   } catch (error) {
     console.error('❌ file delete', error);
@@ -3308,14 +3350,182 @@ app.delete('/api/admin/files', authenticateAdmin, async (req, res) => {
 // Optional: file download (read-only)
 app.get('/api/admin/files/download', authenticateAdmin, async (req, res) => {
   try {
-    const relPath = String(req.query.path || '');
-    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
-    if (!isPathInside(SAFE_BASE_DIR, targetPath)) return res.status(400).json({ success:false, message:'Invalid path' });
-    if (!fs.existsSync(targetPath)) return res.status(404).json({ success:false, message:'Not found' });
+    let relPath = String(req.query.path || '');
+    
+    // Path normalization ve güvenlik kontrolleri
+    if (relPath.includes('..') || relPath.includes('//')) {
+      return res.status(400).json({ success:false, message:'Invalid path' });
+    }
+    
+    // Root path için direkt base directory kullan
+    const targetPath = relPath === '/' ? SAFE_BASE_DIR : path.resolve(SAFE_BASE_DIR, '.' + relPath);
+    
+    // Path güvenlik kontrolü
+    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+      return res.status(400).json({ success:false, message:'Invalid path' });
+    }
+    
+    if (!fs.existsSync(targetPath)) {
+      return res.status(404).json({ success:false, message:'Not found' });
+    }
+    
     return res.download(targetPath);
   } catch (error) {
     console.error('❌ file download', error);
     res.status(500).json({ success:false, message:'Error downloading file' });
+  }
+});
+
+// =========================
+// ADMIN - CODE EDITOR
+// =========================
+
+// Dosya içeriği okuma
+app.get('/api/admin/files/content', authenticateAdmin, async (req, res) => {
+  try {
+    let relPath = String(req.query.path || '');
+    
+    // Path normalization ve güvenlik kontrolleri
+    if (relPath.includes('..') || relPath.includes('//')) {
+      return res.status(400).json({ success: false, message: 'Invalid path' });
+    }
+    
+    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
+    
+    // Path güvenlik kontrolü
+    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+      return res.status(400).json({ success: false, message: 'Invalid path' });
+    }
+    
+    if (!fs.existsSync(targetPath)) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+    
+    const stats = fs.statSync(targetPath);
+    if (stats.isDirectory()) {
+      return res.status(400).json({ success: false, message: 'Cannot read directory' });
+    }
+    
+    // Dosya boyutu kontrolü (max 1MB)
+    if (stats.size > 1024 * 1024) {
+      return res.status(400).json({ success: false, message: 'File too large (max 1MB)' });
+    }
+    
+    const content = fs.readFileSync(targetPath, 'utf8');
+    res.json({ success: true, data: { content } });
+  } catch (error) {
+    console.error('❌ file content read', error);
+    res.status(500).json({ success: false, message: 'Error reading file content' });
+  }
+});
+
+// Dosya içeriği kaydetme
+app.post('/api/admin/files/save-content', authenticateAdmin, async (req, res) => {
+  try {
+    const { path: filePath, content } = req.body;
+    
+    if (!filePath || content === undefined) {
+      return res.status(400).json({ success: false, message: 'Path and content required' });
+    }
+    
+    let relPath = String(filePath);
+    
+    // Path normalization ve güvenlik kontrolleri
+    if (relPath.includes('..') || relPath.includes('//')) {
+      return res.status(400).json({ success: false, message: 'Invalid path' });
+    }
+    
+    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
+    
+    // Path güvenlik kontrolü
+    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+      return res.status(400).json({ success: false, message: 'Invalid path' });
+    }
+    
+    // Dosyayı kaydet
+    fs.writeFileSync(targetPath, content, 'utf8');
+    
+    res.json({ success: true, message: 'File saved successfully' });
+  } catch (error) {
+    console.error('❌ file content save', error);
+    res.status(500).json({ success: false, message: 'Error saving file content' });
+  }
+});
+
+// Dosya kaydetme
+app.post('/api/admin/files/save', authenticateAdmin, async (req, res) => {
+  try {
+    const { fileName, content, language } = req.body;
+    
+    if (!fileName || !content) {
+      return res.status(400).json({ success: false, message: 'Dosya adı ve içerik gerekli' });
+    }
+    
+    // Güvenli dosya yolu oluştur
+    const safeFileName = path.basename(fileName); // Path traversal koruması
+    const filePath = path.join(SAFE_BASE_DIR, 'code-editor', safeFileName);
+    
+    // Klasörü oluştur
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    // Dosyayı kaydet
+    fs.writeFileSync(filePath, content, 'utf8');
+    
+    res.json({ success: true, message: 'Dosya kaydedildi' });
+  } catch (error) {
+    console.error('❌ file save', error);
+    res.status(500).json({ success: false, message: 'Dosya kaydedilemedi' });
+  }
+});
+
+// Kod çalıştırma
+app.post('/api/admin/code/run', authenticateAdmin, async (req, res) => {
+  try {
+    const { code, language } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Kod gerekli' });
+    }
+    
+    let output = '';
+    let command = '';
+    
+    // Dil bazlı komut belirleme
+    switch (language) {
+      case 'javascript':
+        command = `node -e "${code.replace(/"/g, '\\"')}"`;
+        break;
+      case 'python':
+        command = `python3 -c "${code.replace(/"/g, '\\"')}"`;
+        break;
+      case 'bash':
+      case 'shell':
+        command = code;
+        break;
+      default:
+        return res.status(400).json({ success: false, message: 'Desteklenmeyen dil' });
+    }
+    
+    // Kod çalıştırma (güvenlik için sınırlı)
+    const { exec } = require('child_process');
+    exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
+      if (error) {
+        output = `Hata: ${error.message}`;
+      } else if (stderr) {
+        output = `Stderr: ${stderr}`;
+      } else {
+        output = stdout || 'Kod başarıyla çalıştırıldı';
+      }
+      
+      res.json({ success: true, output });
+    });
+    
+  } catch (error) {
+    console.error('❌ code run', error);
+    res.status(500).json({ success: false, message: 'Kod çalıştırılamadı' });
   }
 });
 

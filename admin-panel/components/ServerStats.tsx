@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown, MapPin } from 'lucide-react'
+import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown, MapPin, Mail, Container } from 'lucide-react'
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Bar, Legend } from 'recharts'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
@@ -14,7 +14,20 @@ export default function ServerStats() {
   const [cpuData, setCpuData] = useState<any[]>([])
   const [networkData, setNetworkData] = useState<any[]>([])
   const [servers, setServers] = useState<any[]>([])
-  const [processes, setProcesses] = useState<any[]>([])
+  const [processes, setProcesses] = useState<any[]>([
+    {
+      name: 'FTP Server',
+      cpu: 2.3,
+      memory: 45,
+      status: 'running'
+    },
+    {
+      name: 'SSH Daemon',
+      cpu: 1.8,
+      memory: 32,
+      status: 'running'
+    }
+  ])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [liveSeries, setLiveSeries] = useState<any[]>([])
@@ -22,6 +35,132 @@ export default function ServerStats() {
   const [alertActive, setAlertActive] = useState(false)
   const [visitorIps, setVisitorIps] = useState<any[]>([])
   const [loadingVisitors, setLoadingVisitors] = useState(false)
+
+  // Ek: Mock altyapı servis istatistikleri (Veritabanı, Mail, Redis)
+  const [dbStats, setDbStats] = useState<any>({
+    connections: 0,
+    qps: 0, // queries per second
+    replicationLagMs: 0,
+    status: 'online',
+    uptime: '0g 0s',
+    load: 0
+  })
+  const [mailStats, setMailStats] = useState<any>({
+    sentPerMin: 0,
+    queue: 0,
+    bounceRate: 0,
+    status: 'online',
+    uptime: '0g 0s',
+    load: 0
+  })
+  const [redisStats, setRedisStats] = useState<any>({
+    memoryMb: 0,
+    opsPerSec: 0,
+    hitRate: 0,
+    status: 'online',
+    uptime: '0g 0s',
+    load: 0
+  })
+  const [snortStats, setSnortStats] = useState<any>({
+    totalLogs: 0,
+    highPriority: 0,
+    mediumPriority: 0,
+    lowPriority: 0,
+    dropped: 0,
+    alerts: 0,
+    blocked: 0,
+    status: 'crashed',
+    uptime: '0g 0s',
+    load: 0
+  })
+  const [dockerStats, setDockerStats] = useState<any>({
+    runningContainers: 0,
+    totalContainers: 0,
+    imagesCount: 0,
+    diskUsage: 0,
+    status: 'online',
+    uptime: '0g 0s',
+    load: 0
+  })
+
+  // Mock üretim yardımcıları
+  const randomBetween = (min: number, max: number) => Math.round(min + Math.random() * (max - min))
+  const randomFloat = (min: number, max: number, frac: number = 1) => Number((min + Math.random() * (max - min)).toFixed(frac))
+  const randomUptime = () => {
+    const d = randomBetween(0, 20)
+    const h = randomBetween(0, 23)
+    return `${d}g ${h}s`
+  }
+
+  useEffect(() => {
+    const generate = () => {
+      // Veritabanı
+      const db = {
+        connections: randomBetween(40, 220),
+        qps: randomBetween(120, 950),
+        replicationLagMs: randomBetween(0, 250),
+        status: Math.random() > 0.96 ? 'warning' : 'online',
+        uptime: randomUptime(),
+        load: randomBetween(5, 95)
+      }
+      setDbStats(db)
+
+      // Mail sunucusu
+      const mail = {
+        sentPerMin: randomBetween(20, 180),
+        queue: randomBetween(0, 120),
+        bounceRate: randomFloat(0.5, 6.5, 1),
+        status: Math.random() > 0.97 ? 'warning' : 'online',
+        uptime: randomUptime(),
+        load: randomBetween(5, 95)
+      }
+      setMailStats(mail)
+
+      // Redis
+      const redis = {
+        memoryMb: randomBetween(150, 1600),
+        opsPerSec: randomBetween(2_000, 25_000),
+        hitRate: randomFloat(75, 99, 1),
+        status: Math.random() > 0.97 ? 'warning' : 'online',
+        uptime: randomUptime(),
+        load: randomBetween(5, 95)
+      }
+      setRedisStats(redis)
+
+      // Snort IDS
+      const snortStatus = Math.random() > 0.85 ? 'crashed' : Math.random() > 0.95 ? 'warning' : 'online'
+      const snort = {
+        totalLogs: randomBetween(500, 5000),
+        highPriority: randomBetween(5, 50),
+        mediumPriority: randomBetween(20, 200),
+        lowPriority: randomBetween(100, 1000),
+        dropped: randomBetween(0, 50),
+        alerts: randomBetween(10, 100),
+        blocked: randomBetween(5, 30),
+        status: snortStatus,
+        uptime: snortStatus === 'crashed' ? '0g 0s' : randomUptime(),
+        load: snortStatus === 'crashed' ? 0 : randomBetween(5, 95)
+      }
+      setSnortStats(snort)
+
+      // Docker
+      const dockerStatus = Math.random() > 0.95 ? 'warning' : 'online'
+      const docker = {
+        runningContainers: randomBetween(3, 15),
+        totalContainers: randomBetween(8, 25),
+        imagesCount: randomBetween(5, 20),
+        diskUsage: randomFloat(2.5, 15.8, 1),
+        status: dockerStatus,
+        uptime: randomUptime(),
+        load: randomBetween(5, 95)
+      }
+      setDockerStats(docker)
+    }
+
+    generate()
+    const t = setInterval(generate, 10000)
+    return () => clearInterval(t)
+  }, [])
 
   const fetchStats = async () => {
     try {
@@ -37,7 +176,23 @@ export default function ServerStats() {
         setCpuData(d.cpuHistory || [])
         setNetworkData(d.networkHistory || [])
         setServers(d.servers || [])
-        setProcesses(d.processes || [])
+        // FTP ve SSH süreçlerini koru, API'den gelen süreçlerle birleştir
+        const apiProcesses = d.processes || []
+        const defaultProcesses = [
+          {
+            name: 'FTP Server',
+            cpu: 2.3,
+            memory: 45,
+            status: 'running'
+          },
+          {
+            name: 'SSH Daemon',
+            cpu: 1.8,
+            memory: 32,
+            status: 'running'
+          }
+        ]
+        setProcesses([...defaultProcesses, ...apiProcesses])
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sunucu istatistikleri yüklenemedi')
@@ -158,6 +313,7 @@ export default function ServerStats() {
       case 'online': return 'bg-green-100 text-green-700 border-green-200'
       case 'warning': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
       case 'offline': return 'bg-red-100 text-red-700 border-red-200'
+      case 'crashed': return 'bg-red-100 text-red-700 border-red-200'
       default: return 'bg-slate-100 text-slate-700 border-slate-200'
     }
   }
@@ -167,6 +323,7 @@ export default function ServerStats() {
       case 'online': return <CheckCircle className="w-4 h-4" />
       case 'warning': return <AlertCircle className="w-4 h-4" />
       case 'offline': return <AlertCircle className="w-4 h-4" />
+      case 'crashed': return <AlertCircle className="w-4 h-4" />
       default: return <Clock className="w-4 h-4" />
     }
   }
@@ -196,9 +353,7 @@ export default function ServerStats() {
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div
-          animate={{ scale: [1, 1.02, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
+        <div
           className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500"
         >
           <div className="flex items-center justify-between mb-3">
@@ -216,11 +371,9 @@ export default function ServerStats() {
               style={{ width: `${cpuUsage}%` }}
             ></div>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div
-          animate={{ scale: [1, 1.02, 1] }}
-          transition={{ duration: 2, repeat: Infinity, delay: 0.2 }}
+        <div
           className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500"
         >
           <div className="flex items-center justify-between mb-3">
@@ -238,11 +391,9 @@ export default function ServerStats() {
               style={{ width: `${ramUsage}%` }}
             ></div>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div
-          animate={{ scale: [1, 1.02, 1] }}
-          transition={{ duration: 2, repeat: Infinity, delay: 0.4 }}
+        <div
           className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500"
         >
           <div className="flex items-center justify-between mb-3">
@@ -260,10 +411,8 @@ export default function ServerStats() {
               style={{ width: `${Math.max(0, Math.min(100, Number(diskUsage)||0))}%` }}
             ></div>
           </div>
-        </motion.div>
-        <motion.div
-          animate={{ scale: [1, 1.02, 1] }}
-          transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
+        </div>
+        <div
           className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-orange-500"
         >
           <div className="flex items-center justify-between mb-3">
@@ -280,7 +429,7 @@ export default function ServerStats() {
             <TrendingUp className="w-3 h-3 text-green-600" />
             <span className="text-slate-600">Download: {Number(networkSpeed||0) > 0 ? networkSpeed.toFixed(0) : 0} Mbps</span>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Akan Canlı Grafik (CPU/RAM/Disk) */}
@@ -345,10 +494,231 @@ export default function ServerStats() {
         </div>
       </div>
 
+      {/* Altyapı kartları, aşağıdaki Sunucu Durumu ile tek grid altında birleşecek */}
+
       {/* Server List */}
       <div className="bg-white rounded-2xl shadow-sm p-6">
-        <h3 className="text-xl font-bold text-slate-800 mb-6">Sunucu Durumu</h3>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-slate-800">Altyapı ve Sunucu Durumu</h3>
+          <div className="flex items-center gap-2">
+            {/* Ortalama Load */}
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Ortalama Load:</span>
+              <span className="font-semibold text-slate-900">
+                {servers && servers.length > 0
+                  ? Math.round(servers.reduce((acc: number, s: any) => acc + (Number(s.load) || 0), 0) / servers.length)
+                  : 0}%
+              </span>
+            </span>
+            {/* Uptime (ilk sunucudan) */}
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+              <Clock className="w-3.5 h-3.5 text-blue-600" />
+              <span>Uptime:</span>
+              <span className="font-semibold text-slate-900">{servers && servers[0]?.uptime ? servers[0].uptime : 'N/A'}</span>
+            </span>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Veritabanı */}
+          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
+                  <Database className="w-5 h-5 text-sky-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-800">Veritabanı</p>
+                  <p className="text-xs text-slate-500">PostgreSQL/MySQL</p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(dbStats.status)}`}>
+                {getStatusIcon(dbStats.status)}
+                <span className="capitalize">{dbStats.status}</span>
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Uptime</span>
+                <span className="font-semibold text-slate-800">{dbStats.uptime}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Load</span>
+                <span className="font-semibold text-slate-800">{dbStats.load}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-1.5">
+                <div
+                  className={`h-1.5 rounded-full ${dbStats.load > 70 ? 'bg-red-500' : dbStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                  style={{ width: `${dbStats.load}%` }}
+                ></div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
+                <div className="flex items-center justify-between"><span className="text-slate-500">Conn</span><span className="font-semibold text-slate-800">{dbStats.connections}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">QPS</span><span className="font-semibold text-slate-800">{dbStats.qps}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Repl Lag</span><span className="font-semibold text-slate-800">{dbStats.replicationLagMs} ms</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mail */}
+          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <Mail className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-800">Mail Sunucusu</p>
+                  <p className="text-xs text-slate-500">SMTP</p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(mailStats.status)}`}>
+                {getStatusIcon(mailStats.status)}
+                <span className="capitalize">{mailStats.status}</span>
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Uptime</span>
+                <span className="font-semibold text-slate-800">{mailStats.uptime}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Load</span>
+                <span className="font-semibold text-slate-800">{mailStats.load}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-1.5">
+                <div
+                  className={`h-1.5 rounded-full ${mailStats.load > 70 ? 'bg-red-500' : mailStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                  style={{ width: `${mailStats.load}%` }}
+                ></div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
+                <div className="flex items-center justify-between"><span className="text-slate-500">Dk Gönderim</span><span className="font-semibold text-slate-800">{mailStats.sentPerMin}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Kuyruk</span><span className="font-semibold text-slate-800">{mailStats.queue}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Bounce</span><span className="font-semibold text-slate-800">{mailStats.bounceRate}%</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Redis */}
+          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
+                  <Server className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-800">Redis</p>
+                  <p className="text-xs text-slate-500">Cache</p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(redisStats.status)}`}>
+                {getStatusIcon(redisStats.status)}
+                <span className="capitalize">{redisStats.status}</span>
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Uptime</span>
+                <span className="font-semibold text-slate-800">{redisStats.uptime}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Load</span>
+                <span className="font-semibold text-slate-800">{redisStats.load}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-1.5">
+                <div
+                  className={`h-1.5 rounded-full ${redisStats.load > 70 ? 'bg-red-500' : redisStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                  style={{ width: `${redisStats.load}%` }}
+                ></div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
+                <div className="flex items-center justify-between"><span className="text-slate-500">Bellek</span><span className="font-semibold text-slate-800">{redisStats.memoryMb} MB</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Ops/sn</span><span className="font-semibold text-slate-800">{redisStats.opsPerSec}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Hit</span><span className="font-semibold text-slate-800">{redisStats.hitRate}%</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Snort IDS */}
+          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-800">Snort IDS</p>
+                  <p className="text-xs text-slate-500">Güvenlik</p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(snortStats.status)}`}>
+                {getStatusIcon(snortStats.status)}
+                <span className="capitalize">{snortStats.status}</span>
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Uptime</span>
+                <span className="font-semibold text-slate-800">{snortStats.uptime}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Load</span>
+                <span className="font-semibold text-slate-800">{snortStats.load}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-1.5">
+                <div
+                  className={`h-1.5 rounded-full ${snortStats.load > 70 ? 'bg-red-500' : snortStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                  style={{ width: `${snortStats.load}%` }}
+                ></div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
+                <div className="flex items-center justify-between"><span className="text-slate-500">Loglar</span><span className="font-semibold text-slate-800">{snortStats.totalLogs}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Uyarı</span><span className="font-semibold text-slate-800">{snortStats.alerts}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Engellenen</span><span className="font-semibold text-slate-800">{snortStats.blocked}</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Docker */}
+          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Container className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-800">Docker</p>
+                  <p className="text-xs text-slate-500">Container</p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(dockerStats.status)}`}>
+                {getStatusIcon(dockerStats.status)}
+                <span className="capitalize">{dockerStats.status}</span>
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Uptime</span>
+                <span className="font-semibold text-slate-800">{dockerStats.uptime}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Load</span>
+                <span className="font-semibold text-slate-800">{dockerStats.load}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-1.5">
+                <div
+                  className={`h-1.5 rounded-full ${dockerStats.load > 70 ? 'bg-red-500' : dockerStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                  style={{ width: `${dockerStats.load}%` }}
+                ></div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
+                <div className="flex items-center justify-between"><span className="text-slate-500">Çalışan</span><span className="font-semibold text-slate-800">{dockerStats.runningContainers}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Toplam</span><span className="font-semibold text-slate-800">{dockerStats.totalContainers}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500">Disk</span><span className="font-semibold text-slate-800">{dockerStats.diskUsage}GB</span></div>
+              </div>
+            </div>
+          </div>
           {servers.map((server, index) => (
             <motion.div
               key={server.name}
