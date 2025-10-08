@@ -40,7 +40,7 @@ export default function ProductionPlanning() {
   const [filterFactory, setFilterFactory] = useState<string>('all')
   const [showFilters, setShowFilters] = useState(false)
   const [showSizeModal, setShowSizeModal] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string; sku?: string; stock: number; image?: string } | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string; sku?: string; stock: number; image?: string; sizes?: Record<string, number> } | null>(null)
   const [sizeQuantities, setSizeQuantities] = useState<Record<string, number>>({
     'XS': 0,
     'S': 0,
@@ -247,6 +247,14 @@ export default function ProductionPlanning() {
                                   }
                                 }
                               }
+                            } else if (variation.stok !== undefined) {
+                              // Attributes yoksa ama stok varsa, varyasyon ID'sini beden olarak kullan
+                              const bedenIsimleri = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL']
+                              const index = variationDetails.indexOf(variation)
+                              if (index < bedenIsimleri.length) {
+                                const bedenAdi = bedenIsimleri[index]
+                                sizes[bedenAdi] = parseInt(variation.stok) || 0
+                              }
                             }
                           })
                         }
@@ -323,7 +331,7 @@ export default function ProductionPlanning() {
     { status: 'Tamamlandı', color: 'green', icon: CheckCircle },
   ]
 
-  const handleProductSelect = (product: { id: number; name: string; sku?: string; stock: number; image?: string }) => {
+  const handleProductSelect = (product: { id: number; name: string; sku?: string; stock: number; image?: string; sizes?: Record<string, number> }) => {
     setSelectedProduct(product)
     setSizeQuantities({
       'XS': 0,
@@ -1059,6 +1067,25 @@ export default function ProductionPlanning() {
                     ))}
                   </div>
                 </div>
+
+                {/* Mevcut Beden Stokları */}
+                {selectedProduct.sizes && Object.keys(selectedProduct.sizes).length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-slate-800 mb-3">Mevcut Beden Stokları</h4>
+                    <div className="grid grid-cols-4 gap-3">
+                      {Object.entries(selectedProduct.sizes).map(([size, stock]) => (
+                        <div key={size} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                          <div className="text-center">
+                            <div className="text-sm font-medium text-slate-600">{size}</div>
+                            <div className={`text-lg font-bold ${stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                              {stock} adet
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Beden Grid */}
                 <div className="grid grid-cols-3 gap-4 mb-6">

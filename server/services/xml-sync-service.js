@@ -185,16 +185,22 @@ class XmlSyncService {
             } else {
               const attrs = Array.isArray(ozellik) ? ozellik : (ozellik ? [ozellik] : []);
               attrs.forEach(entry => {
-                // entry örn: { _: 'S', $: { Tanim: 'Beden', Deger: 'S' } } veya { Tanim: 'Beden', Deger: 'S' }
+                // XML yapısı: <Ozellik Tanim="Beden" Deger="S">S</Ozellik>
                 const name = (entry?.Tanim || entry?.$?.Tanim || '').toString().trim();
                 const value = (entry?.Deger || entry?.$?.Deger || entry?._ || '').toString().trim();
                 if (name && value) {
                   attributes[name] = value;
                   hasVariationAttributes = true;
+                  
+                  // Beden bilgisini özel olarak işle
+                  if (name.toLowerCase() === 'beden' || name.toLowerCase() === 'size') {
+                    console.log(`📏 Beden bilgisi bulundu: ${value} (Varyasyon ID: ${variation.VaryasyonID})`);
+                  }
                 }
               });
             }
-          } catch(_) {
+          } catch(error) {
+            console.error('XML attributes parse hatası:', error);
             hasVariationAttributes = false;
           }
 

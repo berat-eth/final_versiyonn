@@ -6183,8 +6183,18 @@ app.get('/api/products/:productId/variations', async (req, res) => {
             const size = attributes[sizeKeys[0]];
             if (size && typeof size === 'string') {
               sizeStocks[size] = parseInt(variation.stok) || 0;
+              console.log(`📏 Beden stok bilgisi: ${size} = ${variation.stok} adet`);
             }
           }
+        }
+      } else if (variation.stok !== undefined) {
+        // Attributes yoksa ama stok varsa, varyasyon ID'sini beden olarak kullan
+        const bedenIsimleri = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL'];
+        const index = xmlVariations.indexOf(variation);
+        if (index < bedenIsimleri.length) {
+          const bedenAdi = bedenIsimleri[index];
+          sizeStocks[bedenAdi] = parseInt(variation.stok) || 0;
+          console.log(`📏 Varyasyon ID ${variation.varyasyonId} -> ${bedenAdi} = ${variation.stok} adet`);
         }
       }
     });
