@@ -287,6 +287,10 @@ async function createDatabaseSchema(pool) {
           await pool.execute('ALTER TABLE products ADD COLUMN xmlRaw JSON AFTER xmlOptions');
           console.log('✅ Added xmlRaw (JSON) to products');
       }
+      if (!prodColNames.includes('variationDetails')) {
+          await pool.execute('ALTER TABLE products ADD COLUMN variationDetails JSON AFTER xmlRaw');
+          console.log('✅ Added variationDetails (JSON) to products');
+      }
 
       // Ensure image columns exist in products
       if (!prodColNames.includes('image1')) {
