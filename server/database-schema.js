@@ -1406,6 +1406,7 @@ async function createDatabaseSchema(pool) {
       actualStart DATETIME NULL,
       actualEnd DATETIME NULL,
       warehouseId INT NULL,
+      importance_level ENUM('Düşük','Orta','Yüksek','Kritik') DEFAULT 'Orta',
       notes TEXT,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1481,6 +1482,28 @@ async function createDatabaseSchema(pool) {
   `);
 
       // CRM tabloları kaldırıldı
+
+      // Migration: Add importance_level to production_orders if not exists
+      try {
+        const [columns] = await pool.execute(`
+          SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'production_orders' AND COLUMN_NAME = 'importance_level'
+        `);
+        
+        if (columns.length === 0) {
+          console.log('🔧 Adding importance_level column to production_orders...');
+          await pool.execute(`
+            ALTER TABLE production_orders 
+            ADD COLUMN importance_level ENUM('Düşük','Orta','Yüksek','Kritik') DEFAULT 'Orta' 
+            AFTER warehouseId
+          `);
+          console.log('✅ importance_level column added to production_orders');
+        } else {
+          console.log('✅ importance_level column already exists in production_orders');
+        }
+      } catch (error) {
+        console.log('⚠️ Could not add importance_level column (may already exist):', error.message);
+      }
 
       // Re-enable foreign key checks
       await pool.execute('SET FOREIGN_KEY_CHECKS = 1');

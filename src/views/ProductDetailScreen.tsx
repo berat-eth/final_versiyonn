@@ -553,7 +553,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             style={styles.imageGallery}
             showThumbnails={true}
             onImagePress={(imageUrl, index) => {
-              // Görsel tam ekran gösterimi
+              // Görsel tam ekran gösterimi - ImageGallery bileşeni otomatik olarak modal açar
               console.log('Image pressed:', imageUrl, index);
             }}
           />

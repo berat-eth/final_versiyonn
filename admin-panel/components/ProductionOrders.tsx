@@ -16,6 +16,7 @@ export default function ProductionOrders() {
     quantity: '',
     plannedStart: '',
     plannedEnd: '',
+    importance_level: 'Orta',
     notes: ''
   })
 
@@ -36,10 +37,11 @@ export default function ProductionOrders() {
         plannedStart: form.plannedStart || null,
         plannedEnd: form.plannedEnd || null,
         warehouseId: null,
+        importance_level: form.importance_level,
         notes: form.notes || null
       })
       setShowCreate(false)
-      setForm({ productId: '', quantity: '', plannedStart: '', plannedEnd: '', notes: '' })
+      setForm({ productId: '', quantity: '', plannedStart: '', plannedEnd: '', importance_level: 'Orta', notes: '' })
       if (typeof window !== 'undefined') {
         window.alert('Üretim emri oluşturuldu')
       }
@@ -193,6 +195,19 @@ export default function ProductionOrders() {
                       onChange={(e) => setForm({ ...form, plannedEnd: e.target.value })}
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Önem Seviyesi</label>
+                  <select
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.importance_level}
+                    onChange={(e) => setForm({ ...form, importance_level: e.target.value })}
+                  >
+                    <option value="Düşük">Düşük</option>
+                    <option value="Orta">Orta</option>
+                    <option value="Yüksek">Yüksek</option>
+                    <option value="Kritik">Kritik</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Notlar</label>

@@ -4375,20 +4375,20 @@ app.delete('/api/admin/workstations/:id', authenticateAdmin, async (req, res) =>
 // Production Orders
 app.get('/api/admin/production-orders', authenticateAdmin, async (req, res) => {
   try { const tenantId = req.tenant?.id || 1; const [rows] = await poolWrapper.execute(
-    `SELECT po.id, po.productId, p.name as productName, po.quantity, po.status, po.plannedStart, po.plannedEnd, po.actualStart, po.actualEnd, po.createdAt
+    `SELECT po.id, po.productId, p.name as productName, po.quantity, po.status, po.plannedStart, po.plannedEnd, po.actualStart, po.actualEnd, po.importance_level, po.notes, po.createdAt
      FROM production_orders po LEFT JOIN products p ON p.id = po.productId WHERE po.tenantId = ? ORDER BY po.id DESC`, [tenantId]);
     res.json({ success: true, data: rows });
   } catch (e) { console.error('❌ prod orders list', e); res.status(500).json({ success: false, message: 'Error' }); }
 });
 app.post('/api/admin/production-orders', authenticateAdmin, async (req, res) => {
-  try { const tenantId = req.tenant?.id || 1; const { productId, quantity, status = 'planned', plannedStart = null, plannedEnd = null, warehouseId = null, notes = null } = req.body || {};
+  try { const tenantId = req.tenant?.id || 1; const { productId, quantity, status = 'planned', plannedStart = null, plannedEnd = null, warehouseId = null, importance_level = 'Orta', notes = null } = req.body || {};
     if (!productId || !quantity) return res.status(400).json({ success: false, message: 'productId and quantity required' });
-    const [r] = await poolWrapper.execute('INSERT INTO production_orders (tenantId, productId, quantity, status, plannedStart, plannedEnd, warehouseId, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [tenantId, parseInt(productId), parseInt(quantity), status, plannedStart, plannedEnd, warehouseId, notes]);
+    const [r] = await poolWrapper.execute('INSERT INTO production_orders (tenantId, productId, quantity, status, plannedStart, plannedEnd, warehouseId, importance_level, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [tenantId, parseInt(productId), parseInt(quantity), status, plannedStart, plannedEnd, warehouseId, importance_level, notes]);
     res.json({ success: true, data: { id: r.insertId } });
   } catch (e) { console.error('❌ prod orders create', e); res.status(500).json({ success: false, message: 'Error' }); }
 });
 app.put('/api/admin/production-orders/:id', authenticateAdmin, async (req, res) => {
-  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); const allowed=['productId','quantity','status','plannedStart','plannedEnd','actualStart','actualEnd','warehouseId','notes']; const fields=[]; const params=[]; for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); } if (!fields.length) return res.json({ success:true }); params.push(id, tenantId); await poolWrapper.execute(`UPDATE production_orders SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params); res.json({ success: true }); } catch (e) { console.error('❌ prod orders update', e); res.status(500).json({ success: false, message: 'Error' }); }
+  try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); const allowed=['productId','quantity','status','plannedStart','plannedEnd','actualStart','actualEnd','warehouseId','importance_level','notes']; const fields=[]; const params=[]; for (const k of allowed) if (k in (req.body||{})) { fields.push(`${k} = ?`); params.push(req.body[k]); } if (!fields.length) return res.json({ success:true }); params.push(id, tenantId); await poolWrapper.execute(`UPDATE production_orders SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params); res.json({ success: true }); } catch (e) { console.error('❌ prod orders update', e); res.status(500).json({ success: false, message: 'Error' }); }
 });
 app.delete('/api/admin/production-orders/:id', authenticateAdmin, async (req, res) => {
   try { const tenantId = req.tenant?.id || 1; const id = parseInt(req.params.id); await poolWrapper.execute('DELETE FROM production_orders WHERE id = ? AND tenantId = ?', [id, tenantId]); res.json({ success: true }); } catch (e) { console.error('❌ prod orders delete', e); res.status(500).json({ success: false, message: 'Error' }); }
@@ -6140,6 +6140,56 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid product id' });
     }
 
+    // Önce ürünün variationDetails JSON'ını çek
+    const [productRows] = await poolWrapper.execute(`
+      SELECT variationDetails FROM products 
+      WHERE id = ? AND tenantId = ?
+    `, [numericId, req.tenant.id]);
+
+    if (productRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const product = productRows[0];
+    let xmlVariations = [];
+    
+    // variationDetails JSON'ını parse et
+    if (product.variationDetails) {
+      try {
+        const variationDetails = typeof product.variationDetails === 'string' 
+          ? JSON.parse(product.variationDetails) 
+          : product.variationDetails;
+        
+        if (Array.isArray(variationDetails)) {
+          xmlVariations = variationDetails;
+        }
+      } catch (parseError) {
+        console.error('Error parsing variationDetails:', parseError);
+      }
+    }
+
+    // XML varyasyonlarından beden stoklarını çıkar
+    const sizeStocks = {};
+    xmlVariations.forEach(variation => {
+      if (variation.attributes && variation.stok !== undefined) {
+        const attributes = variation.attributes;
+        if (attributes && typeof attributes === 'object') {
+          // Beden bilgisini bul (Beden, Size, etc.)
+          const sizeKeys = Object.keys(attributes).filter(key => 
+            key.toLowerCase().includes('beden') || 
+            key.toLowerCase().includes('size')
+          );
+          
+          if (sizeKeys.length > 0) {
+            const size = attributes[sizeKeys[0]];
+            if (size && typeof size === 'string') {
+              sizeStocks[size] = parseInt(variation.stok) || 0;
+            }
+          }
+        }
+      }
+    });
+
     // Varyasyonları ve seçeneklerini birlikte çek
     const [variations] = await poolWrapper.execute(`
       SELECT v.*, 
@@ -6171,7 +6221,13 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       options: variation.options && variation.options.length > 0 ? variation.options : []
     }));
 
-    res.json({ success: true, data: formattedVariations });
+    res.json({ 
+      success: true, 
+      data: {
+        variations: formattedVariations,
+        sizeStocks: sizeStocks // XML'den çekilen beden stokları
+      }
+    });
   } catch (error) {
     console.error('Error fetching product variations:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -7467,6 +7523,81 @@ app.get('/api/wallet/:userId/transactions', async (req, res) => {
   } catch (error) {
     console.error('❌ Error getting transactions:', error);
     res.status(500).json({ success: false, message: 'Error getting transactions' });
+  }
+});
+
+// Low Stock Products API endpoint
+app.get('/api/admin/low-stock-products', async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const threshold = parseInt(req.query.threshold) || 10; // Default 10 adet altı düşük stok
+    
+    // Düşük stoklu ürünleri çek
+    const [products] = await poolWrapper.execute(`
+      SELECT id, name, sku, stock, image, category, brand, variationDetails
+      FROM products 
+      WHERE tenantId = ? AND stock <= ?
+      ORDER BY stock ASC, name ASC
+    `, [tenantId, threshold]);
+
+    // Her ürün için beden stoklarını çıkar
+    const productsWithSizes = await Promise.all(
+      products.map(async (product) => {
+        const sizes = {};
+        
+        // variationDetails JSON'ını parse et
+        if (product.variationDetails) {
+          try {
+            const variationDetails = typeof product.variationDetails === 'string' 
+              ? JSON.parse(product.variationDetails) 
+              : product.variationDetails;
+            
+            if (Array.isArray(variationDetails)) {
+              variationDetails.forEach((variation) => {
+                if (variation.attributes && variation.stok !== undefined) {
+                  const attributes = variation.attributes;
+                  if (attributes && typeof attributes === 'object') {
+                    // Beden bilgisini bul (Beden, Size, etc.)
+                    const sizeKeys = Object.keys(attributes).filter(key => 
+                      key.toLowerCase().includes('beden') || 
+                      key.toLowerCase().includes('size')
+                    );
+                    
+                    if (sizeKeys.length > 0) {
+                      const size = attributes[sizeKeys[0]];
+                      if (size && typeof size === 'string') {
+                        sizes[size] = parseInt(variation.stok) || 0;
+                      }
+                    }
+                  }
+                }
+              });
+            }
+          } catch (parseError) {
+            console.error(`Ürün ${product.id} variationDetails parse hatası:`, parseError);
+          }
+        }
+        
+        return {
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          stock: product.stock,
+          image: product.image,
+          category: product.category,
+          brand: product.brand,
+          sizes: sizes
+        };
+      })
+    );
+
+    res.json({ 
+      success: true, 
+      data: productsWithSizes 
+    });
+  } catch (error) {
+    console.error('Error getting low stock products:', error);
+    res.status(500).json({ success: false, message: 'Error getting low stock products' });
   }
 });
 
