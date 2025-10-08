@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Users, Search, Filter, Download, Eye, Edit, Trash2, X, Save, Plus, Mail, Phone, MapPin, Calendar, Heart, ShoppingBag, TrendingUp, Award, Clock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+// Silinen bileşenler kaldırıldı
 
 interface User {
     id: number
@@ -34,6 +35,7 @@ interface User {
 
 export default function UserDatabase() {
     const [users, setUsers] = useState<User[]>([])
+    const [subTab, setSubTab] = useState<'list'>('list')
 
     const [viewingUser, setViewingUser] = useState<User | null>(null)
     const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -160,6 +162,7 @@ export default function UserDatabase() {
                         <Download className="w-4 h-4" />
                         <span>Export</span>
                     </button>
+                    {/* Alt sekme butonları sadece 'Liste' ile sınırlandı */}
                     <button
                         onClick={() => setIsAddModalOpen(true)}
                         className="flex items-center space-x-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-shadow"
@@ -169,6 +172,9 @@ export default function UserDatabase() {
                     </button>
                 </div>
             </div>
+
+            {/* Alt Sekmeler (Mobil) */}
+            {/* Mobil alt sekmeler kaldırıldı (yalnızca Liste kullanılacak) */}
 
             {/* İstatistikler */}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
@@ -273,6 +279,7 @@ export default function UserDatabase() {
             </div>
 
             {/* Kullanıcı Listesi */}
+            {subTab === 'list' && (
             <div className="bg-white rounded-2xl shadow-sm p-6">
                 <h3 className="text-xl font-bold text-slate-800 mb-6">
                     Kullanıcılar ({filteredUsers.length})
@@ -320,11 +327,15 @@ export default function UserDatabase() {
                                         <div className="space-y-1">
                                             <div className="flex items-center text-xs text-slate-600">
                                                 <Mail className="w-3 h-3 mr-2 text-slate-400" />
-                                                {user.email}
+                                                <a href={`mailto:${user.email}`} className="text-blue-600 hover:underline">{user.email}</a>
                                             </div>
                                             <div className="flex items-center text-xs text-slate-600">
                                                 <Phone className="w-3 h-3 mr-2 text-slate-400" />
-                                                {user.phone}
+                                                {user.phone ? (
+                                                  <a href={`https://wa.me/${String(user.phone).replace(/[^\d]/g,'')}`} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline">{user.phone}</a>
+                                                ) : (
+                                                  <span>-</span>
+                                                )}
                                             </div>
                                         </div>
                                     </td>
@@ -389,6 +400,9 @@ export default function UserDatabase() {
                     </div>
                 )}
             </div>
+            )}
+
+            {/* Seviyeler/Profiller/Adresler sekmeleri kaldırıldı */}
 
             {/* Detay Modal */}
             <AnimatePresence>

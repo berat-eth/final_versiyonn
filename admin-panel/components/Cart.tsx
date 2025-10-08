@@ -22,6 +22,21 @@ export default function Cart() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewingCart, setViewingCart] = useState<UserCart | null>(null)
+  const [coupon, setCoupon] = useState<string>('')
+  const [applyingCoupon, setApplyingCoupon] = useState<boolean>(false)
+  const [couponMsg, setCouponMsg] = useState<string | null>(null)
+  const getDeviceId = () => {
+    try {
+      if (typeof window === 'undefined') return undefined
+      const k = 'device_id'
+      let id = localStorage.getItem(k)
+      if (!id) {
+        id = Math.random().toString(36).slice(2) + Date.now().toString(36)
+        localStorage.setItem(k, id)
+      }
+      return id
+    } catch { return undefined }
+  }
   const [searchTerm, setSearchTerm] = useState('')
 
   const fetchAllCarts = async () => {
@@ -331,7 +346,7 @@ export default function Cart() {
               </div>
 
               <div className="p-6 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Kullanıcı</p>
                     <p className="text-lg font-bold text-slate-800">{viewingCart.userName}</p>
@@ -388,6 +403,55 @@ export default function Cart() {
                   </div>
                 </div>
 
+                {/* Coupon / Discount Code */}
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">İndirim Kodu Uygula</p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      value={coupon}
+                      onChange={(e) => setCoupon(e.target.value)}
+                      placeholder="Kodu girin"
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg"
+                    />
+                    <button
+                      disabled={applyingCoupon || !coupon.trim()}
+                      onClick={async () => {
+                        if (!viewingCart) return
+                        try {
+                          setApplyingCoupon(true)
+                          setCouponMsg(null)
+                          const currentTotal = Number(viewingCart.total || 0)
+                          const res = await cartService.applyDiscountCode(
+                            viewingCart.userId,
+                            coupon.trim(),
+                            currentTotal,
+                            getDeviceId()
+                          )
+                          if ((res as any)?.success) {
+                            setCouponMsg('✅ İndirim uygulandı')
+                            // Toplamı güncellemek için sepetleri yeniden yükle ve modal içeriğini de tazele
+                            await fetchAllCarts()
+                            const refreshed = userCarts.find(c => c.userId === viewingCart.userId)
+                            if (refreshed) setViewingCart(refreshed)
+                          } else {
+                            setCouponMsg('İndirim kodu uygulanamadı')
+                          }
+                        } catch (e: any) {
+                          setCouponMsg(`Hata: ${e?.message || 'Uygulanamadı'}`)
+                        } finally {
+                          setApplyingCoupon(false)
+                        }
+                      }}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {applyingCoupon ? 'Uygulanıyor...' : 'Uygula'}
+                    </button>
+                  </div>
+                  {couponMsg && (
+                    <p className="text-sm mt-2 text-slate-600">{couponMsg}</p>
+                  )}
+                </div>
+
                 <div className="flex space-x-3">
                   <button
                     onClick={() => clearUserCart(viewingCart.userId, viewingCart.userName)}
@@ -418,6 +482,19 @@ function DiscountActions({ userId }: { userId: number }) {
   const [msg, setMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const getDeviceId = () => {
+    try {
+      if (typeof window === 'undefined') return undefined
+      const k = 'device_id'
+      let id = localStorage.getItem(k)
+      if (!id) {
+        id = Math.random().toString(36).slice(2) + Date.now().toString(36)
+        localStorage.setItem(k, id)
+      }
+      return id
+    } catch { return undefined }
+  }
+
   const createCode = useCallback(async () => {
     const v = parseFloat(value)
     if (isNaN(v) || v <= 0) { setMsg('Geçerli bir değer girin'); return }
@@ -425,16 +502,34 @@ function DiscountActions({ userId }: { userId: number }) {
       setLoading(true)
       setMsg(null)
       setError(null)
-      const res = await api.post<any>('/admin/user-discount-codes', {
-        userId,
-        discountType: type,
-        discountValue: v
-      })
-      if ((res as any)?.success && (res as any).data?.code) {
-        setMsg(`Kod oluşturuldu: ${(res as any).data.code}`)
-        setValue('')
-      } else {
-        setError('Kod oluşturulamadı')
+      // 1) Ana uç: admin kod oluşturma
+      try {
+        const res = await api.post<any>('/admin/user-discount-codes', {
+          userId,
+          discountType: type,
+          discountValue: v
+        })
+        if ((res as any)?.success && (res as any).data?.code) {
+          setMsg(`Kod oluşturuldu: ${(res as any).data.code}`)
+          setValue('')
+          return
+        }
+        throw new Error('create_failed')
+      } catch (primaryErr: any) {
+        // 2) Fallback: İndirim çarkı ile kod üret (server bu uçta kodu DB'ye de yazar)
+        try {
+          const spin = await api.post<any>('/discount-wheel/spin', { userId, deviceId: getDeviceId(), userAgent: navigator.userAgent })
+          if ((spin as any)?.success && (spin as any).data?.discountCode) {
+            setMsg(`Kod oluşturuldu: ${(spin as any).data.discountCode}`)
+            setValue('')
+          } else {
+            throw new Error('spin_failed')
+          }
+        } catch (fallbackErr: any) {
+          // 3) Her iki yol da hata verdiyse kullanıcıya açık mesaj
+          const message = primaryErr?.message || fallbackErr?.message || 'Kod oluşturulamadı'
+          setError(`Kod oluşturma başarısız: ${message}`)
+        }
       }
     } catch (e: any) {
       const message = e?.message || 'Hata'

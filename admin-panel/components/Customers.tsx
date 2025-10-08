@@ -13,6 +13,7 @@ interface CustomerStats {
 }
 
 export default function Customers() {
+  const [activeTab, setActiveTab] = useState<'list' | 'levels' | 'profiles' | 'addresses' | 'events' | 'analytics'>('list')
   const [customers, setCustomers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -110,7 +111,7 @@ export default function Customers() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-slate-800">Müşteri Yönetimi</h2>
-          <p className="text-slate-500 mt-1">Backend'den gelen müşteriler</p>
+          <p className="text-slate-500 mt-1">Tüm müşteri bilgilerini yönetin</p>
         </div>
         <button
           onClick={fetchCustomers}
@@ -120,6 +121,74 @@ export default function Customers() {
           Yenile
         </button>
       </div>
+
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-sm p-2 flex gap-2 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('list')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+            activeTab === 'list'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Müşteri Listesi
+        </button>
+        <button
+          onClick={() => setActiveTab('levels')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+            activeTab === 'levels'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Kullanıcı Seviyeleri
+        </button>
+        <button
+          onClick={() => setActiveTab('profiles')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+            activeTab === 'profiles'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Profiller
+        </button>
+        <button
+          onClick={() => setActiveTab('addresses')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+            activeTab === 'addresses'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Adresler
+        </button>
+        <button
+          onClick={() => setActiveTab('events')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+            activeTab === 'events'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Etkinlikler
+        </button>
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+            activeTab === 'analytics'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Analitik
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'list' && (
+        <>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-sm p-4">
@@ -347,6 +416,38 @@ export default function Customers() {
           </motion.div>
         )}
       </AnimatePresence>
+      </>
+      )}
+
+      {activeTab === 'levels' && (
+        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+          <p className="text-slate-500 text-lg">Kullanıcı seviyeleri içeriği yakında eklenecek...</p>
+        </div>
+      )}
+
+      {activeTab === 'profiles' && (
+        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+          <p className="text-slate-500 text-lg">Kullanıcı profilleri içeriği yakında eklenecek...</p>
+        </div>
+      )}
+
+      {activeTab === 'addresses' && (
+        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+          <p className="text-slate-500 text-lg">Kullanıcı adresleri içeriği yakında eklenecek...</p>
+        </div>
+      )}
+
+      {activeTab === 'events' && (
+        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+          <p className="text-slate-500 text-lg">Kullanıcı etkinlikleri içeriği yakında eklenecek...</p>
+        </div>
+      )}
+
+      {activeTab === 'analytics' && (
+        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+          <p className="text-slate-500 text-lg">Müşteri analitiği içeriği yakında eklenecek...</p>
+        </div>
+      )}
     </div>
   )
 }

@@ -34,9 +34,15 @@ export default function Orders() {
   const reloadOrders = async () => {
     try {
       setLoading(true)
+      setError(null)
       const res = await api.get<any>('/admin/orders')
-      if ((res as any)?.success && (res as any).data) setOrders((res as any).data)
+      if ((res as any)?.success && (res as any).data) {
+        setOrders((res as any).data)
+      } else {
+        throw new Error('Siparişler alınamadı')
+      }
     } catch (e) {
+      console.error('Orders fetch error:', e)
       setError(e instanceof Error ? e.message : 'Siparişler yüklenemedi')
     } finally {
       setLoading(false)
@@ -135,15 +141,21 @@ export default function Orders() {
 
   const openOrderDetails = async (order: Order) => {
     try {
-      setNewStatus((order as any).status)
+      setNewStatus((order as any).status || 'pending')
       setViewingOrder(order)
       setDetailLoading(true)
+      
+      // Detaylı sipariş bilgilerini çek
       const res = await api.get<any>(`/admin/orders/${(order as any).id}`)
       if ((res as any)?.success && (res as any).data) {
         setViewingOrder((res as any).data)
-        setNewStatus(((res as any).data as any).status)
+        setNewStatus(((res as any).data as any).status || 'pending')
+      } else {
+        // API'den detay alınamazsa mevcut veriyi kullan
+        console.warn('Order details not found, using list data')
       }
     } catch (e) {
+      console.error('Order details fetch error:', e)
       // Sessiz düş; mevcut listedeki veriyi göster
     } finally {
       setDetailLoading(false)
@@ -151,15 +163,26 @@ export default function Orders() {
   }
 
   const updateOrderStatus = async () => {
-    if (!selectedOrderForAction) return
+    if (!viewingOrder) return
     try {
       setUpdateLoading(true)
-      await api.patch(`/admin/orders/${(selectedOrderForAction as any).id}/status`, { status: newStatus })
-      setSelectedOrderForAction(null)
-      setViewingOrder(null)
-      await reloadOrders()
+      const response = await api.patch(`/admin/orders/${(viewingOrder as any).id}/status`, { 
+        status: newStatus 
+      })
+      
+      if ((response as any)?.success) {
+        // Başarılı güncelleme
+        alert('✅ Sipariş durumu başarıyla güncellendi!')
+        
+        // Modal'ı kapat ve listeyi yenile
+        setViewingOrder(null)
+        await reloadOrders()
+      } else {
+        throw new Error((response as any)?.message || 'Güncelleme başarısız')
+      }
     } catch (e) {
-      alert('Sipariş durumu güncellenemedi')
+      console.error('Order status update error:', e)
+      alert(`❌ Sipariş durumu güncellenemedi: ${e instanceof Error ? e.message : 'Bilinmeyen hata'}`)
     } finally {
       setUpdateLoading(false)
     }
@@ -745,40 +768,53 @@ export default function Orders() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-slate-800">Sipariş Detayları</h3>
+              <div className="p-4 md:p-6 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800">Sipariş Detayları</h3>
                 <button
                   onClick={() => setViewingOrder(null)}
                   className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5 md:w-6 md:h-6" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-6">
+              <div className="p-4 md:p-6 space-y-4 md:space-y-6">
                 {detailLoading && (
                   <div className="text-sm text-slate-500">Detaylar yükleniyor...</div>
                 )}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <p className="text-sm text-slate-500">Sipariş No</p>
-                    <p className="text-2xl font-bold text-slate-800">#{viewingOrder.id}</p>
+                    <p className="text-xl md:text-2xl font-bold text-slate-800">#{viewingOrder.id}</p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <select value={newStatus} onChange={(e)=>setNewStatus(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <select value={newStatus} onChange={(e)=>setNewStatus(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1">
                       <option value="pending">Ödeme Bekleniyor</option>
                       <option value="processing">Paketleniyor</option>
                       <option value="shipped">Kargoya Verildi</option>
                       <option value="completed">Teslim Edildi</option>
                       <option value="cancelled">İptal</option>
                     </select>
-                    <button disabled={updateLoading} onClick={updateOrderStatus} className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">Durum Kaydet</button>
+                    <button 
+                      disabled={updateLoading} 
+                      onClick={updateOrderStatus} 
+                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm flex items-center gap-2"
+                    >
+                      {updateLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Kaydediliyor...
+                        </>
+                      ) : (
+                        'Durum Kaydet'
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Müşteri</p>
                     <div className="flex items-center space-x-2">
@@ -883,7 +919,7 @@ export default function Orders() {
                 </div>
 
                 {/* Adres Bilgileri */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                     <div className="flex items-center space-x-2 mb-2">
                       <MapPin className="w-4 h-4 text-blue-600" />
@@ -1000,7 +1036,7 @@ export default function Orders() {
                 </div>
 
                 {/* Hızlı İşlemler */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {viewingOrder.trackingNumber && (
                     <button
                       onClick={() => handleTrackCargo(viewingOrder)}

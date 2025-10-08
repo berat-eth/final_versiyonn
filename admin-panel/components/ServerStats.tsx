@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown } from 'lucide-react'
+import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown, MapPin } from 'lucide-react'
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Bar, Legend } from 'recharts'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
@@ -20,6 +20,8 @@ export default function ServerStats() {
   const [liveSeries, setLiveSeries] = useState<any[]>([])
   const [lastAlertAt, setLastAlertAt] = useState<number>(0)
   const [alertActive, setAlertActive] = useState(false)
+  const [visitorIps, setVisitorIps] = useState<any[]>([])
+  const [loadingVisitors, setLoadingVisitors] = useState(false)
 
   const fetchStats = async () => {
     try {
@@ -48,6 +50,61 @@ export default function ServerStats() {
     fetchStats()
     const timer = setInterval(fetchStats, 45000)
     return () => clearInterval(timer)
+  }, [])
+
+  // Ziyaretçi IP / Konum verileri
+  const fetchVisitorIps = async () => {
+    try {
+      setLoadingVisitors(true)
+      // Öncelikle özel bir uç dene; yoksa live-views'tan türet
+      try {
+        const res = await api.get<any>('/admin/visitor-ips')
+        if ((res as any)?.success && Array.isArray((res as any).data)) {
+          setVisitorIps((res as any).data)
+          return
+        }
+      } catch {}
+
+      // Fallback: live-views üzerinden en son görüntülemeleri çek ve ip/location alanlarını güvenli şekilde çıkar
+      try {
+        const live = await api.get<any>('/admin/live-views')
+        if ((live as any)?.success && Array.isArray((live as any).data)) {
+          const mapped = ((live as any).data as any[]).map((v: any) => ({
+            ip: v.ip || v.ipAddress || '-',
+            location: v.location || v.geo || { city: v.city || '-', country: v.country || '-' },
+            lastSeen: v.viewedAt || v.timestamp || v.lastSeen || null,
+            hits: v.dwellSeconds ? 1 : (v.hits || 1),
+            userId: v.userId || null,
+          }))
+          // Aynı IP'leri grupla ve en güncel zamanı/hit toplamını al
+          const byIp: Record<string, any> = {}
+          for (const item of mapped) {
+            const key = item.ip || 'unknown'
+            if (!byIp[key]) {
+              byIp[key] = { ...item }
+            } else {
+              byIp[key].hits = (byIp[key].hits || 0) + (item.hits || 0)
+              const prev = byIp[key].lastSeen ? new Date(byIp[key].lastSeen).getTime() : 0
+              const cur = item.lastSeen ? new Date(item.lastSeen).getTime() : 0
+              if (cur > prev) byIp[key].lastSeen = item.lastSeen
+            }
+          }
+          setVisitorIps(Object.values(byIp))
+        } else {
+          setVisitorIps([])
+        }
+      } catch {
+        setVisitorIps([])
+      }
+    } finally {
+      setLoadingVisitors(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchVisitorIps()
+    const t = setInterval(fetchVisitorIps, 60000)
+    return () => clearInterval(t)
   }, [])
 
   // Eşik aşımı için sesli uyarı ve banner tetikle
@@ -86,7 +143,8 @@ export default function ServerStats() {
     const point = {
       t: new Date().toLocaleTimeString('tr-TR', { minute: '2-digit', second: '2-digit' }),
       cpu: Number(cpuUsage || 0),
-      ram: Number(ramUsage || 0)
+      ram: Number(ramUsage || 0),
+      disk: Number(diskUsage || 0)
     }
     setLiveSeries(prev => {
       const next = [...prev, point]
@@ -225,9 +283,9 @@ export default function ServerStats() {
         </motion.div>
       </div>
 
-      {/* Akan Canlı Grafik (CPU/RAM) */}
+      {/* Akan Canlı Grafik (CPU/RAM/Disk) */}
       <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
-        <h3 className="text-xl font-bold text-slate-800 mb-2">Canlı CPU ve RAM</h3>
+        <h3 className="text-xl font-bold text-slate-800 mb-2">Canlı CPU, RAM ve Disk</h3>
         <p className="text-slate-500 text-sm mb-4">Son ölçümler • 10sn aralık</p>
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={liveSeries}>
@@ -238,6 +296,7 @@ export default function ServerStats() {
             <Legend />
             <Area type="monotone" dataKey="cpu" stroke="#ef4444" fill="#ef444433" strokeWidth={2} isAnimationActive />
             <Line type="monotone" dataKey="ram" stroke="#8b5cf6" strokeWidth={2} dot={false} isAnimationActive />
+            <Line type="monotone" dataKey="disk" stroke="#22c55e" strokeWidth={2} dot={false} isAnimationActive />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -387,6 +446,59 @@ export default function ServerStats() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Visitor IPs and Locations */}
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-slate-800">Ziyaretçi IP'leri ve Konumları</h3>
+          {loadingVisitors && (
+            <span className="text-xs text-slate-500">Yükleniyor...</span>
+          )}
+        </div>
+        {visitorIps && visitorIps.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">IP Adresi</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Konum</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Son Görülme</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Hit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visitorIps.slice(0, 50).map((v: any, i: number) => (
+                  <tr key={(v.ip || 'unknown') + '_' + i} className="hover:bg-slate-50">
+                    <td className="px-6 py-3">
+                      <div className="font-semibold text-slate-800">{v.ip || '-'}</div>
+                      {v.userId ? (
+                        <div className="text-xs text-slate-500">User #{v.userId}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-6 py-3">
+                      <div className="flex items-center space-x-2 text-slate-700">
+                        <MapPin className="w-4 h-4 text-rose-600" />
+                        <span className="text-sm font-medium">
+                          {(
+                            (v.location && (v.location.city || v.location.town || v.location.state)) || '-' 
+                          )}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {v.location && v.location.country ? `• ${v.location.country}` : ''}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-3 text-sm text-slate-700">{v.lastSeen ? new Date(v.lastSeen).toLocaleString('tr-TR') : '-'}</td>
+                    <td className="px-6 py-3 text-sm font-semibold text-slate-800">{v.hits || 1}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-sm text-slate-500">Kayıt bulunamadı</div>
+        )}
       </div>
 
       {/* System Info removed (mock veriler kaldırıldı) */}

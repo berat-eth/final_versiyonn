@@ -66,4 +66,35 @@ export const cartService = {
       total: number;
     }>>(`/cart/user/${userId}/total-detailed`, deviceId ? { deviceId } : {});
   },
+
+  // Apply discount code to a user's cart (tries multiple known endpoints)
+  applyDiscountCode: async (
+    userId: number,
+    discountCode: string,
+    orderAmount: number,
+    deviceId?: string
+  ) => {
+    // Primary endpoint
+    try {
+      return await api.post<ApiResponse<{ discount: number; total: number }>>(
+        `/cart/user/${userId}/apply-discount${deviceId ? `?deviceId=${deviceId}` : ''}`,
+        { code: discountCode, orderAmount }
+      );
+    } catch (e) {
+      // Fallback: validate only (does not mark as used)
+      try {
+        const valid = await api.post<ApiResponse<{ discountAmount: number; finalAmount: number }>>(
+          '/discount-codes/validate',
+          { userId, discountCode, orderAmount }
+        );
+        if ((valid as any)?.success && (valid as any)?.data) {
+          const d = (valid as any).data;
+          return { success: true, data: { discount: d.discountAmount, total: d.finalAmount } } as any;
+        }
+        return valid as any;
+      } catch (err) {
+        throw err;
+      }
+    }
+  },
 };

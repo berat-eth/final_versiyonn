@@ -41,7 +41,6 @@ import WarehouseManagement from '@/components/WarehouseManagement'
 import Categories from '@/components/Categories'
 import PaymentTransactions from '@/components/PaymentTransactions'
 import ReturnRequests from '@/components/ReturnRequests'
-import UserAddresses from '@/components/UserAddresses'
 import UserWallets from '@/components/UserWallets'
 import WalletTransactions from '@/components/WalletTransactions'
 import WalletRechargeRequests from '@/components/WalletRechargeRequests'
@@ -49,12 +48,11 @@ import ReferralEarnings from '@/components/ReferralEarnings'
 import UserDiscountCodes from '@/components/UserDiscountCodes'
 import DiscountWheelSpins from '@/components/DiscountWheelSpins'
 import GiftCards from '@/components/GiftCards'
-import CustomerAnalytics from '@/components/CustomerAnalytics'
-import UserEvents from '@/components/UserEvents'
-import UserProfiles from '@/components/UserProfiles'
 import Recommendations from '@/components/Recommendations'
 // CustomProductionMessages merged into BulkCustomProduction
-import UserLevels from '@/components/UserLevels'
+import Hepsiburada from '@/components/Hepsiburada'
+import Trendyol from '@/components/Trendyol'
+import IntegrationMonitor from '@/components/IntegrationMonitor'
 
 
 export default function DashboardPage() {
@@ -102,7 +100,6 @@ export default function DashboardPage() {
           {activeTab === 'snort-logs' && <SnortLogs />}
           {activeTab === 'sql-query' && <SQLQuery />}
           {activeTab === 'user-database' && <UserDatabase />}
-          {activeTab === 'user-levels' && <UserLevels />}
           {activeTab === 'settings' && <Settings />}
           {activeTab === 'bulk-custom-production' && <BulkCustomProduction />}
           {activeTab === 'project-ajax' && <ProjectAjax />}
@@ -115,7 +112,6 @@ export default function DashboardPage() {
           {activeTab === 'categories' && <Categories />}
           {activeTab === 'payment-transactions' && <PaymentTransactions />}
           {activeTab === 'return-requests' && <ReturnRequests />}
-          {activeTab === 'user-addresses' && <UserAddresses />}
           {activeTab === 'user-wallets' && <UserWallets />}
           {activeTab === 'wallet-transactions' && <WalletTransactions />}
           {activeTab === 'wallet-recharge-requests' && <WalletRechargeRequests />}
@@ -123,11 +119,10 @@ export default function DashboardPage() {
           {activeTab === 'user-discount-codes' && <UserDiscountCodes />}
           {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
           {activeTab === 'gift-cards' && <GiftCards />}
-          {activeTab === 'customer-analytics' && <CustomerAnalytics />}
-          {activeTab === 'user-events' && <UserEvents />}
-          {activeTab === 'user-profiles' && <UserProfiles />}
           {activeTab === 'recommendations' && <Recommendations />}
-          {/* removed: custom-production-messages */}
+          {activeTab === 'integration-monitor' && <IntegrationMonitor />}
+          {activeTab === 'hepsiburada' && <Hepsiburada />}
+          {activeTab === 'trendyol' && <Trendyol />}
         </main>
       </div>
     </div>

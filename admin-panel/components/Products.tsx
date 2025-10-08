@@ -34,6 +34,7 @@ export default function Products() {
   } | null>(null)
   const [sizesMap, setSizesMap] = useState<Record<number, string[]>>({})
   const [sizesLoading, setSizesLoading] = useState<Record<number, boolean>>({})
+  const [productSizes, setProductSizes] = useState<Record<number, Record<string, number>>>({})
   const [showViewModal, setShowViewModal] = useState<{ open: boolean; product?: Product | null; details?: any; variations?: any[] }>({ open: false, product: null, details: null, variations: [] })
 
   const categories = ['Tümü', 'Kamp Malzemeleri', 'Outdoor Giyim', 'Ayakkabı', 'Aksesuar']
@@ -196,6 +197,8 @@ export default function Products() {
       isActive: (p as any).isActive ?? true,
       excludeFromXml: (p as any).excludeFromXml ?? false
     })
+    // Beden bilgilerini yükle
+    loadProductSizeStocks(p.id)
   }
 
   const validateForm = (): boolean => {
@@ -229,6 +232,62 @@ export default function Products() {
     if (stock > 20) return 'active'
     if (stock > 0) return 'low-stock'
     return 'out-of-stock'
+  }
+
+  const loadProductSizeStocks = async (productId: number) => {
+    try {
+      const res = await productService.getProductById(productId)
+      if ((res as any)?.success && (res as any)?.data) {
+        const productData = (res as any).data
+        const sizes: Record<string, number> = {}
+        
+        // variationDetails JSON'ını parse et
+        if (productData.variationDetails) {
+          try {
+            const variationDetails = typeof productData.variationDetails === 'string' 
+              ? JSON.parse(productData.variationDetails) 
+              : productData.variationDetails
+            
+            if (Array.isArray(variationDetails)) {
+              variationDetails.forEach((variation: any) => {
+                if (variation.attributes && variation.stok !== undefined) {
+                  // attributes objesinden beden bilgisini çıkar
+                  const attributes = variation.attributes
+                  if (attributes && typeof attributes === 'object') {
+                    // Beden bilgisini bul (Beden, Size, etc.)
+                    const sizeKeys = Object.keys(attributes).filter(key => 
+                      key.toLowerCase().includes('beden') || 
+                      key.toLowerCase().includes('size')
+                    )
+                    
+                    if (sizeKeys.length > 0) {
+                      const size = attributes[sizeKeys[0]]
+                      if (size && typeof size === 'string') {
+                        sizes[size] = parseInt(variation.stok) || 0
+                      }
+                    }
+                  }
+                } else if (variation.stok !== undefined) {
+                  // Attributes yoksa ama stok varsa, varyasyon ID'sini beden olarak kullan
+                  const bedenIsimleri = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL']
+                  const index = variationDetails.indexOf(variation)
+                  if (index < bedenIsimleri.length) {
+                    const bedenAdi = bedenIsimleri[index]
+                    sizes[bedenAdi] = parseInt(variation.stok) || 0
+                  }
+                }
+              })
+            }
+          } catch (parseError) {
+            console.error(`Ürün ${productId} variationDetails parse hatası:`, parseError)
+          }
+        }
+        
+        setProductSizes(prev => ({ ...prev, [productId]: sizes }))
+      }
+    } catch (error) {
+      console.error(`Ürün ${productId} beden stokları alınamadı:`, error)
+    }
   }
 
   if (loading && products.length === 0) {
@@ -554,6 +613,30 @@ export default function Products() {
                     </div>
                   </div>
                 </div>
+
+                {/* Beden Bilgileri */}
+                {showEditModal.product && (
+                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                    <h4 className="text-lg font-semibold text-slate-800 mb-3">Beden Stokları</h4>
+                    <div className="grid grid-cols-4 gap-3">
+                      {Object.entries(productSizes[showEditModal.product.id] || {}).map(([size, stock]) => (
+                        <div key={size} className="bg-white rounded-lg p-3 border border-slate-200">
+                          <div className="text-center">
+                            <div className="text-sm font-medium text-slate-600">{size}</div>
+                            <div className={`text-lg font-bold ${stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                              {stock} adet
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {Object.keys(productSizes[showEditModal.product.id] || {}).length === 0 && (
+                        <div className="col-span-4 text-center text-slate-500 py-4">
+                          Beden bilgisi bulunamadı
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
                   <button onClick={()=>setShowEditModal({ open:false, product:null })} className="px-4 py-2 border rounded">Vazgeç</button>

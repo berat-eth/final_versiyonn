@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Edit, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Briefcase, UserPlus, PhoneCall, Calendar, Target, TrendingUp, FileCheck, Factory, ClipboardList, PackageCheck, Warehouse, Wallet, CreditCard, RotateCcw, MapPin, Gift, Disc, FolderTree, Activity, UserCircle, DollarSign, User } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Warehouse, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface SidebarProps {
@@ -40,13 +40,8 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     {
       title: 'Müşteri Yönetimi',
       items: [
-        { id: 'customers', label: 'Kullanıcılar', icon: Users },
-        { id: 'user-levels', label: 'Kullanıcı Seviyesi', icon: UsersRound },
-        { id: 'user-addresses', label: 'Kullanıcı Adresleri', icon: MapPin },
-        { id: 'user-profiles', label: 'Kullanıcı Profilleri', icon: User },
-        { id: 'user-events', label: 'Kullanıcı Etkinlikleri', icon: Activity },
+        { id: 'customers', label: 'Müşteriler', icon: Users },
         { id: 'customer-care', label: 'Müşteri Bakiyeleri', icon: UserCog },
-        { id: 'customer-analytics', label: 'Müşteri Analitiği', icon: BarChart3 },
         { id: 'segments', label: 'Müşteri Segmentleri', icon: UsersRound },
       ]
     },
@@ -116,6 +111,14 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       items: [
         { id: 'applications', label: 'Bayilik Başvuruları', icon: FileText },
         { id: 'bulk-custom-production', label: 'Özel Toptan Üretim', icon: Crown },
+      ]
+    },
+    {
+      title: 'Entegrasyon',
+      items: [
+        { id: 'integration-monitor', label: 'Entegrasyon Monitörü', icon: Monitor },
+        { id: 'hepsiburada', label: 'Hepsiburada', icon: Link },
+        { id: 'trendyol', label: 'Trendyol', icon: Link },
       ]
     },
   ]
