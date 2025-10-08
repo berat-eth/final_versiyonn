@@ -235,16 +235,15 @@ app.use(compression({
   }
 }));
 
-// CORS - Sadece gerekli başlıklar, sadece API key doğrulaması
+// CORS - Tüm kısıtlamaları kaldır
 app.use(cors({
-  origin: '*', // Tüm origin'lere izin ver
-  credentials: false, // Credentials gerekmez
-  methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'X-API-Key',
-    'Accept'
-  ]
+  origin: true, // Tüm origin'lere izin ver
+  credentials: true, // Credentials'a izin ver
+  methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS','HEAD'],
+  allowedHeaders: '*', // Tüm header'lara izin ver
+  exposedHeaders: '*', // Tüm header'ları expose et
+  preflightContinue: false,
+  optionsSuccessStatus: 200
 }));
 
 // OPTIONS istekleri için hızlı yanıt
