@@ -8010,6 +8010,60 @@ app.post('/api/sync/products', async (req, res) => {
   }
 });
 
+// Sync status endpoint
+app.get('/api/sync/status', async (req, res) => {
+  try {
+    if (!xmlSyncService) {
+      return res.json({ success: true, data: { isRunning: false, lastSyncTime: null } });
+    }
+    
+    const status = xmlSyncService.getSyncStatus();
+    res.json({ 
+      success: true, 
+      data: { 
+        isRunning: status.isRunning || false,
+        lastSyncTime: status.lastSyncTime || null,
+        message: status.message || null
+      } 
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Cannot get sync status' });
+  }
+});
+
+// Sync progress endpoint
+app.get('/api/sync/progress', async (req, res) => {
+  try {
+    if (!xmlSyncService) {
+      return res.json({ success: true, data: null });
+    }
+    
+    const status = xmlSyncService.getSyncStatus();
+    if (!status.isRunning) {
+      return res.json({ success: true, data: null });
+    }
+    
+    const stats = status.stats || {};
+    const total = (stats.newProducts || 0) + (stats.updatedProducts || 0) + (stats.errors || 0);
+    const current = stats.processedProducts || 0;
+    const percentage = total > 0 ? (current / total) * 100 : 0;
+    
+    res.json({ 
+      success: true, 
+      data: {
+        current: current,
+        total: total,
+        percentage: Math.min(100, Math.max(0, percentage)),
+        status: status.message || 'İşleniyor...',
+        currentItem: stats.currentProduct || null,
+        errors: stats.errors || 0
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Cannot get sync progress' });
+  }
+});
+
 // Sync logs (admin)
 app.get('/api/admin/sync/logs', authenticateAdmin, async (req, res) => {
   try {

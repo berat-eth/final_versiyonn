@@ -11,8 +11,11 @@ class XmlSyncService {
       totalProducts: 0,
       newProducts: 0,
       updatedProducts: 0,
-      errors: 0
+      errors: 0,
+      processedProducts: 0,
+      currentProduct: null
     };
+    this.message = null;
   }
 
   // XML kaynakları konfigürasyonu
@@ -828,8 +831,11 @@ class XmlSyncService {
         totalProducts: 0,
         newProducts: 0,
         updatedProducts: 0,
-        errors: 0
+        errors: 0,
+        processedProducts: 0,
+        currentProduct: null
       };
+      this.message = 'Senkron başlatılıyor...';
 
       // Eğer tenantId belirtilmemişse, tüm aktif tenant'ları al
       let tenants = [];
@@ -862,8 +868,18 @@ class XmlSyncService {
             console.log(`✅ Processed ${categories.length} categories`);
             
             // Her ürünü veritabanına ekle/güncelle
-            for (const product of products) {
+            this.message = `Ürünler işleniyor... (${products.length} ürün)`;
+            for (let i = 0; i < products.length; i++) {
+              const product = products[i];
+              this.syncStats.currentProduct = product.name;
+              this.syncStats.processedProducts = i + 1;
+              
               await this.upsertProduct(product, tenant.id);
+              
+              // Her 10 üründe bir progress güncelle
+              if ((i + 1) % 10 === 0 || i === products.length - 1) {
+                this.message = `${i + 1}/${products.length} ürün işlendi`;
+              }
             }
             
             console.log(`✅ Completed processing ${source.name} for tenant ${tenant.id}`);
@@ -877,6 +893,8 @@ class XmlSyncService {
 
       const duration = Date.now() - startTime;
       this.lastSyncTime = new Date();
+      this.message = 'Senkron tamamlandı';
+      this.syncStats.currentProduct = null;
       
       console.log(`\n🎉 XML sync completed in ${duration}ms`);
       console.log('📊 Sync Statistics:');
@@ -932,7 +950,8 @@ class XmlSyncService {
     return {
       isRunning: this.isRunning,
       lastSyncTime: this.lastSyncTime,
-      stats: this.syncStats
+      stats: this.syncStats,
+      message: this.message
     };
   }
 

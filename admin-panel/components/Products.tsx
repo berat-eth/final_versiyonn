@@ -24,6 +24,14 @@ export default function Products() {
   const [formErrors, setFormErrors] = useState<Record<string,string>>({})
   const [syncing, setSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<{ running: boolean; last?: string; message?: string } | null>(null)
+  const [syncProgress, setSyncProgress] = useState<{ 
+    current: number; 
+    total: number; 
+    percentage: number; 
+    status: string; 
+    currentItem?: string;
+    errors?: number;
+  } | null>(null)
   const [sizesMap, setSizesMap] = useState<Record<number, string[]>>({})
   const [sizesLoading, setSizesLoading] = useState<Record<number, boolean>>({})
   const [showViewModal, setShowViewModal] = useState<{ open: boolean; product?: Product | null; details?: any; variations?: any[] }>({ open: false, product: null, details: null, variations: [] })
@@ -87,9 +95,25 @@ export default function Products() {
     } catch {}
   }
 
+  // Sync progress fetcher
+  const fetchSyncProgress = async () => {
+    try {
+      const res = await api.get<any>('/sync/progress')
+      if (res?.success && res?.data) {
+        setSyncProgress(res.data)
+      }
+    } catch (e) {
+      console.error('Sync progress fetch failed:', e)
+    }
+  }
+
   useEffect(() => {
     fetchSyncStatus()
-    const t = setInterval(fetchSyncStatus, 15000)
+    fetchSyncProgress()
+    const t = setInterval(() => {
+      fetchSyncStatus()
+      fetchSyncProgress()
+    }, 3000) // Her 3 saniyede bir güncelle
     return () => clearInterval(t)
   }, [])
 
@@ -252,8 +276,10 @@ export default function Products() {
             onClick={async()=>{
               try {
                 setSyncing(true)
+                setSyncProgress(null) // Progress'i sıfırla
                 await api.post('/sync/products')
                 await fetchSyncStatus()
+                await fetchSyncProgress()
                 await fetchProducts(currentPage)
               } catch { alert('Senkron başlatılamadı') } finally { setSyncing(false) }
             }}
@@ -274,17 +300,50 @@ export default function Products() {
       </div>
 
       {/* Sync status panel */}
-      <div className="bg-white rounded-xl shadow-sm p-4 card-hover flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${syncStatus?.running ? 'bg-green-100' : 'bg-slate-100'}`}>
-            <Activity className={`w-5 h-5 ${syncStatus?.running ? 'text-green-600 animate-pulse' : 'text-slate-600'}`} />
+      <div className="bg-white rounded-xl shadow-sm p-4 card-hover">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${syncStatus?.running ? 'bg-green-100' : 'bg-slate-100'}`}>
+              <Activity className={`w-5 h-5 ${syncStatus?.running ? 'text-green-600 animate-pulse' : 'text-slate-600'}`} />
+            </div>
+            <div>
+              <p className="text-slate-700 font-semibold">XML Senkron Durumu</p>
+              <p className="text-sm text-slate-500">{syncStatus?.running ? 'Çalışıyor' : 'Beklemede'}{syncStatus?.last ? ` • Son: ${new Date(syncStatus.last).toLocaleString('tr-TR')}` : ''}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-slate-700 font-semibold">XML Senkron Durumu</p>
-            <p className="text-sm text-slate-500">{syncStatus?.running ? 'Çalışıyor' : 'Beklemede'}{syncStatus?.last ? ` • Son: ${new Date(syncStatus.last).toLocaleString('tr-TR')}` : ''}</p>
-          </div>
+          <div className="text-sm text-slate-500">Kaynak: Ticimax XML</div>
         </div>
-        <div className="text-sm text-slate-500">Kaynak: Ticimax XML</div>
+
+        {/* Progress Bar */}
+        {syncProgress && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-600">
+                {syncProgress.current} / {syncProgress.total} ürün işlendi
+              </span>
+              <span className="text-slate-500">
+                %{Math.round(syncProgress.percentage)}
+              </span>
+            </div>
+            
+            <div className="w-full bg-slate-200 rounded-full h-2.5">
+              <div 
+                className="bg-gradient-to-r from-blue-500 to-green-500 h-2.5 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${syncProgress.percentage}%` }}
+              ></div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>{syncProgress.status}</span>
+              {syncProgress.currentItem && (
+                <span className="truncate max-w-xs">{syncProgress.currentItem}</span>
+              )}
+              {syncProgress.errors && syncProgress.errors > 0 && (
+                <span className="text-red-500">{syncProgress.errors} hata</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
