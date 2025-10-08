@@ -7577,6 +7577,25 @@ app.get('/api/admin/low-stock-products', async (req, res) => {
           }
         }
 
+        // Eğer beden bilgisi yoksa ama varyasyonlar varsa, genel stok bilgisini kullan
+        if (Object.keys(sizes).length === 0 && product.xmlOptions) {
+          try {
+            const xmlOptions = typeof product.xmlOptions === 'string' 
+              ? JSON.parse(product.xmlOptions) 
+              : product.xmlOptions;
+            
+            if (xmlOptions.options && Array.isArray(xmlOptions.options)) {
+              // Varyasyon sayısını beden olarak göster
+              const variationCount = xmlOptions.options.length;
+              if (variationCount > 0) {
+                sizes['Varyasyon'] = variationCount;
+              }
+            }
+          } catch (parseError) {
+            console.error(`Ürün ${product.id} xmlOptions parse hatası:`, parseError);
+          }
+        }
+
         // variationDetails JSON'ını da kontrol et
         if (product.variationDetails) {
           try {
