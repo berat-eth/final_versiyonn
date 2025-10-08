@@ -1,6 +1,6 @@
 // API Configuration and Utilities
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api';
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
 
 interface ApiRequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;

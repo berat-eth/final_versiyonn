@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Factory, Package, Calendar, TrendingUp, AlertCircle, CheckCircle, Clock, Plus, Search, Filter, Edit, Trash2, ClipboardList, X, BarChart3, Users, Zap, LayoutGrid, List, ChevronDown, Eye, PlayCircle, PauseCircle } from 'lucide-react'
 import { productService } from '@/lib/services'
 import { motion, AnimatePresence } from 'framer-motion'
+import { api } from '@/lib/api'
 
 interface ProductionPlan {
   id: number
@@ -117,7 +118,7 @@ export default function ProductionPlanning() {
           const response = await api.get<any>('/admin/low-stock-products?threshold=10')
           if (alive && response.data.success) {
             const products = response.data.data || []
-            const sorted = [...products].sort((a, b) => a.stock - b.stock)
+            const sorted = [...products].sort((a, b) => (a.stock || 0) - (b.stock || 0))
             setLowStock(sorted)
           } else {
             setLowStock([])
@@ -194,7 +195,7 @@ export default function ProductionPlanning() {
               })
             )
             
-            const sorted = [...products].sort((a, b) => a.stock - b.stock)
+            const sorted = [...productsWithSizes].sort((a, b) => (a.stock || 0) - (b.stock || 0))
             setLowStock(sorted)
           }
         } else {
@@ -285,7 +286,7 @@ export default function ProductionPlanning() {
               })
             )
             
-            const sorted = [...products].sort((a, b) => a.stock - b.stock)
+            const sorted = [...productsWithSizes].sort((a, b) => (a.stock || 0) - (b.stock || 0))
             setLowStock(sorted)
           }
         }
@@ -679,7 +680,7 @@ export default function ProductionPlanning() {
                       })
                     )
                     
-                    const sorted = [...products].sort((a, b) => a.stock - b.stock)
+                    const sorted = [...productsWithSizes].sort((a, b) => (a.stock || 0) - (b.stock || 0))
                     setLowStock(sorted)
                   }
                 } finally { setLoadingLowStock(false) }

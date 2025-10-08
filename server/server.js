@@ -7534,7 +7534,7 @@ app.get('/api/admin/low-stock-products', async (req, res) => {
     
     // Düşük stoklu ürünleri çek
     const [products] = await poolWrapper.execute(`
-      SELECT id, name, sku, stock, image, category, brand, variationDetails
+      SELECT id, name, sku, stock, image, category, brand, xmlOptions
       FROM products 
       WHERE tenantId = ? AND stock <= ?
       ORDER BY stock ASC, name ASC
@@ -7545,15 +7545,15 @@ app.get('/api/admin/low-stock-products', async (req, res) => {
       products.map(async (product) => {
         const sizes = {};
         
-        // variationDetails JSON'ını parse et
-        if (product.variationDetails) {
+        // xmlOptions JSON'ını parse et
+        if (product.xmlOptions) {
           try {
-            const variationDetails = typeof product.variationDetails === 'string' 
-              ? JSON.parse(product.variationDetails) 
-              : product.variationDetails;
+            const xmlOptions = typeof product.xmlOptions === 'string' 
+              ? JSON.parse(product.xmlOptions) 
+              : product.xmlOptions;
             
-            if (Array.isArray(variationDetails)) {
-              variationDetails.forEach((variation) => {
+            if (xmlOptions.options && Array.isArray(xmlOptions.options)) {
+              xmlOptions.options.forEach((variation) => {
                 if (variation.attributes && variation.stok !== undefined) {
                   const attributes = variation.attributes;
                   if (attributes && typeof attributes === 'object') {
