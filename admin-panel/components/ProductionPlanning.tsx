@@ -89,73 +89,12 @@ export default function ProductionPlanning() {
     ; (async () => {
       try {
         setLoadingSizeStocks(true)
-        // Tüm ürünleri çek ve beden stoklarını al
-        const res = await productService.getProducts(1, 100)
-        if (alive && (res as any)?.success && Array.isArray((res as any)?.data?.products)) {
-          const products = (res as any).data.products as Array<{ 
-            id: number; 
-            name: string; 
-            sku?: string; 
-            stock?: number; 
-            image?: string; 
-            category?: string 
-          }>
+        // Düşük stoklu ürünleri çek
+        const response = await api.get<any>('/admin/low-stock-products?threshold=10')
+        if (alive && response.data.success) {
+          const products = response.data.data || []
           
-          // Kamp ve Silah Aksesuar kategorisindeki ürünleri filtrele
-          const filteredProducts = products.filter(p => 
-            !p.category || 
-            (!p.category.toLowerCase().includes('kamp') && 
-             !p.category.toLowerCase().includes('camp') &&
-             !p.category.toLowerCase().includes('silah') &&
-             !p.category.toLowerCase().includes('aksesuar'))
-          )
-          
-          // Her ürün için beden stoklarını çek
-          const productsWithSizes = await Promise.all(
-            filteredProducts.map(async (product) => {
-              try {
-                // Ürün varyasyonlarını çek
-                const variationsRes = await productService.getProductVariations(product.id)
-                if ((variationsRes as any)?.success && Array.isArray((variationsRes as any)?.data)) {
-                  const variations = (variationsRes as any).data
-                  const sizes: Record<string, number> = {}
-                  
-                  // Her varyasyon için beden ve stok bilgisini al
-                  variations.forEach((variation: any) => {
-                    if (variation.size && variation.stock !== undefined) {
-                      sizes[variation.size] = variation.stock
-                    }
-                  })
-                  
-                  return {
-                    id: product.id,
-                    name: product.name,
-                    sku: product.sku,
-                    image: product.image,
-                    sizes
-                  }
-                }
-                return {
-                  id: product.id,
-                  name: product.name,
-                  sku: product.sku,
-                  image: product.image,
-                  sizes: {}
-                }
-              } catch (error) {
-                console.error(`Ürün ${product.id} varyasyonları alınamadı:`, error)
-                return {
-                  id: product.id,
-                  name: product.name,
-                  sku: product.sku,
-                  image: product.image,
-                  sizes: {}
-                }
-              }
-            })
-          )
-          
-          setSizeStocks(productsWithSizes)
+          setSizeStocks(products)
         }
       } catch (e: any) {
         console.error('Beden stokları alınamadı:', e)
@@ -174,95 +113,11 @@ export default function ProductionPlanning() {
         try {
           setLoadingLowStock(true)
           setErrorLowStock(null)
-          // Normal ürün API'si: tüm ürünler, stok artan sırada
-          const res = await productService.getProducts(1, 50)
-          if (alive && (res as any)?.success && Array.isArray((res as any)?.data?.products)) {
-            const products = (res as any).data.products as Array<{ id: number; name: string; sku?: string; stock?: number; image?: string; category?: string }>
-            // Kamp ve Silah Aksesuar kategorisindeki ürünleri filtrele
-            const filteredProducts = products.filter(p => 
-              !p.category || 
-              (!p.category.toLowerCase().includes('kamp') && 
-               !p.category.toLowerCase().includes('camp') &&
-               !p.category.toLowerCase().includes('silah') &&
-               !p.category.toLowerCase().includes('aksesuar'))
-            )
-            
-            // Her ürün için beden stoklarını çek
-            const productsWithSizes = await Promise.all(
-              filteredProducts.map(async (product) => {
-                try {
-                  // Ürün detaylarını çek (variationDetails JSON'ını almak için)
-                  const productRes = await productService.getProductById(product.id)
-                  if ((productRes as any)?.success && (productRes as any)?.data) {
-                    const productData = (productRes as any).data
-                    const sizes: Record<string, number> = {}
-                    
-                    // variationDetails JSON'ını parse et
-                    if (productData.variationDetails) {
-                      try {
-                        const variationDetails = typeof productData.variationDetails === 'string' 
-                          ? JSON.parse(productData.variationDetails) 
-                          : productData.variationDetails
-                        
-                        if (Array.isArray(variationDetails)) {
-                          variationDetails.forEach((variation: any) => {
-                            if (variation.attributes && variation.stok !== undefined) {
-                              // attributes objesinden beden bilgisini çıkar
-                              const attributes = variation.attributes
-                              if (attributes && typeof attributes === 'object') {
-                                // Beden bilgisini bul (Beden, Size, etc.)
-                                const sizeKeys = Object.keys(attributes).filter(key => 
-                                  key.toLowerCase().includes('beden') || 
-                                  key.toLowerCase().includes('size')
-                                )
-                                
-                                if (sizeKeys.length > 0) {
-                                  const size = attributes[sizeKeys[0]]
-                                  if (size && typeof size === 'string') {
-                                    sizes[size] = parseInt(variation.stok) || 0
-                                  }
-                                }
-                              }
-                            }
-                          })
-                        }
-                      } catch (parseError) {
-                        console.error(`Ürün ${product.id} variationDetails parse hatası:`, parseError)
-                      }
-                    }
-                    
-                    return {
-                      id: product.id,
-                      name: product.name,
-                      sku: (product as any).sku,
-                      stock: product.stock ?? 0,
-                      image: product.image,
-                      sizes
-                    }
-                  }
-                  return {
-                    id: product.id,
-                    name: product.name,
-                    sku: (product as any).sku,
-                    stock: product.stock ?? 0,
-                    image: product.image,
-                    sizes: {}
-                  }
-                } catch (error) {
-                  console.error(`Ürün ${product.id} detayları alınamadı:`, error)
-                  return {
-                    id: product.id,
-                    name: product.name,
-                    sku: (product as any).sku,
-                    stock: product.stock ?? 0,
-                    image: product.image,
-                    sizes: {}
-                  }
-                }
-              })
-            )
-            
-            const sorted = [...productsWithSizes].sort((a, b) => a.stock - b.stock)
+          // Düşük stoklu ürünler API'si
+          const response = await api.get<any>('/admin/low-stock-products?threshold=10')
+          if (alive && response.data.success) {
+            const products = response.data.data || []
+            const sorted = [...products].sort((a, b) => a.stock - b.stock)
             setLowStock(sorted)
           } else {
             setLowStock([])
@@ -339,7 +194,7 @@ export default function ProductionPlanning() {
               })
             )
             
-            const sorted = [...productsWithSizes].sort((a, b) => a.stock - b.stock)
+            const sorted = [...products].sort((a, b) => a.stock - b.stock)
             setLowStock(sorted)
           }
         } else {
@@ -430,7 +285,7 @@ export default function ProductionPlanning() {
               })
             )
             
-            const sorted = [...productsWithSizes].sort((a, b) => a.stock - b.stock)
+            const sorted = [...products].sort((a, b) => a.stock - b.stock)
             setLowStock(sorted)
           }
         }
@@ -535,7 +390,7 @@ export default function ProductionPlanning() {
       
       if (result.success) {
         alert(`${selectedProduct.name} için toplam ${totalQty} adet üretim talebi oluşturuldu!`)
-        setShowSizeModal(false)
+    setShowSizeModal(false)
         // Sayfayı yenile veya listeyi güncelle
         window.location.reload()
       } else {
@@ -824,7 +679,7 @@ export default function ProductionPlanning() {
                       })
                     )
                     
-                    const sorted = [...productsWithSizes].sort((a, b) => a.stock - b.stock)
+                    const sorted = [...products].sort((a, b) => a.stock - b.stock)
                     setLowStock(sorted)
                   }
                 } finally { setLoadingLowStock(false) }
