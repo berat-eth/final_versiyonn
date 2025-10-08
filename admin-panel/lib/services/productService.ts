@@ -33,7 +33,7 @@ export const productService = {
 
   // Get product variations
   getProductVariations: async (productId: number) => {
-    return api.get<ApiResponse<any[]>>(`/products/${productId}/variations`);
+    return api.get<ApiResponse<{ variations: any[]; sizeStocks?: Record<string, number> }>>(`/products/${productId}/variations`);
   },
 
   // Filter products

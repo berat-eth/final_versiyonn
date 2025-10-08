@@ -143,7 +143,7 @@ export default function Products() {
           try {
             setSizesLoading(prev => ({ ...prev, [p.id]: true }))
             const res = await productService.getProductVariations(p.id)
-            const vars = (res?.data || []) as any[]
+            const vars = (res?.data?.variations || []) as any[]
             const sizeLike = (name: string = '') => {
               const n = (name || '').toLowerCase()
               return n.includes('beden') || n.includes('size') || n.includes('numara')
@@ -706,7 +706,7 @@ export default function Products() {
                               productService.getProductById(product.id),
                               productService.getProductVariations(product.id)
                             ])
-                            setShowViewModal({ open: true, product, details: detailsRes?.data || product, variations: varsRes?.data || [] })
+                            setShowViewModal({ open: true, product, details: detailsRes?.data || product, variations: varsRes?.data?.variations || [] })
                           } catch {
                             setShowViewModal({ open: true, product, details: product, variations: sizesMap[product.id] || [] })
                           }

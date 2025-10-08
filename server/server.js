@@ -7533,7 +7533,7 @@ app.get('/api/admin/low-stock-products', async (req, res) => {
     
     // Düşük stoklu ürünleri çek
     const [products] = await poolWrapper.execute(`
-      SELECT id, name, sku, stock, image, category, brand, xmlOptions
+      SELECT id, name, sku, stock, image, category, brand, xmlOptions, variationDetails
       FROM products 
       WHERE tenantId = ? AND stock <= ?
       ORDER BY stock ASC, name ASC
@@ -7553,6 +7553,39 @@ app.get('/api/admin/low-stock-products', async (req, res) => {
             
             if (xmlOptions.options && Array.isArray(xmlOptions.options)) {
               xmlOptions.options.forEach((variation) => {
+                if (variation.attributes && variation.stok !== undefined) {
+                  const attributes = variation.attributes;
+                  if (attributes && typeof attributes === 'object') {
+                    // Beden bilgisini bul (Beden, Size, etc.)
+                    const sizeKeys = Object.keys(attributes).filter(key => 
+                      key.toLowerCase().includes('beden') || 
+                      key.toLowerCase().includes('size')
+                    );
+                    
+                    if (sizeKeys.length > 0) {
+                      const size = attributes[sizeKeys[0]];
+                      if (size && typeof size === 'string') {
+                        sizes[size] = parseInt(variation.stok) || 0;
+                      }
+                    }
+                  }
+                }
+              });
+            }
+          } catch (parseError) {
+            console.error(`Ürün ${product.id} xmlOptions parse hatası:`, parseError);
+          }
+        }
+
+        // variationDetails JSON'ını da kontrol et
+        if (product.variationDetails) {
+          try {
+            const variationDetails = typeof product.variationDetails === 'string' 
+              ? JSON.parse(product.variationDetails) 
+              : product.variationDetails;
+            
+            if (Array.isArray(variationDetails)) {
+              variationDetails.forEach((variation) => {
                 if (variation.attributes && variation.stok !== undefined) {
                   const attributes = variation.attributes;
                   if (attributes && typeof attributes === 'object') {

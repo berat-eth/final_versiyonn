@@ -155,8 +155,8 @@ export default function ProductionPlanning() {
               filteredResults.map(async (product) => {
                 try {
                   const variationsRes = await productService.getProductVariations(product.id)
-                  if ((variationsRes as any)?.success && Array.isArray((variationsRes as any)?.data)) {
-                    const variations = (variationsRes as any).data
+                  if ((variationsRes as any)?.success && Array.isArray((variationsRes as any)?.data?.variations)) {
+                    const variations = (variationsRes as any).data.variations
                     const sizes: Record<string, number> = {}
                     
                     variations.forEach((variation: any) => {
@@ -640,8 +640,8 @@ export default function ProductionPlanning() {
                       filteredProducts.map(async (product) => {
                         try {
                           const variationsRes = await productService.getProductVariations(product.id)
-                          if ((variationsRes as any)?.success && Array.isArray((variationsRes as any)?.data)) {
-                            const variations = (variationsRes as any).data
+                          if ((variationsRes as any)?.success && Array.isArray((variationsRes as any)?.data?.variations)) {
+                            const variations = (variationsRes as any).data.variations
                             const sizes: Record<string, number> = {}
                             
                             variations.forEach((variation: any) => {
