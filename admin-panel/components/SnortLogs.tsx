@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Shield, AlertTriangle, Search, Filter, Download, Eye, X, RefreshCw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { api } from '@/lib/api'
 
 interface SnortLog {
     id: number
@@ -22,6 +23,8 @@ interface SnortLog {
 export default function SnortLogs() {
     // Mock loglar kaldırıldı - Backend entegrasyonu için hazır
     const [logs, setLogs] = useState<SnortLog[]>([])
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     const [viewingLog, setViewingLog] = useState<SnortLog | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
@@ -71,10 +74,23 @@ export default function SnortLogs() {
         alerts: logs.filter(l => l.action === 'alert').length
     }
 
-    const refreshLogs = () => {
-        alert('Loglar yenileniyor...')
-        // Gerçek uygulamada API çağrısı yapılır
+    const refreshLogs = async () => {
+        try {
+            setLoading(true)
+            setError(null)
+            const res = await api.get<any>('/admin/snort/logs')
+            if ((res as any)?.success && Array.isArray((res as any).data)) {
+                setLogs((res as any).data)
+            } else {
+                setLogs([])
+            }
+        } catch (e:any) {
+            setError(e?.message || 'Snort logları alınamadı')
+            setLogs([])
+        } finally { setLoading(false) }
     }
+
+    useEffect(()=>{ refreshLogs() }, [])
 
     const exportLogs = () => {
         alert('Loglar CSV formatında indiriliyor...')
@@ -293,6 +309,8 @@ export default function SnortLogs() {
                 <h3 className="text-xl font-bold text-slate-800 mb-6">
                     Güvenlik Olayları ({filteredLogs.length})
                 </h3>
+                {loading && <p className="text-slate-500 text-sm mb-3">Yükleniyor...</p>}
+                {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
                 <div className="space-y-3">
                     {filteredLogs.map((log, index) => (
                         <motion.div

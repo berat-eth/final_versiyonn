@@ -2348,6 +2348,50 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - Snort IDS logs (placeholder file reader / future DB integration)
+app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
+  try {
+    // Basic mock: return empty list if no integration
+    // You can integrate with filesystem (/var/log/snort/alert_fast.txt) or a DB in the future.
+    const demo = [];
+    return res.json({ success: true, data: demo });
+  } catch (error) {
+    console.error('❌ Error getting snort logs:', error);
+    return res.status(500).json({ success: false, message: 'Error getting snort logs' });
+  }
+});
+
+// Admin - Redis stats
+app.get('/api/admin/redis/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const redis = global.redis;
+    if (!redis) return res.json({ success: true, data: { available: false } });
+    const infoStr = await redis.info();
+    const lines = String(infoStr || '').split('\n');
+    const map = {};
+    lines.forEach((l)=>{
+      const [k,v] = l.split(':');
+      if (k && v) map[k.trim()] = v.trim();
+    });
+    const usedMemory = Number(map['used_memory']) || 0;
+    const opsPerSec = Number(map['instantaneous_ops_per_sec']) || 0;
+    const keyspaceHits = Number(map['keyspace_hits']) || 0;
+    const keyspaceMisses = Number(map['keyspace_misses']) || 0;
+    const uptimeInSeconds = Number(map['uptime_in_seconds']) || 0;
+    const hitRate = (keyspaceHits + keyspaceMisses) > 0 ? Math.round((keyspaceHits/(keyspaceHits+keyspaceMisses))*100) : 0;
+    const status = 'online';
+    const load = Math.min(95, Math.round(opsPerSec / 500));
+    const memoryMb = Math.round(usedMemory / (1024*1024));
+    const hours = Math.floor(uptimeInSeconds / 3600);
+    const days = Math.floor(hours / 24);
+    const uptime = `${days}g ${hours%24}s`;
+    return res.json({ success: true, data: { available: true, memoryMb, opsPerSec, hitRate, status, uptime, load } });
+  } catch (error) {
+    console.error('❌ Redis stats error:', error);
+    return res.status(500).json({ success: false, message: 'Error getting redis stats' });
+  }
+});
+
 // Admin Chart Data
 app.get('/api/admin/charts', authenticateAdmin, async (req, res) => {
   try {

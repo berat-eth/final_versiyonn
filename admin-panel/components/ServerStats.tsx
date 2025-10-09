@@ -93,7 +93,7 @@ export default function ServerStats() {
   }
 
   useEffect(() => {
-    const generate = () => {
+    const generate = async () => {
       // Veritabanı
       const db = {
         connections: randomBetween(40, 220),
@@ -116,32 +116,32 @@ export default function ServerStats() {
       }
       setMailStats(mail)
 
-      // Redis
-      const redis = {
-        memoryMb: randomBetween(150, 1600),
-        opsPerSec: randomBetween(2_000, 25_000),
-        hitRate: randomFloat(75, 99, 1),
-        status: Math.random() > 0.97 ? 'warning' : 'online',
-        uptime: randomUptime(),
-        load: randomBetween(5, 95)
-      }
-      setRedisStats(redis)
+      // Redis (gerçek API)
+      try {
+        const r = await api.get<any>('/admin/redis/stats')
+        if ((r as any)?.success && (r as any).data?.available) {
+          setRedisStats((r as any).data)
+        }
+      } catch {}
 
-      // Snort IDS
-      const snortStatus = Math.random() > 0.85 ? 'crashed' : Math.random() > 0.95 ? 'warning' : 'online'
-      const snort = {
-        totalLogs: randomBetween(500, 5000),
-        highPriority: randomBetween(5, 50),
-        mediumPriority: randomBetween(20, 200),
-        lowPriority: randomBetween(100, 1000),
-        dropped: randomBetween(0, 50),
-        alerts: randomBetween(10, 100),
-        blocked: randomBetween(5, 30),
-        status: snortStatus,
-        uptime: snortStatus === 'crashed' ? '0g 0s' : randomUptime(),
-        load: snortStatus === 'crashed' ? 0 : randomBetween(5, 95)
-      }
-      setSnortStats(snort)
+      // Snort IDS (gerçek API)
+      try {
+        const s = await api.get<any>('/admin/snort/logs')
+        const logs = (s as any)?.data || []
+        if (Array.isArray(logs)) {
+          const toLower = (x:any)=> String(x||'').toLowerCase()
+          const totalLogs = logs.length
+          const highPriority = logs.filter((l:any)=> toLower(l.priority)==='high').length
+          const mediumPriority = logs.filter((l:any)=> toLower(l.priority)==='medium').length
+          const lowPriority = logs.filter((l:any)=> toLower(l.priority)==='low').length
+          const alerts = logs.filter((l:any)=> toLower(l.action)==='alert').length
+          const dropped = logs.filter((l:any)=> toLower(l.action)==='drop').length
+          const status = 'online'
+          const uptime = randomUptime()
+          const load = Math.min(95, Math.round((alerts + dropped) / Math.max(totalLogs,1) * 100))
+          setSnortStats({ totalLogs, highPriority, mediumPriority, lowPriority, dropped, alerts, blocked: dropped, status, uptime, load })
+        }
+      } catch {}
 
       // Docker
       const dockerStatus = Math.random() > 0.95 ? 'warning' : 'online'
@@ -158,7 +158,8 @@ export default function ServerStats() {
     }
 
     generate()
-    const t = setInterval(generate, 10000)
+    const t = setInterval(() => { generate().catch(()=>{}) }, 10000)
+    generate().catch(()=>{})
     return () => clearInterval(t)
   }, [])
 

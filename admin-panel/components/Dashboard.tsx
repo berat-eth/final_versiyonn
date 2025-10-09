@@ -94,6 +94,7 @@ export default function Dashboard() {
   const [stockAlerts, setStockAlerts] = useState<Array<{ product: string; category: string; stock: number; minStock: number; status: 'critical' | 'warning' }>>([])
   const [liveUsers, setLiveUsers] = useState<Array<any>>([])
   const [liveUserStats, setLiveUserStats] = useState({ total: 0, withCart: 0, totalCartValue: 0, totalCartItems: 0, inCheckout: 0 })
+  const [snortStats, setSnortStats] = useState<{ total: number; high: number; medium: number; low: number; alerts: number; dropped: number; last: string }>({ total: 0, high: 0, medium: 0, low: 0, alerts: 0, dropped: 0, last: '' })
 
   // Özel toptan üretim istatistikleri
   const [customProdTotal, setCustomProdTotal] = useState<number>(0)
@@ -104,14 +105,32 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [statsRes, productsRes, adminOrders, adminCategories, categoryStats, customRequests] = await Promise.all([
+        const [statsRes, productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes] = await Promise.all([
           analyticsService.getStats(),
           productService.getProducts(1, 50),
           api.get<any>('/admin/orders'),
           api.get<any>('/admin/categories'),
           api.get<any>('/admin/category-stats'),
-          api.get<any>('/admin/custom-production-requests').catch(()=>({ success:true, data: [] }))
+          api.get<any>('/admin/custom-production-requests').catch(()=>({ success:true, data: [] })),
+          api.get<any>('/admin/snort/logs').catch(()=>({ success:true, data: [] }))
         ])
+        // Snort IDS status
+        try {
+          const logs = (snortRes as any)?.data || []
+          if (Array.isArray(logs)) {
+            const toLower = (s:any)=> String(s||'').toLowerCase()
+            const total = logs.length
+            const high = logs.filter((l:any)=> toLower(l.priority)==='high').length
+            const medium = logs.filter((l:any)=> toLower(l.priority)==='medium').length
+            const low = logs.filter((l:any)=> toLower(l.priority)==='low').length
+            const alerts = logs.filter((l:any)=> toLower(l.action)==='alert').length
+            const dropped = logs.filter((l:any)=> toLower(l.action)==='drop').length
+            const last = logs[0]?.timestamp || ''
+            setSnortStats({ total, high, medium, low, alerts, dropped, last })
+          } else {
+            setSnortStats({ total:0, high:0, medium:0, low:0, alerts:0, dropped:0, last:'' })
+          }
+        } catch { setSnortStats({ total:0, high:0, medium:0, low:0, alerts:0, dropped:0, last:'' }) }
         // Canlı görüntülemeler (yaklaşık canlı kullanıcı metrikleri için)
         let liveViews: any = { success: true, data: [] as any[] }
         try { liveViews = await api.get<any>('/admin/live-views') } catch {}
@@ -405,10 +424,10 @@ export default function Dashboard() {
     csvContent += `Aktif Kampanya,${emailStats.activeCampaigns}\n\n`
 
     csvContent += '=== SNORT GÜVENLİK İSTATİSTİKLERİ ===\n'
-    csvContent += `Toplam Log,${snortStats.totalLogs}\n`
-    csvContent += `Yüksek Öncelik,${snortStats.highPriority}\n`
-    csvContent += `Orta Öncelik,${snortStats.mediumPriority}\n`
-    csvContent += `Düşük Öncelik,${snortStats.lowPriority}\n`
+    csvContent += `Toplam Log,${snortStats.total}\n`
+    csvContent += `Yüksek Öncelik,${snortStats.high}\n`
+    csvContent += `Orta Öncelik,${snortStats.medium}\n`
+    csvContent += `Düşük Öncelik,${snortStats.low}\n`
     csvContent += `Engellenen,${snortStats.dropped}\n`
     csvContent += `Uyarılar,${snortStats.alerts}\n`
 
@@ -998,7 +1017,7 @@ export default function Dashboard() {
             </div>
             <div>
               <h3 className="text-xl font-bold text-white">Snort IDS Güvenlik Durumu</h3>
-              <p className="text-slate-400 text-sm">Son güncelleme: {snortStats.lastUpdate}</p>
+              <p className="text-slate-400 text-sm">Son güncelleme: {snortStats.last || '-'}</p>
             </div>
           </div>
           <button
@@ -1016,7 +1035,7 @@ export default function Dashboard() {
             className="bg-slate-700/50 rounded-xl p-4 border border-slate-600"
           >
             <p className="text-slate-400 text-xs mb-2">Toplam Log</p>
-            <p className="text-2xl font-bold text-white">{snortStats.totalLogs}</p>
+            <p className="text-2xl font-bold text-white">{snortStats.total}</p>
           </motion.div>
 
           <motion.div
@@ -1026,7 +1045,7 @@ export default function Dashboard() {
             className="bg-red-500/10 rounded-xl p-4 border border-red-500/30"
           >
             <p className="text-red-400 text-xs mb-2">Yüksek</p>
-            <p className="text-2xl font-bold text-red-400">{snortStats.highPriority}</p>
+            <p className="text-2xl font-bold text-red-400">{snortStats.high}</p>
           </motion.div>
 
           <motion.div
@@ -1036,7 +1055,7 @@ export default function Dashboard() {
             className="bg-orange-500/10 rounded-xl p-4 border border-orange-500/30"
           >
             <p className="text-orange-400 text-xs mb-2">Orta</p>
-            <p className="text-2xl font-bold text-orange-400">{snortStats.mediumPriority}</p>
+            <p className="text-2xl font-bold text-orange-400">{snortStats.medium}</p>
           </motion.div>
 
           <motion.div
@@ -1046,7 +1065,7 @@ export default function Dashboard() {
             className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/30"
           >
             <p className="text-blue-400 text-xs mb-2">Düşük</p>
-            <p className="text-2xl font-bold text-blue-400">{snortStats.lowPriority}</p>
+            <p className="text-2xl font-bold text-blue-400">{snortStats.low}</p>
           </motion.div>
 
           <motion.div
