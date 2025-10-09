@@ -2448,6 +2448,53 @@ app.get('/api/admin/charts', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - Google Maps Data Scraper (placeholder)
+// POST /api/admin/scrapers/google-maps { query, city }
+app.post('/api/admin/scrapers/google-maps', authenticateAdmin, async (req, res) => {
+  try {
+    const { query, city } = req.body || {};
+    const normalizedCity = String(city || '').trim() || 'Konya';
+    const normalizedQuery = String(query || '').trim() || 'bayi';
+
+    const sample = [
+      {
+        name: 'Örnek İşletme 1',
+        address: `${normalizedCity} Merkez`,
+        city: normalizedCity,
+        phone: '+90 332 000 00 00',
+        website: 'https://ornek1.com',
+        locationUrl: 'https://maps.google.com/?q=' + encodeURIComponent(`${normalizedCity} Merkez`),
+      },
+      {
+        name: 'Örnek İşletme 2',
+        address: `${normalizedCity} İlçesi`,
+        city: normalizedCity,
+        phone: '+90 332 111 11 11',
+        website: '',
+        locationUrl: 'https://maps.google.com/?q=' + encodeURIComponent(`${normalizedCity} İlçesi`),
+      },
+      {
+        name: 'Örnek İşletme 3',
+        address: `${normalizedCity} Sanayi`,
+        city: normalizedCity,
+        phone: '',
+        website: 'https://ornek3.com',
+        locationUrl: 'https://maps.google.com/?q=' + encodeURIComponent(`${normalizedCity} Sanayi`),
+      },
+    ];
+
+    const terms = normalizedQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    const filtered = sample.filter((r) =>
+      terms.length === 0 || terms.some((t) => (r.name || '').toLowerCase().includes(t))
+    );
+
+    return res.json({ success: true, data: filtered });
+  } catch (error) {
+    console.error('❌ Google Maps scraper error:', error);
+    return res.status(500).json({ success: false, message: 'Scraper error' });
+  }
+});
+
 // Admin Security: list security events
 app.get('/api/admin/security/login-attempts', authenticateAdmin, async (req, res) => {
   try {
