@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Wallet, Search, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { formatDDMMYYYY } from '@/lib/date'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
 
@@ -107,7 +108,7 @@ export default function WalletWithdrawRequests() {
                       <span className="font-medium">IBAN: </span>
                       <span className="font-mono tracking-wider">{request.iban || request.IBAN || request.ibanNumber || '-'}</span>
                     </div>
-                    <p className="text-xs text-slate-400">Talep ID: {request.id} • {request.createdAt}</p>
+                    <p className="text-xs text-slate-400">Talep ID: {request.id} • {formatDDMMYYYY(request.createdAt)}</p>
                   </div>
                 </div>
                 <div className="text-right min-w-[160px]">

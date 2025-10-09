@@ -116,15 +116,50 @@ export default function Dashboard() {
         let liveViews: any = { success: true, data: [] as any[] }
         try { liveViews = await api.get<any>('/admin/live-views') } catch {}
         // Kategori dağılımı ve performansı
-        if ((adminCategories as any)?.success && (adminCategories as any).data) {
+        const colors = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16']
+        let categoryDistributionSet = false
+        if ((categoryStats as any)?.success && (categoryStats as any).data) {
+          const stats = (categoryStats as any).data as any[]
+          const totalRev = stats.reduce((s, x:any)=> s + (Number(x.revenue)||0), 0)
+          const dist = stats
+            .sort((a:any,b:any)=> (Number(b.revenue||0) - Number(a.revenue||0)))
+            .slice(0,8)
+            .map((s:any, i:number)=> ({
+              name: s.name || 'Diğer',
+              value: totalRev ? Math.round((Number(s.revenue||0)/totalRev)*100) : 0,
+              color: colors[i%colors.length]
+            }))
+          setCategoryData(dist)
+          categoryDistributionSet = true
+        }
+        if (!categoryDistributionSet && (adminCategories as any)?.success && (adminCategories as any).data) {
           const cats = (adminCategories as any).data as any[]
-          const colors = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16']
-          setCategoryData(cats.slice(0,8).map((c, i)=>({ name: c.name, value: Math.min(100, Math.round((c.productCount||0) * 3)), color: colors[i%colors.length] })))
+          const totalCount = cats.reduce((s:any,c:any)=> s + (Number(c.productCount)||0), 0)
+          const dist = cats
+            .sort((a:any,b:any)=> (Number(b.productCount||0) - Number(a.productCount||0)))
+            .slice(0,8)
+            .map((c:any, i:number)=> ({
+              name: c.name,
+              value: totalCount ? Math.round((Number(c.productCount||0)/totalCount)*100) : 0,
+              color: colors[i%colors.length]
+            }))
+          setCategoryData(dist)
         }
 
         if ((categoryStats as any)?.success && (categoryStats as any).data) {
           const stats = (categoryStats as any).data as any[]
-          setCategoryPerformance(stats.slice(0,6).map(s=>({ name: s.name||'Diğer', satis: Math.round(Number(s.revenue)||0), kar: Math.round((Number(s.revenue)||0)*0.3), stok: Number(s.stock)||0, siparisler: Number(s.orders)||0 })))
+          setCategoryPerformance(
+            stats
+              .sort((a:any,b:any)=> (Number(b.revenue||0) - Number(a.revenue||0)))
+              .slice(0,6)
+              .map(s=>({
+                name: s.name||'Diğer',
+                satis: Math.round(Number(s.revenue)||0),
+                kar: Math.round((Number(s.revenue)||0)*0.3),
+                stok: Number(s.stock)||0,
+                siparisler: Number(s.orders)||0
+              }))
+          )
           // En çok satan ürünler: ürün verisi + basit sıralama (yorum sayısı/rating varsa)
           const prods = (productsRes as any)?.data?.products || (productsRes as any)?.data || []
           const top = [...prods]

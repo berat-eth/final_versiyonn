@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Eye, Search, Filter, Download, Clock, CheckCircle, XCircle, Package, X, Truck, FileText, Printer, Send, MapPin, Phone, Mail, CreditCard, Calendar, Copy } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { orderService } from '@/lib/services'
+import { formatDDMMYYYY } from '@/lib/date'
 import { generateShippingLabelHTML } from '@/lib/printTemplates'
 import type { Order } from '@/lib/api'
 import { api } from '@/lib/api'
@@ -236,7 +237,7 @@ export default function Orders() {
                 const id = `#${o.id}`
                 const name = (o as any).userName || (o as any).customer || ''
                 const email = (o as any).userEmail || (o as any).customerEmail || ''
-                const date = (o as any).createdAt || (o as any).date || ''
+                const date = formatDDMMYYYY((o as any).createdAt || (o as any).date)
                 const payment = (o as any).paymentMethod || (o as any).payment || ''
                 const amount = (o.totalAmount ?? (o as any).total) as any
                 const status = String((o as any).status || '')

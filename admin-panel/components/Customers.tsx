@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Search, Filter, Download, Eye, Mail, Phone, MapPin, TrendingUp, RefreshCw, X, MessageCircle, ExternalLink, Award, Save } from 'lucide-react'
+import { formatDDMMYYYY } from '@/lib/date'
 import { motion, AnimatePresence } from 'framer-motion'
 import { userService } from '@/lib/services'
 import type { User } from '@/lib/api'
@@ -370,11 +371,7 @@ export default function Customers() {
                       <span className="text-slate-600">{customer.address || 'Belirtilmemiş'}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-slate-600">
-                      {new Date(customer.createdAt).toLocaleDateString('tr-TR')}
-                    </span>
-                  </td>
+                  <td className="px-6 py-4"><span className="text-slate-600">{formatDDMMYYYY(customer.createdAt)}</span></td>
                   <td className="px-6 py-4">
                     <button
                       onClick={() => setViewingCustomer(customer)}
@@ -451,9 +448,7 @@ export default function Customers() {
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-sm text-slate-500 mb-1">Kayıt Tarihi</p>
-                    <p className="text-lg font-semibold text-slate-800">
-                      {new Date(viewingCustomer.createdAt).toLocaleDateString('tr-TR')}
-                    </p>
+                    <p className="text-lg font-semibold text-slate-800">{formatDDMMYYYY(viewingCustomer.createdAt)}</p>
                   </div>
                 </div>
               </div>
@@ -650,7 +645,7 @@ export default function Customers() {
                 <div className="w-2 h-2 mt-2 rounded-full bg-blue-600"></div>
                 <div>
                   <p className="text-sm text-slate-800"><span className="font-semibold">{c.name}</span> kayıt oldu</p>
-                  <p className="text-xs text-slate-500">{new Date(c.createdAt).toLocaleString('tr-TR')}</p>
+                  <p className="text-xs text-slate-500">{formatDDMMYYYY(c.createdAt)}</p>
                 </div>
               </div>
             ))}

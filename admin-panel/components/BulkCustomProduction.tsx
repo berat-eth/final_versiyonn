@@ -22,6 +22,69 @@ export default function BulkCustomProduction() {
   const [searchTerm, setSearchTerm] = useState('')
   const [newMessage, setNewMessage] = useState('')
 
+  // Detail modal
+  const [showDetailModal, setShowDetailModal] = useState(false)
+
+  // Create modal
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({ subject: '', description: '', customerName: '', customerPhone: '' })
+
+  const translateStatus = (status?: string) => {
+    const s = String(status || '').toLowerCase()
+    if (!s) return '-'
+    if (s === 'pending') return 'Beklemede'
+    if (s === 'review') return 'Teklif'
+    if (s === 'design') return 'Tasarım'
+    if (s === 'production') return 'Üretimde'
+    if (s === 'shipped') return 'Kargolandı'
+    if (s === 'completed') return 'Tamamlandı'
+    if (s === 'cancelled') return 'İptal'
+    return status as any
+  }
+
+  const setRequestStatus = async (id: number, status: 'pending' | 'review' | 'design' | 'production' | 'shipped' | 'completed' | 'cancelled') => {
+    try {
+      await api.put(`/admin/custom-production-requests/${id}/status`, { status })
+      await loadRequests()
+      if (typeof id === 'number') {
+        await loadItems(id)
+      }
+      alert('İşlem uygulandı')
+    } catch {
+      alert('İşlem başarısız')
+    }
+  }
+
+  const renderCustomization = (value: any) => {
+    let data: any = value
+    if (typeof value === 'string') {
+      try { data = JSON.parse(value) } catch { /* ignore */ }
+    }
+    if (!data || typeof data !== 'object') return <span className="text-slate-500">-</span>
+    return (
+      <div className="text-xs space-y-1">
+        {data.text && (<div><span className="font-medium text-slate-600">Yazı:</span> <span className="text-slate-700">{data.text}</span></div>)}
+        {data.color && (<div><span className="font-medium text-slate-600">Renk:</span> <span className="text-slate-700">{data.color}</span></div>)}
+        {data.position && (<div><span className="font-medium text-slate-600">Pozisyon:</span> <span className="text-slate-700">{data.position}</span></div>)}
+        {data.logo && (
+          <div>
+            <span className="font-medium text-slate-600">Logo:</span>{' '}
+            <a href={String(data.logo)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">{String(data.logo).slice(0,64)}{String(data.logo).length>64?'...':''}</a>
+          </div>
+        )}
+        {data.logoSize && (typeof data.logoSize === 'object') && (
+          <div><span className="font-medium text-slate-600">Logo Boyutu:</span> <span className="text-slate-700">{data.logoSize.width}x{data.logoSize.height}</span></div>
+        )}
+        {typeof data.isBenden === 'boolean' && (
+          <div><span className="font-medium text-slate-600">Benden:</span> <span className="text-slate-700">{data.isBenden ? 'Evet' : 'Hayır'}</span></div>
+        )}
+        {data.bendenSize && (<div><span className="font-medium text-slate-600">Beden:</span> <span className="text-slate-700">{data.bendenSize}</span></div>)}
+        {data.bendenQuantity != null && (<div><span className="font-medium text-slate-600">Adet:</span> <span className="text-slate-700">{data.bendenQuantity}</span></div>)}
+        {data.bendenDescription && (<div className="break-words"><span className="font-medium text-slate-600">Açıklama:</span> <span className="text-slate-700">{data.bendenDescription}</span></div>)}
+      </div>
+    )
+  }
+
   const loadRequests = async () => {
     try {
       setLoading(true)
@@ -95,7 +158,7 @@ export default function BulkCustomProduction() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={loadRequests} className="px-4 py-3 border rounded-xl hover:bg-slate-50">Yenile</button>
-          <button className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg">
+          <button onClick={()=> setShowCreateModal(true)} className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg">
             <Plus className="w-5 h-5 mr-2" />
             Yeni Talep
           </button>
@@ -167,12 +230,12 @@ export default function BulkCustomProduction() {
                       ['review','design','production','shipped'].includes(String(r.status)) ? 'bg-blue-100 text-blue-700' :
                         'bg-yellow-100 text-yellow-700'
                       }`}>
-                      {String(r.status)}
+                      {translateStatus(r.status)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-slate-600">{r.createdAt || '-'}</td>
                   <td className="px-6 py-4">
-                    <button onClick={()=>setSelectedId(r.id)} className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-lg text-sm font-medium">
+                    <button onClick={()=>{ setSelectedId(r.id); setShowDetailModal(true); }} className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-lg text-sm font-medium">
                       Detay
                     </button>
                   </td>
@@ -187,6 +250,129 @@ export default function BulkCustomProduction() {
           </table>
         </div>
       </div>
+
+      {/* Detail Modal */}
+      {showDetailModal && typeof selectedId === 'number' && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=> setShowDetailModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full" onClick={(e)=> e.stopPropagation()}>
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800">Talep Detayı</h3>
+                <p className="text-slate-500 text-sm">Talep #{selectedId}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={()=> setRequestStatus(selectedId, 'review')} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm hover:bg-slate-50">Teklif</button>
+                <button onClick={()=> setRequestStatus(selectedId, 'completed')} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">Onayla</button>
+                <button onClick={()=> setRequestStatus(selectedId, 'cancelled')} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">Reddet</button>
+                <button onClick={()=> setShowDetailModal(false)} className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Kapat</button>
+              </div>
+            </div>
+            <div className="p-6 space-y-6">
+              {(() => {
+                const req = requests.find((x:any)=> x.id === selectedId) || {}
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-50 rounded-xl p-4">
+                      <p className="text-sm text-slate-500 mb-1">Müşteri</p>
+                      <p className="text-lg font-semibold text-slate-800">{req.customerName || '-'}</p>
+                      <p className="text-xs text-slate-500">{req.customerPhone || '-'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-4">
+                      <p className="text-sm text-slate-500 mb-1">Durum</p>
+                      <p className="text-lg font-semibold text-slate-800">{translateStatus(req.status)}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-4">
+                      <p className="text-sm text-slate-500 mb-1">Toplam</p>
+                      <p className="text-lg font-semibold text-green-700">₺{Number(req.totalAmount||0).toLocaleString('tr-TR')}</p>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Ürün</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Adet</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Not</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {items.map((it:any, idx:number)=> (
+                      <tr key={it.id || idx} className="hover:bg-slate-50">
+                        <td className="px-6 py-3 font-semibold text-slate-800">{it.productName || it.productId || '-'}</td>
+                        <td className="px-6 py-3 text-slate-700">{it.quantity ?? '-'}</td>
+                        <td className="px-6 py-3 text-slate-700 break-all">{renderCustomization(it.note ?? it.customizations)}</td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr><td colSpan={3} className="px-6 py-6 text-center text-slate-500 text-sm">Kalem bulunamadı</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=> setShowCreateModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full" onClick={(e)=> e.stopPropagation()}>
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-2xl font-bold text-slate-800">Yeni Talep</h3>
+              <button onClick={()=> setShowCreateModal(false)} className="px-3 py-1.5 rounded-lg hover:bg-slate-100">Kapat</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">Müşteri Adı</label>
+                <input value={createForm.customerName} onChange={(e)=> setCreateForm({ ...createForm, customerName: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Ad Soyad" />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">Telefon</label>
+                <input value={createForm.customerPhone} onChange={(e)=> setCreateForm({ ...createForm, customerPhone: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Telefon" />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">Konu</label>
+                <input value={createForm.subject} onChange={(e)=> setCreateForm({ ...createForm, subject: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Örn: Toptan Av Bıçağı" />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">Açıklama</label>
+                <textarea value={createForm.description} onChange={(e)=> setCreateForm({ ...createForm, description: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg" rows={4} placeholder="İhtiyaç detayı" />
+              </div>
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button onClick={()=> setShowCreateModal(false)} className="px-4 py-2 border border-slate-300 rounded-lg">İptal</button>
+                <button
+                  onClick={async()=>{
+                    const payload:any = { subject: createForm.subject, description: createForm.description }
+                    if (createForm.customerName) payload.customerName = createForm.customerName
+                    if (createForm.customerPhone) payload.customerPhone = createForm.customerPhone
+                    try {
+                      const resp = await api.post<any>('/admin/custom-production/requests', payload)
+                      if ((resp as any)?.success && (resp as any).data?.id) {
+                        setShowCreateModal(false)
+                        setCreateForm({ subject: '', description: '', customerName: '', customerPhone: '' })
+                        await loadRequests()
+                        const newId = Number((resp as any).data.id)
+                        setSelectedId(newId)
+                        setShowDetailModal(true)
+                        await loadItems(newId)
+                      } else {
+                        alert('Talep oluşturulamadı')
+                      }
+                    } catch { alert('Talep oluşturulamadı') }
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-lg"
+                >
+                  Oluştur
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Items and messages */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
