@@ -38,18 +38,29 @@ export default function Backup() {
     try {
       setIsCreatingBackup(true)
       const res = await api.get<any>('/admin/backup')
-      // Backend JSON dosyasını oluşturuyor; dönen yanıta göre bildirim veriyoruz
-      if ((res as any)) {
+      if (res && typeof window !== 'undefined') {
+        const jsonString = JSON.stringify(res, null, 2)
+        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        a.href = url
+        a.download = `backup-${timestamp}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+
+        const sizeKb = Math.max(1, Math.round(jsonString.length / 1024))
         const item: BackupItem = {
           id: Date.now(),
           name: `Yedek - ${new Date().toLocaleDateString('tr-TR')}`,
           date: new Date().toLocaleString('tr-TR'),
-          size: '-',
+          size: `${sizeKb} KB`,
           type: 'manual',
           status: 'completed'
         }
         setBackups([item, ...backups])
-        alert('Yedek oluşturma isteği gönderildi')
       }
     } catch (e:any) {
       alert(e?.message || 'Yedek oluşturulamadı')
@@ -60,10 +71,21 @@ export default function Backup() {
 
   const handleDownload = async (backup: BackupItem) => {
     try {
-      // Varsayılan: en son yedeği indirmek için aynı endpoint kullanılabilir veya ayrı bir dosya URL’i olabilir
       const res = await api.get<any>('/admin/backup')
-      // İstemci tarafında gerçek dosya akışı yok; backend bir dosya URL’i dönerse burada window.open ile açılabilir
-      alert('Yedek indirildi varsayımı (backend URL gerekirse eklenecek)')
+      if (res && typeof window !== 'undefined') {
+        const jsonString = JSON.stringify(res, null, 2)
+        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        const safeName = backup?.name?.replace(/\s+/g, '-').toLowerCase() || 'backup'
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        a.href = url
+        a.download = `${safeName}-${timestamp}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
     } catch (e:any) {
       alert(e?.message || 'İndirme başarısız')
     }
@@ -327,7 +349,7 @@ export default function Backup() {
           <h3 className="text-xl font-bold text-slate-800 mb-6">Hızlı İşlemler</h3>
           
           <div className="space-y-4">
-            <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl hover:shadow-md transition-all">
+            <button onClick={handleCreateBackup} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl hover:shadow-md transition-all">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                   <Download className="w-5 h-5 text-white" />
@@ -340,7 +362,7 @@ export default function Backup() {
               <span className="text-blue-600 font-semibold">→</span>
             </button>
 
-            <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl hover:shadow-md transition-all">
+            <button onClick={handleCreateBackup} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl hover:shadow-md transition-all">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
                   <Database className="w-5 h-5 text-white" />

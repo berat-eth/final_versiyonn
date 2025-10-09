@@ -44,6 +44,7 @@ import ReturnRequests from '@/components/ReturnRequests'
 import UserWallets from '@/components/UserWallets'
 import WalletTransactions from '@/components/WalletTransactions'
 import WalletRechargeRequests from '@/components/WalletRechargeRequests'
+import WalletWithdrawRequests from '@/components/WalletWithdrawRequests'
 import ReferralEarnings from '@/components/ReferralEarnings'
 import UserDiscountCodes from '@/components/UserDiscountCodes'
 import DiscountWheelSpins from '@/components/DiscountWheelSpins'
@@ -52,6 +53,7 @@ import Recommendations from '@/components/Recommendations'
 // CustomProductionMessages merged into BulkCustomProduction
 import Hepsiburada from '@/components/Hepsiburada'
 import Trendyol from '@/components/Trendyol'
+import GoogleMapsScraper from '@/components/GoogleMapsScraper'
 import IntegrationMonitor from '@/components/IntegrationMonitor'
 
 
@@ -115,6 +117,7 @@ export default function DashboardPage() {
           {activeTab === 'user-wallets' && <UserWallets />}
           {activeTab === 'wallet-transactions' && <WalletTransactions />}
           {activeTab === 'wallet-recharge-requests' && <WalletRechargeRequests />}
+          {activeTab === 'wallet-withdraw-requests' && <WalletWithdrawRequests />}
           {activeTab === 'referral-earnings' && <ReferralEarnings />}
           {activeTab === 'user-discount-codes' && <UserDiscountCodes />}
           {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
@@ -123,6 +126,7 @@ export default function DashboardPage() {
           {activeTab === 'integration-monitor' && <IntegrationMonitor />}
           {activeTab === 'hepsiburada' && <Hepsiburada />}
           {activeTab === 'trendyol' && <Trendyol />}
+          {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
         </main>
       </div>
     </div>

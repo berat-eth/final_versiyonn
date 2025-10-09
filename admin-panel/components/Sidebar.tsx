@@ -41,7 +41,6 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       title: 'Müşteri Yönetimi',
       items: [
         { id: 'customers', label: 'Müşteriler', icon: Users },
-        { id: 'customer-care', label: 'Müşteri Bakiyeleri', icon: UserCog },
         { id: 'segments', label: 'Müşteri Segmentleri', icon: UsersRound },
       ]
     },
@@ -90,6 +89,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         { id: 'payment-transactions', label: 'Ödeme İşlemleri', icon: CreditCard },
         { id: 'user-wallets', label: 'Kullanıcı Cüzdanları', icon: Wallet },
         { id: 'wallet-recharge-requests', label: 'Bakiye Yükleme', icon: Wallet },
+        { id: 'wallet-withdraw-requests', label: 'Bakiye Çekim Talepleri', icon: Wallet },
         { id: 'referral-earnings', label: 'Referans Kazançları', icon: DollarSign },
       ]
     },
@@ -111,6 +111,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       items: [
         { id: 'applications', label: 'Bayilik Başvuruları', icon: FileText },
         { id: 'bulk-custom-production', label: 'Özel Toptan Üretim', icon: Crown },
+        { id: 'google-maps-scraper', label: 'Google Maps Data Scrapper', icon: Link },
       ]
     },
     {
