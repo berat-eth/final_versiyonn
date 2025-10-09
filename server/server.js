@@ -5291,8 +5291,8 @@ app.post('/api/orders', async (req, res) => {
     await connection.beginTransaction();
     
     try {
-      // Cüzdan ödemesi kontrolü
-      if (paymentMethod === 'wallet' || paymentMethod === 'eft') {
+      // Cüzdan ödemesi kontrolü (EFT havale için cüzdan bakiyesi düşülmez)
+      if (paymentMethod === 'wallet') {
         // Cüzdan bakiyesini kontrol et
         const [walletRows] = await connection.execute(
           'SELECT balance FROM user_wallets WHERE userId = ? AND tenantId = ?',
