@@ -319,6 +319,14 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const handleAddToCart = async () => {
     if (!product) return;
 
+    if (!currentUser) {
+      Alert.alert('Giriş Gerekli', 'Sepete eklemek için lütfen giriş yapın.', [
+        { text: 'İptal', style: 'cancel' },
+        { text: 'Giriş Yap', onPress: () => navigation.navigate('Profile') }
+      ]);
+      return;
+    }
+
     // Sadece beden seçimini zorunlu tut
     if (isSizeSelectionRequired() && !isSizeSelected()) {
       Alert.alert(
@@ -338,8 +346,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
     setAddingToCart(true);
     try {
-      // Use default guest user ID for anonymous shopping
-      const userId = currentUser ? currentUser.id : 1;
+      const userId = currentUser.id;
       const result = await CartController.addToCart(
         userId,
         product.id,

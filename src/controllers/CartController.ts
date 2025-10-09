@@ -15,6 +15,11 @@ export class CartController {
     success: boolean;
     message: string;
   }> {
+    // Giriş zorunluluğu: misafir kullanıcı (userId===1) sepete ürün ekleyemez
+    if (userId === 1) {
+      return { success: false, message: 'Lütfen önce giriş yapın' };
+    }
+
     // Cihaz bazlı misafir sepet izolasyonu
     let deviceId: string | undefined = undefined;
     

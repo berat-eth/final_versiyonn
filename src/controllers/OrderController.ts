@@ -20,6 +20,10 @@ export class OrderController {
     orderId?: number;
   }> {
     try {
+      // Giriş zorunluluğu: misafir kullanıcı (userId===1) sipariş oluşturamaz
+      if (!userId || userId === 1) {
+        return { success: false, message: 'Lütfen sipariş vermek için giriş yapın' };
+      }
       console.log(`🛒 Creating order for user: ${userId}`);
       
       // Sepet boş mu kontrol et
@@ -101,7 +105,7 @@ export class OrderController {
 
       if (response.success && (response.data?.orderId || (response as any)?.orderId || (response as any)?.data?.id)) {
         const normalizedOrderId = Number(response.data?.orderId ?? (response as any)?.orderId ?? (response as any)?.data?.id);
-        console.log(`✅ Order created successfully: ${response.data.orderId}`);
+        console.log(`✅ Order created successfully: ${normalizedOrderId}`);
         
         // Detaylı sipariş oluşturma logu
         try {

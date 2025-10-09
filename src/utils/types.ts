@@ -111,6 +111,7 @@ export interface CartItem {
   product?: Product;
   // variations removed
   variationString?: string; // Human readable variation string
+  selectedVariations?: Record<string, string>;
 }
 
 // Order Types
