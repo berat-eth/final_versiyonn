@@ -7004,8 +7004,8 @@ async function startServer() {
   try {
     const { createClient } = require('redis');
     const url = process.env.REDIS_URL || 'redis://localhost:6379';
-    const password = process.env.REDIS_PASSWORD || '38cdfD8217..';
-    const client = createClient({ url, password });
+    // Passwordless Redis connection (no REDIS_PASSWORD)
+    const client = createClient({ url });
     client.on('error', (err) => console.warn('⚠️ Redis error:', err.message));
     await client.connect();
     global.redis = client;
