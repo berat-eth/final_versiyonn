@@ -43,6 +43,23 @@ interface ApiAnalysisResult {
     timestamp: Date
 }
 
+interface Session {
+    id: string
+    name: string
+    createdAt: Date
+    updatedAt: Date
+    messageCount: number
+    lastMessage?: string
+}
+
+interface ChatHistory {
+    id: string
+    sessionId: string
+    messages: Message[]
+    createdAt: Date
+    updatedAt: Date
+}
+
 export default function ProjectAjax() {
     const [messages, setMessages] = useState<Message[]>([
         {
@@ -64,6 +81,18 @@ export default function ProjectAjax() {
     const [showApiAnalysis, setShowApiAnalysis] = useState(false)
     const [apiResults, setApiResults] = useState<ApiAnalysisResult[]>([])
     const [isAnalyzing, setIsAnalyzing] = useState(false)
+
+    // Session States
+    const [sessions, setSessions] = useState<Session[]>([])
+    const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+    const [showSessions, setShowSessions] = useState(false)
+    const [isLoadingSessions, setIsLoadingSessions] = useState(false)
+
+    // Prompt Modal States
+    const [showPromptModal, setShowPromptModal] = useState(false)
+    const [currentPrompt, setCurrentPrompt] = useState('')
+    const [apiData, setApiData] = useState<any>(null)
+    const [enhancedPrompt, setEnhancedPrompt] = useState('')
 
     // Ollama Config
     const [ollamaConfig, setOllamaConfig] = useState<OllamaConfig>({
@@ -94,7 +123,7 @@ export default function ProjectAjax() {
     ]
 
     const models = [
-        { id: 'ollama-gemma3:1b', name: 'Gemma3:1b', description: 'Hızlı ve verimli' },
+        { id: 'ollama-gemma3:1b', name: 'Ajax V1:1b', description: 'Hızlı ve verimli' },
     ]
 
     const scrollToBottom = () => {
@@ -109,7 +138,15 @@ export default function ProjectAjax() {
     useEffect(() => {
         loadOllamaConfig()
         checkOllamaStatus()
+        loadSessions()
     }, [])
+
+    // Session değiştiğinde mesajları yükle
+    useEffect(() => {
+        if (currentSessionId) {
+            loadSessionMessages(currentSessionId)
+        }
+    }, [currentSessionId])
 
     const loadOllamaConfig = async () => {
         try {
@@ -131,6 +168,142 @@ export default function ProjectAjax() {
         }
     }
 
+    // Session Management Functions
+    const loadSessions = async () => {
+        setIsLoadingSessions(true)
+        try {
+            const response = await fetch('https://api.zerodaysoftware.tr/api/chat/sessions', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                }
+            })
+            
+            if (response.ok) {
+                const data = await response.json()
+                setSessions(data.sessions || [])
+                
+                // Eğer hiç session yoksa yeni bir tane oluştur
+                if (data.sessions.length === 0) {
+                    await createNewSession()
+                } else {
+                    // İlk session'ı seç
+                    setCurrentSessionId(data.sessions[0].id)
+                }
+            }
+        } catch (error) {
+            console.error('❌ Sessionlar yüklenemedi:', error)
+            // Hata durumunda yeni session oluştur
+            await createNewSession()
+        } finally {
+            setIsLoadingSessions(false)
+        }
+    }
+
+    const createNewSession = async () => {
+        try {
+            const sessionName = `Sohbet ${new Date().toLocaleDateString('tr-TR')}`
+            const response = await fetch('https://api.zerodaysoftware.tr/api/chat/sessions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                },
+                body: JSON.stringify({
+                    name: sessionName,
+                    messages: []
+                })
+            })
+            
+            if (response.ok) {
+                const data = await response.json()
+                const newSession: Session = {
+                    id: data.sessionId,
+                    name: sessionName,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    messageCount: 0
+                }
+                
+                setSessions(prev => [newSession, ...prev])
+                setCurrentSessionId(data.sessionId)
+                
+                // Yeni session için boş mesaj listesi
+                setMessages([{
+                    id: '1',
+                    role: 'assistant',
+                    content: 'Merhaba! Ben Project Ajax, yapay zeka destekli iş asistanınızım. Size nasıl yardımcı olabilirim?',
+                    timestamp: new Date()
+                }])
+            }
+        } catch (error) {
+            console.error('❌ Yeni session oluşturulamadı:', error)
+        }
+    }
+
+    const loadSessionMessages = async (sessionId: string) => {
+        try {
+            const response = await fetch(`https://api.zerodaysoftware.tr/api/chat/sessions/${sessionId}/messages`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                }
+            })
+            
+            if (response.ok) {
+                const data = await response.json()
+                setMessages(data.messages || [])
+            }
+        } catch (error) {
+            console.error('❌ Session mesajları yüklenemedi:', error)
+        }
+    }
+
+    const saveSessionMessages = async (sessionId: string, messages: Message[]) => {
+        try {
+            await fetch(`https://api.zerodaysoftware.tr/api/chat/sessions/${sessionId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                },
+                body: JSON.stringify({ messages })
+            })
+        } catch (error) {
+            console.error('❌ Mesajlar kaydedilemedi:', error)
+        }
+    }
+
+    const deleteSession = async (sessionId: string) => {
+        try {
+            const response = await fetch(`https://api.zerodaysoftware.tr/api/chat/sessions/${sessionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                }
+            })
+            
+            if (response.ok) {
+                setSessions(prev => prev.filter(s => s.id !== sessionId))
+                
+                // Eğer silinen session aktif session ise, ilk session'ı seç
+                if (currentSessionId === sessionId) {
+                    const remainingSessions = sessions.filter(s => s.id !== sessionId)
+                    if (remainingSessions.length > 0) {
+                        setCurrentSessionId(remainingSessions[0].id)
+                    } else {
+                        await createNewSession()
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('❌ Session silinemedi:', error)
+        }
+    }
+
     const handleSend = async () => {
         if (!input.trim()) return
 
@@ -145,6 +318,12 @@ export default function ProjectAjax() {
         const currentInput = input
         setInput('')
         setIsTyping(true)
+
+        // Mesajları otomatik kaydet
+        if (currentSessionId) {
+            const updatedMessages = [...messages, userMessage]
+            saveSessionMessages(currentSessionId, updatedMessages)
+        }
 
         try {
             // Ollama modeli seçilmişse Ollama'ya gönder
@@ -196,7 +375,7 @@ export default function ProjectAjax() {
             
             if (error instanceof Error) {
                 if (error.message.includes('Model bulunamadı')) {
-                    errorContent = `❌ Model Hatası: Gemma3:4b modeli bulunamadı. Lütfen model adını kontrol edin.`
+                    errorContent = `❌ Model Hatası: Ajax V1:1b modeli bulunamadı. Lütfen model adını kontrol edin.`
                 } else if (error.message.includes('Sunucu hatası')) {
                     errorContent = `❌ Sunucu Hatası: Ollama sunucusunda bir sorun var. Lütfen daha sonra tekrar deneyin.`
                 } else if (error.message.includes('Geçersiz istek')) {
@@ -215,10 +394,150 @@ export default function ProjectAjax() {
         }
     }
 
-        const sendToOllama = async (userInput: string, modelName: string) => {
-            try {
-                // API entegrasyonu geçici olarak devre dışı - Input too long hatası nedeniyle
+    const sendToOllama = async (userInput: string, modelName: string) => {
+        try {
+                // API entegrasyonu tekrar aktif - optimizasyonlarla
                 let enhancedPrompt = systemPrompt
+                const lowerInput = userInput.toLowerCase()
+                let fetchedApiData: any = null
+                
+                // Satış/Trend anahtar kelimeleri
+                if (lowerInput.includes('satış') || lowerInput.includes('trend') || lowerInput.includes('analiz')) {
+                    try {
+                        const salesData = await fetch('https://api.zerodaysoftware.tr/api/admin/orders', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                            },
+                            signal: AbortSignal.timeout(10000)
+                        })
+                        
+                        if (salesData.ok) {
+                            const data = await salesData.json()
+                            // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
+                            const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
+                            const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
+                                id: item.id,
+                                totalAmount: item.totalAmount,
+                                status: item.status,
+                                createdAt: item.createdAt
+                            })) : limitedData
+                            enhancedPrompt += `\n\nSATIŞ VERİLERİ:\n${JSON.stringify(summaryData)}`
+                            fetchedApiData = { type: 'sales', data: summaryData }
+                        }
+                    } catch (error) {
+                        console.log('Satış verisi alınamadı:', error)
+                    }
+                }
+                
+                // Ürün anahtar kelimeleri
+                if (lowerInput.includes('ürün') || lowerInput.includes('product') || lowerInput.includes('stok')) {
+                    try {
+                        const productData = await fetch('https://api.zerodaysoftware.tr/api/products', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                            },
+                            signal: AbortSignal.timeout(10000)
+                        })
+                        
+                        if (productData.ok) {
+                            const data = await productData.json()
+                            // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
+                            const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
+                            const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
+                                id: item.id,
+                                name: item.name,
+                                price: item.price,
+                                stock: item.stock,
+                                category: item.category
+                            })) : limitedData
+                            enhancedPrompt += `\n\nÜRÜN VERİLERİ:\n${JSON.stringify(summaryData)}`
+                            fetchedApiData = { type: 'products', data: summaryData }
+                        }
+                    } catch (error) {
+                        console.log('Ürün verisi alınamadı:', error)
+                    }
+                }
+                
+                // Müşteri anahtar kelimeleri
+                if (lowerInput.includes('müşteri') || lowerInput.includes('customer') || lowerInput.includes('segment')) {
+                    try {
+                        const customerData = await fetch('https://api.zerodaysoftware.tr/api/admin/users', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                            },
+                            signal: AbortSignal.timeout(10000)
+                        })
+                        
+                        if (customerData.ok) {
+                            const data = await customerData.json()
+                            // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
+                            const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
+                            const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
+                                id: item.id,
+                                name: item.name,
+                                email: item.email,
+                                createdAt: item.createdAt
+                            })) : limitedData
+                            enhancedPrompt += `\n\nMÜŞTERİ VERİLERİ:\n${JSON.stringify(summaryData)}`
+                            fetchedApiData = { type: 'customers', data: summaryData }
+                        }
+                    } catch (error) {
+                        console.log('Müşteri verisi alınamadı:', error)
+                    }
+                }
+                
+                // Kategori anahtar kelimeleri
+                if (lowerInput.includes('kategori') || lowerInput.includes('category') || lowerInput.includes('kamp')) {
+                    try {
+                        const categoryData = await fetch('https://api.zerodaysoftware.tr/api/categories', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                            },
+                            signal: AbortSignal.timeout(10000)
+                        })
+                        
+                        if (categoryData.ok) {
+                            const data = await categoryData.json()
+                            // Veriyi sınırla - sadece ilk 3 kayıt
+                            const limitedData = Array.isArray(data) ? data.slice(0, 3) : data
+                            enhancedPrompt += `\n\nKATEGORİ VERİLERİ:\n${JSON.stringify(limitedData)}`
+                            fetchedApiData = { type: 'categories', data: limitedData }
+                        }
+                    } catch (error) {
+                        console.log('Kategori verisi alınamadı:', error)
+                    }
+                }
+                
+                // Stok anahtar kelimeleri
+                if (lowerInput.includes('stok') || lowerInput.includes('stock') || lowerInput.includes('düşük')) {
+                    try {
+                        const stockData = await fetch('https://api.zerodaysoftware.tr/api/products/low-stock', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                            },
+                            signal: AbortSignal.timeout(10000)
+                        })
+                        
+                        if (stockData.ok) {
+                            const data = await stockData.json()
+                            // Veriyi sınırla - sadece ilk 3 kayıt
+                            const limitedData = Array.isArray(data) ? data.slice(0, 3) : data
+                            enhancedPrompt += `\n\nSTOK VERİLERİ:\n${JSON.stringify(limitedData)}`
+                        }
+                    } catch (error) {
+                        console.log('Stok verisi alınamadı:', error)
+                    }
+                }
 
             // Mesaj geçmişini hazırla - daha kısa tut
             const ollamaMessages: OllamaMessage[] = [
@@ -246,6 +565,12 @@ export default function ProjectAjax() {
                 enhancedPrompt = enhancedPrompt.substring(0, 500) + '...\n[Veri kısaltıldı]'
             }
 
+            // Prompt modal'ı tetikle
+            setCurrentPrompt(systemPrompt)
+            setApiData(fetchedApiData)
+            setEnhancedPrompt(enhancedPrompt)
+            setShowPromptModal(true)
+
             // Model adını debug et
             console.log('🔍 Gönderilen model adı:', modelName)
             console.log('🔍 Ollama mesajları:', ollamaMessages)
@@ -256,7 +581,7 @@ export default function ProjectAjax() {
             
             try {
                 response = await OllamaService.sendMessage(ollamaMessages, {
-                    model: modelName,
+                model: modelName,
                     temperature: 0.8,
                     maxTokens: 1500
                 })
@@ -329,6 +654,22 @@ export default function ProjectAjax() {
             setTimeout(() => {
                 setIsStreaming(false)
                 setStreamingContent('')
+                
+                // AI yanıtını da kaydet
+                if (currentSessionId) {
+                    const updatedMessages = [...messages, {
+                        id: Date.now().toString(),
+                        role: 'user' as const,
+                        content: userInput,
+                        timestamp: new Date()
+                    }, {
+                        id: tempMessageId,
+                        role: 'assistant' as const,
+                        content: content,
+                        timestamp: new Date()
+                    }]
+                    saveSessionMessages(currentSessionId, updatedMessages)
+                }
             }, content.length * 30 + 500)
         } catch (error) {
             console.error('❌ Ollama yanıtı alınamadı:', error)
@@ -596,10 +937,21 @@ export default function ProjectAjax() {
                         </div>
                         <div>
                             <h2 className="text-xl font-bold">Project Ajax</h2>
-                            <p className="text-sm text-slate-300">Yapay Zeka İş Asistanı - Gemma3:1b</p>
+                            <p className="text-sm text-slate-300">Yapay Zeka İş Asistanı - Ajax V1:1b</p>
                         </div>
                     </div>
                     <div className="flex items-center space-x-3">
+                        <button
+                            onClick={() => setShowSessions(!showSessions)}
+                            className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
+                                showSessions 
+                                    ? 'bg-blue-600 hover:bg-blue-700' 
+                                    : 'bg-slate-600 hover:bg-slate-500'
+                            }`}
+                        >
+                            <Database className="w-4 h-4" />
+                            <span className="text-sm font-medium">Sessions</span>
+                        </button>
                         <button
                             onClick={() => setShowApiAnalysis(!showApiAnalysis)}
                             className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
@@ -611,15 +963,153 @@ export default function ProjectAjax() {
                             <BarChart3 className="w-4 h-4" />
                             <span className="text-sm font-medium">API Analizi</span>
                         </button>
+                        <button
+                            onClick={() => setShowPromptModal(!showPromptModal)}
+                            className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
+                                showPromptModal 
+                                    ? 'bg-purple-600 hover:bg-purple-700' 
+                                    : 'bg-slate-600 hover:bg-slate-500'
+                            }`}
+                        >
+                            <Eye className="w-4 h-4" />
+                            <span className="text-sm font-medium">Prompt Görüntüle</span>
+                        </button>
                     <div className="flex items-center space-x-2">
                         <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                         <span className="text-xs text-slate-300">Çevrimiçi</span>
                     </div>
+                    </div>
                 </div>
             </div>
-            </div>
 
-            {/* Database Interface Removed */}
+            {/* Session Management Interface */}
+            {showSessions && (
+                <div className="bg-slate-50 border-b border-slate-200 p-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-96">
+                        {/* Left Panel - Session List */}
+                        <div className="bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                                    <Database className="w-4 h-4" />
+                                    <span>Chat Sessions</span>
+                                </h3>
+                                <button
+                                    onClick={createNewSession}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors flex items-center space-x-1"
+                                >
+                                    <Settings className="w-3 h-3" />
+                                    <span>Yeni Session</span>
+                                </button>
+                            </div>
+                            
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {isLoadingSessions ? (
+                                    <div className="text-center py-8">
+                                        <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-500" />
+                                        <p className="text-slate-600 text-sm">Sessions yükleniyor...</p>
+                                    </div>
+                                ) : sessions.length === 0 ? (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <Database className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                                        <p className="text-sm">Henüz session yok</p>
+                                        <p className="text-xs">Yeni session oluşturun</p>
+                                    </div>
+                                ) : (
+                                    sessions.map((session) => (
+                                        <div
+                                            key={session.id}
+                                            className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                                                currentSessionId === session.id
+                                                    ? 'border-blue-500 bg-blue-50'
+                                                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                            }`}
+                                            onClick={() => setCurrentSessionId(session.id)}
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <h4 className="font-medium text-sm text-slate-800 truncate">
+                                                    {session.name}
+                                                </h4>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        deleteSession(session.id)
+                                                    }}
+                                                    className="p-1 hover:bg-red-100 rounded text-red-500 transition-colors"
+                                                    title="Session'ı sil"
+                                                >
+                                                    <Settings className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                            <div className="text-xs text-slate-500">
+                                                {session.messageCount} mesaj • {session.createdAt.toLocaleDateString('tr-TR')}
+                                            </div>
+                                            {session.lastMessage && (
+                                                <div className="text-xs text-slate-400 truncate mt-1">
+                                                    {session.lastMessage}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Right Panel - Session Details */}
+                        <div className="lg:col-span-2 bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                                    <Settings className="w-4 h-4" />
+                                    <span>Session Detayları</span>
+                                </h3>
+                                <div className="text-sm text-slate-500">
+                                    {currentSessionId ? `Session ID: ${currentSessionId.slice(0, 8)}...` : 'Session seçilmedi'}
+                                </div>
+                            </div>
+                            
+                            {currentSessionId ? (
+                                <div className="space-y-4">
+                                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <h4 className="font-medium text-blue-800 mb-2">Aktif Session</h4>
+                                        <div className="text-sm text-blue-700 space-y-1">
+                                            <div>• Mesaj Sayısı: {messages.length}</div>
+                                            <div>• Oluşturulma: {sessions.find(s => s.id === currentSessionId)?.createdAt.toLocaleString('tr-TR')}</div>
+                                            <div>• Son Güncelleme: {sessions.find(s => s.id === currentSessionId)?.updatedAt.toLocaleString('tr-TR')}</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                        <h4 className="font-medium text-green-800 mb-2">Otomatik Kaydetme</h4>
+                                        <div className="text-sm text-green-700 space-y-1">
+                                            <div>• Mesajlar otomatik kaydediliyor</div>
+                                            <div>• Session değiştirildiğinde mesajlar yükleniyor</div>
+                                            <div>• Veritabanında güvenli saklama</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                        <h4 className="font-medium text-slate-800 mb-2">Son Mesajlar</h4>
+                                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                                            {messages.slice(-3).map((msg, index) => (
+                                                <div key={index} className="text-xs text-slate-600 p-2 bg-white rounded border">
+                                                    <div className="font-medium">{msg.role === 'user' ? '👤 Kullanıcı' : '🤖 AI'}</div>
+                                                    <div className="truncate">{msg.content.substring(0, 50)}...</div>
+                                                    <div className="text-slate-400">{msg.timestamp.toLocaleTimeString('tr-TR')}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-slate-500">
+                                    <Database className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                                    <p className="text-sm">Session seçin</p>
+                                    <p className="text-xs">Sol panelden bir session seçin veya yeni oluşturun</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* API Analysis Interface */}
             {showApiAnalysis && (
@@ -765,6 +1255,83 @@ export default function ProjectAjax() {
                                 ))}
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Prompt Modal */}
+            {showPromptModal && (
+                <div className="bg-slate-50 border-b border-slate-200 p-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-96">
+                        {/* Left Panel - System Prompt */}
+                        <div className="bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                                    <FileText className="w-4 h-4" />
+                                    <span>Sistem Prompt</span>
+                                </h3>
+                                <div className="text-xs text-slate-500">
+                                    {currentPrompt.length} karakter
+                                </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 rounded-lg p-3 h-64 overflow-y-auto">
+                                <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono">
+                                    {currentPrompt}
+                                </pre>
+                            </div>
+                        </div>
+
+                        {/* Right Panel - Enhanced Prompt */}
+                        <div className="bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                                    <Code className="w-4 h-4" />
+                                    <span>Geliştirilmiş Prompt</span>
+                                </h3>
+                                <div className="text-xs text-slate-500">
+                                    {enhancedPrompt.length} karakter
+                                </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 rounded-lg p-3 h-64 overflow-y-auto">
+                                <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono">
+                                    {enhancedPrompt}
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* API Data Section */}
+                    {apiData && (
+                        <div className="mt-4 bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                                    <Database className="w-4 h-4" />
+                                    <span>API'den Gelen Veri</span>
+                                </h3>
+                                <div className="text-xs text-slate-500">
+                                    {apiData.type} verisi
+                                </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+                                <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono">
+                                    {JSON.stringify(apiData.data, null, 2)}
+                                </pre>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Close Button */}
+                    <div className="mt-4 flex justify-end">
+                        <button
+                            onClick={() => setShowPromptModal(false)}
+                            className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center space-x-2"
+                        >
+                            <Settings className="w-4 h-4" />
+                            <span>Kapat</span>
+                        </button>
                     </div>
                 </div>
             )}

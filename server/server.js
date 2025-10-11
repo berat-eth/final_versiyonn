@@ -15,6 +15,7 @@ const IyzicoService = require('./services/iyzico-service');
 const { createDatabaseSchema } = require('./database-schema');
 const userDataRoutes = require('./routes/user-data');
 const userSpecificDataRoutes = require('./routes/user-specific-data');
+const chatSessionsRoutes = require('./routes/chat-sessions');
 const { RecommendationService } = require('./services/recommendation-service');
 const { authenticateTenant } = require('./middleware/auth');
 const helmet = require('helmet');
@@ -956,6 +957,9 @@ app.use('/api/user-data', userDataRoutes);
 
 // User Specific Data Routes
 app.use('/api/user-specific', userSpecificDataRoutes);
+
+// Chat Sessions Routes
+app.use('/api/chat/sessions', chatSessionsRoutes);
 
 // Recommendations Routes
 try {

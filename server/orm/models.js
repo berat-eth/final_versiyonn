@@ -77,6 +77,64 @@ const GmapsLead = sequelize.define('gmaps_leads', {
   lng: { type: DataTypes.DECIMAL(10,6) },
 });
 
+// Chat Session Model
+const ChatSession = sequelize.define('chat_sessions', {
+  id: { 
+    type: DataTypes.UUID, 
+    primaryKey: true, 
+    defaultValue: DataTypes.UUIDV4 
+  },
+  name: { 
+    type: DataTypes.STRING, 
+    allowNull: false 
+  },
+  messageCount: { 
+    type: DataTypes.INTEGER, 
+    defaultValue: 0 
+  },
+  createdAt: { 
+    type: DataTypes.DATE, 
+    defaultValue: DataTypes.NOW 
+  },
+  updatedAt: { 
+    type: DataTypes.DATE, 
+    defaultValue: DataTypes.NOW 
+  }
+});
+
+// Chat Message Model
+const ChatMessage = sequelize.define('chat_messages', {
+  id: { 
+    type: DataTypes.UUID, 
+    primaryKey: true, 
+    defaultValue: DataTypes.UUIDV4 
+  },
+  sessionId: { 
+    type: DataTypes.UUID, 
+    allowNull: false,
+    references: {
+      model: ChatSession,
+      key: 'id'
+    }
+  },
+  role: { 
+    type: DataTypes.ENUM('user', 'assistant'), 
+    allowNull: false 
+  },
+  content: { 
+    type: DataTypes.TEXT, 
+    allowNull: false 
+  },
+  timestamp: { 
+    type: DataTypes.DATE, 
+    defaultValue: DataTypes.NOW 
+  },
+  createdAt: { 
+    type: DataTypes.DATE, 
+    defaultValue: DataTypes.NOW 
+  }
+});
+
 // Associations minimal
 User.belongsTo(Tenant, { foreignKey: 'tenantId' });
 Order.belongsTo(User, { foreignKey: 'userId' });
@@ -85,6 +143,28 @@ OrderItem.belongsTo(Product, { foreignKey: 'productId' });
 Cart.belongsTo(User, { foreignKey: 'userId' });
 Cart.belongsTo(Product, { foreignKey: 'productId' });
 
-module.exports = { sequelize, Tenant, User, Product, Order, OrderItem, Cart, GmapsJob, GmapsLead };
+// Chat associations
+ChatSession.hasMany(ChatMessage, { 
+  foreignKey: 'sessionId', 
+  as: 'messages' 
+});
+ChatMessage.belongsTo(ChatSession, { 
+  foreignKey: 'sessionId', 
+  as: 'session' 
+});
+
+module.exports = { 
+  sequelize, 
+  Tenant, 
+  User, 
+  Product, 
+  Order, 
+  OrderItem, 
+  Cart, 
+  GmapsJob, 
+  GmapsLead,
+  ChatSession,
+  ChatMessage
+};
 
 

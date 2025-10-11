@@ -12,6 +12,7 @@ const compression = require('compression');
 const morgan = require('morgan');
 const XmlSyncService = require('./services/xml-sync-service');
 const { createDatabaseSchema } = require('./database-schema');
+const chatSessionsRoutes = require('./routes/chat-sessions');
 
 // Load environment variables from envai file
 try { 
@@ -506,6 +507,9 @@ async function startServer() {
     
     // Include all route handlers from original server.js here
     // For brevity, I'm not copying all routes, but they would go here
+    
+    // Chat Sessions Routes
+    app.use('/api/chat/sessions', chatSessionsRoutes);
     
     const localIP = getLocalIPAddress();
     
