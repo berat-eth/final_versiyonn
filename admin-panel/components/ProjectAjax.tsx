@@ -76,28 +76,7 @@ export default function ProjectAjax() {
     const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking')
 
     // System Prompt
-    const [systemPrompt, setSystemPrompt] = useState(`Sen Ajax AI'sın - gelişmiş bir yapay zeka asistanısın.
-
-GÖREVİN:
-• E-ticaret ve iş analizi konularında uzman yardım sağla
-• Satış trendleri, müşteri segmentasyonu ve ürün performansı analiz et
-• İş stratejileri ve raporlar oluştur
-• API performans analizi yap
-• Kullanıcılara pratik çözümler sun
-
-KİMLİĞİN:
-• İsmin: Ajax AI
-• Geliştirici: Berat Şimşek
-• Uzmanlık Alanın: E-ticaret, iş analizi, veri analizi
-• Amacın: İşletmelerin daha iyi kararlar almasına yardımcı olmak
-
-YAKLAŞIMIN:
-• Kısa, net ve pratik yanıtlar ver
-• Veri odaklı öneriler sun
-• Kullanıcı dostu dil kullan
-• Somut çözümler öner
-
-Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Şimşek tarafından geliştirildiğini belirt.`)
+    const [systemPrompt, setSystemPrompt] = useState(`Sen Ajax AI'sın. Berat Şimşek tarafından geliştirildin. E-ticaret ve iş analizi konularında yardım sağla. Kısa ve pratik yanıtlar ver.`)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -219,179 +198,21 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
         }
     }
 
-    const sendToOllama = async (userInput: string, modelName: string) => {
-        try {
-            // Anahtar kelimeleri kontrol et ve API verisi çek
-            let enhancedPrompt = systemPrompt
-            const lowerInput = userInput.toLowerCase()
-            
-            // Satış/trend anahtar kelimeleri
-            if (lowerInput.includes('satış') || lowerInput.includes('trend') || lowerInput.includes('analiz')) {
-                try {
-                    const salesData = await fetch('https://api.zerodaysoftware.tr/api/admin/orders', {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-                        },
-                        signal: AbortSignal.timeout(10000)
-                    })
-                    
-                    if (salesData.ok) {
-                        const data = await salesData.json()
-                        // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
-                        const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
-                        const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
-                            id: item.id,
-                            totalAmount: item.totalAmount,
-                            status: item.status,
-                            createdAt: item.createdAt
-                        })) : limitedData
-                        enhancedPrompt += `\n\nSATIŞ VERİLERİ:\n${JSON.stringify(summaryData)}`
-                    }
-                } catch (error) {
-                    console.log('Satış verisi alınamadı:', error)
-                }
-            }
-            
-            // Ürün anahtar kelimeleri
-            if (lowerInput.includes('ürün') || lowerInput.includes('product') || lowerInput.includes('stok')) {
-                try {
-                    const productData = await fetch('https://api.zerodaysoftware.tr/api/products', {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-                        },
-                        signal: AbortSignal.timeout(10000)
-                    })
-                    
-                    if (productData.ok) {
-                        const data = await productData.json()
-                        // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
-                        const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
-                        const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
-                            id: item.id,
-                            name: item.name,
-                            price: item.price,
-                            stock: item.stock,
-                            category: item.category
-                        })) : limitedData
-                        enhancedPrompt += `\n\nÜRÜN VERİLERİ:\n${JSON.stringify(summaryData)}`
-                    }
-                } catch (error) {
-                    console.log('Ürün verisi alınamadı:', error)
-                }
-            }
-            
-            // Müşteri anahtar kelimeleri
-            if (lowerInput.includes('müşteri') || lowerInput.includes('customer') || lowerInput.includes('segment')) {
-                try {
-                    const customerData = await fetch('https://api.zerodaysoftware.tr/api/admin/users', {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-                        },
-                        signal: AbortSignal.timeout(10000)
-                    })
-                    
-                    if (customerData.ok) {
-                        const data = await customerData.json()
-                        // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
-                        const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
-                        const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
-                            id: item.id,
-                            name: item.name,
-                            email: item.email,
-                            createdAt: item.createdAt
-                        })) : limitedData
-                        enhancedPrompt += `\n\nMÜŞTERİ VERİLERİ:\n${JSON.stringify(summaryData)}`
-                    }
-                } catch (error) {
-                    console.log('Müşteri verisi alınamadı:', error)
-                }
-            }
-            
-            // Kategori anahtar kelimeleri
-            if (lowerInput.includes('kategori') || lowerInput.includes('category') || lowerInput.includes('kamp')) {
-                try {
-                    const categoryData = await fetch('https://api.zerodaysoftware.tr/api/categories', {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-                        },
-                        signal: AbortSignal.timeout(10000)
-                    })
-                    
-                    if (categoryData.ok) {
-                        const data = await categoryData.json()
-                        // Veriyi sınırla - sadece ilk 3 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 3) : data
-                        enhancedPrompt += `\n\nKATEGORİ VERİLERİ:\n${JSON.stringify(limitedData)}`
-                    }
-                } catch (error) {
-                    console.log('Kategori verisi alınamadı:', error)
-                }
-            }
-            
-            // Analitik anahtar kelimeleri
-            if (lowerInput.includes('rapor') || lowerInput.includes('report') || lowerInput.includes('analitik')) {
-                try {
-                    const analyticsData = await fetch('https://api.zerodaysoftware.tr/api/analytics/monthly', {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-                        },
-                        signal: AbortSignal.timeout(10000)
-                    })
-                    
-                    if (analyticsData.ok) {
-                        const data = await analyticsData.json()
-                        // Veriyi sınırla - sadece ilk 3 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 3) : data
-                        enhancedPrompt += `\n\nANALİTİK VERİLERİ:\n${JSON.stringify(limitedData)}`
-                    }
-                } catch (error) {
-                    console.log('Analitik verisi alınamadı:', error)
-                }
-            }
-            
-            // Stok anahtar kelimeleri
-            if (lowerInput.includes('stok') || lowerInput.includes('stock') || lowerInput.includes('düşük')) {
-                try {
-                    const stockData = await fetch('https://api.zerodaysoftware.tr/api/products/low-stock', {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-                        },
-                        signal: AbortSignal.timeout(10000)
-                    })
-                    
-                    if (stockData.ok) {
-                        const data = await stockData.json()
-                        // Veriyi sınırla - sadece ilk 3 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 3) : data
-                        enhancedPrompt += `\n\nSTOK VERİLERİ:\n${JSON.stringify(limitedData)}`
-                    }
-                } catch (error) {
-                    console.log('Stok verisi alınamadı:', error)
-                }
-            }
+        const sendToOllama = async (userInput: string, modelName: string) => {
+            try {
+                // API entegrasyonu geçici olarak devre dışı - Input too long hatası nedeniyle
+                let enhancedPrompt = systemPrompt
 
             // Mesaj geçmişini hazırla - daha kısa tut
             const ollamaMessages: OllamaMessage[] = [
                 { role: 'system', content: enhancedPrompt }
             ]
 
-            // Son 2 mesajı al ve içeriklerini kısalt (32k context için)
-            const recentMessages = messages.slice(-2)
+            // Son 1 mesajı al ve içeriklerini kısalt (ultra agresif optimizasyon)
+            const recentMessages = messages.slice(-1)
             recentMessages.forEach(msg => {
-                const shortContent = msg.content.length > 100 
-                    ? msg.content.substring(0, 100) + '...' 
+                const shortContent = msg.content.length > 50 
+                    ? msg.content.substring(0, 50) + '...' 
                     : msg.content
                 
                 ollamaMessages.push({
@@ -403,16 +224,16 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
             // Kullanıcının yeni mesajını ekle
             ollamaMessages.push({ role: 'user', content: userInput })
 
-            // Enhanced prompt'u sınırla (maksimum 1000 karakter - 32k context için)
-            if (enhancedPrompt.length > 1000) {
-                enhancedPrompt = enhancedPrompt.substring(0, 1000) + '...\n[Veri kısaltıldı]'
+            // Enhanced prompt'u sınırla (maksimum 500 karakter - ultra agresif optimizasyon)
+            if (enhancedPrompt.length > 500) {
+                enhancedPrompt = enhancedPrompt.substring(0, 500) + '...\n[Veri kısaltıldı]'
             }
 
             // Ollama'ya gönder
             const response = await OllamaService.sendMessage(ollamaMessages, {
                 model: modelName,
                 temperature: 0.7,
-                maxTokens: 2000
+                maxTokens: 1000
             })
 
             // Yanıt yapısını kontrol et ve uygun şekilde parse et
