@@ -239,9 +239,15 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (salesData.ok) {
                         const data = await salesData.json()
-                        // Veriyi sınırla - sadece ilk 5 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
-                        enhancedPrompt += `\n\nGÜNCEL SATIŞ VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
+                        const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
+                        const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
+                            id: item.id,
+                            totalAmount: item.totalAmount,
+                            status: item.status,
+                            createdAt: item.createdAt
+                        })) : limitedData
+                        enhancedPrompt += `\n\nSATIŞ VERİLERİ:\n${JSON.stringify(summaryData)}`
                     }
                 } catch (error) {
                     console.log('Satış verisi alınamadı:', error)
@@ -262,9 +268,16 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (productData.ok) {
                         const data = await productData.json()
-                        // Veriyi sınırla - sadece ilk 5 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
-                        enhancedPrompt += `\n\nGÜNCEL ÜRÜN VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
+                        const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
+                        const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
+                            id: item.id,
+                            name: item.name,
+                            price: item.price,
+                            stock: item.stock,
+                            category: item.category
+                        })) : limitedData
+                        enhancedPrompt += `\n\nÜRÜN VERİLERİ:\n${JSON.stringify(summaryData)}`
                     }
                 } catch (error) {
                     console.log('Ürün verisi alınamadı:', error)
@@ -285,9 +298,15 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (customerData.ok) {
                         const data = await customerData.json()
-                        // Veriyi sınırla - sadece ilk 5 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
-                        enhancedPrompt += `\n\nGÜNCEL MÜŞTERİ VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 2 kayıt ve önemli alanlar
+                        const limitedData = Array.isArray(data) ? data.slice(0, 2) : data
+                        const summaryData = Array.isArray(limitedData) ? limitedData.map(item => ({
+                            id: item.id,
+                            name: item.name,
+                            email: item.email,
+                            createdAt: item.createdAt
+                        })) : limitedData
+                        enhancedPrompt += `\n\nMÜŞTERİ VERİLERİ:\n${JSON.stringify(summaryData)}`
                     }
                 } catch (error) {
                     console.log('Müşteri verisi alınamadı:', error)
@@ -308,9 +327,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (categoryData.ok) {
                         const data = await categoryData.json()
-                        // Veriyi sınırla - sadece ilk 5 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
-                        enhancedPrompt += `\n\nGÜNCEL KATEGORİ VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 3 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 3) : data
+                        enhancedPrompt += `\n\nKATEGORİ VERİLERİ:\n${JSON.stringify(limitedData)}`
                     }
                 } catch (error) {
                     console.log('Kategori verisi alınamadı:', error)
@@ -331,9 +350,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (analyticsData.ok) {
                         const data = await analyticsData.json()
-                        // Veriyi sınırla - sadece ilk 5 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
-                        enhancedPrompt += `\n\nGÜNCEL ANALİTİK VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 3 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 3) : data
+                        enhancedPrompt += `\n\nANALİTİK VERİLERİ:\n${JSON.stringify(limitedData)}`
                     }
                 } catch (error) {
                     console.log('Analitik verisi alınamadı:', error)
@@ -354,9 +373,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (stockData.ok) {
                         const data = await stockData.json()
-                        // Veriyi sınırla - sadece ilk 5 kayıt
-                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
-                        enhancedPrompt += `\n\nGÜNCEL STOK VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 3 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 3) : data
+                        enhancedPrompt += `\n\nSTOK VERİLERİ:\n${JSON.stringify(limitedData)}`
                     }
                 } catch (error) {
                     console.log('Stok verisi alınamadı:', error)
@@ -384,9 +403,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
             // Kullanıcının yeni mesajını ekle
             ollamaMessages.push({ role: 'user', content: userInput })
 
-            // Enhanced prompt'u sınırla (maksimum 2000 karakter)
-            if (enhancedPrompt.length > 2000) {
-                enhancedPrompt = enhancedPrompt.substring(0, 2000) + '...\n[Veri kısaltıldı]'
+            // Enhanced prompt'u sınırla (maksimum 1000 karakter - 32k context için)
+            if (enhancedPrompt.length > 1000) {
+                enhancedPrompt = enhancedPrompt.substring(0, 1000) + '...\n[Veri kısaltıldı]'
             }
 
             // Ollama'ya gönder
@@ -487,8 +506,8 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
             const fullUrl = `https://api.zerodaysoftware.tr/api${endpoint}`
             
             const headers = {
-                'Content-Type': 'application/json',
-                'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
             }
 
             if (method === 'GET') {
@@ -668,8 +687,8 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                 testAllApiEndpoints()
             }
         } else {
-            setInput(suggestion.text)
-            inputRef.current?.focus()
+        setInput(suggestion.text)
+        inputRef.current?.focus()
         }
     }
 
@@ -719,12 +738,12 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                             <BarChart3 className="w-4 h-4" />
                             <span className="text-sm font-medium">API Analizi</span>
                         </button>
-                        <div className="flex items-center space-x-2">
-                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                            <span className="text-xs text-slate-300">Çevrimiçi</span>
-                        </div>
+                    <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span className="text-xs text-slate-300">Çevrimiçi</span>
                     </div>
                 </div>
+            </div>
             </div>
 
             {/* Database Interface Removed */}
