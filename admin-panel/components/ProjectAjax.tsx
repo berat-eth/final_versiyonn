@@ -177,14 +177,42 @@ export default function ProjectAjax() {
             }
         } catch (error) {
             console.error('❌ Mesaj gönderilemedi:', error)
-            const errorMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: `❌ Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
-                timestamp: new Date()
-            }
-            setMessages(prev => [...prev, errorMessage])
-            setIsTyping(false)
+            
+            // Hata durumunda simüle edilmiş yanıt ver
+            setTimeout(async () => {
+                const content = await generateAIResponse(currentInput)
+                
+                // Streaming animasyonu başlat
+                setIsStreaming(true)
+                setStreamingContent('')
+                
+                // Geçici mesaj ekle
+                const tempMessageId = (Date.now() + 1).toString()
+                const tempMessage: Message = {
+                    id: tempMessageId,
+                    role: 'assistant',
+                    content: '',
+                    timestamp: new Date()
+                }
+                setMessages(prev => [...prev, tempMessage])
+                setIsTyping(false)
+
+                // Yazıyormuş gibi animasyon
+                simulateTyping(content, (partialContent) => {
+                    setStreamingContent(partialContent)
+                    setMessages(prev => prev.map(msg => 
+                        msg.id === tempMessageId 
+                            ? { ...msg, content: partialContent }
+                            : msg
+                    ))
+                })
+
+                // Animasyon tamamlandığında streaming'i durdur
+                setTimeout(() => {
+                    setIsStreaming(false)
+                    setStreamingContent('')
+                }, content.length * 30 + 500)
+            }, 1000)
         }
     }
 
@@ -432,7 +460,39 @@ export default function ProjectAjax() {
         }
 
         if (lowerInput.includes('ürün') || lowerInput.includes('product')) {
-            // Gerçek ürün verilerini çek
+            // Kamp ürünleri kategorisi özel analizi
+            if (lowerInput.includes('kamp') || lowerInput.includes('outdoor') || lowerInput.includes('camping')) {
+                const campProductData = await fetchDatabaseData(`
+                    SELECT 
+                        p.name as product_name,
+                        p.price,
+                        p.stock,
+                        COUNT(oi.id) as order_count,
+                        SUM(oi.quantity) as total_quantity,
+                        SUM(oi.price * oi.quantity) as total_revenue
+                    FROM products p
+                    LEFT JOIN order_items oi ON p.id = oi.product_id
+                    LEFT JOIN orders o ON oi.order_id = o.id
+                    WHERE (p.category LIKE '%kamp%' OR p.category LIKE '%outdoor%' OR p.category LIKE '%camping%' 
+                           OR p.name LIKE '%kamp%' OR p.name LIKE '%outdoor%' OR p.name LIKE '%çadır%' 
+                           OR p.name LIKE '%uyku tulumu%' OR p.name LIKE '%mat%')
+                    AND (o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) OR o.created_at IS NULL)
+                    GROUP BY p.id, p.name, p.price, p.stock
+                    ORDER BY total_revenue DESC, order_count DESC
+                    LIMIT 15
+                `)
+                
+                if (campProductData && campProductData.success && campProductData.data.length > 0) {
+                    const totalRevenue = campProductData.data.reduce((sum: number, item: any) => sum + (item.total_revenue || 0), 0)
+                    const totalOrders = campProductData.data.reduce((sum: number, item: any) => sum + (item.order_count || 0), 0)
+                    
+                    return `🏕️ **Kamp Ürünleri Kategorisi Analizi**\n\n**Genel Performans:**\n• Toplam Gelir: ₺${totalRevenue.toLocaleString()}\n• Toplam Sipariş: ${totalOrders}\n• Aktif Ürün Sayısı: ${campProductData.data.length}\n\n**En Performanslı Kamp Ürünleri:**\n\n${campProductData.data.map((item: any, index: number) => 
+                        `${index + 1}. **${item.product_name}**\n   • Fiyat: ₺${item.price}\n   • Stok: ${item.stock} adet\n   • Satış: ${item.order_count || 0} sipariş\n   • Gelir: ₺${(item.total_revenue || 0).toLocaleString()}\n`
+                    ).join('\n')}\n\n**Kamp Kategorisi Önerileri:**\n• Mevsimsel kamp ürünlerini öne çıkarın\n• Kamp setleri oluşturun (çadır + uyku tulumu + mat)\n• Outdoor etkinlikler için özel kampanyalar düzenleyin\n• Stok seviyelerini mevsimsel olarak ayarlayın`
+                }
+            }
+            
+            // Genel ürün verilerini çek
             const productData = await fetchDatabaseData(`
                 SELECT 
                     p.name as product_name,
@@ -454,7 +514,7 @@ export default function ProjectAjax() {
                 ).join('\n')}\n\nBu gerçek veriler üzerinden ürün stratejileri önerebilirim.`
             }
             
-            return `📦 **Ürün Performans Analizi**\n\nÜrün performansınızı analiz edebilirim. Hangi ürünler hakkında bilgi almak istiyorsunuz?\n\n• En çok satan ürünler\n• Stok durumu\n• Ürün kategorileri\n• Fiyat analizi\n\nSpesifik bir ürün veya kategori belirtin.`
+            return `📦 **Ürün Performans Analizi**\n\nÜrün performansınızı analiz edebilirim. Hangi ürünler hakkında bilgi almak istiyorsunuz?\n\n• En çok satan ürünler\n• Stok durumu\n• Ürün kategorileri\n• Fiyat analizi\n• Kamp ürünleri analizi\n\nSpesifik bir ürün veya kategori belirtin.`
         }
 
         if (lowerInput.includes('rapor')) {

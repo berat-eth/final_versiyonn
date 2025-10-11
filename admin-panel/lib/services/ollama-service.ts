@@ -145,38 +145,65 @@ export class OllamaService {
         maxTokens 
       });
 
-      // Sadece uzak sunucu üzerinden dene
-      try {
-        const response = await fetch('https://api.zerodaysoftware.tr/api/ollama/generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-          },
-          body: JSON.stringify(requestBody),
-          signal: AbortSignal.timeout(60000)
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('✅ Ollama Response (Remote):', data);
+      // Retry mekanizması ile uzak sunucu üzerinden dene
+      let lastError: Error | null = null;
+      
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`🔄 Ollama deneme ${attempt}/3...`);
           
-          // Yanıt yapısını normalize et
-          if (data.data) {
-            return data.data;
-          } else if (data.message) {
-            return data;
+          const response = await fetch('https://api.zerodaysoftware.tr/api/ollama/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive'
+            },
+            body: JSON.stringify(requestBody),
+            signal: AbortSignal.timeout(45000) // 45 saniye timeout
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Ollama Response (Remote):', data);
+            
+            // Yanıt yapısını normalize et
+            if (data.data) {
+              return data.data;
+            } else if (data.message) {
+              return data;
+            } else {
+              return { message: { role: 'assistant', content: data.response || data.content || JSON.stringify(data) } };
+            }
           } else {
-            return { message: { role: 'assistant', content: data.response || data.content || JSON.stringify(data) } };
+            const errorText = await response.text();
+            console.error(`❌ Ollama sunucusu hata (${attempt}/3):`, response.status, errorText);
+            lastError = new Error(`HTTP ${response.status}: ${errorText}`);
+            
+            // 429 (Rate Limit) hatası için daha uzun bekle
+            if (response.status === 429) {
+              const waitTime = attempt * 2000; // 2s, 4s, 6s
+              console.log(`⏳ Rate limit nedeniyle ${waitTime}ms bekleniyor...`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
           }
-        } else {
-          console.error('❌ Uzak Ollama sunucusu hata:', response.status);
-          throw new Error(`Uzak Ollama sunucusu hata: ${response.status}`);
+        } catch (error) {
+          console.error(`❌ Ollama deneme ${attempt}/3 başarısız:`, error);
+          lastError = error instanceof Error ? error : new Error('Bilinmeyen hata');
+          
+          // Son deneme değilse kısa bekle
+          if (attempt < 3) {
+            const waitTime = attempt * 1000; // 1s, 2s
+            console.log(`⏳ ${waitTime}ms bekleniyor...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
         }
-      } catch (error) {
-        console.error('❌ Uzak Ollama sunucusu erişilemiyor:', error);
-        throw new Error('Ollama sunucusu şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.');
       }
+      
+      // Tüm denemeler başarısız
+      throw lastError || new Error('Ollama sunucusu 3 deneme sonrası erişilemiyor');
+      
     } catch (error) {
       console.error('❌ Ollama sendMessage error:', error);
       throw error;
