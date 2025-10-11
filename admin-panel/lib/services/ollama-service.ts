@@ -31,9 +31,9 @@ export interface OllamaResponse {
 export class OllamaService {
   private static readonly CONFIG_KEY = 'ollama_config';
   private static readonly DEFAULT_CONFIG: OllamaConfig = {
-    enabled: false,
+    enabled: true,
     apiUrl: 'http://localhost:11434',
-    model: 'gemma2:1b',
+    model: 'gemma3:1b',
     temperature: 0.7,
     maxTokens: 2000
   };
@@ -150,7 +150,7 @@ export class OllamaService {
 
       const requestBody = {
         messages,
-        model,
+        model: model.replace('ollama-', ''), // ollama- prefix'ini kaldır
         temperature,
         maxTokens,
         stream
