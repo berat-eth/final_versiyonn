@@ -69,14 +69,14 @@ export default function ProjectAjax() {
     const [ollamaConfig, setOllamaConfig] = useState<OllamaConfig>({
         enabled: true,
         apiUrl: 'http://localhost:11434',
-        model: 'gemma3:1b',
+        model: 'gemma3:4b',
         temperature: 0.7,
         maxTokens: 2000
     })
     const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking')
 
     // System Prompt
-    const [systemPrompt, setSystemPrompt] = useState(`Sen Ajax AI'sın. Berat Şimşek tarafından geliştirildin. E-ticaret ve iş analizi konularında yardım sağla. Kısa ve pratik yanıtlar ver.`)
+    const [systemPrompt, setSystemPrompt] = useState(`Sen Ajax AI'sın. Berat Şimşek geliştirdi. E-ticaret uzmanısın. Kısa yanıtlar ver.`)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -229,11 +229,11 @@ export default function ProjectAjax() {
                 enhancedPrompt = enhancedPrompt.substring(0, 500) + '...\n[Veri kısaltıldı]'
             }
 
-            // Ollama'ya gönder
+            // Ollama'ya gönder - Gemma3:4b için optimize edildi
             const response = await OllamaService.sendMessage(ollamaMessages, {
                 model: modelName,
-                temperature: 0.7,
-                maxTokens: 1000
+                temperature: 0.8,
+                maxTokens: 1500
             })
 
             // Yanıt yapısını kontrol et ve uygun şekilde parse et

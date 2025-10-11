@@ -33,8 +33,8 @@ export class OllamaService {
   private static readonly DEFAULT_CONFIG: OllamaConfig = {
     enabled: true,
     apiUrl: 'http://localhost:11434',
-    model: 'gemma3:1b',
-    temperature: 0.7,
+    model: 'gemma3:4b',
+    temperature: 0.8,
     maxTokens: 8000
   };
 
