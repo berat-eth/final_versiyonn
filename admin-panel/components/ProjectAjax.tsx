@@ -387,11 +387,11 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                 { role: 'system', content: enhancedPrompt }
             ]
 
-            // Son 4 mesajı al ve içeriklerini kısalt
-            const recentMessages = messages.slice(-4)
+            // Son 2 mesajı al ve içeriklerini kısalt (32k context için)
+            const recentMessages = messages.slice(-2)
             recentMessages.forEach(msg => {
-                const shortContent = msg.content.length > 150 
-                    ? msg.content.substring(0, 150) + '...' 
+                const shortContent = msg.content.length > 100 
+                    ? msg.content.substring(0, 100) + '...' 
                     : msg.content
                 
                 ollamaMessages.push({
@@ -412,7 +412,7 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
             const response = await OllamaService.sendMessage(ollamaMessages, {
                 model: modelName,
                 temperature: 0.7,
-                maxTokens: 3000
+                maxTokens: 2000
             })
 
             // Yanıt yapısını kontrol et ve uygun şekilde parse et
