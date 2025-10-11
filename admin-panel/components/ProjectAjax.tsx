@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb } from 'lucide-react'
+import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, Database, Table, Search, Play, Download, Eye, Settings } from 'lucide-react'
 import { OllamaService, OllamaConfig, OllamaMessage } from '@/lib/services/ollama-service'
 
 interface Message {
@@ -16,6 +16,19 @@ interface Suggestion {
     icon: any
     text: string
     category: string
+}
+
+interface DatabaseTable {
+    name: string
+    columns: string[]
+    rowCount: number
+}
+
+interface QueryResult {
+    columns: string[]
+    data: any[]
+    rowCount: number
+    executionTime: number
 }
 
 export default function ProjectAjax() {
@@ -33,6 +46,15 @@ export default function ProjectAjax() {
     const [streamingContent, setStreamingContent] = useState('')
     const [isStreaming, setIsStreaming] = useState(false)
 
+    // Database Interface States
+    const [showDatabaseInterface, setShowDatabaseInterface] = useState(false)
+    const [databaseTables, setDatabaseTables] = useState<DatabaseTable[]>([])
+    const [selectedTable, setSelectedTable] = useState<string>('')
+    const [customQuery, setCustomQuery] = useState('')
+    const [queryResult, setQueryResult] = useState<QueryResult | null>(null)
+    const [isQueryRunning, setIsQueryRunning] = useState(false)
+    const [queryError, setQueryError] = useState<string | null>(null)
+
     // Ollama Config
     const [ollamaConfig, setOllamaConfig] = useState<OllamaConfig>({
         enabled: true,
@@ -44,7 +66,7 @@ export default function ProjectAjax() {
     const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking')
 
     // System Prompt
-    const [systemPrompt, setSystemPrompt] = useState('Sen yardımcı bir iş asistanısın. Kullanıcılara e-ticaret, satış analizi, müşteri yönetimi ve iş stratejileri konularında yardımcı oluyorsun.')
+    const [systemPrompt, setSystemPrompt] = useState('Sen yardımcı bir iş asistanısın. Kullanıcılara e-ticaret, satış analizi, müşteri yönetimi ve iş stratejileri konularında yardımcı oluyorsun. Ayrıca veritabanı sorguları yazabilir ve analiz yapabilirsin.')
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -54,6 +76,8 @@ export default function ProjectAjax() {
         { icon: Lightbulb, text: 'Müşteri segmentasyonu için öneriler sun', category: 'Strateji' },
         { icon: FileText, text: 'Ürün performans raporu oluştur', category: 'Rapor' },
         { icon: Code, text: 'SQL sorgusu yaz: En çok satan 10 ürün', category: 'Kod' },
+        { icon: Database, text: 'Veritabanı tablolarını listele', category: 'Veritabanı' },
+        { icon: Table, text: 'Siparişler tablosunu incele', category: 'Veritabanı' },
     ]
 
     const models = [
@@ -227,13 +251,26 @@ export default function ProjectAjax() {
             }, content.length * 30 + 500)
         } catch (error) {
             console.error('❌ Ollama yanıtı alınamadı:', error)
-            const errorMessage: Message = {
+            
+            // Hata mesajını kullanıcı dostu hale getir
+            let errorMessage = 'Ollama servisi şu anda kullanılamıyor.';
+            if (error instanceof Error) {
+                if (error.message.includes('kullanılamıyor')) {
+                    errorMessage = error.message;
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Sunucu bağlantısı kurulamadı. İnternet bağlantınızı kontrol edin.';
+                } else {
+                    errorMessage = `Hata: ${error.message}`;
+                }
+            }
+            
+            const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: `❌ Ollama Hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+                content: `❌ ${errorMessage}\n\nAlternatif olarak simüle edilmiş yanıt almak için "simüle et" yazabilirsiniz.`,
                 timestamp: new Date()
             }
-            setMessages(prev => [...prev, errorMessage])
+            setMessages(prev => [...prev, errorMsg])
             setIsTyping(false)
         }
     }
@@ -247,13 +284,103 @@ export default function ProjectAjax() {
                     'Content-Type': 'application/json',
                     'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
                 },
-                body: JSON.stringify({ query })
+                body: JSON.stringify({ query }),
+                signal: AbortSignal.timeout(30000) // 30 saniye timeout
             })
+            
+            if (!response.ok) {
+                console.error('Veritabanı sorgusu HTTP hatası:', response.status, response.statusText)
+                return { success: false, message: `HTTP ${response.status}: ${response.statusText}` }
+            }
+            
             return await response.json()
         } catch (error) {
             console.error('Veritabanı sorgusu hatası:', error)
-            return null
+            if (error instanceof Error) {
+                if (error.name === 'AbortError') {
+                    return { success: false, message: 'Sorgu zaman aşımına uğradı' }
+                } else if (error.message.includes('Failed to fetch')) {
+                    return { success: false, message: 'Sunucu bağlantısı kurulamadı' }
+                }
+            }
+            return { success: false, message: 'Bilinmeyen hata oluştu' }
         }
+    }
+
+    // Veritabanı tablolarını listele
+    const fetchDatabaseTables = async () => {
+        try {
+            const response = await fetchDatabaseData(`
+                SELECT 
+                    TABLE_NAME as name,
+                    TABLE_ROWS as rowCount
+                FROM information_schema.TABLES 
+                WHERE TABLE_SCHEMA = DATABASE()
+                ORDER BY TABLE_NAME
+            `)
+            
+            if (response && response.success) {
+                const tables: DatabaseTable[] = []
+                for (const table of response.data) {
+                    const columnsResponse = await fetchDatabaseData(`
+                        SELECT COLUMN_NAME 
+                        FROM information_schema.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() 
+                        AND TABLE_NAME = '${table.name}'
+                        ORDER BY ORDINAL_POSITION
+                    `)
+                    
+                    if (columnsResponse && columnsResponse.success) {
+                        tables.push({
+                            name: table.name,
+                            columns: columnsResponse.data.map((col: any) => col.COLUMN_NAME),
+                            rowCount: table.rowCount || 0
+                        })
+                    }
+                }
+                setDatabaseTables(tables)
+            }
+        } catch (error) {
+            console.error('Tablo listesi alınamadı:', error)
+        }
+    }
+
+    // SQL sorgusu çalıştır
+    const executeQuery = async (query: string) => {
+        setIsQueryRunning(true)
+        setQueryError(null)
+        setQueryResult(null)
+        
+        try {
+            const startTime = Date.now()
+            const response = await fetchDatabaseData(query)
+            const executionTime = Date.now() - startTime
+            
+            if (response && response.success) {
+                const data = response.data || []
+                const columns = data.length > 0 ? Object.keys(data[0]) : []
+                
+                setQueryResult({
+                    columns,
+                    data,
+                    rowCount: data.length,
+                    executionTime
+                })
+            } else {
+                setQueryError(response?.message || 'Sorgu çalıştırılamadı')
+            }
+        } catch (error) {
+            setQueryError(error instanceof Error ? error.message : 'Bilinmeyen hata')
+        } finally {
+            setIsQueryRunning(false)
+        }
+    }
+
+    // Tablo verilerini görüntüle
+    const viewTableData = async (tableName: string, limit: number = 100) => {
+        const query = `SELECT * FROM ${tableName} LIMIT ${limit}`
+        setCustomQuery(query)
+        await executeQuery(query)
     }
 
     const generateAIResponse = async (userInput: string): Promise<string> => {
@@ -338,6 +465,14 @@ export default function ProjectAjax() {
             return `💻 **SQL Sorgusu**\n\n\`\`\`sql\nSELECT \n  p.product_name,\n  COUNT(o.order_id) as total_orders,\n  SUM(o.quantity) as total_quantity,\n  SUM(o.total_amount) as revenue\nFROM products p\nJOIN orders o ON p.product_id = o.product_id\nWHERE o.order_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)\nGROUP BY p.product_id, p.product_name\nORDER BY revenue DESC\nLIMIT 10;\n\`\`\`\n\nBu sorgu son 30 günün en çok satan 10 ürününü getirir. Çalıştırmak ister misiniz?`
         }
 
+        if (lowerInput.includes('veritabanı') || lowerInput.includes('tablo')) {
+            return `🗄️ **Veritabanı Erişimi**\n\nVeritabanı arayüzünü açmak için sağ üstteki "Veritabanı" butonuna tıklayın.\n\nMevcut özellikler:\n• Tüm tabloları listele\n• Tablo şemalarını görüntüle\n• SQL sorguları çalıştır\n• Veri keşfi yap\n• Sonuçları CSV olarak indir\n\nHangi tabloyu incelemek istiyorsunuz?`
+        }
+
+        if (lowerInput.includes('simüle') || lowerInput.includes('simule')) {
+            return `🤖 **Simüle Edilmiş Yanıt**\n\nOllama servisi şu anda kullanılamıyor, ancak size simüle edilmiş bir yanıt verebilirim.\n\n"${userInput}" konusunda size yardımcı olmak için:\n\n• Veritabanı arayüzünü kullanarak gerçek verilerinizi analiz edebilirim\n• Önceden tanımlanmış raporlar oluşturabilirim\n• SQL sorguları yazabilirim\n• İş stratejileri önerebilirim\n\nHangi konuda detaylı bilgi almak istiyorsunuz?`
+        }
+
         return `Anladım! "${userInput}" hakkında size yardımcı olabilirim. \n\nŞu konularda uzmanım:\n• Satış ve trend analizi\n• Müşteri segmentasyonu\n• Rapor oluşturma\n• SQL sorguları\n• İş stratejileri\n• Veri görselleştirme\n\nDaha spesifik bir soru sorabilir veya yukarıdaki konulardan birini seçebilirsiniz.`
     }
 
@@ -349,13 +484,50 @@ export default function ProjectAjax() {
     }
 
     const handleSuggestionClick = (suggestion: Suggestion) => {
-        setInput(suggestion.text)
-        inputRef.current?.focus()
+        if (suggestion.category === 'Veritabanı') {
+            if (suggestion.text.includes('tablolarını listele')) {
+                setShowDatabaseInterface(true)
+                fetchDatabaseTables()
+            } else if (suggestion.text.includes('Siparişler tablosunu')) {
+                setShowDatabaseInterface(true)
+                fetchDatabaseTables()
+                setTimeout(() => {
+                    viewTableData('orders', 50)
+                }, 1000)
+            }
+        } else {
+            setInput(suggestion.text)
+            inputRef.current?.focus()
+        }
     }
 
     const copyMessage = (content: string) => {
         navigator.clipboard.writeText(content)
         alert('📋 Mesaj kopyalandı!')
+    }
+
+    // CSV export fonksiyonu
+    const exportToCSV = () => {
+        if (!queryResult) return
+        
+        const headers = queryResult.columns.join(',')
+        const rows = queryResult.data.map(row => 
+            queryResult.columns.map(col => {
+                const value = row[col]
+                return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
+            }).join(',')
+        )
+        
+        const csvContent = [headers, ...rows].join('\n')
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+        const link = document.createElement('a')
+        const url = URL.createObjectURL(blob)
+        link.setAttribute('href', url)
+        link.setAttribute('download', `query_result_${new Date().toISOString().split('T')[0]}.csv`)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
     }
 
     // Streaming animasyonu için yazıyormuş gibi efekt
@@ -385,12 +557,160 @@ export default function ProjectAjax() {
                             <p className="text-sm text-slate-300">Yapay Zeka İş Asistanı - Gemma3:1b</p>
                         </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span className="text-xs text-slate-300">Çevrimiçi</span>
+                    <div className="flex items-center space-x-3">
+                        <button
+                            onClick={() => setShowDatabaseInterface(!showDatabaseInterface)}
+                            className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
+                                showDatabaseInterface 
+                                    ? 'bg-blue-600 hover:bg-blue-700' 
+                                    : 'bg-slate-600 hover:bg-slate-500'
+                            }`}
+                        >
+                            <Database className="w-4 h-4" />
+                            <span className="text-sm font-medium">Veritabanı</span>
+                        </button>
+                        <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                            <span className="text-xs text-slate-300">Çevrimiçi</span>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* Database Interface */}
+            {showDatabaseInterface && (
+                <div className="bg-slate-50 border-b border-slate-200 p-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-96">
+                        {/* Left Panel - Tables */}
+                        <div className="bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                                    <Table className="w-4 h-4" />
+                                    <span>Veritabanı Tabloları</span>
+                                </h3>
+                                <button
+                                    onClick={fetchDatabaseTables}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                                >
+                                    Yenile
+                                </button>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {databaseTables.map((table) => (
+                                    <div
+                                        key={table.name}
+                                        className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                                        onClick={() => viewTableData(table.name, 50)}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-medium text-slate-800">{table.name}</div>
+                                                <div className="text-sm text-slate-500">
+                                                    {table.columns.length} sütun • {table.rowCount.toLocaleString()} kayıt
+                                                </div>
+                                            </div>
+                                            <Eye className="w-4 h-4 text-slate-400" />
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                            {table.columns.slice(0, 3).map((col) => (
+                                                <span key={col} className="px-2 py-1 bg-slate-100 text-xs rounded text-slate-600">
+                                                    {col}
+                                                </span>
+                                            ))}
+                                            {table.columns.length > 3 && (
+                                                <span className="px-2 py-1 bg-slate-100 text-xs rounded text-slate-600">
+                                                    +{table.columns.length - 3}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Right Panel - Query */}
+                        <div className="bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-slate-800 flex items-center space-x-2">
+                                    <Code className="w-4 h-4" />
+                                    <span>SQL Sorgusu</span>
+                                </h3>
+                                <div className="flex space-x-2">
+                                    <button
+                                        onClick={() => executeQuery(customQuery)}
+                                        disabled={!customQuery.trim() || isQueryRunning}
+                                        className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                                    >
+                                        {isQueryRunning ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                            <Play className="w-3 h-3" />
+                                        )}
+                                        <span>Çalıştır</span>
+                                    </button>
+                                    {queryResult && (
+                                        <button
+                                            onClick={exportToCSV}
+                                            className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors flex items-center space-x-1"
+                                        >
+                                            <Download className="w-3 h-3" />
+                                            <span>CSV</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            <textarea
+                                value={customQuery}
+                                onChange={(e) => setCustomQuery(e.target.value)}
+                                placeholder="SQL sorgunuzu buraya yazın..."
+                                className="w-full h-32 p-3 border border-slate-200 rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            {queryError && (
+                                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                                    {queryError}
+                                </div>
+                            )}
+                            {queryResult && (
+                                <div className="mt-3">
+                                    <div className="text-sm text-slate-600 mb-2">
+                                        {queryResult.rowCount} kayıt • {queryResult.executionTime}ms
+                                    </div>
+                                    <div className="max-h-32 overflow-auto border border-slate-200 rounded">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-slate-50">
+                                                <tr>
+                                                    {queryResult.columns.map((col) => (
+                                                        <th key={col} className="p-2 text-left font-medium text-slate-700">
+                                                            {col}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {queryResult.data.slice(0, 10).map((row, index) => (
+                                                    <tr key={index} className="border-t border-slate-100">
+                                                        {queryResult.columns.map((col) => (
+                                                            <td key={col} className="p-2 text-slate-600">
+                                                                {row[col]?.toString().substring(0, 50)}
+                                                                {row[col]?.toString().length > 50 && '...'}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        {queryResult.data.length > 10 && (
+                                            <div className="p-2 text-center text-xs text-slate-500 bg-slate-50">
+                                                ... ve {queryResult.data.length - 10} kayıt daha
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Messages Area */}
             <div className="flex-1 bg-white overflow-y-auto p-4 space-y-3">

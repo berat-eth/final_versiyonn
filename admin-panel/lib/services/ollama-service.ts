@@ -74,11 +74,11 @@ export class OllamaService {
     try {
       const config = await this.getConfig();
       
-      if (!config.enabled || !config.apiUrl) {
+      if (!config.enabled) {
         return { status: 'offline' };
       }
 
-      // Önce uzak sunucu üzerinden kontrol et
+      // Sadece uzak sunucu üzerinden kontrol et (yerel Ollama'ya gerek yok)
       try {
         const response = await fetch('https://api.zerodaysoftware.tr/api/ollama/health', {
           method: 'GET',
@@ -86,7 +86,7 @@ export class OllamaService {
             'Content-Type': 'application/json',
             'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
           },
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(10000) // 10 saniye timeout
         });
 
         if (response.ok) {
@@ -95,31 +95,14 @@ export class OllamaService {
             status: data.status === 'online' ? 'online' : 'offline', 
             models: data.models || []
           };
+        } else {
+          console.log('🔄 Uzak Ollama sunucusu yanıt vermiyor:', response.status);
+          return { status: 'offline' };
         }
       } catch (error) {
-        console.log('🔄 Uzak sunucu kontrolü başarısız, yerel kontrol deneniyor...');
-      }
-
-      // Yerel kontrol
-      const response = await fetch(`${config.apiUrl}/api/tags`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: AbortSignal.timeout(5000) // 5 saniye timeout
-      });
-
-      if (!response.ok) {
+        console.log('🔄 Uzak Ollama sunucusu erişilemiyor:', error);
         return { status: 'offline' };
       }
-
-      const data = await response.json();
-      const models = data.models?.map((model: any) => model.name) || [];
-      
-      return { 
-        status: 'online', 
-        models 
-      };
     } catch (error) {
       console.error('❌ Ollama health check failed:', error);
       return { status: 'offline' };
@@ -162,7 +145,7 @@ export class OllamaService {
         maxTokens 
       });
 
-      // Önce uzak sunucu üzerinden dene
+      // Sadece uzak sunucu üzerinden dene
       try {
         const response = await fetch('https://api.zerodaysoftware.tr/api/ollama/generate', {
           method: 'POST',
@@ -186,59 +169,14 @@ export class OllamaService {
           } else {
             return { message: { role: 'assistant', content: data.response || data.content || JSON.stringify(data) } };
           }
+        } else {
+          console.error('❌ Uzak Ollama sunucusu hata:', response.status);
+          throw new Error(`Uzak Ollama sunucusu hata: ${response.status}`);
         }
       } catch (error) {
-        console.log('🔄 Uzak sunucu isteği başarısız, yerel kontrol deneniyor...');
+        console.error('❌ Uzak Ollama sunucusu erişilemiyor:', error);
+        throw new Error('Ollama sunucusu şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.');
       }
-
-      // Yerel kontrol
-      if (!config.apiUrl) {
-        throw new Error('Ollama API URL is not configured');
-      }
-
-      // Mesajları Ollama formatına çevir
-      const prompt = this.formatMessagesForOllama(messages);
-
-      const localRequestBody = {
-        model,
-        prompt,
-        stream,
-        options: {
-          temperature,
-          num_predict: maxTokens,
-        }
-      };
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 saniye timeout
-      
-      const response = await fetch(`${config.apiUrl}/api/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(localRequestBody),
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Ollama API Error:', response.status, errorText);
-        throw new Error(`Ollama API Error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('✅ Ollama Response (Local):', data);
-
-      // Yerel Ollama yanıtını normalize et
-      return {
-        message: {
-          role: 'assistant',
-          content: data.response || data.content || 'Yanıt alınamadı'
-        }
-      };
     } catch (error) {
       console.error('❌ Ollama sendMessage error:', error);
       throw error;
