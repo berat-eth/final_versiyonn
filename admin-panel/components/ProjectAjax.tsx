@@ -239,7 +239,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (salesData.ok) {
                         const data = await salesData.json()
-                        enhancedPrompt += `\n\nGÜNCEL SATIŞ VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 5 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
+                        enhancedPrompt += `\n\nGÜNCEL SATIŞ VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
                     }
                 } catch (error) {
                     console.log('Satış verisi alınamadı:', error)
@@ -260,7 +262,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (productData.ok) {
                         const data = await productData.json()
-                        enhancedPrompt += `\n\nGÜNCEL ÜRÜN VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 5 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
+                        enhancedPrompt += `\n\nGÜNCEL ÜRÜN VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
                     }
                 } catch (error) {
                     console.log('Ürün verisi alınamadı:', error)
@@ -281,7 +285,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (customerData.ok) {
                         const data = await customerData.json()
-                        enhancedPrompt += `\n\nGÜNCEL MÜŞTERİ VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 5 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
+                        enhancedPrompt += `\n\nGÜNCEL MÜŞTERİ VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
                     }
                 } catch (error) {
                     console.log('Müşteri verisi alınamadı:', error)
@@ -302,7 +308,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (categoryData.ok) {
                         const data = await categoryData.json()
-                        enhancedPrompt += `\n\nGÜNCEL KATEGORİ VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 5 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
+                        enhancedPrompt += `\n\nGÜNCEL KATEGORİ VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
                     }
                 } catch (error) {
                     console.log('Kategori verisi alınamadı:', error)
@@ -323,7 +331,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (analyticsData.ok) {
                         const data = await analyticsData.json()
-                        enhancedPrompt += `\n\nGÜNCEL ANALİTİK VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 5 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
+                        enhancedPrompt += `\n\nGÜNCEL ANALİTİK VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
                     }
                 } catch (error) {
                     console.log('Analitik verisi alınamadı:', error)
@@ -344,7 +354,9 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
                     
                     if (stockData.ok) {
                         const data = await stockData.json()
-                        enhancedPrompt += `\n\nGÜNCEL STOK VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                        // Veriyi sınırla - sadece ilk 5 kayıt
+                        const limitedData = Array.isArray(data) ? data.slice(0, 5) : data
+                        enhancedPrompt += `\n\nGÜNCEL STOK VERİLERİ (Son 5 kayıt):\n${JSON.stringify(limitedData, null, 2)}`
                     }
                 } catch (error) {
                     console.log('Stok verisi alınamadı:', error)
