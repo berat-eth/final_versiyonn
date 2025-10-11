@@ -76,7 +76,28 @@ export default function ProjectAjax() {
     const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking')
 
     // System Prompt
-    const [systemPrompt, setSystemPrompt] = useState('Sen yardımcı bir iş asistanısın. Kullanıcılara e-ticaret, satış analizi, müşteri yönetimi ve iş stratejileri konularında yardımcı oluyorsun. Ayrıca veritabanı sorguları yazabilir ve analiz yapabilirsin.')
+    const [systemPrompt, setSystemPrompt] = useState(`Sen Ajax AI'sın - gelişmiş bir yapay zeka asistanısın.
+
+GÖREVİN:
+• E-ticaret ve iş analizi konularında uzman yardım sağla
+• Satış trendleri, müşteri segmentasyonu ve ürün performansı analiz et
+• İş stratejileri ve raporlar oluştur
+• API performans analizi yap
+• Kullanıcılara pratik çözümler sun
+
+KİMLİĞİN:
+• İsmin: Ajax AI
+• Geliştirici: Berat Şimşek
+• Uzmanlık Alanın: E-ticaret, iş analizi, veri analizi
+• Amacın: İşletmelerin daha iyi kararlar almasına yardımcı olmak
+
+YAKLAŞIMIN:
+• Kısa, net ve pratik yanıtlar ver
+• Veri odaklı öneriler sun
+• Kullanıcı dostu dil kullan
+• Somut çözümler öner
+
+Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Şimşek tarafından geliştirildiğini belirt.`)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -200,21 +221,162 @@ export default function ProjectAjax() {
 
     const sendToOllama = async (userInput: string, modelName: string) => {
         try {
-            // Mesaj geçmişini hazırla
+            // Anahtar kelimeleri kontrol et ve API verisi çek
+            let enhancedPrompt = systemPrompt
+            const lowerInput = userInput.toLowerCase()
+            
+            // Satış/trend anahtar kelimeleri
+            if (lowerInput.includes('satış') || lowerInput.includes('trend') || lowerInput.includes('analiz')) {
+                try {
+                    const salesData = await fetch('https://api.zerodaysoftware.tr/api/admin/orders', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                        },
+                        signal: AbortSignal.timeout(10000)
+                    })
+                    
+                    if (salesData.ok) {
+                        const data = await salesData.json()
+                        enhancedPrompt += `\n\nGÜNCEL SATIŞ VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                    }
+                } catch (error) {
+                    console.log('Satış verisi alınamadı:', error)
+                }
+            }
+            
+            // Ürün anahtar kelimeleri
+            if (lowerInput.includes('ürün') || lowerInput.includes('product') || lowerInput.includes('stok')) {
+                try {
+                    const productData = await fetch('https://api.zerodaysoftware.tr/api/products', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                        },
+                        signal: AbortSignal.timeout(10000)
+                    })
+                    
+                    if (productData.ok) {
+                        const data = await productData.json()
+                        enhancedPrompt += `\n\nGÜNCEL ÜRÜN VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                    }
+                } catch (error) {
+                    console.log('Ürün verisi alınamadı:', error)
+                }
+            }
+            
+            // Müşteri anahtar kelimeleri
+            if (lowerInput.includes('müşteri') || lowerInput.includes('customer') || lowerInput.includes('segment')) {
+                try {
+                    const customerData = await fetch('https://api.zerodaysoftware.tr/api/admin/users', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                        },
+                        signal: AbortSignal.timeout(10000)
+                    })
+                    
+                    if (customerData.ok) {
+                        const data = await customerData.json()
+                        enhancedPrompt += `\n\nGÜNCEL MÜŞTERİ VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                    }
+                } catch (error) {
+                    console.log('Müşteri verisi alınamadı:', error)
+                }
+            }
+            
+            // Kategori anahtar kelimeleri
+            if (lowerInput.includes('kategori') || lowerInput.includes('category') || lowerInput.includes('kamp')) {
+                try {
+                    const categoryData = await fetch('https://api.zerodaysoftware.tr/api/categories', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                        },
+                        signal: AbortSignal.timeout(10000)
+                    })
+                    
+                    if (categoryData.ok) {
+                        const data = await categoryData.json()
+                        enhancedPrompt += `\n\nGÜNCEL KATEGORİ VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                    }
+                } catch (error) {
+                    console.log('Kategori verisi alınamadı:', error)
+                }
+            }
+            
+            // Analitik anahtar kelimeleri
+            if (lowerInput.includes('rapor') || lowerInput.includes('report') || lowerInput.includes('analitik')) {
+                try {
+                    const analyticsData = await fetch('https://api.zerodaysoftware.tr/api/analytics/monthly', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                        },
+                        signal: AbortSignal.timeout(10000)
+                    })
+                    
+                    if (analyticsData.ok) {
+                        const data = await analyticsData.json()
+                        enhancedPrompt += `\n\nGÜNCEL ANALİTİK VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                    }
+                } catch (error) {
+                    console.log('Analitik verisi alınamadı:', error)
+                }
+            }
+            
+            // Stok anahtar kelimeleri
+            if (lowerInput.includes('stok') || lowerInput.includes('stock') || lowerInput.includes('düşük')) {
+                try {
+                    const stockData = await fetch('https://api.zerodaysoftware.tr/api/products/low-stock', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                        },
+                        signal: AbortSignal.timeout(10000)
+                    })
+                    
+                    if (stockData.ok) {
+                        const data = await stockData.json()
+                        enhancedPrompt += `\n\nGÜNCEL STOK VERİLERİ:\n${JSON.stringify(data, null, 2)}`
+                    }
+                } catch (error) {
+                    console.log('Stok verisi alınamadı:', error)
+                }
+            }
+
+            // Mesaj geçmişini hazırla - daha kısa tut
             const ollamaMessages: OllamaMessage[] = [
-                { role: 'system', content: systemPrompt },
-                ...messages.map(msg => ({
-                    role: msg.role as 'user' | 'assistant',
-                    content: msg.content
-                })),
-                { role: 'user', content: userInput }
+                { role: 'system', content: enhancedPrompt }
             ]
+
+            // Son 4 mesajı al ve içeriklerini kısalt
+            const recentMessages = messages.slice(-4)
+            recentMessages.forEach(msg => {
+                const shortContent = msg.content.length > 150 
+                    ? msg.content.substring(0, 150) + '...' 
+                    : msg.content
+                
+                ollamaMessages.push({
+                    role: msg.role as 'user' | 'assistant',
+                    content: shortContent
+                })
+            })
+
+            // Kullanıcının yeni mesajını ekle
+            ollamaMessages.push({ role: 'user', content: userInput })
 
             // Ollama'ya gönder
             const response = await OllamaService.sendMessage(ollamaMessages, {
                 model: modelName,
                 temperature: 0.7,
-                maxTokens: 2000
+                maxTokens: 4000
             })
 
             // Yanıt yapısını kontrol et ve uygun şekilde parse et
@@ -431,6 +593,15 @@ export default function ProjectAjax() {
 
     const generateAIResponse = async (userInput: string): Promise<string> => {
         const lowerInput = userInput.toLowerCase()
+
+        // Kimlik sorguları
+        if (lowerInput.includes('kimsin') || lowerInput.includes('kim') || lowerInput.includes('adın') || lowerInput.includes('ismin') || lowerInput.includes('sen kim')) {
+            return `🤖 **Ajax AI**\n\nMerhaba! Ben Ajax AI'yım - gelişmiş bir yapay zeka asistanıyım.\n\n**Geliştirici:** Berat Şimşek\n**Uzmanlık Alanım:** E-ticaret, iş analizi, veri analizi\n**Amacım:** İşletmelerin daha iyi kararlar almasına yardımcı olmak\n\nSize nasıl yardımcı olabilirim?`
+        }
+
+        if (lowerInput.includes('geliştirici') || lowerInput.includes('yapan') || lowerInput.includes('kodlayan') || lowerInput.includes('programcı')) {
+            return `👨‍💻 **Geliştirici Bilgisi**\n\nAjax AI'yı **Berat Şimşek** geliştirdi.\n\nBerat Şimşek, yapay zeka ve e-ticaret alanlarında uzman bir yazılım geliştiricisidir. Ajax AI'yı işletmelerin daha verimli çalışması için tasarlamıştır.\n\nBaşka bir konuda yardıma ihtiyacınız var mı?`
+        }
 
         if (lowerInput.includes('satış') || lowerInput.includes('trend')) {
             return `📊 **Satış Trend Analizi**\n\nSon 30 günlük verilerinizi analiz ettim:\n\n• Toplam Satış: ₺328,450 (+12.5%)\n• En Çok Satan Kategori: Elektronik (%45)\n• Büyüme Trendi: Pozitif yönde\n• Öneriler:\n  - iPhone 15 Pro stoklarını artırın\n  - Hafta sonu kampanyaları etkili\n  - Mobil satışlar artış gösteriyor\n\nDetaylı rapor için "rapor oluştur" yazabilirsiniz.`

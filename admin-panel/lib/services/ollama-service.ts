@@ -35,7 +35,7 @@ export class OllamaService {
     apiUrl: 'http://localhost:11434',
     model: 'gemma3:1b',
     temperature: 0.7,
-    maxTokens: 2000
+    maxTokens: 8000
   };
 
   // Konfigürasyonu al
@@ -128,7 +128,7 @@ export class OllamaService {
 
       const model = options?.model || config.model;
       const temperature = options?.temperature ?? config.temperature ?? 0.7;
-      const maxTokens = options?.maxTokens ?? config.maxTokens ?? 2000;
+      const maxTokens = options?.maxTokens ?? config.maxTokens ?? 8000;
       const stream = options?.stream ?? false;
 
       const requestBody = {
