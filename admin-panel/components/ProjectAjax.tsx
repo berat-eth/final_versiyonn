@@ -384,11 +384,16 @@ Kimliğin hakkında soru sorulduğunda kendini Ajax AI olarak tanıt ve Berat Ş
             // Kullanıcının yeni mesajını ekle
             ollamaMessages.push({ role: 'user', content: userInput })
 
+            // Enhanced prompt'u sınırla (maksimum 2000 karakter)
+            if (enhancedPrompt.length > 2000) {
+                enhancedPrompt = enhancedPrompt.substring(0, 2000) + '...\n[Veri kısaltıldı]'
+            }
+
             // Ollama'ya gönder
             const response = await OllamaService.sendMessage(ollamaMessages, {
                 model: modelName,
                 temperature: 0.7,
-                maxTokens: 4000
+                maxTokens: 3000
             })
 
             // Yanıt yapısını kontrol et ve uygun şekilde parse et
