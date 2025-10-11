@@ -18,6 +18,9 @@ export default function Header() {
     } catch { setLogs([]) }
   }
   useEffect(() => {
+    // SSR kontrolü
+    if (typeof window === 'undefined') return
+    
     loadLogs()
     const handler = () => loadLogs()
     window.addEventListener('api-log-updated', handler)
@@ -92,7 +95,9 @@ export default function Header() {
             whileTap={{ scale: 0.95 }}
             onClick={() => {
               try { sessionStorage.removeItem('healthChecked') } catch {}
-              window.dispatchEvent(new CustomEvent('open-health-modal'))
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('open-health-modal'))
+              }
             }}
             className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm inline-flex items-center gap-2"
             title="Sistem Durumu"

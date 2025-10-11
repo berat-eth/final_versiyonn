@@ -401,7 +401,7 @@ export default function ProductionPlanning() {
         alert(`${selectedProduct.name} için toplam ${totalQty} adet üretim talebi oluşturuldu!`)
     setShowSizeModal(false)
         // Sayfayı yenile veya listeyi güncelle
-        window.location.reload()
+        typeof window !== 'undefined' && window.location.reload()
       } else {
         throw new Error(result.message || 'Üretim talebi oluşturulamadı')
       }

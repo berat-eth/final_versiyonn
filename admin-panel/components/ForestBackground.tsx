@@ -12,8 +12,10 @@ export default function ForestBackground() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
+    if (typeof window !== 'undefined') {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
 
     // Particles (fireflies)
     const particles: Array<{
@@ -133,14 +135,20 @@ export default function ForestBackground() {
     animate()
 
     const handleResize = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+      if (typeof window !== 'undefined') {
+        canvas.width = window.innerWidth
+        canvas.height = window.innerHeight
+      }
     }
 
-    window.addEventListener('resize', handleResize)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleResize)
+    }
 
     return () => {
-      window.removeEventListener('resize', handleResize)
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize)
+      }
     }
   }, [])
 

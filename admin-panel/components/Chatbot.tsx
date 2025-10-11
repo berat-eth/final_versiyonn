@@ -81,9 +81,11 @@ export default function Chatbot() {
 
   // Bildirim sesi çalma fonksiyonu - Uzun ve melodik zil sesi
   const playNotificationSound = () => {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const audioContext = typeof window !== 'undefined' ? new (window.AudioContext || (window as any).webkitAudioContext)() : null
 
     // Birinci nota (Do)
+    if (!audioContext) return
+    
     const playNote = (frequency: number, startTime: number, duration: number) => {
       const oscillator = audioContext.createOscillator()
       const gainNode = audioContext.createGain()

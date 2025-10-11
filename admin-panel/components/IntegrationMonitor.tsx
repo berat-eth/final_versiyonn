@@ -300,7 +300,7 @@ export default function IntegrationMonitor() {
               <button
                 onClick={() => {
                   // Entegrasyon sayfasına git
-                  window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: integration.id } }))
+                  typeof window !== 'undefined' && window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: integration.id } }))
                 }}
                 className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
               >

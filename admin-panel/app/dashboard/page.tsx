@@ -69,6 +69,9 @@ export default function DashboardPage() {
 
   // Hızlı eylemler ve bileşenler arası basit gezinme için custom event dinleyicisi
   useEffect(() => {
+    // SSR kontrolü
+    if (typeof window === 'undefined') return
+    
     const handler = (e: Event) => {
       const detail = (e as CustomEvent)?.detail as { tab?: string }
       if (detail?.tab) setActiveTab(String(detail.tab))
@@ -77,11 +80,17 @@ export default function DashboardPage() {
     // Header'dan modal açma eventi
     const openHealth = () => setShowHealthModal(true)
     window.addEventListener('open-health-modal', openHealth)
-    return () => window.removeEventListener('goto-tab', handler as EventListener)
+    return () => {
+      window.removeEventListener('goto-tab', handler as EventListener)
+      window.removeEventListener('open-health-modal', openHealth)
+    }
   }, [])
 
   // Açılışta sağlık kontrolü
   useEffect(() => {
+    // SSR kontrolü
+    if (typeof window === 'undefined') return
+    
     try {
       const already = sessionStorage.getItem('healthChecked')
       if (already) return

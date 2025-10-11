@@ -101,7 +101,7 @@ export default function Orders() {
       const data = (res as any)?.data
       if (data) {
         const html = generateShippingLabelHTML(data)
-        const w = window.open('', '_blank')
+        const w = typeof window !== 'undefined' ? window.open('', '_blank') : null
         if (w) {
           w.document.open()
           w.document.write(html)
@@ -576,7 +576,7 @@ export default function Orders() {
                 <div className="flex space-x-3">
                   <button
                     onClick={() => {
-                      window.open(`https://www.google.com/search?q=${selectedOrderForAction.trackingNumber}`, '_blank')
+                      typeof window !== 'undefined' && window.open(`https://www.google.com/search?q=${selectedOrderForAction.trackingNumber}`, '_blank')
                     }}
                     className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium"
                   >
