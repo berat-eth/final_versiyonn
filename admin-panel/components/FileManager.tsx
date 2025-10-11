@@ -164,7 +164,7 @@ export default function FileManager() {
                   {it.type==='file' && (
                     <>
                       <button onClick={(e)=>{ e.stopPropagation(); handleEditFile(it.path) }} title="Düzenle" className="p-2 hover:bg-slate-100 rounded-lg"><Edit className="w-4 h-4"/></button>
-                      <a href={`#`} onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); typeof window !== 'undefined' && window.open(`${location.origin}/api/admin/files/download?path=${encodeURIComponent(it.path)}`,'_blank') }} title="İndir" className="p-2 hover:bg-slate-100 rounded-lg"><Download className="w-4 h-4"/></a>
+                      <a href={`#`} onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); typeof window !== 'undefined' && window.open(`${window.location.origin}/api/admin/files/download?path=${encodeURIComponent(it.path)}`,'_blank') }} title="İndir" className="p-2 hover:bg-slate-100 rounded-lg"><Download className="w-4 h-4"/></a>
                     </>
                   )}
                   <button onClick={async (e)=>{ e.stopPropagation(); try{ await api.delete<any>(`/admin/files?path=${encodeURIComponent(it.path)}`); await loadList(cwd) } catch { alert('Silinemedi'); } }} title="Sil" className="p-2 hover:bg-slate-100 rounded-lg"><Trash2 className="w-4 h-4"/></button>

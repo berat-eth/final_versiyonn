@@ -11,6 +11,8 @@ import { api } from '@/lib/api'
 
 export default function Orders() {
   const copyToClipboard = async (text: string) => {
+    if (typeof window === 'undefined') return
+    
     try {
       await navigator.clipboard.writeText(text)
       alert('Kopyalandı')
@@ -246,15 +248,17 @@ export default function Orders() {
                   .map(v => `"${v}"`).join(',')
                 csvRows.push(row)
               })
-              const blob = new Blob(['\ufeff' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url
-              a.download = `siparisler-${new Date().toISOString().slice(0,10)}.csv`
-              document.body.appendChild(a)
-              a.click()
-              document.body.removeChild(a)
-              URL.revokeObjectURL(url)
+              if (typeof window !== 'undefined') {
+                const blob = new Blob(['\ufeff' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `siparisler-${new Date().toISOString().slice(0,10)}.csv`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+              }
             } catch {
               alert('Rapor indirilemedi')
             }

@@ -13,8 +13,10 @@ export default function Header() {
 
   const loadLogs = () => {
     try {
-      const l = JSON.parse(localStorage.getItem('apiLogs') || '[]')
-      setLogs(l)
+      if (typeof window !== 'undefined') {
+        const l = JSON.parse(localStorage.getItem('apiLogs') || '[]')
+        setLogs(l)
+      }
     } catch { setLogs([]) }
   }
   useEffect(() => {
@@ -43,7 +45,11 @@ export default function Header() {
   }
 
   const copy = (text: string) => {
-    try { navigator.clipboard.writeText(text) } catch {}
+    try { 
+      if (typeof window !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(text) 
+      }
+    } catch {}
   }
 
   return (
@@ -126,7 +132,7 @@ export default function Header() {
               <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Ara (GET 200 /products)" className="px-2 py-1 text-xs bg-slate-100 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={()=>{localStorage.removeItem('apiLogs'); setLogs([])}} className="text-xs text-red-600 hover:underline">Temizle</button>
+              <button onClick={()=>{if (typeof window !== 'undefined') localStorage.removeItem('apiLogs'); setLogs([])}} className="text-xs text-red-600 hover:underline">Temizle</button>
               <button onClick={()=>{setExpanded({})}} className="text-xs text-slate-600 hover:underline">Daralt</button>
             </div>
           </div>
