@@ -203,7 +203,9 @@ export default function Dashboard() {
         }
 
         if (statsRes.success && statsRes.data) {
-          setTotalProducts(Number(statsRes.data.totalProducts) || 0)
+          // Sadece stoğu olan ürünleri say
+          const activeProducts = productsRes.data?.products?.filter((p: any) => (p.stock ?? 0) > 0) || []
+          setTotalProducts(activeProducts.length)
           setTotalOrders(Number(statsRes.data.totalOrders) || 0)
           setTotalCustomers(Number(statsRes.data.totalCustomers) || 0)
           setTotalRevenue(Number((statsRes.data as any).totalRevenue) || 0)
@@ -213,7 +215,9 @@ export default function Dashboard() {
         if ((adminOrders as any)?.success && (adminOrders as any).data) {
           const orders = (adminOrders as any).data as any[]
           if (!statsRes.success || !statsRes.data) {
-            setTotalProducts(productsRes.data?.total || (productsRes as any)?.data?.length || 0)
+            // Sadece stoğu olan ürünleri say
+            const activeProducts = productsRes.data?.products?.filter((p: any) => (p.stock ?? 0) > 0) || []
+            setTotalProducts(activeProducts.length)
             setTotalOrders(orders.length)
             setTotalRevenue(orders.reduce((s: number, o: any) => s + (Number(o.totalAmount) || 0), 0))
           }

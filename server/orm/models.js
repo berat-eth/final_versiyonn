@@ -51,6 +51,32 @@ const Cart = sequelize.define('cart', {
   quantity: { type: DataTypes.INTEGER, allowNull: false },
 });
 
+// Google Maps scraping job and leads
+const GmapsJob = sequelize.define('gmaps_jobs', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  jobId: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  query: { type: DataTypes.STRING(255), allowNull: false },
+  city: { type: DataTypes.STRING(128), allowNull: false },
+  status: { type: DataTypes.STRING(32), allowNull: false, defaultValue: 'queued' }, // queued|running|completed|failed|blocked
+  total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  processed: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  error: { type: DataTypes.TEXT },
+});
+
+const GmapsLead = sequelize.define('gmaps_leads', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  jobId: { type: DataTypes.STRING(64), allowNull: false },
+  query: { type: DataTypes.STRING(255), allowNull: false },
+  city: { type: DataTypes.STRING(128), allowNull: false },
+  name: { type: DataTypes.STRING(255) },
+  address: { type: DataTypes.STRING(512) },
+  phone: { type: DataTypes.STRING(64) },
+  website: { type: DataTypes.STRING(512) },
+  locationUrl: { type: DataTypes.STRING(1024) },
+  lat: { type: DataTypes.DECIMAL(10,6) },
+  lng: { type: DataTypes.DECIMAL(10,6) },
+});
+
 // Associations minimal
 User.belongsTo(Tenant, { foreignKey: 'tenantId' });
 Order.belongsTo(User, { foreignKey: 'userId' });
@@ -59,6 +85,6 @@ OrderItem.belongsTo(Product, { foreignKey: 'productId' });
 Cart.belongsTo(User, { foreignKey: 'userId' });
 Cart.belongsTo(Product, { foreignKey: 'productId' });
 
-module.exports = { sequelize, Tenant, User, Product, Order, OrderItem, Cart };
+module.exports = { sequelize, Tenant, User, Product, Order, OrderItem, Cart, GmapsJob, GmapsLead };
 
 

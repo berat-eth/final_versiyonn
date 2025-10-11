@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { api } from '@/lib/api'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Loader2, ShieldCheck, AlertTriangle, X } from 'lucide-react'
 import Dashboard from '@/components/Dashboard'
 import Sidebar from '@/components/Sidebar'
 import Products from '@/components/Products'
@@ -59,6 +62,10 @@ import IntegrationMonitor from '@/components/IntegrationMonitor'
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [showHealthModal, setShowHealthModal] = useState(false)
+  const [healthLoading, setHealthLoading] = useState(false)
+  const [health, setHealth] = useState<any | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
 
   // Hızlı eylemler ve bileşenler arası basit gezinme için custom event dinleyicisi
   useEffect(() => {
@@ -67,7 +74,32 @@ export default function DashboardPage() {
       if (detail?.tab) setActiveTab(String(detail.tab))
     }
     window.addEventListener('goto-tab', handler as EventListener)
+    // Header'dan modal açma eventi
+    const openHealth = () => setShowHealthModal(true)
+    window.addEventListener('open-health-modal', openHealth)
     return () => window.removeEventListener('goto-tab', handler as EventListener)
+  }, [])
+
+  // Açılışta sağlık kontrolü
+  useEffect(() => {
+    try {
+      const already = sessionStorage.getItem('healthChecked')
+      if (already) return
+    } catch {}
+    setShowHealthModal(true)
+    setHealthLoading(true)
+    setHealthError(null)
+    api.get<any>('/health')
+      .then((res) => {
+        setHealth(res)
+      })
+      .catch((err) => {
+        setHealthError(err?.message || 'Sağlık kontrolü başarısız')
+      })
+      .finally(() => {
+        setHealthLoading(false)
+        try { sessionStorage.setItem('healthChecked', '1') } catch {}
+      })
   }, [])
 
   return (
@@ -76,6 +108,73 @@ export default function DashboardPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto p-6">
+          <AnimatePresence>
+            {showHealthModal && (
+              <div className="fixed inset-0 z-[9999]">
+                <div className="absolute inset-0 bg-black/40" onClick={() => setShowHealthModal(false)}></div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  className="absolute left-1/2 top-10 -translate-x-1/2 w-[90%] max-w-xl bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between p-4 border-b">
+                    <div className="flex items-center gap-2">
+                      {healthLoading ? (
+                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                      ) : healthError || health?.success === false ? (
+                        <AlertTriangle className="w-5 h-5 text-amber-600" />
+                      ) : (
+                        <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                      )}
+                      <h3 className="text-slate-800 font-semibold">Sistem Sağlık Kontrolü</h3>
+                    </div>
+                    <button onClick={() => setShowHealthModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+                      <X className="w-5 h-5 text-slate-500" />
+                    </button>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {healthLoading && (
+                      <div className="flex items-center gap-3 text-slate-600">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Kontrol ediliyor...
+                      </div>
+                    )}
+                    {!healthLoading && (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div className="p-3 rounded-lg bg-slate-50">
+                            <div className="text-slate-500">Sunucu</div>
+                            <div className="font-medium text-slate-800">{healthError ? 'HATA' : 'OK'}</div>
+                          </div>
+                          <div className="p-3 rounded-lg bg-slate-50">
+                            <div className="text-slate-500">Veritabanı</div>
+                            <div className="font-medium text-slate-800">{health?.database || (healthError ? 'bilinmiyor' : 'ok')}</div>
+                          </div>
+                          <div className="p-3 rounded-lg bg-slate-50">
+                            <div className="text-slate-500">Uptime</div>
+                            <div className="font-mono text-slate-800 text-xs">{typeof health?.uptime !== 'undefined' ? `${Math.round(health.uptime)} sn` : '-'}</div>
+                          </div>
+                          <div className="p-3 rounded-lg bg-slate-50">
+                            <div className="text-slate-500">Saat</div>
+                            <div className="font-mono text-slate-800 text-xs">{health?.timestamp || new Date().toISOString()}</div>
+                          </div>
+                        </div>
+                        {healthError && (
+                          <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                            {healthError}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <div className="p-4 border-t bg-slate-50 flex items-center justify-end">
+                    <button onClick={() => setShowHealthModal(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-900">Tamam</button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'customers' && <Customers />}
           {activeTab === 'orders' && <Orders />}

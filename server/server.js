@@ -30,6 +30,9 @@ const compression = require('compression');
 const DatabaseSecurity = require('./security/database-security');
 const InputValidation = require('./security/input-validation');
 
+// Ollama integration
+const axios = require('axios');
+
 // Security utilities
 const SALT_ROUNDS = 12;
 
@@ -207,6 +210,7 @@ function cleanProductData(product) {
 const os = require('os');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Network detection helper
@@ -814,6 +818,136 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Ollama API endpoints
+app.get('/api/ollama/health', async (req, res) => {
+  try {
+    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    
+    const response = await axios.get(`${ollamaUrl}/api/tags`, {
+      timeout: 5000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const models = response.data.models?.map(model => model.name) || [];
+    
+    res.json({
+      success: true,
+      status: 'online',
+      models,
+      url: ollamaUrl,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Ollama health check failed:', error.message);
+    res.json({
+      success: false,
+      status: 'offline',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.post('/api/ollama/generate', async (req, res) => {
+  try {
+    const { messages, model, temperature, maxTokens } = req.body;
+    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Messages array is required'
+      });
+    }
+
+    // Mesajları Ollama formatına çevir
+    let prompt = '';
+    for (const message of messages) {
+      if (message.role === 'system') {
+        prompt += `System: ${message.content}\n\n`;
+      } else if (message.role === 'user') {
+        prompt += `Human: ${message.content}\n\n`;
+      } else if (message.role === 'assistant') {
+        prompt += `Assistant: ${message.content}\n\n`;
+      }
+    }
+    prompt += 'Assistant: ';
+
+    const requestBody = {
+      model: model || 'gemma2:1b',
+      prompt,
+      stream: false,
+      options: {
+        temperature: temperature || 0.7,
+        num_predict: maxTokens || 2000,
+      }
+    };
+
+    console.log('🤖 Ollama Request:', { model: requestBody.model, temperature: requestBody.options.temperature });
+
+    const response = await axios.post(`${ollamaUrl}/api/generate`, requestBody, {
+      timeout: 60000, // 60 saniye timeout
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: response.data,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Ollama generate failed:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.post('/api/ollama/pull', async (req, res) => {
+  try {
+    const { model } = req.body;
+    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    
+    if (!model) {
+      return res.status(400).json({
+        success: false,
+        error: 'Model name is required'
+      });
+    }
+
+    console.log(`📥 Pulling model: ${model}`);
+
+    const response = await axios.post(`${ollamaUrl}/api/pull`, {
+      name: model
+    }, {
+      timeout: 300000, // 5 dakika timeout
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Model ${model} is being pulled`,
+      data: response.data,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`❌ Ollama pull failed for model ${req.body.model}:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Security endpoints
 // Security endpoints removed - keeping only basic API key authentication
 
@@ -857,6 +991,15 @@ try {
   console.log('✅ Stories routes mounted at /api/admin/stories');
 } catch (e) {
   console.warn('⚠️ Stories routes could not be mounted:', e.message);
+}
+
+// Scrapers Routes
+try {
+  const scrapersRoutes = require('./routes/scrapers');
+  app.use('/api/admin/scrapers', scrapersRoutes);
+  console.log('✅ Scrapers routes mounted at /api/admin/scrapers');
+} catch (e) {
+  console.warn('⚠️ Scrapers routes could not be mounted:', e.message);
 }
 
 // Helper: generate unique 8-digit user_id

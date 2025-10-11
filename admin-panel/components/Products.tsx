@@ -177,7 +177,8 @@ export default function Products() {
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'Tümü' || product.category === selectedCategory
-    return matchesCategory
+    const hasStock = (product.stock ?? 0) > 0
+    return matchesCategory && hasStock
   })
 
   const openEdit = (p: Product) => {

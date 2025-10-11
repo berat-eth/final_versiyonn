@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Send, Mic, Image as ImageIcon, Paperclip, RotateCcw, Copy, ThumbsUp, ThumbsDown, Download, Settings, Zap, Brain, MessageSquare, User, Bot, Loader2, ChevronDown, Code, FileText, Lightbulb, TrendingUp } from 'lucide-react'
+import { Sparkles, Send, Mic, Image as ImageIcon, Paperclip, RotateCcw, Copy, ThumbsUp, ThumbsDown, Download, Settings, Zap, Brain, MessageSquare, User, Bot, Loader2, ChevronDown, Code, FileText, Lightbulb, TrendingUp, Server, Wifi, WifiOff } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { OllamaService, OllamaConfig, OllamaMessage } from '@/lib/services/ollama-service'
 
 interface Message {
     id: string
@@ -29,7 +30,7 @@ export default function ProjectAjax() {
     ])
     const [input, setInput] = useState('')
     const [isTyping, setIsTyping] = useState(false)
-    const [selectedModel, setSelectedModel] = useState('gpt-4')
+    const [selectedModel, setSelectedModel] = useState('ollama-gemma2:1b')
     const [temperature, setTemperature] = useState(0.7)
     const [maxTokens, setMaxTokens] = useState(2000)
     const [showAdvanced, setShowAdvanced] = useState(false)
@@ -40,6 +41,17 @@ export default function ProjectAjax() {
     const [anthropicKey, setAnthropicKey] = useState('')
     const [googleKey, setGoogleKey] = useState('')
     const [anythingllmUrl, setAnythingllmUrl] = useState('')
+
+    // Ollama Config
+    const [ollamaConfig, setOllamaConfig] = useState<OllamaConfig>({
+        enabled: false,
+        apiUrl: 'http://localhost:11434',
+        model: 'gemma2:1b',
+        temperature: 0.7,
+        maxTokens: 2000
+    })
+    const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking')
+    const [availableModels, setAvailableModels] = useState<string[]>([])
 
     // System Prompt
     const [systemPrompt, setSystemPrompt] = useState('Sen yardımcı bir iş asistanısın. Kullanıcılara e-ticaret, satış analizi, müşteri yönetimi ve iş stratejileri konularında yardımcı oluyorsun.')
@@ -55,6 +67,10 @@ export default function ProjectAjax() {
     ]
 
     const models = [
+        { id: 'ollama-gemma2:1b', name: 'Gemma2:1b (Ollama)', description: 'Google - Hızlı ve verimli', icon: Server, provider: 'Ollama' },
+        { id: 'ollama-gemma2:2b', name: 'Gemma2:2b (Ollama)', description: 'Google - Daha güçlü', icon: Server, provider: 'Ollama' },
+        { id: 'ollama-llama3.2:1b', name: 'Llama3.2:1b (Ollama)', description: 'Meta - Kompakt', icon: Server, provider: 'Ollama' },
+        { id: 'ollama-llama3.2:3b', name: 'Llama3.2:3b (Ollama)', description: 'Meta - Dengeli', icon: Server, provider: 'Ollama' },
         { id: 'gpt-4', name: 'ChatGPT-4 Turbo', description: 'OpenAI - En güçlü', icon: Brain, provider: 'OpenAI' },
         { id: 'gpt-3.5', name: 'ChatGPT-3.5', description: 'OpenAI - Hızlı', icon: Zap, provider: 'OpenAI' },
         { id: 'claude-3-opus', name: 'Claude 3 Opus', description: 'Anthropic - Güçlü', icon: MessageSquare, provider: 'Anthropic' },
@@ -72,6 +88,33 @@ export default function ProjectAjax() {
         scrollToBottom()
     }, [messages])
 
+    // Ollama konfigürasyonunu yükle
+    useEffect(() => {
+        loadOllamaConfig()
+        checkOllamaStatus()
+    }, [])
+
+    const loadOllamaConfig = async () => {
+        try {
+            const config = await OllamaService.getConfig()
+            setOllamaConfig(config)
+        } catch (error) {
+            console.error('❌ Ollama config yüklenemedi:', error)
+        }
+    }
+
+    const checkOllamaStatus = async () => {
+        setOllamaStatus('checking')
+        try {
+            const health = await OllamaService.checkHealth()
+            setOllamaStatus(health.status)
+            setAvailableModels(health.models || [])
+        } catch (error) {
+            console.error('❌ Ollama status kontrol edilemedi:', error)
+            setOllamaStatus('offline')
+        }
+    }
+
     const handleSend = async () => {
         if (!input.trim()) return
 
@@ -83,20 +126,79 @@ export default function ProjectAjax() {
         }
 
         setMessages(prev => [...prev, userMessage])
+        const currentInput = input
         setInput('')
         setIsTyping(true)
 
-        // Simüle edilmiş AI yanıtı
-        setTimeout(() => {
+        try {
+            // Ollama modeli seçilmişse Ollama'ya gönder
+            if (selectedModel.startsWith('ollama-')) {
+                const modelName = selectedModel.replace('ollama-', '')
+                await sendToOllama(currentInput, modelName)
+            } else {
+                // Diğer modeller için simüle edilmiş yanıt
+                setTimeout(() => {
+                    const aiMessage: Message = {
+                        id: (Date.now() + 1).toString(),
+                        role: 'assistant',
+                        content: generateAIResponse(currentInput),
+                        timestamp: new Date()
+                    }
+                    setMessages(prev => [...prev, aiMessage])
+                    setIsTyping(false)
+                }, 1500)
+            }
+        } catch (error) {
+            console.error('❌ Mesaj gönderilemedi:', error)
+            const errorMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: `❌ Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+                timestamp: new Date()
+            }
+            setMessages(prev => [...prev, errorMessage])
+            setIsTyping(false)
+        }
+    }
+
+    const sendToOllama = async (userInput: string, modelName: string) => {
+        try {
+            // Mesaj geçmişini hazırla
+            const ollamaMessages: OllamaMessage[] = [
+                { role: 'system', content: systemPrompt },
+                ...messages.map(msg => ({
+                    role: msg.role as 'user' | 'assistant',
+                    content: msg.content
+                })),
+                { role: 'user', content: userInput }
+            ]
+
+            // Ollama'ya gönder
+            const response = await OllamaService.sendMessage(ollamaMessages, {
+                model: modelName,
+                temperature,
+                maxTokens
+            })
+
             const aiMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: generateAIResponse(input),
+                content: response.message.content,
                 timestamp: new Date()
             }
             setMessages(prev => [...prev, aiMessage])
             setIsTyping(false)
-        }, 1500)
+        } catch (error) {
+            console.error('❌ Ollama yanıtı alınamadı:', error)
+            const errorMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: `❌ Ollama Hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+                timestamp: new Date()
+            }
+            setMessages(prev => [...prev, errorMessage])
+            setIsTyping(false)
+        }
     }
 
     const generateAIResponse = (userInput: string): string => {
@@ -167,6 +269,19 @@ export default function ProjectAjax() {
                                 </option>
                             ))}
                         </select>
+                        <button
+                            onClick={checkOllamaStatus}
+                            className="p-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-lg border border-white/30 transition-colors"
+                            title="Ollama Durumunu Kontrol Et"
+                        >
+                            {ollamaStatus === 'checking' ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : ollamaStatus === 'online' ? (
+                                <Wifi className="w-5 h-5 text-green-400" />
+                            ) : (
+                                <WifiOff className="w-5 h-5 text-red-400" />
+                            )}
+                        </button>
                         <button
                             onClick={() => setShowSettings(true)}
                             className="p-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-lg border border-white/30 transition-colors"
@@ -509,6 +624,104 @@ export default function ProjectAjax() {
                                     </div>
                                 </div>
 
+                                {/* Ollama Configuration */}
+                                <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
+                                    <div className="flex items-center space-x-2 mb-3">
+                                        <Server className="w-5 h-5 text-green-600" />
+                                        <h4 className="font-bold text-slate-800">Ollama Konfigürasyonu</h4>
+                                    </div>
+                                    <p className="text-sm text-slate-600 mb-4">
+                                        Yerel Ollama sunucunuzu yapılandırın
+                                    </p>
+                                    
+                                    <div className="space-y-4">
+                                        <div className="flex items-center space-x-3">
+                                            <input
+                                                type="checkbox"
+                                                id="ollama-enabled"
+                                                checked={ollamaConfig.enabled}
+                                                onChange={(e) => setOllamaConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                                                className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                            />
+                                            <label htmlFor="ollama-enabled" className="text-sm font-medium text-slate-700">
+                                                Ollama'yı etkinleştir
+                                            </label>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                🌐 Ollama API URL
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={ollamaConfig.apiUrl}
+                                                onChange={(e) => setOllamaConfig(prev => ({ ...prev, apiUrl: e.target.value }))}
+                                                placeholder="http://localhost:11434"
+                                                className="w-full px-4 py-3 bg-white border border-green-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                🤖 Varsayılan Model
+                                            </label>
+                                            <select
+                                                value={ollamaConfig.model}
+                                                onChange={(e) => setOllamaConfig(prev => ({ ...prev, model: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white border border-green-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                                            >
+                                                <option value="gemma2:1b">Gemma2:1b (Önerilen)</option>
+                                                <option value="gemma2:2b">Gemma2:2b</option>
+                                                <option value="llama3.2:1b">Llama3.2:1b</option>
+                                                <option value="llama3.2:3b">Llama3.2:3b</option>
+                                                {availableModels.map(model => (
+                                                    <option key={model} value={model}>{model}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center space-x-2">
+                                                {ollamaStatus === 'checking' ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                                ) : ollamaStatus === 'online' ? (
+                                                    <Wifi className="w-4 h-4 text-green-600" />
+                                                ) : (
+                                                    <WifiOff className="w-4 h-4 text-red-600" />
+                                                )}
+                                                <span className="text-sm font-medium text-slate-700">
+                                                    Durum: {ollamaStatus === 'checking' ? 'Kontrol ediliyor...' : 
+                                                           ollamaStatus === 'online' ? 'Çevrimiçi' : 'Çevrimdışı'}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={checkOllamaStatus}
+                                                className="px-3 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                                            >
+                                                Yenile
+                                            </button>
+                                        </div>
+
+                                        {availableModels.length > 0 && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                    📦 Mevcut Modeller ({availableModels.length})
+                                                </label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {availableModels.map(model => (
+                                                        <span
+                                                            key={model}
+                                                            className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-lg"
+                                                        >
+                                                            {model}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 {/* API Keys */}
                                 <div>
                                     <h4 className="font-bold text-slate-800 mb-4 flex items-center">
@@ -607,9 +820,15 @@ export default function ProjectAjax() {
                                 {/* Save Button */}
                                 <div className="flex space-x-3">
                                     <button
-                                        onClick={() => {
-                                            alert('✅ Ayarlar kaydedildi!')
-                                            setShowSettings(false)
+                                        onClick={async () => {
+                                            try {
+                                                await OllamaService.saveConfig(ollamaConfig)
+                                                alert('✅ Ayarlar kaydedildi!')
+                                                setShowSettings(false)
+                                                checkOllamaStatus()
+                                            } catch (error) {
+                                                alert('❌ Ayarlar kaydedilemedi: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'))
+                                            }
                                         }}
                                         className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium"
                                     >

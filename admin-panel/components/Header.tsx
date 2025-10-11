@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, Bell, Mail, User, List } from 'lucide-react'
+import { Search, Bell, Mail, User, List, Shield } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
  
@@ -84,6 +84,20 @@ export default function Header() {
             title="API Logları"
           >
             <List className="w-6 h-6 text-slate-600" />
+          </motion.button>
+
+          {/* Sistem Durumu butonu */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              try { sessionStorage.removeItem('healthChecked') } catch {}
+              window.dispatchEvent(new CustomEvent('open-health-modal'))
+            }}
+            className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm inline-flex items-center gap-2"
+            title="Sistem Durumu"
+          >
+            <Shield className="w-4 h-4" /> Sistem Durumu
           </motion.button>
 
           <div className="h-8 w-px bg-slate-200"></div>
