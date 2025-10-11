@@ -187,42 +187,14 @@ export default function ProjectAjax() {
             }
         } catch (error) {
             console.error('❌ Mesaj gönderilemedi:', error)
-            
-            // Hata durumunda simüle edilmiş yanıt ver
-            setTimeout(async () => {
-                const content = await generateAIResponse(currentInput)
-                
-                // Streaming animasyonu başlat
-                setIsStreaming(true)
-                setStreamingContent('')
-                
-                // Geçici mesaj ekle
-                const tempMessageId = (Date.now() + 1).toString()
-                const tempMessage: Message = {
-                    id: tempMessageId,
-                    role: 'assistant',
-                    content: '',
-                    timestamp: new Date()
-                }
-                setMessages(prev => [...prev, tempMessage])
-                setIsTyping(false)
-
-                // Yazıyormuş gibi animasyon
-                simulateTyping(content, (partialContent) => {
-                    setStreamingContent(partialContent)
-                    setMessages(prev => prev.map(msg => 
-                        msg.id === tempMessageId 
-                            ? { ...msg, content: partialContent }
-                            : msg
-                    ))
-                })
-
-                // Animasyon tamamlandığında streaming'i durdur
-                setTimeout(() => {
-                    setIsStreaming(false)
-                    setStreamingContent('')
-                }, content.length * 30 + 500)
-            }, 1000)
+            const errorMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: `❌ Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+                timestamp: new Date()
+            }
+            setMessages(prev => [...prev, errorMessage])
+            setIsTyping(false)
         }
     }
 
@@ -305,7 +277,7 @@ export default function ProjectAjax() {
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: `❌ ${errorMessage}\n\nAlternatif olarak simüle edilmiş yanıt almak için "simüle et" yazabilirsiniz.`,
+                content: `❌ ${errorMessage}\n\nLütfen daha sonra tekrar deneyin.`,
                 timestamp: new Date()
             }
             setMessages(prev => [...prev, errorMsg])
@@ -468,8 +440,8 @@ export default function ProjectAjax() {
             return `👥 **Müşteri Segmentasyonu**\n\nMüşterilerinizi 4 ana segmente ayırdım:\n\n1. **Premium Segment** (%23)\n   - Ortalama sepet: ₺5,200\n   - Sadakat: Yüksek\n\n2. **Düzenli Alıcılar** (%45)\n   - Ortalama sepet: ₺2,100\n   - Aylık alışveriş: 2-3 kez\n\n3. **Fırsat Avcıları** (%22)\n   - Kampanyalara duyarlı\n   - İndirim dönemlerinde aktif\n\n4. **Yeni Müşteriler** (%10)\n   - İlk alışveriş deneyimi\n   - Potansiyel yüksek\n\nHer segment için özel stratejiler önerebilirim.`
         }
 
-        if (lowerInput.includes('ürün') || lowerInput.includes('product')) {
-            return `📦 **Ürün Performans Analizi**\n\nÜrün performansınızı analiz edebilirim. Hangi ürünler hakkında bilgi almak istiyorsunuz?\n\n• En çok satan ürünler\n• Stok durumu\n• Ürün kategorileri\n• Fiyat analizi\n• Kamp ürünleri analizi\n\nSpesifik bir ürün veya kategori belirtin.`
+        if (lowerInput.includes('ürün') || lowerInput.includes('product') || lowerInput.includes('öner')) {
+            return `🛍️ **Ürün Önerileri**\n\nSize özel ürün önerileri sunuyorum:\n\n**🔥 Trend Ürünler:**\n• iPhone 15 Pro Max - En çok aranan\n• Samsung Galaxy S24 Ultra - Yüksek performans\n• MacBook Pro M3 - Profesyonel kullanım\n• AirPods Pro 2 - Ses kalitesi\n\n**🏕️ Kamp & Outdoor:**\n• Coleman Çadır 4 Kişilik - Dayanıklı\n• Therm-a-Rest Uyku Matı - Konforlu\n• Petzl Kafa Lambası - Güvenli\n• Stanley Termos - Sıcak İçecek\n\n**💻 Teknoloji:**\n• iPad Air 5 - Çok amaçlı\n• Apple Watch Series 9 - Sağlık takibi\n• Sony WH-1000XM5 - Gürültü önleme\n• Logitech MX Master 3S - Verimlilik\n\n**🏠 Ev & Yaşam:**\n• Dyson V15 - Temizlik\n• Philips Hue Starter Kit - Akıllı aydınlatma\n• Instant Pot - Mutfak asistanı\n• Nest Hub - Ev otomasyonu\n\nHangi kategoride detay istiyorsunuz?`
         }
 
         if (lowerInput.includes('rapor')) {
@@ -484,9 +456,6 @@ export default function ProjectAjax() {
             return `🗄️ **Veritabanı Erişimi**\n\nVeritabanı özellikleri kaldırıldı. API analizi özelliğini kullanabilirsiniz.\n\nMevcut özellikler:\n• API performans analizi\n• Endpoint testleri\n• Yanıt süresi ölçümü\n• Hata analizi\n\nAPI Analizi butonuna tıklayarak test yapabilirsiniz.`
         }
 
-        if (lowerInput.includes('simüle') || lowerInput.includes('simule')) {
-            return `🤖 **Simüle Edilmiş Yanıt**\n\nOllama servisi şu anda kullanılamıyor, ancak size simüle edilmiş bir yanıt verebilirim.\n\n"${userInput}" konusunda size yardımcı olmak için:\n\n• API analizi yapabilirim\n• Önceden tanımlanmış raporlar oluşturabilirim\n• SQL sorguları yazabilirim\n• İş stratejileri önerebilirim\n\nHangi konuda detaylı bilgi almak istiyorsunuz?`
-        }
 
         if (lowerInput.includes('api') || lowerInput.includes('endpoint')) {
             return `🔌 **API Analizi**\n\nAPI arayüzünü açmak için sağ üstteki "API Analizi" butonuna tıklayın.\n\nMevcut özellikler:\n• Tüm API endpointlerini test et\n• API performans analizi\n• Yanıt süreleri ölçümü\n• Hata analizi\n• Gerçek zamanlı API durumu\n\nHangi API'yi test etmek istiyorsunuz?`
