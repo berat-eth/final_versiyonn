@@ -73,6 +73,9 @@ export default function ProjectAjax() {
         temperature: 0.7,
         maxTokens: 2000
     })
+    
+    // Alternatif modeller
+    const alternativeModels = ['gemma3:4b', 'gemma3:1b', 'llama3.2:3b', 'llama3.2:1b']
     const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking')
 
     // System Prompt
@@ -187,10 +190,24 @@ export default function ProjectAjax() {
             }
         } catch (error) {
             console.error('❌ Mesaj gönderilemedi:', error)
+            
+            // Hata tipine göre farklı mesajlar
+            let errorContent = `❌ Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`
+            
+            if (error instanceof Error) {
+                if (error.message.includes('Model bulunamadı')) {
+                    errorContent = `❌ Model Hatası: Gemma3:4b modeli bulunamadı. Lütfen model adını kontrol edin.`
+                } else if (error.message.includes('Sunucu hatası')) {
+                    errorContent = `❌ Sunucu Hatası: Ollama sunucusunda bir sorun var. Lütfen daha sonra tekrar deneyin.`
+                } else if (error.message.includes('Geçersiz istek')) {
+                    errorContent = `❌ İstek Hatası: Gönderilen veri geçersiz. Lütfen mesajınızı kontrol edin.`
+                }
+            }
+            
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: `❌ Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+                content: errorContent,
                 timestamp: new Date()
             }
             setMessages(prev => [...prev, errorMessage])
@@ -229,12 +246,47 @@ export default function ProjectAjax() {
                 enhancedPrompt = enhancedPrompt.substring(0, 500) + '...\n[Veri kısaltıldı]'
             }
 
-            // Ollama'ya gönder - Gemma3:4b için optimize edildi
-            const response = await OllamaService.sendMessage(ollamaMessages, {
-                model: modelName,
-                temperature: 0.8,
-                maxTokens: 1500
-            })
+            // Model adını debug et
+            console.log('🔍 Gönderilen model adı:', modelName)
+            console.log('🔍 Ollama mesajları:', ollamaMessages)
+            
+            // Ollama'ya gönder - Model fallback ile
+            let response;
+            let usedModel = modelName;
+            
+            try {
+                response = await OllamaService.sendMessage(ollamaMessages, {
+                    model: modelName,
+                    temperature: 0.8,
+                    maxTokens: 1500
+                })
+            } catch (error) {
+                // İlk model başarısız olursa alternatif modelleri dene
+                console.log('🔄 Ana model başarısız, alternatif modeller deneniyor...')
+                
+                for (const altModel of alternativeModels) {
+                    if (altModel !== modelName) {
+                        try {
+                            console.log(`🔄 ${altModel} modeli deneniyor...`)
+                            response = await OllamaService.sendMessage(ollamaMessages, {
+                                model: altModel,
+                                temperature: 0.8,
+                                maxTokens: 1500
+                            })
+                            usedModel = altModel;
+                            console.log(`✅ ${altModel} modeli başarılı!`)
+                            break;
+                        } catch (altError) {
+                            console.log(`❌ ${altModel} modeli de başarısız:`, altError)
+                            continue;
+                        }
+                    }
+                }
+                
+                if (!response) {
+                    throw error; // Tüm modeller başarısız olursa orijinal hatayı fırlat
+                }
+            }
 
             // Yanıt yapısını kontrol et ve uygun şekilde parse et
             let content = '';

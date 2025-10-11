@@ -131,9 +131,12 @@ export class OllamaService {
       const maxTokens = options?.maxTokens ?? config.maxTokens ?? 8000;
       const stream = options?.stream ?? false;
 
+      // Model adını temizle ve kontrol et
+      const cleanModel = model.replace('ollama-', '').replace('gemma3:', 'gemma3:');
+      
       const requestBody = {
         messages,
-        model: model.replace('ollama-', ''), // ollama- prefix'ini kaldır
+        model: cleanModel,
         temperature,
         maxTokens,
         stream
@@ -179,13 +182,28 @@ export class OllamaService {
           } else {
             const errorText = await response.text();
             console.error(`❌ Ollama sunucusu hata (${attempt}/3):`, response.status, errorText);
-            lastError = new Error(`HTTP ${response.status}: ${errorText}`);
+            
+            // Hata tipine göre farklı mesajlar
+            let errorMessage = `HTTP ${response.status}: ${errorText}`;
+            
+            if (response.status === 404) {
+              errorMessage = `Model bulunamadı: ${cleanModel}. Lütfen model adını kontrol edin.`;
+            } else if (response.status === 500) {
+              errorMessage = `Sunucu hatası: ${errorText}`;
+            } else if (response.status === 400) {
+              errorMessage = `Geçersiz istek: ${errorText}`;
+            }
+            
+            lastError = new Error(errorMessage);
             
             // 429 (Rate Limit) hatası için daha uzun bekle
             if (response.status === 429) {
               const waitTime = attempt * 2000; // 2s, 4s, 6s
               console.log(`⏳ Rate limit nedeniyle ${waitTime}ms bekleniyor...`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
+            } else if (response.status === 404) {
+              // 404 hatası için retry yapma
+              break;
             }
           }
         } catch (error) {
