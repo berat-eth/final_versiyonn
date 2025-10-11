@@ -13,13 +13,13 @@ export interface OllamaMessage {
 }
 
 export interface OllamaResponse {
-  model: string;
-  created_at: string;
+  model?: string;
+  created_at?: string;
   message: {
     role: string;
     content: string;
   };
-  done: boolean;
+  done?: boolean;
   total_duration?: number;
   load_duration?: number;
   prompt_eval_count?: number;
@@ -177,7 +177,15 @@ export class OllamaService {
         if (response.ok) {
           const data = await response.json();
           console.log('✅ Ollama Response (Remote):', data);
-          return data.data;
+          
+          // Yanıt yapısını normalize et
+          if (data.data) {
+            return data.data;
+          } else if (data.message) {
+            return data;
+          } else {
+            return { message: { role: 'assistant', content: data.response || data.content || JSON.stringify(data) } };
+          }
         }
       } catch (error) {
         console.log('🔄 Uzak sunucu isteği başarısız, yerel kontrol deneniyor...');
@@ -224,7 +232,13 @@ export class OllamaService {
       const data = await response.json();
       console.log('✅ Ollama Response (Local):', data);
 
-      return data;
+      // Yerel Ollama yanıtını normalize et
+      return {
+        message: {
+          role: 'assistant',
+          content: data.response || data.content || 'Yanıt alınamadı'
+        }
+      };
     } catch (error) {
       console.error('❌ Ollama sendMessage error:', error);
       throw error;

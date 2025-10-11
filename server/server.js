@@ -364,7 +364,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.API_RATE_LIMIT || '100', 10),
+  max: parseInt(process.env.API_RATE_LIMIT || '400', 10),
   standardHeaders: true,
   legacyHeaders: false
 });
@@ -404,7 +404,7 @@ const { getJson, setJsonEx, delKey, withLock, sha256 } = require('./redis');
 const isPrivateIp = (ip) => /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(ip || '');
 const relaxedCartLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 300,
+  max: 1200,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => `${req.headers['x-api-key'] || 'no-key'}:${req.ip}`,
