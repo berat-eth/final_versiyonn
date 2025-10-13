@@ -108,9 +108,9 @@ function Flock() {
 
 export default function ThreeBackground() {
   return (
-    <div className="fixed inset-0 -z-10">
-      <Canvas dpr={[1, 2]} shadows>
-        <color attach="background" args={["#0a1b12"]} />
+    <div className="fixed inset-0 -z-10 bg-gradient-to-br from-orange-500 via-amber-500 to-orange-700">
+      <Canvas dpr={[1, 2]} shadows gl={{ alpha: true }}>
+        {/* Transparent canvas over orange gradient */}
         <fog attach="fog" args={["#0a1b12", 12, 70]} />
         <PerspectiveCamera makeDefault position={[0, 2.2, 10]} fov={55} />
 
