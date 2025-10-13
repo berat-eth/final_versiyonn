@@ -23,6 +23,13 @@ class ApiClient {
     if (this.apiKey) {
       base['X-API-Key'] = this.apiKey;
     }
+    // İstemci tarafında mevcutsa auth token'ı ekle
+    try {
+      if (typeof window !== 'undefined') {
+        const token = sessionStorage.getItem('authToken') || '';
+        if (token) base['Authorization'] = `Bearer ${token}`;
+      }
+    } catch {}
     return {
       ...base,
       ...customHeaders,

@@ -16,6 +16,10 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
   const handleLogout = () => {
     if (confirm('Çıkış yapmak istediğinizden emin misiniz?')) {
+      try {
+        sessionStorage.removeItem('adminLoggedIn')
+        sessionStorage.removeItem('authToken')
+      } catch {}
       router.push('/login')
     }
   }

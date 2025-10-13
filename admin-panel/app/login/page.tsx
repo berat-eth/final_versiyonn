@@ -35,6 +35,7 @@ export default function LoginPage() {
       })
 
       if ((res as any)?.success) {
+          try { sessionStorage.setItem('adminLoggedIn', '1') } catch {}
         router.push('/dashboard')
       } else {
         setErrorMsg((res as any)?.message || 'Giriş başarısız')
@@ -120,9 +121,6 @@ export default function LoginPage() {
                 />
                 <span className="ml-2 text-sm text-slate-600">Beni Hatırla</span>
               </label>
-              <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                Şifremi Unuttum?
-              </a>
             </div>
 
             <button
@@ -148,19 +146,7 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* Demo Credentials */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-6 bg-green-900/40 backdrop-blur-lg border border-green-500/30 rounded-2xl p-4 relative z-10"
-        >
-          <p className="text-sm text-white font-semibold mb-2">🎯 Demo Hesap Bilgileri:</p>
-          <div className="space-y-1 text-sm text-green-100">
-            <p>📧 Email: admin@example.com</p>
-            <p>🔑 Şifre: demo123</p>
-          </div>
-        </motion.div>
+        
       </motion.div>
     </div>
   )

@@ -71,6 +71,17 @@ export default function DashboardPage() {
   useEffect(() => {
     // SSR kontrolü
     if (typeof window === 'undefined') return
+    // Basit oturum koruması: giriş yapılmamışsa login'e yönlendir
+    try {
+      const logged = sessionStorage.getItem('adminLoggedIn') === '1'
+      const token = sessionStorage.getItem('authToken')
+      const ok = logged && !!token
+      if (!ok) {
+        // login sayfasına dön
+        window.location.href = '/login'
+        return
+      }
+    } catch {}
     
     const handler = (e: Event) => {
       const detail = (e as CustomEvent)?.detail as { tab?: string }

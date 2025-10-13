@@ -9,35 +9,31 @@ export default function Settings() {
     const [showPassword, setShowPassword] = useState(false)
     const [showNewPassword, setShowNewPassword] = useState(false)
     const [showAddAdminModal, setShowAddAdminModal] = useState(false)
-    const [adminUsers, setAdminUsers] = useState([
-        { id: 1, name: 'Ahmet Yılmaz', email: 'ahmet@admin.com', role: 'Super Admin', status: 'Aktif', lastLogin: '2024-01-20 14:30', permissions: ['Tüm Yetkiler'] },
-        { id: 2, name: 'Ayşe Demir', email: 'ayse@admin.com', role: 'Admin', status: 'Aktif', lastLogin: '2024-01-19 10:15', permissions: ['Ürün Yönetimi', 'Sipariş Yönetimi'] },
-        { id: 3, name: 'Mehmet Kaya', email: 'mehmet@admin.com', role: 'Moderatör', status: 'Pasif', lastLogin: '2024-01-15 16:45', permissions: ['Müşteri Yönetimi'] },
-    ])
+    const [adminUsers, setAdminUsers] = useState([] as Array<{ id: number; name: string; email: string; role: string; status: 'Aktif' | 'Pasif'; lastLogin: string; permissions: string[] }>)
 
     // Form States
     const [profileData, setProfileData] = useState({
-        name: 'Admin User',
-        email: 'admin@example.com',
-        phone: '+90 532 123 4567',
-        role: 'Super Admin',
-        avatar: 'AY'
+        name: '',
+        email: '',
+        phone: '',
+        role: '',
+        avatar: ''
     })
 
     const [notificationSettings, setNotificationSettings] = useState({
-        emailNotifications: true,
+        emailNotifications: false,
         smsNotifications: false,
-        pushNotifications: true,
-        orderUpdates: true,
+        pushNotifications: false,
+        orderUpdates: false,
         marketingEmails: false,
-        securityAlerts: true,
-        weeklyReports: true
+        securityAlerts: false,
+        weeklyReports: false
     })
 
     const [securitySettings, setSecuritySettings] = useState({
-        twoFactorAuth: true,
+        twoFactorAuth: false,
         sessionTimeout: '30',
-        loginAlerts: true,
+        loginAlerts: false,
         ipWhitelist: false
     })
 
@@ -122,7 +118,7 @@ export default function Settings() {
 
                                 <div className="flex items-center space-x-6 mb-6">
                                     <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                                        {profileData.avatar}
+                                        {profileData.avatar || '👤'}
                                     </div>
                                     <div>
                                         <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
@@ -173,7 +169,7 @@ export default function Settings() {
                                         <input
                                             type="text"
                                             value={profileData.role}
-                                            disabled
+                                            placeholder="Belirtilmemiş"
                                             className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-500"
                                         />
                                     </div>
@@ -246,82 +242,84 @@ export default function Settings() {
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-                                        <p className="text-sm text-blue-600 mb-1">Toplam Admin</p>
-                                        <p className="text-3xl font-bold text-blue-700">{adminUsers.length}</p>
+                                {adminUsers.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                                            <p className="text-sm text-blue-600 mb-1">Toplam Admin</p>
+                                            <p className="text-3xl font-bold text-blue-700">{adminUsers.length}</p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                                            <p className="text-sm text-green-600 mb-1">Aktif</p>
+                                            <p className="text-3xl font-bold text-green-700">{adminUsers.filter(u => u.status === 'Aktif').length}</p>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
+                                            <p className="text-sm text-red-600 mb-1">Pasif</p>
+                                            <p className="text-3xl font-bold text-red-700">{adminUsers.filter(u => u.status === 'Pasif').length}</p>
+                                        </div>
                                     </div>
-                                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-                                        <p className="text-sm text-green-600 mb-1">Aktif</p>
-                                        <p className="text-3xl font-bold text-green-700">{adminUsers.filter(u => u.status === 'Aktif').length}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
-                                        <p className="text-sm text-red-600 mb-1">Pasif</p>
-                                        <p className="text-3xl font-bold text-red-700">{adminUsers.filter(u => u.status === 'Pasif').length}</p>
-                                    </div>
-                                </div>
+                                ) : (
+                                    <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-sm">Henüz admin kullanıcı bulunmuyor.</div>
+                                )}
 
-                                <div className="space-y-4">
-                                    {adminUsers.map((admin, index) => (
-                                        <motion.div
-                                            key={admin.id}
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: index * 0.1 }}
-                                            className="bg-gradient-to-r from-white to-slate-50 border border-slate-200 rounded-xl p-5 hover:shadow-lg transition-all"
-                                        >
-                                            <div className="flex items-center justify-between gap-6 flex-wrap">
-                                                <div className="flex items-center space-x-4 flex-1">
-                                                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                                                        {admin.name.charAt(0)}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <h4 className="text-lg font-bold text-slate-800">{admin.name}</h4>
-                                                            <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${
-                                                                admin.status === 'Aktif' 
-                                                                    ? 'bg-green-100 text-green-700' 
-                                                                    : 'bg-red-100 text-red-700'
-                                                            }`}>
-                                                                {admin.status === 'Aktif' ? <CheckCircle className="w-3 h-3 inline mr-1" /> : <XCircle className="w-3 h-3 inline mr-1" />}
-                                                                {admin.status}
-                                                            </span>
+                                {adminUsers.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {adminUsers.map((admin, index) => (
+                                            <motion.div
+                                                key={admin.id}
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: index * 0.1 }}
+                                                className="bg-gradient-to-r from-white to-slate-50 border border-slate-200 rounded-xl p-5 hover:shadow-lg transition-all"
+                                            >
+                                                <div className="flex items-center justify-between gap-6 flex-wrap">
+                                                    <div className="flex items-center space-x-4 flex-1">
+                                                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                                                            {admin.name.charAt(0)}
                                                         </div>
-                                                        <p className="text-sm text-slate-600 mb-2">{admin.email}</p>
-                                                        <div className="flex items-center gap-4 text-xs text-slate-500">
-                                                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md font-medium">
-                                                                {admin.role}
-                                                            </span>
-                                                            <span>Son Giriş: {admin.lastLogin}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-4">
-                                                    <div className="text-right">
-                                                        <p className="text-xs text-slate-500 mb-1">Yetkiler</p>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {admin.permissions.map((perm, idx) => (
-                                                                <span key={idx} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
-                                                                    {perm}
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <h4 className="text-lg font-bold text-slate-800">{admin.name}</h4>
+                                                                <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${admin.status === 'Aktif' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                                    {admin.status === 'Aktif' ? <CheckCircle className="w-3 h-3 inline mr-1" /> : <XCircle className="w-3 h-3 inline mr-1" />}
+                                                                    {admin.status}
                                                                 </span>
-                                                            ))}
+                                                            </div>
+                                                            <p className="text-sm text-slate-600 mb-2">{admin.email}</p>
+                                                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                                                                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md font-medium">
+                                                                    {admin.role}
+                                                                </span>
+                                                                <span>Son Giriş: {admin.lastLogin}</span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    
-                                                    <div className="flex items-center gap-2">
-                                                        <button className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors">
-                                                            <Edit className="w-5 h-5" />
-                                                        </button>
-                                                        <button className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
-                                                            <Trash2 className="w-5 h-5" />
-                                                        </button>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="text-right">
+                                                            <p className="text-xs text-slate-500 mb-1">Yetkiler</p>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {admin.permissions.map((perm, idx) => (
+                                                                    <span key={idx} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                                                                        {perm}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors">
+                                                                <Edit className="w-5 h-5" />
+                                                            </button>
+                                                            <button className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                                                                <Trash2 className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </motion.div>
-                                    ))}
-                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center text-slate-600">Listelenecek admin bulunamadı.</div>
+                                )}
 
                                 {/* Yeni Admin Ekleme Modal */}
                                 <AnimatePresence>
@@ -445,7 +443,7 @@ export default function Settings() {
                                             <Mail className="w-5 h-5 text-blue-600" />
                                             <div>
                                                 <p className="font-medium text-slate-800">Email Bildirimleri</p>
-                                                <p className="text-xs text-slate-500">Önemli güncellemeler için email alın</p>
+                                                <p className="text-xs text-slate-500">Seçili değil</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -464,7 +462,7 @@ export default function Settings() {
                                             <Smartphone className="w-5 h-5 text-green-600" />
                                             <div>
                                                 <p className="font-medium text-slate-800">SMS Bildirimleri</p>
-                                                <p className="text-xs text-slate-500">Kritik olaylar için SMS alın</p>
+                                                <p className="text-xs text-slate-500">Seçili değil</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -483,7 +481,7 @@ export default function Settings() {
                                             <Bell className="w-5 h-5 text-purple-600" />
                                             <div>
                                                 <p className="font-medium text-slate-800">Push Bildirimleri</p>
-                                                <p className="text-xs text-slate-500">Tarayıcı bildirimleri</p>
+                                                <p className="text-xs text-slate-500">Seçili değil</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -610,13 +608,10 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                                    <h4 className="font-semibold text-yellow-800 mb-2">Aktif Oturumlar</h4>
-                                    <p className="text-sm text-yellow-700 mb-3">Şu anda 3 aktif oturumunuz var</p>
-                                    <button className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium">
-                                        Tüm Oturumları Sonlandır
-                                    </button>
-                                </div>
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                        <h4 className="font-semibold text-slate-800 mb-2">Aktif Oturumlar</h4>
+                                        <p className="text-sm text-slate-600">Oturum bilgisi bulunmuyor.</p>
+                                    </div>
                             </motion.div>
                         )}
 
@@ -751,53 +746,42 @@ export default function Settings() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-6">
-                                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                                        <Database className="w-8 h-8 text-blue-600 mb-3" />
-                                        <h4 className="font-semibold text-blue-800 mb-2">Veritabanı</h4>
-                                        <p className="text-sm text-blue-700 mb-4">Son yedekleme: 2 saat önce</p>
-                                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
-                                            Yedek Al
-                                        </button>
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                                        <Database className="w-8 h-8 text-slate-700 mb-3" />
+                                        <h4 className="font-semibold text-slate-800 mb-2">Veritabanı</h4>
+                                        <p className="text-sm text-slate-600">Durum bilgisi bulunmuyor.</p>
                                     </div>
 
-                                    <div className="bg-green-50 border border-green-200 rounded-xl p-6">
-                                        <Globe className="w-8 h-8 text-green-600 mb-3" />
-                                        <h4 className="font-semibold text-green-800 mb-2">API Durumu</h4>
-                                        <p className="text-sm text-green-700 mb-4">Tüm servisler çalışıyor</p>
-                                        <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
-                                            Test Et
-                                        </button>
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                                        <Globe className="w-8 h-8 text-slate-700 mb-3" />
+                                        <h4 className="font-semibold text-slate-800 mb-2">API Durumu</h4>
+                                        <p className="text-sm text-slate-600">Durum bilgisi bulunmuyor.</p>
                                     </div>
                                 </div>
 
-                                <div className="bg-slate-50 rounded-xl p-6">
+                                    <div className="bg-slate-50 rounded-xl p-6">
                                     <h4 className="font-semibold text-slate-800 mb-4">Sistem Bilgileri</h4>
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
                                             <span className="text-slate-600">Versiyon</span>
-                                            <span className="font-bold text-slate-800">v2.5.1</span>
+                                                <span className="font-bold text-slate-800">-</span>
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <span className="text-slate-600">Son Güncelleme</span>
-                                            <span className="font-bold text-slate-800">15 Ocak 2024</span>
+                                                <span className="font-bold text-slate-800">-</span>
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <span className="text-slate-600">Sunucu Durumu</span>
-                                            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-sm font-medium">Çevrimiçi</span>
+                                                <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium">Bilinmiyor</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+                                    <div className="bg-red-50 border border-red-200 rounded-xl p-6">
                                     <h4 className="font-semibold text-red-800 mb-2">Tehlikeli Bölge</h4>
                                     <p className="text-sm text-red-700 mb-4">Bu işlemler geri alınamaz</p>
                                     <div className="space-y-3">
-                                        <button className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
-                                            Tüm Verileri Sıfırla
-                                        </button>
-                                        <button className="w-full px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium">
-                                            Hesabı Kapat
-                                        </button>
+                                            <div className="text-sm text-red-700">Aksiyonlar yapılandırılmadı.</div>
                                     </div>
                                 </div>
                             </motion.div>
