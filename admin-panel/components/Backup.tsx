@@ -634,15 +634,49 @@ export default function Backup() {
 
                 <div className="flex items-center space-x-3 pt-4">
                   <button
-                    onClick={() => alert('Bağlantı test ediliyor...')}
+                    onClick={async () => {
+                      try {
+                        const resp = await api.post<any>('/admin/ftp-backup/test', {
+                          host: ftpData.host,
+                          port: Number(ftpData.port) || 21,
+                          user: ftpData.username,
+                          password: ftpData.password,
+                          remoteDir: ftpData.directory
+                        })
+                        if ((resp as any)?.success) alert('Bağlantı başarılı'); else alert((resp as any)?.message || 'Bağlantı başarısız')
+                      } catch (e:any) {
+                        alert(e?.message || 'Bağlantı testi başarısız')
+                      }
+                    }}
                     className="flex-1 border border-slate-300 text-slate-700 px-6 py-3 rounded-xl hover:bg-slate-50 transition-colors font-medium"
                   >
                     Bağlantıyı Test Et
                   </button>
                   <button
-                    onClick={() => {
-                      alert('Yedek FTP sunucusuna gönderiliyor...')
-                      setShowFtpModal(false)
+                    onClick={async () => {
+                      try {
+                        // Config'i kaydet
+                        await api.post<any>('/admin/ftp-backup/config', {
+                          enabled: true,
+                          host: ftpData.host,
+                          port: Number(ftpData.port) || 21,
+                          user: ftpData.username,
+                          password: ftpData.password,
+                          remoteDir: ftpData.directory
+                        })
+                        // Çalıştır
+                        const run = await api.post<any>('/admin/ftp-backup/run', {
+                          host: ftpData.host,
+                          port: Number(ftpData.port) || 21,
+                          user: ftpData.username,
+                          password: ftpData.password,
+                          remoteDir: ftpData.directory
+                        })
+                        if ((run as any)?.success) alert('Yedek FTP\'ye gönderildi'); else alert((run as any)?.message || 'Gönderim başarısız')
+                        setShowFtpModal(false)
+                      } catch (e:any) {
+                        alert(e?.message || 'Gönderim yapılamadı')
+                      }
                     }}
                     className="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium flex items-center justify-center"
                   >

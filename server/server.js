@@ -3839,6 +3839,124 @@ app.post('/api/admin/panel-config', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - FTP backup config read
+app.get('/api/admin/ftp-backup/config', authenticateAdmin, async (req, res) => {
+  try {
+    // Combine in-memory defaults with persisted panel-config if exists
+    const cfgPath = path.join(__dirname, '..', 'admin-panel', 'config.json');
+    let panelCfg = {};
+    try {
+      const raw = fs.readFileSync(cfgPath, 'utf-8');
+      panelCfg = JSON.parse(raw);
+    } catch (_) {}
+    const saved = (panelCfg && panelCfg.FTP_BACKUP) ? panelCfg.FTP_BACKUP : {};
+    const effective = {
+      enabled: !!(__ftpBackupConfig.enabled || saved.enabled),
+      host: __ftpBackupConfig.host || saved.host || '',
+      port: __ftpBackupConfig.port || saved.port || 21,
+      user: __ftpBackupConfig.user || saved.user || '',
+      // never expose password; return masked info only
+      password: saved.password ? '***' : (__ftpBackupConfig.password ? '***' : ''),
+      remoteDir: __ftpBackupConfig.remoteDir || saved.remoteDir || '/backups',
+      schedule: __ftpBackupConfig.schedule || saved.schedule || '0 3 * * *'
+    };
+    return res.json({ success: true, data: effective });
+  } catch (e) {
+    console.error('❌ Read FTP config error:', e);
+    res.status(500).json({ success: false, message: 'FTP config okunamadı' });
+  }
+});
+
+// Admin - FTP backup config write (updates in-memory and persists into panel config)
+app.post('/api/admin/ftp-backup/config', authenticateAdmin, async (req, res) => {
+  try {
+    const { enabled, host, port, user, password, remoteDir, schedule } = req.body || {};
+    if (!host || !user || (!__ftpBackupConfig.password && !password)) {
+      // allow password omission if already set in memory (to avoid revealing it)
+    }
+    __ftpBackupConfig.enabled = !!enabled;
+    if (host !== undefined) __ftpBackupConfig.host = String(host);
+    if (port !== undefined) __ftpBackupConfig.port = parseInt(port) || 21;
+    if (user !== undefined) __ftpBackupConfig.user = String(user);
+    if (password) __ftpBackupConfig.password = String(password);
+    if (remoteDir !== undefined) __ftpBackupConfig.remoteDir = String(remoteDir || '/');
+    if (schedule !== undefined) __ftpBackupConfig.schedule = String(schedule);
+
+    // persist to panel-config
+    const cfgPath = path.join(__dirname, '..', 'admin-panel', 'config.json');
+    let current = {};
+    try { current = JSON.parse(fs.readFileSync(cfgPath, 'utf-8')); } catch(_) {}
+    const merged = {
+      ...current,
+      FTP_BACKUP: {
+        enabled: __ftpBackupConfig.enabled,
+        host: __ftpBackupConfig.host,
+        port: __ftpBackupConfig.port,
+        user: __ftpBackupConfig.user,
+        // never write plain password to logs; we do persist it encrypted later if needed
+        password: password ? String(password) : (current.FTP_BACKUP && current.FTP_BACKUP.password ? current.FTP_BACKUP.password : ''),
+        remoteDir: __ftpBackupConfig.remoteDir
+      }
+    };
+    try { fs.writeFileSync(cfgPath, JSON.stringify(merged, null, 2), 'utf-8'); } catch(_) {}
+
+    return res.json({ success: true, message: 'FTP config kaydedildi' });
+  } catch (e) {
+    console.error('❌ Write FTP config error:', e);
+    res.status(500).json({ success: false, message: 'FTP config kaydedilemedi' });
+  }
+});
+
+// Admin - Test FTP connection (non-persistent)
+app.post('/api/admin/ftp-backup/test', authenticateAdmin, async (req, res) => {
+  const { host, port = 21, user, password, remoteDir = '/' } = req.body || {};
+  if (!host || !user || !password) {
+    return res.status(400).json({ success: false, message: 'host, user ve password gerekli' });
+  }
+  const client = new ftp.Client(10000);
+  client.ftp.verbose = false;
+  try {
+    await client.access({ host, port: parseInt(port) || 21, user, password, secure: false });
+    // try cd/create dir if provided
+    if (remoteDir && remoteDir !== '/') {
+      try { await client.ensureDir(remoteDir); } catch {}
+      await client.cd(remoteDir);
+    }
+    return res.json({ success: true, message: 'FTP bağlantısı başarılı' });
+  } catch (e) {
+    return res.status(400).json({ success: false, message: e?.message || 'FTP bağlantısı başarısız' });
+  } finally {
+    client.close();
+  }
+});
+
+// Admin - Trigger backup and upload to FTP
+app.post('/api/admin/ftp-backup/run', authenticateAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    // override in-memory config temporarily if body provided
+    const prev = { ...__ftpBackupConfig };
+    try {
+      if (body && Object.keys(body).length > 0) {
+        if (body.host) __ftpBackupConfig.host = String(body.host);
+        if (body.port) __ftpBackupConfig.port = parseInt(body.port) || 21;
+        if (body.user) __ftpBackupConfig.user = String(body.user);
+        if (body.password) __ftpBackupConfig.password = String(body.password);
+        if (body.remoteDir) __ftpBackupConfig.remoteDir = String(body.remoteDir);
+      }
+      const out = await runFtpBackupNow();
+      if (!out.ok) return res.status(400).json({ success: false, message: out.message || 'Yedek gönderilemedi' });
+      return res.json({ success: true, message: 'Yedek FTP\'ye yüklendi' });
+    } finally {
+      // restore previous config to avoid unintended persistence
+      __ftpBackupConfig = prev;
+    }
+  } catch (e) {
+    console.error('❌ FTP run error:', e);
+    res.status(500).json({ success: false, message: 'Yedek gönderme hatası' });
+  }
+});
+
 // Admin - Get detailed cart for a user
 app.get('/api/admin/carts/:userId', authenticateAdmin, async (req, res) => {
   try {
