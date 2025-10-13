@@ -105,6 +105,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         { id: 'backup', label: 'Veri Yedekleme', icon: Settings },
         { id: 'file-manager', label: 'Dosya Yöneticisi', icon: FolderTree },
         { id: 'security', label: 'Güvenlik', icon: Shield },
+        { id: 'admin-logs', label: 'Yönetici Logları', icon: FileText },
         { id: 'snort-logs', label: 'Snort IDS Logları', icon: AlertTriangle },
         { id: 'sql-query', label: 'SQL Sorgu Penceresi', icon: Database },
         { id: 'chatbot', label: 'Chatbot', icon: MessageSquare },
@@ -175,7 +176,10 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
               return (
                 <motion.button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    if (item.id === 'admin-logs') { router.push('/admin-logs'); return }
+                    setActiveTab(item.id)
+                  }}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: (groupIndex * 0.1) + (index * 0.05) }}

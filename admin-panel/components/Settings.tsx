@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Settings as SettingsIcon, User, Bell, Lock, Globe, Palette, Database, Mail, Smartphone, Shield, Save, Eye, EyeOff, UserPlus, Edit, Trash2, CheckCircle, XCircle, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { api } from '@/lib/api'
 
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('profile')
@@ -36,6 +37,26 @@ export default function Settings() {
         loginAlerts: false,
         ipWhitelist: false
     })
+
+    // Admin Logs (read-only) state
+    const [adminLogs, setAdminLogs] = useState<any[]>([])
+    const [adminLogsLoading, setAdminLogsLoading] = useState(false)
+    const [adminLogsError, setAdminLogsError] = useState<string | null>(null)
+    const [adminLogsAccess, setAdminLogsAccess] = useState(false)
+    const [adminLogsCode, setAdminLogsCode] = useState('')
+
+    const loadAdminLogs = async () => {
+        setAdminLogsLoading(true)
+        setAdminLogsError(null)
+        try {
+            const res = await api.get<any>('/admin/security/login-attempts', { range: 30 })
+            setAdminLogs((res as any)?.data || [])
+        } catch (e: any) {
+            setAdminLogsError(e?.message || 'Yönetici logları yüklenemedi')
+        } finally {
+            setAdminLogsLoading(false)
+        }
+    }
 
     const [appearanceSettings, setAppearanceSettings] = useState({
         theme: 'light',
@@ -774,6 +795,72 @@ export default function Settings() {
                                                 <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium">Bilinmiyor</span>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Yönetici Logları (giriş kodu: 8466) */}
+                                <div className="bg-white rounded-xl border border-slate-200">
+                                    <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                                        <div>
+                                            <h4 className="font-semibold text-slate-800 mb-1">Yönetici Logları</h4>
+                                            <p className="text-sm text-slate-500">Admin giriş denemeleri (salt okunur)</p>
+                                        </div>
+                                    </div>
+                                    {!adminLogsAccess ? (
+                                        <div className="p-6">
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">Giriş Kodu</label>
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="password"
+                                                    value={adminLogsCode}
+                                                    onChange={(e)=> setAdminLogsCode(e.target.value)}
+                                                    className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    placeholder="••••"
+                                                />
+                                                <button
+                                                    onClick={()=>{
+                                                        if (adminLogsCode === '8466') {
+                                                            setAdminLogsAccess(true)
+                                                            loadAdminLogs()
+                                                        }
+                                                    }}
+                                                    className="px-4 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-900"
+                                                >Giriş</button>
+                                            </div>
+                                            {adminLogsCode && adminLogsCode !== '8466' && (
+                                                <p className="text-sm text-red-600 mt-2">Geçersiz kod</p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="p-0">
+                                            <div className="p-4 border-b border-slate-200 flex items-center justify-between text-sm text-slate-600">
+                                                <div>
+                                                    Son 30 gün · {adminLogsLoading ? 'Yükleniyor...' : `${adminLogs.length} kayıt`}
+                                                </div>
+                                                <button onClick={loadAdminLogs} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg">Yenile</button>
+                                            </div>
+                                            {adminLogsError && (
+                                                <div className="p-4 text-sm text-red-600">{adminLogsError}</div>
+                                            )}
+                                            <div className="max-h-80 overflow-auto">
+                                                {adminLogs.length === 0 && !adminLogsLoading ? (
+                                                    <div className="p-6 text-sm text-slate-500">Kayıt bulunamadı.</div>
+                                                ) : (
+                                                    <ul className="divide-y divide-slate-200">
+                                                        {adminLogs.map((l:any)=> (
+                                                            <li key={l.id} className="p-4 text-sm">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="font-medium text-slate-800">{l.username || '—'}</div>
+                                                                    <div className={`text-xs px-2 py-0.5 rounded ${l.severity==='high' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{l.eventType}</div>
+                                                                </div>
+                                                                <div className="mt-1 text-slate-600">IP: {l.ip || '—'}</div>
+                                                                <div className="mt-1 text-slate-500 text-xs">{l.timestamp}</div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                     <div className="bg-red-50 border border-red-200 rounded-xl p-6">
