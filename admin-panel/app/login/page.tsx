@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, Suspense } from 'react'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { Mail, Lock, Eye, EyeOff, ShoppingBag, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -20,6 +21,8 @@ export default function LoginPage() {
     email: '',
     password: ''
   })
+  const isFormValid = (formData.email || '').trim().length > 0 && (formData.password || '').trim().length > 0
+  const [btnShift, setBtnShift] = useState(0)
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -29,14 +32,15 @@ export default function LoginPage() {
     setErrorMsg(null)
 
     try {
+      if (!isFormValid) { setIsLoading(false); return }
       const res = await userService.login({
         email: formData.email,
         password: formData.password,
       })
 
       if ((res as any)?.success) {
-          try { sessionStorage.setItem('adminLoggedIn', '1') } catch {}
-        router.push('/dashboard')
+        try { sessionStorage.setItem('adminLoggedIn', '1') } catch {}
+        router.push('/2fa')
       } else {
         setErrorMsg((res as any)?.message || 'Giriş başarısız')
       }
@@ -56,19 +60,19 @@ export default function LoginPage() {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        className="w-full max-w-lg"
       >
-        <div className="bg-white/90 backdrop-blur-2xl rounded-3xl shadow-2xl p-8 border border-white/30 relative z-10">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 border border-slate-200 relative z-10">
           {/* Logo */}
           <div className="flex items-center justify-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <ShoppingBag className="w-8 h-8 text-white" />
+            <div className="px-0 py-0" style={{ width: 'auto' }}>
+              <Image src="/logo.jpg" alt="Huğlu Outdoor" width={260} height={76} priority style={{ objectFit: 'contain' }} />
             </div>
           </div>
 
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-slate-800 mb-2">Hoş Geldiniz</h2>
-            <p className="text-slate-500">Hesabınıza giriş yapın</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-3">Hoş Geldiniz</h2>
+            <p className="text-slate-500 text-base">Hesabınıza giriş yapın</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -84,7 +88,7 @@ export default function LoginPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full pl-12 pr-4 py-3.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="admin@example.com"
+                  placeholder="E-posta"
                 />
               </div>
             </div>
@@ -101,7 +105,7 @@ export default function LoginPage() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full pl-12 pr-12 py-3.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="••••••••"
+                  placeholder="Şifre"
                 />
                 <button
                   type="button"
@@ -125,7 +129,9 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !isFormValid}
+              onMouseEnter={() => { if (!isFormValid) setBtnShift((s)=> s === 0 ? 120 : -s) }}
+              style={{ transform: `translateX(${btnShift}px)` }}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3.5 rounded-xl font-semibold hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (

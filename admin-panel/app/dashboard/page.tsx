@@ -75,10 +75,12 @@ export default function DashboardPage() {
     try {
       const logged = sessionStorage.getItem('adminLoggedIn') === '1'
       const token = sessionStorage.getItem('authToken')
-      const ok = logged && !!token
+      const twoFAValidated = sessionStorage.getItem('twoFAValidated') === '1'
+      const ok = logged && !!token && twoFAValidated
       if (!ok) {
         // login sayfasına dön
-        window.location.href = '/login'
+        const target = logged ? '/2fa' : '/login'
+        window.location.href = target
         return
       }
     } catch {}

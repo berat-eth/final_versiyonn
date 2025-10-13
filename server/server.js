@@ -2329,7 +2329,7 @@ app.post('/api/admin/login', async (req, res) => {
       } catch(_) {}
       return res.status(400).json({ success: false, message: 'Kullanıcı adı ve şifre gerekli' });
     }
-    // DB tabanlı admin doğrulama (varsayılan admin: berat1/berat1)
+  // DB tabanlı admin doğrulama (ENV ile yönetilen admin; varsayılan: berat1/berat1)
     try {
       // Aktif tenant yoksa oluştur
       let tenantId = null;
@@ -2345,25 +2345,35 @@ app.post('/api/admin/login', async (req, res) => {
         tenantId = ins.insertId;
       }
 
-      const ADMIN_USERNAME_FIXED = 'berat1';
-      const ADMIN_EMAIL = ADMIN_USERNAME_FIXED + '@admin.local';
+      const ADMIN_USERNAME_FIXED = (process.env.ADMIN_USERNAME || 'berat1').toString();
+      const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || (ADMIN_USERNAME_FIXED + '@admin.local')).toString();
 
       // Admin kullanıcıyı seed et (yoksa oluştur)
       const [existingAdmin] = await poolWrapper.execute('SELECT id, password FROM users WHERE email = ? AND role = "admin" LIMIT 1', [ADMIN_EMAIL]);
       if (existingAdmin.length === 0) {
         const userIdStr = (Math.floor(10000000 + Math.random() * 90000000)).toString();
-        const seededHash = await hashPassword('berat1');
+        const adminPlainPassword = (process.env.ADMIN_PASSWORD || 'berat1').toString();
+        const seededHash = await hashPassword(adminPlainPassword);
         await poolWrapper.execute(
           'INSERT INTO users (user_id, tenantId, name, email, password, role, isActive, createdAt) VALUES (?, ?, ?, ?, ?, "admin", true, NOW())',
           [userIdStr, tenantId, 'Admin', ADMIN_EMAIL, seededHash]
         );
       }
 
-      // Giriş kontrolü
-      const [adminRows] = await poolWrapper.execute('SELECT id, password FROM users WHERE email = ? AND role = "admin" LIMIT 1', [ADMIN_EMAIL]);
+      // Giriş kontrolü: username email ise direkt o email ile, değilse sabit kullanıcı adı ile doğrula
+      let ok = false;
+      let checkEmail = ADMIN_EMAIL;
+      if (typeof username === 'string' && username.includes('@')) {
+        checkEmail = username.toLowerCase();
+      }
+      const [adminRows] = await poolWrapper.execute('SELECT id, password FROM users WHERE email = ? AND role = "admin" LIMIT 1', [checkEmail]);
       const stored = adminRows[0]?.password || '';
-      const passwordOk = await verifyPassword(password, stored);
-      const ok = (username === ADMIN_USERNAME_FIXED) && passwordOk;
+      const passwordOk = stored ? await verifyPassword(password, stored) : false;
+      if (username && username.includes('@')) {
+        ok = passwordOk; // email ile girişte sadece şifre doğrulaması yeterli
+      } else {
+        ok = (username === ADMIN_USERNAME_FIXED) && passwordOk;
+      }
       if (ok) {
         if (!rec.lockUntil || now >= rec.lockUntil) {
           global.__ADMIN_BRUTE_FORCE.delete(key);

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings as SettingsIcon, User, Bell, Lock, Globe, Palette, Database, Mail, Smartphone, CreditCard, Shield, Save, Eye, EyeOff, UserPlus, Edit, Trash2, CheckCircle, XCircle, X } from 'lucide-react'
+import { Settings as SettingsIcon, User, Bell, Lock, Globe, Palette, Database, Mail, Smartphone, Shield, Save, Eye, EyeOff, UserPlus, Edit, Trash2, CheckCircle, XCircle, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export default function Settings() {
@@ -52,7 +52,6 @@ export default function Settings() {
         { id: 'security', label: 'Güvenlik', icon: Lock },
         { id: 'appearance', label: 'Görünüm', icon: Palette },
         { id: 'system', label: 'Sistem', icon: Database },
-        { id: 'payment', label: 'Ödeme', icon: CreditCard },
     ]
 
     const saveSettings = () => {
@@ -787,66 +786,7 @@ export default function Settings() {
                             </motion.div>
                         )}
 
-                        {/* Ödeme */}
-                        {activeTab === 'payment' && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="space-y-6"
-                            >
-                                <div>
-                                    <h3 className="text-xl font-bold text-slate-800 mb-4">Ödeme Ayarları</h3>
-                                    <p className="text-slate-500 text-sm mb-6">Ödeme yöntemlerinizi yönetin</p>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div className="border-2 border-blue-600 bg-blue-50 rounded-xl p-6">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="flex items-center space-x-3">
-                                                <CreditCard className="w-6 h-6 text-blue-600" />
-                                                <div>
-                                                    <p className="font-semibold text-slate-800">•••• •••• •••• 4242</p>
-                                                    <p className="text-sm text-slate-500">Son kullanma: 12/25</p>
-                                                </div>
-                                            </div>
-                                            <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium">
-                                                Varsayılan
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <button className="w-full p-4 border-2 border-dashed border-slate-300 rounded-xl hover:border-blue-600 hover:bg-blue-50 transition-all text-slate-600 hover:text-blue-600 font-medium">
-                                        + Yeni Kart Ekle
-                                    </button>
-                                </div>
-
-                                <div className="bg-slate-50 rounded-xl p-6">
-                                    <h4 className="font-semibold text-slate-800 mb-4">Fatura Bilgileri</h4>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                Şirket Adı
-                                            </label>
-                                            <input
-                                                type="text"
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                placeholder="Şirket Adı"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                Vergi Numarası
-                                            </label>
-                                            <input
-                                                type="text"
-                                                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                placeholder="1234567890"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
+                        
                     </div>
                 </div>
             </div>

@@ -26,16 +26,21 @@ export const userService = {
     return api.post<ApiResponse<{ userId: number; user_id: string }>>('/users', data);
   },
 
-  // Login user
+  // Login user (prefer admin login for panel)
   login: async (data: LoginData) => {
     try {
-      const res = await api.post<ApiResponse<User & { token?: string }>>('/users/login', data);
+      // Önce admin login dener (username olarak email geçilebilir)
+      const res = await api.post<ApiResponse<{ token?: string }>>('/admin/login', { username: data.email, password: data.password });
       try {
-        if ((res as any)?.data?.token) {
-          if (typeof window !== 'undefined') sessionStorage.setItem('authToken', String((res as any).data.token));
+        const token = (res as any)?.token || (res as any)?.data?.token;
+        if (token) {
+          if (typeof window !== 'undefined') sessionStorage.setItem('authToken', String(token));
         }
       } catch {}
-      return res as any;
+      // Admin login başarılı ise success true döndür (backend success:true döndürüyor)
+      if ((res as any)?.success) return res as any;
+      // Emniyet: /users/login'e geri dön (müşteri girişi gerekiyorsa)
+      return await api.post<ApiResponse<User>>('/users/login', data);
     } catch (error: any) {
       // Uzak API başarısız olursa, ortam değişkenleri ile tanımlanan admin hesabı için
       // güvenli bir fallback uygula. Üretimde .env ile yönetilir; repo'ya gizli bilgi konulmaz.
@@ -59,7 +64,7 @@ export const userService = {
         };
         // Fallback'ta da basit token ayarla (yalnızca istemci tarafında depolanır)
         try { if (typeof window !== 'undefined') sessionStorage.setItem('authToken', 'admin-fallback'); } catch {}
-        return { success: true, data: adminUser } as any;
+        return { success: true, data: adminUser, token: 'admin-fallback' } as any;
       }
 
       throw error;
