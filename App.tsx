@@ -40,9 +40,9 @@ export default function App() {
         try {
           if (DEFAULT_TENANT_API_KEY) {
             apiService.setApiKey(DEFAULT_TENANT_API_KEY);
-            persistApiKey(DEFAULT_TENANT_API_KEY).catch(() => {});
+            persistApiKey(DEFAULT_TENANT_API_KEY).catch(() => { });
           }
-        } catch {}
+        } catch { }
 
         // Açılışta backend health zorunlu; başarısızsa uygulamayı yükleme
         try {
@@ -68,9 +68,9 @@ export default function App() {
           try {
             if (DEFAULT_TENANT_API_KEY) {
               apiService.setApiKey(DEFAULT_TENANT_API_KEY);
-              persistApiKey(DEFAULT_TENANT_API_KEY).catch(() => {});
+              persistApiKey(DEFAULT_TENANT_API_KEY).catch(() => { });
             }
-          } catch {}
+          } catch { }
           setBackendReady(true);
         } catch (e) {
           setBackendReady(false);
@@ -90,7 +90,7 @@ export default function App() {
         // IP ping kaldırıldı
 
         // No periodic retries after redirect requirement
-        return () => {};
+        return () => { };
       } catch (error) {
         console.error('❌ Failed to initialize app:', error);
         if (backendReady === null) setBackendReady(false);
@@ -100,7 +100,7 @@ export default function App() {
     const cleanupPromise = setupApp();
     return () => {
       // Ensure any async cleanup if provided
-      Promise.resolve(cleanupPromise).catch(() => {});
+      Promise.resolve(cleanupPromise).catch(() => { });
     };
   }, []);
 
@@ -150,9 +150,9 @@ export default function App() {
         try {
           if (DEFAULT_TENANT_API_KEY) {
             apiService.setApiKey(DEFAULT_TENANT_API_KEY);
-            persistApiKey(DEFAULT_TENANT_API_KEY).catch(() => {});
+            persistApiKey(DEFAULT_TENANT_API_KEY).catch(() => { });
           }
-        } catch {}
+        } catch { }
         setBackendReady(true);
       } catch (e) {
         setBackendReady(false);
@@ -186,7 +186,7 @@ export default function App() {
               <TouchableOpacity onPress={handleRetry} style={{ backgroundColor: '#111', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10 }}>
                 <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>Tekrar Dene</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { try { Linking.openSettings?.(); } catch {} }} style={{ backgroundColor: '#f5f5f5', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#eaeaea' }}>
+              <TouchableOpacity onPress={() => { try { Linking.openSettings?.(); } catch { } }} style={{ backgroundColor: '#f5f5f5', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#eaeaea' }}>
                 <Text style={{ color: '#111', fontSize: 15, fontWeight: '600' }}>Ayarlar</Text>
               </TouchableOpacity>
             </View>

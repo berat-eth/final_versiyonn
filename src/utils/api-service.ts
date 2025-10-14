@@ -784,16 +784,12 @@ class ApiService {
   }
 
   async getCartItems(userId: number): Promise<ApiResponse<any[]>> {
-    let query = '';
-    if (userId === 1) {
-      try {
-        const { DiscountWheelController } = require('../controllers/DiscountWheelController');
-        const deviceId = await DiscountWheelController.getDeviceId();
-        query = `?deviceId=${encodeURIComponent(deviceId)}`;
-      } catch {}
+    // Giriş yapmamış kullanıcılar için boş sepet döndür
+    if (!userId || userId <= 0) {
+      return { success: true, data: [], message: 'Sepet görüntülemek için giriş yapın' };
     }
 
-    const endpoint = `/cart/user/${userId}${query}`;
+    const endpoint = `/cart/user/${userId}`;
 
     // Cache-first: hızlı değişmeyecek veriler için önbellekten sun
     try {

@@ -461,7 +461,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           const { DiscountWheelController } = await import('../controllers/DiscountWheelController');
           
           let deviceId: string | undefined;
-          if (state.user.id === 1) {
+          if (state.user.id <= 0) {
             try {
               deviceId = await DiscountWheelController.getDeviceId();
             } catch (e) {

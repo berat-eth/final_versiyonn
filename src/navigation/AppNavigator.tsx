@@ -56,6 +56,7 @@ import { BackendErrorProvider, BackendErrorService } from '../services/BackendEr
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { CartController } from '../controllers/CartController';
 import { ProductController } from '../controllers/ProductController';
+import { UserController } from '../controllers/UserController';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -577,8 +578,8 @@ const TabNavigator = () => {
   useEffect(() => {
     const loadInitialCart = async () => {
       try {
-        const userId = 1; // Default guest user ID
-        const cartItems = await CartController.getCartItems(userId);
+        const effectiveUserId = await UserController.getCurrentUserId();
+        const cartItems = await CartController.getCartItems(effectiveUserId);
         // Initial cart load
         
         // Sepet boş olsa bile context'i güncelle

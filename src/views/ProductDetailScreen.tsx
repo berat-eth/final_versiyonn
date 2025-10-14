@@ -60,34 +60,77 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const [isFavorite, setIsFavorite] = useState(false);
   const [viewerCount, setViewerCount] = useState<number>(0);
   const [showViewer, setShowViewer] = useState<boolean>(false);
+  const [cachedUserId, setCachedUserId] = useState<number | null>(null);
 
   const { productId } = route.params;
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      // Ürün verilerini paralel yükle
-      const [productResult] = await Promise.allSettled([
-        loadProduct()
+      // ✅ OPTIMIZASYON: User ID'yi önce cache'le
+      const userId = await UserController.getCurrentUserId();
+      if (mounted) setCachedUserId(userId);
+
+      // ✅ OPTIMIZASYON: Tüm verileri paralel yükle
+      const [productResult, userResult, favoritesResult] = await Promise.allSettled([
+        ProductController.getProductById(productId),
+        UserController.getCachedUserQuick(),
+        userId > 0 ? UserController.getUserFavorites(userId) : Promise.resolve([])
       ]);
       
       if (!mounted) return;
-      
-      // Kullanıcı önbellekten hızlıca (ağ beklemeden) al, sonra favori kontrolü yap
-      const quick = await UserController.getCachedUserQuick();
-      if (quick) {
-        setCurrentUser(quick);
-        // Yorum yapma yetkisini kontrol et
-        await checkReviewEligibility();
+
+      // Ürünü işle
+      if (productResult.status === 'fulfilled' && productResult.value) {
+        setProduct(productResult.value);
+        setCurrentPrice(productResult.value?.price || 0);
+        setCurrentStock(productResult.value?.stock || 0);
+        setLoading(false);
+        
+        // Yorumları arka planda yükle
+        loadReviews().catch(() => {});
+        
+        // Görselleri arka planda önbelleğe indir
+        setTimeout(() => {
+          try {
+            const isWifi = NetworkMonitor.getConnectionType() === 'wifi';
+            const images = (productResult.value?.images || []).slice(0, 3);
+            const downloadPromises = images.map(async (uri: string, index: number) => {
+              if (!uri) return;
+              const optimized = optimizeImageUrl(uri, isWifi ? 'large' : 'medium');
+              await new Promise(resolve => setTimeout(resolve, index * 200));
+              const filename = encodeURIComponent((optimized || uri).split('/').pop() || `img_${Date.now()}.jpg`);
+              const local = `${FileSystem.cacheDirectory}${filename}`;
+              try {
+                const info = await FileSystem.getInfoAsync(local);
+                if (!info.exists) {
+                  await FileSystem.downloadAsync(optimized || uri, local, { cache: true });
+                }
+              } catch {}
+            });
+            Promise.all(downloadPromises).catch(() => {});
+          } catch {}
+        }, 0);
       }
-      checkIfFavorite();
+      
+      // Kullanıcıyı işle
+      if (userResult.status === 'fulfilled' && userResult.value) {
+        setCurrentUser(userResult.value);
+        checkReviewEligibility().catch(() => {});
+      }
+
+      // Favorileri işle
+      if (favoritesResult.status === 'fulfilled') {
+        const favoriteIds = favoritesResult.value.map((fav: any) => parseInt(fav.productId));
+        setIsFavorite(favoriteIds.includes(productId));
+      }
     })();
     
     // Rastgele izleyici sayısı üret ve göster
-    const count = Math.floor(Math.random() * 20) + 1; // 1..20
+    const count = Math.floor(Math.random() * 20) + 1;
     setViewerCount(count);
     setShowViewer(true);
-    const hideTimer = setTimeout(() => setShowViewer(false), 8000); // 8 sn sonra gizle
+    const hideTimer = setTimeout(() => setShowViewer(false), 8000);
     return () => { mounted = false; clearTimeout(hideTimer); };
   }, [productId]);
 
@@ -319,11 +362,18 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const handleAddToCart = async () => {
     if (!product) return;
 
-    if (!currentUser) {
-      Alert.alert('Giriş Gerekli', 'Sepete eklemek için lütfen giriş yapın.', [
-        { text: 'İptal', style: 'cancel' },
-        { text: 'Giriş Yap', onPress: () => navigation.navigate('Profile') }
-      ]);
+    // ✅ OPTIMIZASYON: Cache'lenmiş userId kullan
+    const userId = cachedUserId || await UserController.getCurrentUserId();
+    
+    if (!userId || userId <= 0) {
+      Alert.alert(
+        'Üyelik Gerekli', 
+        'Alışveriş yapabilmek için lütfen giriş yapın veya üye olun.', 
+        [
+          { text: 'İptal', style: 'cancel' },
+          { text: 'Giriş Yap / Üye Ol', onPress: () => navigation.navigate('Profile') }
+        ]
+      );
       return;
     }
 
@@ -433,7 +483,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
         Alert.alert('Giriş gerekli', 'Favorilere eklemek için lütfen giriş yapın.');
         return;
       }
-      const userId = await UserController.getCurrentUserId(); // Get current user ID
+      // ✅ OPTIMIZASYON: Cache'lenmiş userId kullan
+      const userId = cachedUserId || await UserController.getCurrentUserId();
       
       if (isFavorite) {
         const success = await UserController.removeFromFavorites(userId, productId);

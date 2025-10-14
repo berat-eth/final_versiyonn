@@ -726,22 +726,39 @@ async function initializeDatabase() {
       const recSvc = new RecommendationService(poolWrapper);
       profileScheduler = setInterval(async () => {
         try {
-          // Son 24 saatte aktivitesi olan kullanıcıları profil güncelle
-          const [users] = await poolWrapper.execute(
-            `SELECT DISTINCT userId FROM user_events WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND tenantId IS NOT NULL`
+          // ✅ OPTIMIZASYON: N+1 query fix - Tek sorguda tüm veriyi al
+          const [userTenants] = await poolWrapper.execute(
+            `SELECT 
+              userId,
+              GROUP_CONCAT(DISTINCT tenantId) as tenantIds
+            FROM user_events 
+            WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR) 
+              AND tenantId IS NOT NULL
+            GROUP BY userId`
           );
-          for (const u of users) {
-            // tenant bazlı kullanıcıları çek
-            const [tenants] = await poolWrapper.execute(
-              `SELECT DISTINCT tenantId FROM user_events WHERE userId = ? AND createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
-              [u.userId]
+          
+          // Paralel işleme için batch'lere böl
+          const batchSize = 10;
+          for (let i = 0; i < userTenants.length; i += batchSize) {
+            const batch = userTenants.slice(i, i + batchSize);
+            
+            // Her batch'i paralel işle
+            await Promise.allSettled(
+              batch.map(async (row) => {
+                const tenantIds = row.tenantIds.split(',').map(id => parseInt(id));
+                
+                // Her tenant için paralel işle
+                await Promise.allSettled(
+                  tenantIds.map(async (tenantId) => {
+                    await recSvc.updateUserProfile(tenantId, row.userId);
+                    await recSvc.generateRecommendations(tenantId, row.userId, 20);
+                  })
+                );
+              })
             );
-            for (const t of tenants) {
-              await recSvc.updateUserProfile(t.tenantId, u.userId);
-              await recSvc.generateRecommendations(t.tenantId, u.userId, 20);
-            }
           }
-          console.log(`🕒 Profiles refreshed: ${users.length} users`);
+          
+          console.log(`🕒 Profiles refreshed: ${userTenants.length} users (optimized)`);
         } catch (e) {
           console.warn('⚠️ Profile scheduler error:', e.message);
         }

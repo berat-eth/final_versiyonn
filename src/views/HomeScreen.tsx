@@ -200,19 +200,36 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      // Kullanıcıya özel hazır ana sayfa verisini (Redis/DB cache) dene
-      let homepagePayload: any | null = null;
-      try {
-        const isLoggedIn = await UserController.isLoggedIn();
-        if (isLoggedIn) {
-          const uid = await UserController.getCurrentUserId();
-          const hp = await apiService.get(`/users/${uid}/homepage-products`);
-          if (hp.success && hp.data) homepagePayload = hp.data;
-        }
-      } catch {}
+      
+      // ✅ OPTIMIZASYON: Kullanıcı kontrolünü önce yap
+      const isLoggedIn = await UserController.isLoggedIn();
+      const userId = isLoggedIn ? await UserController.getCurrentUserId() : null;
 
-      // Kategorileri paralel al
-      const catsPromise = ProductController.getAllCategories();
+      // ✅ OPTIMIZASYON: Tüm veri çağrılarını paralel yap
+      const [
+        homepageResult,
+        catsResult,
+        allCampaignsResult,
+        personalizedResult,
+        userCampaignsResult
+      ] = await Promise.allSettled([
+        // Homepage products (sadece giriş yapılmışsa)
+        userId ? apiService.get(`/users/${userId}/homepage-products`) : Promise.resolve(null),
+        // Kategoriler
+        ProductController.getAllCategories(),
+        // Genel kampanyalar
+        CampaignController.getCampaigns(),
+        // Kişiselleştirilmiş içerik (sadece giriş yapılmışsa)
+        userId ? PersonalizationController.generatePersonalizedContent(userId) : Promise.resolve(null),
+        // Kullanıcıya özel kampanyalar (sadece giriş yapılmışsa)
+        userId ? CampaignController.getAvailableCampaigns(userId) : Promise.resolve(null)
+      ]);
+
+      // Homepage products işle
+      let homepagePayload: any | null = null;
+      if (homepageResult.status === 'fulfilled' && homepageResult.value?.success && homepageResult.value?.data) {
+        homepagePayload = homepageResult.value.data;
+      }
 
       if (homepagePayload) {
         setPopularProducts(homepagePayload.popular || []);
@@ -253,41 +270,33 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         }
       }
 
-      const cats = await catsPromise;
+      // Kategorileri işle
+      if (catsResult.status === 'fulfilled') {
+        setCategories(Array.isArray(catsResult.value) ? catsResult.value : []);
+      }
 
-      setCategories(Array.isArray(cats) ? cats : []);
-
-      // Kampanyaları (login gerektirmeden) yükle
-      try {
-        const allCampaigns = await CampaignController.getCampaigns();
-        setCampaigns(Array.isArray(allCampaigns) ? allCampaigns : []);
+      // Kampanyaları işle
+      if (allCampaignsResult.status === 'fulfilled') {
+        setCampaigns(Array.isArray(allCampaignsResult.value) ? allCampaignsResult.value : []);
         // Sayaç için global bir now ticker başlat
         if (!nowIntervalRef.current) {
           nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
         }
-      } catch (e) {
-        console.error('Error loading campaigns:', e);
+      } else {
         setCampaigns([]);
       }
 
-      // Kişiselleştirilmiş içerik ve kullanıcıya özel kampanyalar (giriş yapılmışsa)
-      try {
-        const isLoggedIn = await UserController.isLoggedIn();
-        if (isLoggedIn) {
-          const userId = await UserController.getCurrentUserId();
-          const [personalizedContent, campaigns] = await Promise.all([
-            PersonalizationController.generatePersonalizedContent(userId),
-            CampaignController.getAvailableCampaigns(userId)
-          ]);
-          setPersonalizedContent(personalizedContent);
-          setAvailableCampaigns(campaigns);
-        } else {
-          setPersonalizedContent(null);
-          setAvailableCampaigns([]);
-        }
-      } catch (error) {
-        console.error('Error loading personalized content:', error);
+      // Kişiselleştirilmiş içerik işle
+      if (personalizedResult.status === 'fulfilled' && personalizedResult.value) {
+        setPersonalizedContent(personalizedResult.value);
+      } else {
         setPersonalizedContent(null);
+      }
+
+      // Kullanıcıya özel kampanyalar işle
+      if (userCampaignsResult.status === 'fulfilled' && userCampaignsResult.value) {
+        setAvailableCampaigns(Array.isArray(userCampaignsResult.value) ? userCampaignsResult.value : []);
+      } else {
         setAvailableCampaigns([]);
       }
     } catch (error) {

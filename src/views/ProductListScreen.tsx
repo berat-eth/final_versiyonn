@@ -44,13 +44,18 @@ const { width } = Dimensions.get('window');
 export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation, route }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [cachedUserId, setCachedUserId] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const user = await UserController.getCurrentUser();
-        if (mounted) setIsAuthenticated(!!user);
+        // ✅ OPTIMIZASYON: User ID'yi cache'le
+        const userId = await UserController.getCurrentUserId();
+        if (mounted) {
+          setCachedUserId(userId);
+          setIsAuthenticated(userId > 0);
+        }
       } catch {}
     })();
     return () => { mounted = false };
@@ -334,8 +339,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         return;
       }
 
-      // Use CartController to add to cart
-      const userId = await UserController.getCurrentUserId(); // Get current user ID
+      // ✅ OPTIMIZASYON: Cache'lenmiş userId kullan
+      const userId = cachedUserId || await UserController.getCurrentUserId();
       const result = await CartController.addToCart(userId, product.id, 1);
 
       if (result.success) {
@@ -357,7 +362,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
 
   const loadFavorites = async () => {
     try {
-      const userId = await UserController.getCurrentUserId(); // Get current user ID
+      // ✅ OPTIMIZASYON: Cache'lenmiş userId kullan
+      const userId = cachedUserId || await UserController.getCurrentUserId();
       const favorites = await UserController.getUserFavorites(userId);
       const favoriteIds = favorites.map((fav: any) => parseInt(fav.productId));
       setFavoriteProducts(favoriteIds);
@@ -368,7 +374,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
 
   const handleToggleFavorite = async (product: Product) => {
     try {
-      const userId = await UserController.getCurrentUserId(); // Get current user ID
+      // ✅ OPTIMIZASYON: Cache'lenmiş userId kullan
+      const userId = cachedUserId || await UserController.getCurrentUserId();
       const isFavorite = favoriteProducts.includes(product.id);
       
       if (isFavorite) {

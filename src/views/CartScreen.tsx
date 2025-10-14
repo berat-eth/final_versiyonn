@@ -72,6 +72,22 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     try {
       setLoading(true);
       const userIdValue = await UserController.getCurrentUserId(); // Get current user ID
+      
+      // Giriş yapmamış kullanıcılar için boş sepet göster
+      if (!userIdValue || userIdValue <= 0) {
+        setCartItems([]);
+        setDiscountCodes([]);
+        updateCart({
+          items: [],
+          total: 0,
+          itemCount: 0,
+          lastUpdated: new Date().toISOString(),
+        });
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+      
       const [items, codes] = await Promise.all([
         CartController.getCartItems(userIdValue),
         DiscountWheelController.getUserDiscountCodes(userIdValue)
@@ -487,14 +503,20 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             </View>
             <Text style={styles.emptyTitle}>Sepetiniz Boş</Text>
             <Text style={styles.emptyMessage}>
-              Sepetinizde henüz ürün bulunmuyor.{'\n'}
-              Hemen alışverişe başlayın!
+              Alışveriş yapabilmek için lütfen giriş yapın veya üye olun.{'\n'}
+              Sepetinize ürün eklemek için önce hesabınıza giriş yapmalısınız.
             </Text>
             <TouchableOpacity
               style={styles.shopButton}
+              onPress={() => navigation.navigate('Profile')}
+            >
+              <Text style={styles.shopButtonText}>Giriş Yap / Üye Ol</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.shopButton, { backgroundColor: '#6c757d', marginTop: 12 }]}
               onPress={() => navigation.navigate('Products')}
             >
-              <Text style={styles.shopButtonText}>Alışverişe Başla</Text>
+              <Text style={styles.shopButtonText}>Ürünleri İncele</Text>
             </TouchableOpacity>
           </View>
         </View>

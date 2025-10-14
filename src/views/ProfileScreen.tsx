@@ -173,80 +173,60 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       const user = await UserController.getCurrentUser();
       if (user) {
         setCurrentUser(user);
-        await loadUserOrders(user.id);
         
-        // Load user profile data from database
-        await loadUserProfileData(user.id);
-        
-        // Load user level data
-        await loadUserLevelData(user.id);
-      }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
-  };
+        // ✅ OPTIMIZASYON: Tüm verileri paralel yükle
+        const [
+          userOrders,
+          addresses,
+          balanceResponse,
+          favorites,
+          levelData
+        ] = await Promise.allSettled([
+          OrderController.getUserOrders(user.id),
+          UserController.getUserAddresses(user.id),
+          apiService.get(`/wallet/balance/${user.id}`),
+          UserController.getUserFavorites(user.id),
+          UserLevelController.getUserLevel(user.id.toString())
+        ]);
 
-  const loadUserProfileData = async (userId: number) => {
-    try {
-      // Load user addresses
-      const addresses = await UserController.getUserAddresses(userId);
-      
-      // Load user wallet (remote API)
-      try {
-        const balanceResponse = await apiService.get(`/wallet/balance/${userId}`);
-        if (balanceResponse?.success && balanceResponse?.data) {
-          setWalletBalance(balanceResponse.data.balance || 0);
+        // Siparişleri işle
+        if (userOrders.status === 'fulfilled') {
+          setOrders(userOrders.value);
+          
+          // Aktif siparişleri hesapla
+          const shippedOrdersCount = userOrders.value.filter(order => 
+            order.status === 'shipped' || order.status === 'processing'
+          ).length;
+          setActiveOrders(shippedOrdersCount);
+        }
+
+        // Cüzdan bakiyesini işle
+        if (balanceResponse.status === 'fulfilled' && 
+            balanceResponse.value?.success && 
+            balanceResponse.value?.data) {
+          setWalletBalance(balanceResponse.value.data.balance || 0);
         } else {
           setWalletBalance(0);
         }
-      } catch (e) {
-        setWalletBalance(0);
+
+        // Favorileri işle
+        if (favorites.status === 'fulfilled') {
+          setFavoriteCount(favorites.value.length);
+        }
+
+        // Kullanıcı seviyesini işle
+        if (levelData.status === 'fulfilled') {
+          setUserLevel(levelData.value);
+        }
+
+        // Log user activity (fire-and-forget; UI'yi bloklama, hata sessiz)
+        UserController.logUserActivity(user.id, 'profile_viewed', {
+          timestamp: new Date().toISOString(),
+          screen: 'ProfileScreen',
+        }).catch(() => {});
       }
-      
-      // Load user orders first
-      const userOrders = await OrderController.getUserOrders(userId);
-      setOrders(userOrders);
-      
-      // Load user favorites
-      const favorites = await UserController.getUserFavorites(userId);
-      setFavoriteCount(favorites.length);
-      
-      // Calculate active orders (shipped orders)
-      const shippedOrdersCount = userOrders.filter(order => 
-        order.status === 'shipped' || order.status === 'processing'
-      ).length;
-      setActiveOrders(shippedOrdersCount);
-      
-      // Log user activity (fire-and-forget; UI'yi bloklama, hata sessiz)
-      (async () => {
-        try {
-          await UserController.logUserActivity(userId, 'profile_viewed', {
-            timestamp: new Date().toISOString(),
-            screen: 'ProfileScreen',
-          });
-        } catch {}
-      })();
-      
     } catch (error) {
-      console.error('Error loading user profile data:', error);
-    }
-  };
-
-  const loadUserOrders = async (userId: number) => {
-    try {
-      const userOrders = await OrderController.getUserOrders(userId);
-      setOrders(userOrders);
-    } catch (error) {
-      console.error('Error loading orders:', error);
-    }
-  };
-
-  const loadUserLevelData = async (userId: number) => {
-    try {
-      const levelData = await UserLevelController.getUserLevel(userId.toString());
-      setUserLevel(levelData);
-    } catch (error) {
-      console.error('Error loading user level data:', error);
+      console.error('Error loading user data:', error);
     }
   };
 

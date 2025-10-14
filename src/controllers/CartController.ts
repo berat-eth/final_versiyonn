@@ -15,13 +15,10 @@ export class CartController {
     success: boolean;
     message: string;
   }> {
-    // Giriş zorunluluğu: misafir kullanıcı (userId===1) sepete ürün ekleyemez
-    if (userId === 1) {
-      return { success: false, message: 'Lütfen önce giriş yapın' };
+    // Giriş zorunluluğu: Kullanıcı giriş yapmadan sepete ürün ekleyemez
+    if (!userId || userId <= 0) {
+      return { success: false, message: 'Alışveriş yapabilmek için lütfen giriş yapın veya üye olun' };
     }
-
-    // Cihaz bazlı misafir sepet izolasyonu
-    let deviceId: string | undefined = undefined;
     
     try {
       // Adding to cartn
@@ -37,22 +34,13 @@ export class CartController {
         Object.entries(selectedVariations)
           .map(([key, option]) => `${key}: ${option.value}`)
           .join(', ') : '';
-      if (userId === 1) {
-        try {
-          const { DiscountWheelController } = require('./DiscountWheelController');
-          deviceId = await DiscountWheelController.getDeviceId();
-        } catch (e) {
-          // deviceId alınamadı, misafir sepet izolasyonu zayıflar
-        }
-      }
 
       const cartData = {
         userId,
         productId,
         quantity,
         variationString,
-        selectedVariations,
-        deviceId
+        selectedVariations
       };
 
       const response = await apiService.addToCart(cartData);
@@ -97,8 +85,7 @@ export class CartController {
           userId,
           productId,
           quantity,
-          selectedVariations,
-          deviceId: deviceId || undefined
+          selectedVariations
         });
         return { success: false, message: 'Çevrimdışı mod - ürün ekleme isteği kuyruğa eklendi' };
       }

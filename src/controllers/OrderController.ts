@@ -20,9 +20,9 @@ export class OrderController {
     orderId?: number;
   }> {
     try {
-      // Giriş zorunluluğu: misafir kullanıcı (userId===1) sipariş oluşturamaz
-      if (!userId || userId === 1) {
-        return { success: false, message: 'Lütfen sipariş vermek için giriş yapın' };
+      // Giriş zorunluluğu: Kullanıcı giriş yapmadan sipariş oluşturamaz
+      if (!userId || userId <= 0) {
+        return { success: false, message: 'Sipariş verebilmek için lütfen giriş yapın veya üye olun' };
       }
       console.log(`🛒 Creating order for user: ${userId}`);
       
@@ -54,7 +54,7 @@ export class OrderController {
       // Müşteri bilgilerini al
       const currentUser = await UserController.getCurrentUser();
       const customerInfo = {
-        customerName: currentUser?.name || 'Misafir Kullanıcı',
+        customerName: currentUser?.name || '',
         customerEmail: currentUser?.email || '',
         customerPhone: currentUser?.phone || ''
       };

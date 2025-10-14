@@ -394,7 +394,7 @@ export class UserController {
   }
 
   /**
-   * Get current user ID or return guest user ID (1)
+   * Get current user ID or return 0 if not logged in
    */
   static async getCurrentUserId(): Promise<number> {
     try {
@@ -411,12 +411,12 @@ export class UserController {
         console.log(`👤 Current user ID from getCurrentUser: ${currentUser.id} (${currentUser.name})`);
         return currentUser.id;
       } else {
-        console.log('👤 No logged in user, using guest ID: 1');
-        return 1; // Guest user ID
+        console.log('👤 No logged in user - user must login to shop');
+        return 0; // No user logged in
       }
     } catch (error) {
       console.error('❌ Error getting current user ID:', error);
-      return 1; // Fallback to guest user
+      return 0; // No user logged in
     }
   }
 
@@ -428,6 +428,11 @@ export class UserController {
   }): Promise<{ success: boolean; message: string }> {
     try {
       console.log(`🔄 Updating profile for user: ${userId}`);
+      
+      // Giriş kontrolü
+      if (!userId || userId <= 0) {
+        return { success: false, message: 'Profil güncellemek için giriş yapmalısınız' };
+      }
       
       // Validasyonlar
       if (data.password && data.password.length < 6) {

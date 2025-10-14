@@ -289,31 +289,100 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
           lastUpdated: new Date().toISOString(),
         });
 
-        Alert.alert(
-          'Sipariş Başarılı!',
-          `Siparişiniz başarıyla oluşturuldu. Sipariş No: #${result.orderId}`,
-          [
-            {
-              text: 'Siparişlerim',
-              onPress: () => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                });
-                navigation.navigate('Orders');
+        // EFT/Havale seçildiyse banka bilgilerini göster
+        if (paymentMethod === 'eft') {
+          Alert.alert(
+            '✅ Sipariş Oluşturuldu!',
+            `Siparişiniz başarıyla oluşturuldu.\nSipariş No: #${result.orderId}\n\nÖdeme için banka bilgileri bir sonraki ekranda gösterilecektir.`,
+            [
+              {
+                text: 'Banka Bilgilerini Gör',
+                onPress: () => {
+                  // Banka bilgilerini göster
+                  Alert.alert(
+                    '🏦 Banka Bilgileri',
+                    `Lütfen aşağıdaki hesaba ödeme yapınız:\n\nHesap Adı: ${EFT_DETAILS.accountName}\n\nIBAN: ${EFT_DETAILS.iban}\n\nTutar: ${total.toFixed(2)} TL\n\nAçıklama: Sipariş #${result.orderId}\n\n⚠️ Önemli: Havale açıklamasına mutlaka sipariş numaranızı (#${result.orderId}) yazınız. Ödemeniz onaylandığında siparişiniz işleme alınacaktır.`,
+                    [
+                      {
+                        text: 'IBAN Kopyala',
+                        onPress: async () => {
+                          await Clipboard.setStringAsync(EFT_DETAILS.iban);
+                          Alert.alert('✅ Kopyalandı', 'IBAN panoya kopyalandı', [
+                            {
+                              text: 'Siparişlerim',
+                              onPress: () => {
+                                navigation.reset({
+                                  index: 0,
+                                  routes: [{ name: 'Home' }],
+                                });
+                                navigation.navigate('Orders');
+                              }
+                            },
+                            {
+                              text: 'Ana Sayfa',
+                              onPress: () => {
+                                navigation.reset({
+                                  index: 0,
+                                  routes: [{ name: 'Home' }],
+                                });
+                              }
+                            }
+                          ]);
+                        }
+                      },
+                      {
+                        text: 'Siparişlerim',
+                        onPress: () => {
+                          navigation.reset({
+                            index: 0,
+                            routes: [{ name: 'Home' }],
+                          });
+                          navigation.navigate('Orders');
+                        }
+                      },
+                      {
+                        text: 'Ana Sayfa',
+                        onPress: () => {
+                          navigation.reset({
+                            index: 0,
+                            routes: [{ name: 'Home' }],
+                          });
+                        }
+                      }
+                    ]
+                  );
+                }
               }
-            },
-            {
-              text: 'Ana Sayfa',
-              onPress: () => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                });
+            ]
+          );
+        } else {
+          // Diğer ödeme yöntemleri için normal mesaj
+          Alert.alert(
+            'Sipariş Başarılı!',
+            `Siparişiniz başarıyla oluşturuldu. Sipariş No: #${result.orderId}`,
+            [
+              {
+                text: 'Siparişlerim',
+                onPress: () => {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Home' }],
+                  });
+                  navigation.navigate('Orders');
+                }
+              },
+              {
+                text: 'Ana Sayfa',
+                onPress: () => {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Home' }],
+                  });
+                }
               }
-            }
-          ]
-        );
+            ]
+          );
+        }
       } else {
         // Order creation failed
         Alert.alert('Hata', result.message);
@@ -635,37 +704,21 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
           </View>
         )}
 
-        {/* EFT/Havale Bilgileri */}
+        {/* EFT/Havale Bilgi Notu */}
         {paymentMethod === 'eft' && (
           <View style={styles.cardForm}>
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Banka Bilgileri</Text>
-              <View style={{ backgroundColor: '#F8F9FF', borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 12, padding: Spacing.md }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text style={{ fontSize: 14, color: '#333333', marginBottom: 2 }}>Hesap Adı</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#1A1A2E' }}>{EFT_DETAILS.accountName}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => handleCopy(EFT_DETAILS.accountName, 'Hesap adı')} style={{ padding: 8 }}>
-                    <Icon name="content-copy" size={20} color={Colors.primary} />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={{ height: 1, backgroundColor: '#E5E7EB', marginVertical: 8 }} />
-
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text style={{ fontSize: 14, color: '#333333', marginBottom: 2 }}>IBAN</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primary }}>{EFT_DETAILS.iban}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => handleCopy(EFT_DETAILS.iban, 'IBAN')} style={{ padding: 8 }}>
-                    <Icon name="content-copy" size={20} color={Colors.primary} />
-                  </TouchableOpacity>
+              <View style={{ backgroundColor: '#FFF7E6', borderWidth: 1, borderColor: '#FFD700', borderRadius: 12, padding: Spacing.md, flexDirection: 'row', alignItems: 'flex-start' }}>
+                <Icon name="info" size={24} color="#FF8C00" style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#1A1A2E', marginBottom: 4 }}>
+                    Banka Bilgileri
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#666666', lineHeight: 20 }}>
+                    Sipariş tamamlandıktan sonra banka bilgileri gösterilecektir. Ödemenizi yaptıktan sonra siparişiniz işleme alınacaktır.
+                  </Text>
                 </View>
               </View>
-              <Text style={{ fontSize: 12, color: '#666666', marginTop: 8 }}>
-                Lütfen havale açıklamasına sipariş numaranızı yazınız. Ödeme onaylandığında siparişiniz işleme alınacaktır.
-              </Text>
             </View>
           </View>
         )}

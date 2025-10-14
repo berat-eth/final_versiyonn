@@ -823,9 +823,9 @@ Kullanıcı ödeme hakkında soru soruyor.`;
     try {
       const raw = await AsyncStorage.getItem('currentUserId');
       const uid = raw ? parseInt(raw, 10) : NaN;
-      return Number.isFinite(uid) && uid > 0 ? uid : 1;
+      return Number.isFinite(uid) && uid > 0 ? uid : 0;
     } catch {
-      return 1;
+      return 0;
     }
   }
 
