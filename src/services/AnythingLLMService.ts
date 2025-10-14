@@ -28,7 +28,7 @@ export interface LLMResponse {
 export class AnythingLLMService {
   private static readonly CONFIG_KEY = 'anythingllm_config';
   private static readonly SESSION_KEY = 'anythingllm_session';
-  
+
   private static defaultConfig: LLMConfig = {
     apiUrl: 'http://localhost:3001',
     apiKey: '',
@@ -69,15 +69,23 @@ export class AnythingLLMService {
   // Session ID oluştur veya getir
   static async getSessionId(): Promise<string> {
     try {
-      let sessionId = await AsyncStorage.getItem(this.SESSION_KEY);
-      if (!sessionId) {
-        sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await AsyncStorage.setItem(this.SESSION_KEY, sessionId);
+      const storedSessionId = await AsyncStorage.getItem(this.SESSION_KEY);
+
+      if (!storedSessionId) {
+        // GÜVENLİK: Kriptografik olarak güvenli session ID
+        const { generateSecureSessionId } = require('../utils/crypto-utils');
+        const newSessionId = generateSecureSessionId();
+        await AsyncStorage.setItem(this.SESSION_KEY, newSessionId);
+        return newSessionId;
       }
-      return sessionId;
+
+      // Type guard: storedSessionId artık kesinlikle string
+      return storedSessionId;
     } catch (error) {
       console.error('Session ID error:', error);
-      return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // GÜVENLİK: Fallback için de güvenli random
+      const { generateSecureSessionId } = require('../utils/crypto-utils');
+      return generateSecureSessionId();
     }
   }
 
@@ -85,7 +93,7 @@ export class AnythingLLMService {
   static async sendMessage(message: string, mode: 'chat' | 'query' = 'chat'): Promise<string> {
     try {
       const config = await this.getConfig();
-      
+
       if (!config.enabled) {
         throw new Error('AnythingLLM is not enabled');
       }
@@ -95,7 +103,7 @@ export class AnythingLLMService {
       }
 
       const sessionId = await this.getSessionId();
-      
+
       const requestBody: LLMMessage = {
         message,
         mode,
@@ -113,19 +121,19 @@ export class AnythingLLMService {
       }
 
       const url = `${config.apiUrl}/api/v1/workspace/${config.workspaceSlug}/chat`;
-      
+
       console.log('🤖 AnythingLLM Request:', { url, body: requestBody });
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
-      
+
       const response = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -151,7 +159,7 @@ export class AnythingLLMService {
 
     } catch (error: any) {
       console.error('❌ AnythingLLM Service Error:', error);
-      
+
       if (error.message?.includes('Network request failed')) {
         return 'AnythingLLM sunucusuna bağlanılamadı. Lütfen sunucunun çalıştığından emin olun.';
       } else if (error.message?.includes('timeout')) {
@@ -168,7 +176,7 @@ export class AnythingLLMService {
   static async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
       const config = await this.getConfig();
-      
+
       if (!config.apiUrl) {
         return { success: false, message: 'API URL yapılandırılmamış' };
       }
@@ -183,13 +191,13 @@ export class AnythingLLMService {
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
+
       const response = await fetch(`${config.apiUrl}/api/v1/system/check`, {
         method: 'GET',
         headers,
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
 
       if (response.ok) {
@@ -198,9 +206,9 @@ export class AnythingLLMService {
         return { success: false, message: `Bağlantı hatası: ${response.status}` };
       }
     } catch (error: any) {
-      return { 
-        success: false, 
-        message: `Bağlantı testi başarısız: ${error.message}` 
+      return {
+        success: false,
+        message: `Bağlantı testi başarısız: ${error.message}`
       };
     }
   }
@@ -209,7 +217,7 @@ export class AnythingLLMService {
   static async listWorkspaces(): Promise<any[]> {
     try {
       const config = await this.getConfig();
-      
+
       if (!config.apiUrl) {
         throw new Error('API URL yapılandırılmamış');
       }
@@ -224,13 +232,13 @@ export class AnythingLLMService {
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
+
       const response = await fetch(`${config.apiUrl}/api/v1/workspaces`, {
         method: 'GET',
         headers,
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
 
       if (response.ok) {
@@ -279,19 +287,19 @@ export class AnythingLLMService {
   static async getSmartResponse(message: string, context?: any): Promise<string> {
     try {
       const config = await this.getConfig();
-      
+
       if (!config.enabled) {
         return 'AnythingLLM entegrasyonu aktif değil.';
       }
 
       // Eğer ürün, sipariş, teknik sorular varsa RAG kullan
       const ragKeywords = [
-        'ürün', 'sipariş', 'kargo', 'iade', 'fiyat', 'stok', 
+        'ürün', 'sipariş', 'kargo', 'iade', 'fiyat', 'stok',
         'teslimat', 'ödeme', 'garanti', 'özellikleri', 'nasıl',
         'neden', 'ne zaman', 'hangi', 'kaç', 'ne kadar'
       ];
 
-      const shouldUseRAG = ragKeywords.some(keyword => 
+      const shouldUseRAG = ragKeywords.some(keyword =>
         message.toLowerCase().includes(keyword.toLowerCase())
       );
 

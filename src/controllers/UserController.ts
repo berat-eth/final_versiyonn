@@ -8,6 +8,29 @@ import { userDataService } from '../services/UserDataService';
 export class UserController {
   // Simple local storage for user preferences
   private static userPreferences = new Map<string, any>();
+
+  /**
+   * GÜVENLİK: Hassas bilgileri loglardan temizle
+   */
+  private static sanitizeLogValue(key: string, value: any): any {
+    const sensitiveKeys = ['password', 'token', 'apiKey', 'secret', 'auth', 'credential'];
+    const isSensitive = sensitiveKeys.some(k => key.toLowerCase().includes(k));
+    
+    if (isSensitive) {
+      return '***REDACTED***';
+    }
+    
+    // Nested object kontrolü
+    if (typeof value === 'object' && value !== null) {
+      const sanitized: any = Array.isArray(value) ? [] : {};
+      for (const [k, v] of Object.entries(value)) {
+        sanitized[k] = this.sanitizeLogValue(k, v);
+      }
+      return sanitized;
+    }
+    
+    return value;
+  }
   // In-memory user cache to avoid repeated fetching on every operation
   private static cachedUser: User | null = null;
   private static cachedUserAt: number = 0;
@@ -37,7 +60,11 @@ export class UserController {
         console.log(`✅ Removed ${key} from storage`);
       } else {
         await AsyncStorage.setItem(key, JSON.stringify(value));
-        console.log(`✅ Saved ${key} to storage:`, value);
+        // GÜVENLİK: Hassas bilgileri loglama
+      if (__DEV__) {
+        const sanitizedValue = this.sanitizeLogValue(key, value);
+        console.log(`✅ Saved ${key} to storage:`, sanitizedValue);
+      }
       }
     } catch (error) {
       console.warn('⚠️ Could not save to storage:', error);
@@ -57,7 +84,11 @@ export class UserController {
       if (stored) {
         const value = JSON.parse(stored);
         this.userPreferences.set(key, value);
-        console.log(`✅ Retrieved ${key} from AsyncStorage:`, value);
+        // GÜVENLİK: Hassas bilgileri loglama
+        if (__DEV__) {
+          const sanitizedValue = this.sanitizeLogValue(key, value);
+          console.log(`✅ Retrieved ${key} from AsyncStorage:`, sanitizedValue);
+        }
         return value;
       }
     } catch (error) {
@@ -71,7 +102,11 @@ export class UserController {
         if (stored) {
           const value = JSON.parse(stored);
           this.userPreferences.set(key, value);
-          console.log(`✅ Retrieved ${key} from localStorage:`, value);
+          // GÜVENLİK: Hassas bilgileri loglama
+          if (__DEV__) {
+            const sanitizedValue = this.sanitizeLogValue(key, value);
+            console.log(`✅ Retrieved ${key} from localStorage:`, sanitizedValue);
+          }
           return value;
         }
       }
@@ -1018,7 +1053,8 @@ export class UserController {
     newPassword: string;
   }): Promise<{ success: boolean; message: string }> {
     try {
-      console.log('🔒 Changing password');
+      // GÜVENLİK: Şifre değişikliği loglanmıyor
+      if (__DEV__) console.log('🔒 Password change requested');
       
       // Get current user ID
       const currentUser = await this.getCurrentUser();
@@ -1027,10 +1063,12 @@ export class UserController {
       const response = await apiService.changePassword(userId, data);
       
       if (response.success) {
-        console.log('✅ Password changed successfully');
+        // GÜVENLİK: Başarılı şifre değişikliği loglanmıyor
+        if (__DEV__) console.log('✅ Password changed successfully');
         return { success: true, message: 'Şifre başarıyla değiştirildi' };
       } else {
-        console.log('❌ Password change failed:', response.message);
+        // GÜVENLİK: Hata mesajı loglanmıyor (bilgi sızıntısı riski)
+        if (__DEV__) console.log('❌ Password change failed');
         return { success: false, message: response.message || 'Şifre değiştirilemedi' };
       }
     } catch (error) {

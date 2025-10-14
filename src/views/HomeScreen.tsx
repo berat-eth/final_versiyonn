@@ -311,12 +311,10 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       const allProductsResponse = await ProductController.getAllProducts(1, 60);
       const allProducts = allProductsResponse?.products || [];
       if (allProducts && allProducts.length > 0) {
-        // Yeni ürünlerle çakışmayacak şekilde random ürünler seç
-        const randomProducts = getUniqueProducts(
-          [...allProducts].sort(() => 0.5 - Math.random()),
-          newProducts,
-          6
-        );
+        // GÜVENLİK: Kriptografik olarak güvenli shuffle
+        const { secureShuffleArray } = require('../utils/crypto-utils');
+        const shuffled = secureShuffleArray(allProducts);
+        const randomProducts = getUniqueProducts(shuffled, newProducts, 6);
         
         setPopularProducts(randomProducts);
         setPopularProductsCounter((prev: number) => prev + 1);

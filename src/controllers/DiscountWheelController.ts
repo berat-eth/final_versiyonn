@@ -41,10 +41,9 @@ export class DiscountWheelController {
       let deviceId = await AsyncStorage.getItem('device_id');
       
       if (!deviceId) {
-        // Generate new device ID
-        const timestamp = Date.now().toString();
-        const random = Math.random().toString(36).substring(2, 15);
-        deviceId = `${Platform.OS}_${timestamp}_${random}`;
+        // GÜVENLİK: Kriptografik olarak güvenli device ID üretimi
+        const { generateSecureDeviceId } = await import('../utils/crypto-utils');
+        deviceId = generateSecureDeviceId(Platform.OS);
         
         // Save to storage
         await AsyncStorage.setItem('device_id', deviceId);
@@ -53,8 +52,9 @@ export class DiscountWheelController {
       return deviceId;
     } catch (error) {
       console.error('Error generating device ID:', error);
-      // Fallback device ID
-      return `${Platform.OS}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      // GÜVENLİK: Fallback için de güvenli random kullan
+      const { generateSecureDeviceId } = await import('../utils/crypto-utils');
+      return generateSecureDeviceId(Platform.OS);
     }
   }
 

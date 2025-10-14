@@ -30,12 +30,12 @@ export const API_CONFIGS: Record<string, ApiConfig> = {
   }
 };
 
-// Remote server configurations
+// Remote server configurations - GÜVENLİK: Sadece HTTPS kullan
 export const REMOTE_SERVERS = {
   primary: 'https://api.zerodaysoftware.tr/api',
-  // HTTP fallback'ları yalnızca geliştirme sırasında kullan
-  backup: __DEV__ ? 'http://213.142.159.135:3000/api' : 'https://api.zerodaysoftware.tr/api',
-  local: __DEV__ ? 'http://213.142.159.135:3000/api' : 'https://api.zerodaysoftware.tr/api'
+  // GÜVENLİK: HTTP fallback kaldırıldı, sadece HTTPS
+  backup: 'https://api.zerodaysoftware.tr/api',
+  local: 'https://api.zerodaysoftware.tr/api'
 };
 
 // Single-tenant mod ayarı: env üzerinden yönetilir (Expo: EXPO_PUBLIC_*)
@@ -44,18 +44,12 @@ const extra = (Constants as any)?.expoConfig?.extra || (Constants as any)?.manif
 export const SINGLE_TENANT = String(((process as any)?.env?.EXPO_PUBLIC_SINGLE_TENANT ?? extra?.EXPO_PUBLIC_SINGLE_TENANT) || 'true') === 'true';
 export const DEFAULT_TENANT_ID = String(((process as any)?.env?.EXPO_PUBLIC_TENANT_ID ?? extra?.EXPO_PUBLIC_TENANT_ID) || '1');
 
-// Not: X-API-Key gerektiğinde uygulama akışında güvenli şekilde set edilmelidir.
-// Geçici çözüm: Uzak sunucu erişimi için varsayılan tenant API anahtarı.
-// UYARI: Üretimde bu anahtar rotate edilmelidir.
-// Üretimde sabit API anahtarı barındırma. Anahtar, oturum/tenant akışında ayarlanır.
+// GÜVENLİK: API anahtarı artık kaynak kodunda değil, güvenli depolamada tutulacak
+// Runtime'da SecureStore'dan yüklenecek
 export const DEFAULT_TENANT_API_KEY = String(((process as any)?.env?.EXPO_PUBLIC_TENANT_API_KEY ?? extra?.EXPO_PUBLIC_TENANT_API_KEY) || '');
 
-// Optional IP address candidates for the backend. Fill with your server IPs.
-// Examples: '95.173.182.10', '185.xxx.xxx.xxx'
-export const IP_SERVER_CANDIDATES: string[] = [
-  // Add known backend IPs here if available
-  '213.142.159.135'
-];
+// GÜVENLİK: IP adresleri kaldırıldı - sadece domain kullan
+export const IP_SERVER_CANDIDATES: string[] = [];
 
 // Get current environment
 export function getCurrentEnvironment(): string {
@@ -92,16 +86,11 @@ export function setRemoteServer(serverType: keyof typeof REMOTE_SERVERS): void {
   console.log(`🌐 API server changed to: ${config.baseUrl}`);
 }
 
-// Auto-detect best server
+// Auto-detect best server - GÜVENLİK: Sadece HTTPS sunucular
 export async function detectBestServer(): Promise<string> {
   const servers = Object.values(REMOTE_SERVERS);
   
-  // For APK builds, also include IP candidates
-  if (isApkBuild() && IP_SERVER_CANDIDATES.length > 0) {
-    IP_SERVER_CANDIDATES.forEach(ip => {
-      servers.push(`http://${ip}:3000/api`);
-    });
-  }
+  // GÜVENLİK: IP ve HTTP bağlantıları kaldırıldı
   
   const testPromises = servers.map(async (url) => {
     const startTime = Date.now();

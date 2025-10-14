@@ -126,8 +126,9 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       }
     })();
     
-    // Rastgele izleyici sayısı üret ve göster
-    const count = Math.floor(Math.random() * 20) + 1;
+    // GÜVENLİK: Gerçek izleyici sayısı backend'den alınmalı
+    // Şimdilik sabit bir değer kullan (güvenlik için Math.random kaldırıldı)
+    const count = 5; // Backend entegrasyonu yapılana kadar sabit değer
     setViewerCount(count);
     setShowViewer(true);
     const hideTimer = setTimeout(() => setShowViewer(false), 8000);

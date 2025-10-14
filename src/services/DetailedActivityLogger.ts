@@ -104,11 +104,14 @@ class DetailedActivityLogger {
       return; // Silent fail - don't log warnings
     }
 
+    // Type guard: userId artık kesinlikle number
+    const currentUserId = this.userId;
+
     // Non-blocking async logging
     setImmediate(async () => {
       try {
         await userDataService.logUserActivity({
-          userId: this.userId,
+          userId: currentUserId,
           activityType,
           activityData: {
             ...activityData,
@@ -124,7 +127,9 @@ class DetailedActivityLogger {
   }
 
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // GÜVENLİK: Kriptografik olarak güvenli session ID
+    const { generateSecureSessionId } = require('../utils/crypto-utils');
+    return generateSecureSessionId();
   }
 
   private getDeviceInfo() {

@@ -1,4 +1,4 @@
-import { AppAction, UpdateItem } from '../contexts/AppContext';
+import type { AppAction, UpdateItem } from '../contexts/AppContext';
 
 export interface RealTimeConfig {
   syncInterval: number; // milliseconds
@@ -97,9 +97,10 @@ export class RealTimeService {
     return new Promise((resolve) => {
       setTimeout(() => {
         // Simulate 95% success rate for more stability
-        // Also add some randomness to make it more realistic
-        const randomValue = Math.random();
-        const success = randomValue > 0.05; // 95% success rate
+        // GÜVENLİK: Kriptografik olarak güvenli random kullan
+        const { generateSecureRandomNumber } = require('../utils/crypto-utils');
+        const randomValue = generateSecureRandomNumber(0, 100);
+        const success = randomValue > 5; // 95% success rate
         
         // Log for debugging (remove in production)
         if (!success) {

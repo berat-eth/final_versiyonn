@@ -60,9 +60,11 @@ class AnalyticsCoordinator {
 
   // Kullanıcı oturumu başlatma
   startUserSession(userId: number): void {
+    // GÜVENLİK: Kriptografik olarak güvenli session ID
+    const { generateSecureSessionId } = require('../utils/crypto-utils');
     this.currentSession = {
       userId,
-      sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      sessionId: generateSecureSessionId(),
       startTime: Date.now(),
       totalEvents: 0,
       screensVisited: [],
@@ -83,9 +85,9 @@ class AnalyticsCoordinator {
   endUserSession(): void {
     if (this.currentSession) {
       this.currentSession.endTime = Date.now();
-      
+
       // Tüm analytics servislerini durdur
-    // Servis yok
+      // Servis yok
 
       // Son veri gönderimini yap
       this.flushAllData();
@@ -185,9 +187,8 @@ class AnalyticsCoordinator {
 
     this.currentSession.totalEvents++;
 
-    if (this.config.enableDetailedLogging) {
-      detailedActivityLogger.logUserActivity(eventName, eventData);
-    }
+    // DetailedActivityLogger kullanımı kaldırıldı - artık gerekli değil
+    // Detaylı loglama gerekirse, ilgili screen'lerde doğrudan kullanılmalı
   }
 
   // Veri gönderimi

@@ -188,9 +188,14 @@ export class SecureStorage {
   /**
    * Generate secure session token
    */
+  /**
+   * GÜVENLİK: Kriptografik olarak güvenli random sayı üretimi
+   */
   static generateSessionToken(): string {
     const timestamp = Date.now().toString();
-    const random = Math.random().toString(36).substring(2);
+    // GÜVENLİK: Math.random yerine CryptoJS.lib.WordArray.random kullan
+    const randomBytes = CryptoJS.lib.WordArray.random(32);
+    const random = randomBytes.toString(CryptoJS.enc.Hex);
     return CryptoJS.SHA256(timestamp + random).toString();
   }
 

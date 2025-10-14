@@ -87,7 +87,9 @@ class PerformanceAnalytics {
 
   setUserId(userId: number) {
     this.userId = userId;
-    this.sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // GÜVENLİK: Kriptografik olarak güvenli session ID
+    const { generateSecureSessionId } = require('../utils/crypto-utils');
+    this.sessionId = generateSecureSessionId();
   }
 
   // Performans metrikleri toplama

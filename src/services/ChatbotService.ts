@@ -169,7 +169,9 @@ export class ChatbotService {
 
   static async processMessage(message: string, actionType: string = 'text'): Promise<ChatMessage> {
     const timestamp = new Date();
-    const messageId = `bot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // GÜVENLİK: Kriptografik olarak güvenli message ID
+    const { generateSecureMessageId } = require('../utils/crypto-utils');
+    const messageId = generateSecureMessageId();
 
     try {
       // Backend API'ye mesaj gönder

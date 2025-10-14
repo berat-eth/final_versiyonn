@@ -73,13 +73,13 @@ export interface TestCard {
 }
 
 export class PaymentService {
-  
+
   // Kredi kartı ile ödeme işlemi - KART BİLGİLERİ KAYIT EDİLMİYOR
   static async processPayment(paymentData: PaymentRequest): Promise<PaymentResult> {
     try {
       console.log('🔄 Processing payment for order:', paymentData.orderId);
       console.log('⚠️ SECURITY: Card data will NOT be stored - only processed for immediate transaction');
-      
+
       // Kart bilgilerini işlemeden önce güvenlik kontrolü
       if (!this.validateCardNumber(paymentData.paymentCard.cardNumber)) {
         return {
@@ -88,7 +88,7 @@ export class PaymentService {
           error: 'INVALID_CARD_NUMBER'
         };
       }
-      
+
       if (!this.validateExpiry(paymentData.paymentCard.expireMonth, paymentData.paymentCard.expireYear)) {
         return {
           success: false,
@@ -96,7 +96,7 @@ export class PaymentService {
           error: 'INVALID_EXPIRY'
         };
       }
-      
+
       if (!this.validateCVC(paymentData.paymentCard.cvc, paymentData.paymentCard.cardNumber)) {
         return {
           success: false,
@@ -104,9 +104,9 @@ export class PaymentService {
           error: 'INVALID_CVC'
         };
       }
-      
-      const response = await apiService.request('/payments/process', 'POST', paymentData);
-      
+
+      const response = await apiService.processPayment(paymentData);
+
       if (response.success) {
         console.log('✅ Payment successful:', response.data);
         console.log('✅ Card data processed and discarded - not stored');
@@ -137,9 +137,9 @@ export class PaymentService {
   static async getPaymentStatus(paymentId: string): Promise<PaymentStatus | null> {
     try {
       console.log('🔍 Checking payment status:', paymentId);
-      
-      const response = await apiService.request(`/payments/${paymentId}/status`, 'GET');
-      
+
+      const response = await apiService.getPaymentStatus(paymentId);
+
       if (response.success) {
         return response.data;
       } else {
@@ -155,8 +155,8 @@ export class PaymentService {
   // Test kartları alma (sadece development)
   static async getTestCards(): Promise<{ success: TestCard; failure: TestCard } | null> {
     try {
-      const response = await apiService.request('/payments/test-cards', 'GET');
-      
+      const response = await apiService.getTestCards();
+
       if (response.success) {
         return response.data;
       } else {
@@ -172,10 +172,10 @@ export class PaymentService {
   static formatCardNumber(cardNumber: string): string {
     // Sadece rakamları al
     const cleaned = cardNumber.replace(/\D/g, '');
-    
+
     // 4'er rakam grupları halinde formatla
     const formatted = cleaned.replace(/(\d{4})(?=\d)/g, '$1 ');
-    
+
     // Maksimum 19 karakter (16 rakam + 3 boşluk)
     return formatted.substring(0, 19);
   }
@@ -184,11 +184,11 @@ export class PaymentService {
   static maskCardNumber(cardNumber: string): string {
     const cleaned = cardNumber.replace(/\D/g, '');
     if (cleaned.length < 8) return cardNumber;
-    
+
     const firstFour = cleaned.substring(0, 4);
     const lastFour = cleaned.substring(cleaned.length - 4);
     const middle = '*'.repeat(cleaned.length - 8);
-    
+
     return `${firstFour} ${middle} ${lastFour}`;
   }
 
@@ -204,7 +204,7 @@ export class PaymentService {
   // Kart numarası validasyonu
   static validateCardNumber(cardNumber: string): boolean {
     const cleaned = cardNumber.replace(/\D/g, '');
-    
+
     // Uzunluk kontrolü (13-19 rakam)
     if (cleaned.length < 13 || cleaned.length > 19) {
       return false;
@@ -213,32 +213,32 @@ export class PaymentService {
     // Luhn algoritması
     let sum = 0;
     let isEven = false;
-    
+
     for (let i = cleaned.length - 1; i >= 0; i--) {
       let digit = parseInt(cleaned.charAt(i), 10);
-      
+
       if (isEven) {
         digit *= 2;
         if (digit > 9) {
           digit -= 9;
         }
       }
-      
+
       sum += digit;
       isEven = !isEven;
     }
-    
+
     return sum % 10 === 0;
   }
 
   // CVC validasyonu
   static validateCVC(cvc: string, cardNumber: string = ''): boolean {
     const cleaned = cvc.replace(/\D/g, '');
-    
+
     // American Express için 4 rakam, diğerleri için 3 rakam
-    const isAmex = cardNumber.replace(/\D/g, '').startsWith('34') || 
-                   cardNumber.replace(/\D/g, '').startsWith('37');
-    
+    const isAmex = cardNumber.replace(/\D/g, '').startsWith('34') ||
+      cardNumber.replace(/\D/g, '').startsWith('37');
+
     const expectedLength = isAmex ? 4 : 3;
     return cleaned.length === expectedLength;
   }
@@ -248,32 +248,32 @@ export class PaymentService {
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
-    
+
     const expMonth = parseInt(month, 10);
     const expYear = parseInt(year, 10);
-    
+
     // Ay kontrolü
     if (expMonth < 1 || expMonth > 12) {
       return false;
     }
-    
+
     // Yıl kontrolü (gelecek 20 yıl)
     if (expYear < currentYear || expYear > currentYear + 20) {
       return false;
     }
-    
+
     // Geçmiş tarih kontrolü
     if (expYear === currentYear && expMonth < currentMonth) {
       return false;
     }
-    
+
     return true;
   }
 
   // Kart tipini tespit et
   static getCardType(cardNumber: string): string {
     const cleaned = cardNumber.replace(/\D/g, '');
-    
+
     if (cleaned.startsWith('4')) {
       return 'Visa';
     } else if (cleaned.startsWith('5') || cleaned.startsWith('2')) {
@@ -283,7 +283,7 @@ export class PaymentService {
     } else if (cleaned.startsWith('6')) {
       return 'Discover';
     }
-    
+
     return 'Unknown';
   }
 

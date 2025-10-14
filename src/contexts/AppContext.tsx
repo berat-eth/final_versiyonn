@@ -52,7 +52,7 @@ interface RealTimeUpdateState {
 }
 
 
-interface UpdateItem {
+export interface UpdateItem {
   id: string;
   type: 'cart' | 'order' | 'product' | 'user';
   action: 'create' | 'update' | 'delete';
