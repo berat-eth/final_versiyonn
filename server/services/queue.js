@@ -1,14 +1,16 @@
-const { Queue, Worker, QueueScheduler, JobsOptions } = require('bullmq');
-const { createClient } = require('redis');
+const { Queue, Worker } = require('bullmq');
+const Redis = require('ioredis');
 
 const connection = (() => {
   try {
     if (global && global.redis) return global.redis;
   } catch (_) {}
   const url = process.env.REDIS_URL || process.env.REDIS_URI || 'redis://127.0.0.1:6379';
-  const client = createClient({ url });
+  const client = new Redis(url, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false
+  });
   client.on('error', (err) => console.error('Redis error:', err.message));
-  client.connect().catch(() => {});
   return client;
 })();
 
@@ -22,8 +24,8 @@ const queue = new Queue(queueName, {
   }
 });
 
-const scheduler = new QueueScheduler(queueName, { connection });
+// QueueScheduler artık gerekli değil (BullMQ v3+ otomatik hallediyor)
 
-module.exports = { queue, scheduler, connection, queueName };
+module.exports = { queue, connection, queueName };
 
 
