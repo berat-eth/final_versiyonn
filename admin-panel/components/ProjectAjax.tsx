@@ -172,7 +172,7 @@ export default function ProjectAjax() {
     const loadSessions = async () => {
         setIsLoadingSessions(true)
         try {
-            const response = await fetch('https://api.zerodaysoftware.tr/api/chat/sessions', {
+            const response = await fetch('https://api.plaxsy.com/api/chat/sessions', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -204,7 +204,7 @@ export default function ProjectAjax() {
     const createNewSession = async () => {
         try {
             const sessionName = `Sohbet ${new Date().toLocaleDateString('tr-TR')}`
-            const response = await fetch('https://api.zerodaysoftware.tr/api/chat/sessions', {
+            const response = await fetch('https://api.plaxsy.com/api/chat/sessions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -244,7 +244,7 @@ export default function ProjectAjax() {
 
     const loadSessionMessages = async (sessionId: string) => {
         try {
-            const response = await fetch(`https://api.zerodaysoftware.tr/api/chat/sessions/${sessionId}/messages`, {
+            const response = await fetch(`https://api.plaxsy.com/api/chat/sessions/${sessionId}/messages`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -263,7 +263,7 @@ export default function ProjectAjax() {
 
     const saveSessionMessages = async (sessionId: string, messages: Message[]) => {
         try {
-            await fetch(`https://api.zerodaysoftware.tr/api/chat/sessions/${sessionId}/messages`, {
+            await fetch(`https://api.plaxsy.com/api/chat/sessions/${sessionId}/messages`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -278,7 +278,7 @@ export default function ProjectAjax() {
 
     const deleteSession = async (sessionId: string) => {
         try {
-            const response = await fetch(`https://api.zerodaysoftware.tr/api/chat/sessions/${sessionId}`, {
+            const response = await fetch(`https://api.plaxsy.com/api/chat/sessions/${sessionId}`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
@@ -404,7 +404,7 @@ export default function ProjectAjax() {
                 // Satış/Trend anahtar kelimeleri
                 if (lowerInput.includes('satış') || lowerInput.includes('trend') || lowerInput.includes('analiz')) {
                     try {
-                        const salesData = await fetch('https://api.zerodaysoftware.tr/api/admin/orders', {
+                        const salesData = await fetch('https://api.plaxsy.com/api/admin/orders', {
                             method: 'GET',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -434,7 +434,7 @@ export default function ProjectAjax() {
                 // Ürün anahtar kelimeleri
                 if (lowerInput.includes('ürün') || lowerInput.includes('product') || lowerInput.includes('stok')) {
                     try {
-                        const productData = await fetch('https://api.zerodaysoftware.tr/api/products', {
+                        const productData = await fetch('https://api.plaxsy.com/api/products', {
                             method: 'GET',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -465,7 +465,7 @@ export default function ProjectAjax() {
                 // Müşteri anahtar kelimeleri
                 if (lowerInput.includes('müşteri') || lowerInput.includes('customer') || lowerInput.includes('segment')) {
                     try {
-                        const customerData = await fetch('https://api.zerodaysoftware.tr/api/admin/users', {
+                        const customerData = await fetch('https://api.plaxsy.com/api/admin/users', {
                             method: 'GET',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -495,7 +495,7 @@ export default function ProjectAjax() {
                 // Kategori anahtar kelimeleri
                 if (lowerInput.includes('kategori') || lowerInput.includes('category') || lowerInput.includes('kamp')) {
                     try {
-                        const categoryData = await fetch('https://api.zerodaysoftware.tr/api/categories', {
+                        const categoryData = await fetch('https://api.plaxsy.com/api/categories', {
                             method: 'GET',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -519,7 +519,7 @@ export default function ProjectAjax() {
                 // Stok anahtar kelimeleri
                 if (lowerInput.includes('stok') || lowerInput.includes('stock') || lowerInput.includes('düşük')) {
                     try {
-                        const stockData = await fetch('https://api.zerodaysoftware.tr/api/products/low-stock', {
+                        const stockData = await fetch('https://api.plaxsy.com/api/products/low-stock', {
                             method: 'GET',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -717,7 +717,7 @@ export default function ProjectAjax() {
 
         try {
             let response: any
-            const fullUrl = `https://api.zerodaysoftware.tr/api${endpoint}`
+            const fullUrl = `https://api.plaxsy.com/api${endpoint}`
             
             const headers = {
                     'Content-Type': 'application/json',
