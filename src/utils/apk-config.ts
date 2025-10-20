@@ -6,14 +6,14 @@ import { IP_SERVER_CANDIDATES } from './api-config';
 // APK-specific server configurations
 export const APK_SERVER_CONFIG = {
   // Primary server (domain-based)
-  primary: 'https://api.zerodaysoftware.tr/api',
+  primary: 'https://api.plaxsy.com',
   
   // Backup servers (IP-based for better reliability)
   backup: IP_SERVER_CANDIDATES.map(ip => `https://${ip}/api`),
   
   // Fallback servers
   fallback: [
-    'https://api.zerodaysoftware.tr/api',
+    'https://api.plaxsy.com',
     ...IP_SERVER_CANDIDATES.map(ip => `https://${ip}/api`)
   ],
   

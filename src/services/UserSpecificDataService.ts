@@ -71,7 +71,7 @@ export interface UserCompleteData {
 }
 
 class UserSpecificDataService {
-  private baseUrl = 'http://localhost:3001/api/user-specific';
+  private baseUrl = 'https://api.plaxsy.com/user-specific';
 
   // Güvenli JSON parse metodu
   private async safeJsonParse(response: Response): Promise<any> {

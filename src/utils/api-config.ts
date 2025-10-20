@@ -11,19 +11,19 @@ export interface ApiConfig {
 // Environment-based API configurations
 export const API_CONFIGS: Record<string, ApiConfig> = {
   development: {
-    baseUrl: 'https://api.zerodaysoftware.tr/api',
+    baseUrl: 'https://api.plaxsy.com',
     timeout: 30000,
     retryAttempts: 2,
     environment: 'development'
   },
   staging: {
-    baseUrl: 'https://api.zerodaysoftware.tr/api',
+    baseUrl: 'https://api.plaxsy.com',
     timeout: 45000,
     retryAttempts: 3,
     environment: 'staging'
   },
   production: {
-    baseUrl: 'https://api.zerodaysoftware.tr/api',
+    baseUrl: 'https://api.plaxsy.com',
     timeout: 30000, // 30 seconds for production
     retryAttempts: 5, // More retry attempts for production
     environment: 'production'
@@ -32,10 +32,10 @@ export const API_CONFIGS: Record<string, ApiConfig> = {
 
 // Remote server configurations - GÜVENLİK: Sadece HTTPS kullan
 export const REMOTE_SERVERS = {
-  primary: 'https://api.zerodaysoftware.tr/api',
+  primary: 'https://api.plaxsy.com',
   // GÜVENLİK: HTTP fallback kaldırıldı, sadece HTTPS
-  backup: 'https://api.zerodaysoftware.tr/api',
-  local: 'https://api.zerodaysoftware.tr/api'
+  backup: 'https://api.plaxsy.com',
+  local: 'https://api.plaxsy.com'
 };
 
 // Single-tenant mod ayarı: env üzerinden yönetilir (Expo: EXPO_PUBLIC_*)
