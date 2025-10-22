@@ -26,6 +26,13 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['react-icons'],
   },
+  // Font optimization - build sırasında Google Fonts'u offline kullan
+  optimizeFonts: true,
+  // Network timeout ayarları
+  httpAgentOptions: {
+    keepAlive: true,
+    timeout: 30000, // 30 saniye timeout
+  },
 }
 
 module.exports = nextConfig

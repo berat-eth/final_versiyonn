@@ -8,7 +8,7 @@ const workSans = Work_Sans({
   subsets: ['latin'],
   variable: '--font-display',
   display: 'swap',
-  preload: true,
+  preload: false, // Build sırasında yüklemeyi devre dışı bırak
   fallback: ['system-ui', 'arial']
 })
 
