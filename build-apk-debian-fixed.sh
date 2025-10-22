@@ -93,8 +93,11 @@ fi
 # Clean and install
 print_status "Cleaning..."
 rm -rf node_modules/.cache android/app/build android/build .expo
+
 print_status "Installing dependencies..."
-npm install
+# Clean install to ensure all dependencies are properly resolved
+rm -rf node_modules package-lock.json
+npm install --legacy-peer-deps
 
 # Ensure Expo CLI exists
 if ! command -v expo &> /dev/null; then
