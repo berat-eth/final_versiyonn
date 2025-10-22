@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Debian 11 Optimized APK Build Script for Huglu Outdoor Mobile App
-# Builds APK with proper Gradle and Expo configuration
+# Debian 11 Fixed APK Build Script for Huglu Outdoor Mobile App
+# Handles all interactive prompts and terminal issues
 
 set -e  # Exit on any error
 
-echo "🚀 Starting APK build process for Huglu Outdoor (Debian 11 optimized)..."
+echo "🚀 Starting APK build process for Huglu Outdoor (Debian 11 fixed)..."
 
 # FTP Configuration
 FTP_HOST="46.202.158.159"
@@ -103,12 +103,25 @@ if ! command -v expo &> /dev/null; then
 fi
 
 # Set environment variables for Debian 11 compatibility
+export EXPO_NONINTERACTIVE=1
 export EXPO_UNSTABLE_CORE_AUTOLINKING=1
 export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
 
-print_status "Running expo prebuild..."
+# Create a temporary script to handle expo prebuild
+print_status "Creating prebuild script..."
+cat > temp_prebuild.sh << 'EOF'
+#!/bin/bash
 export EXPO_NONINTERACTIVE=1
 npx expo prebuild --platform android --clean --no-install
+EOF
+
+chmod +x temp_prebuild.sh
+
+print_status "Running expo prebuild..."
+./temp_prebuild.sh
+
+# Clean up temp script
+rm -f temp_prebuild.sh
 
 cd android
 chmod +x gradlew
@@ -116,7 +129,7 @@ chmod +x gradlew
 # Create gradle.properties if not exists
 if [ ! -f "gradle.properties" ]; then
     print_status "Creating gradle.properties..."
-    cat > gradle.properties << EOF
+    cat > gradle.properties << 'EOF'
 # Project-wide Gradle settings.
 org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
 android.useAndroidX=true

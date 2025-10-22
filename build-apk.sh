@@ -103,7 +103,18 @@ if ! command -v expo &> /dev/null; then
 fi
 
 print_status "Running expo prebuild..."
+export EXPO_NONINTERACTIVE=1
+export EXPO_UNSTABLE_CORE_AUTOLINKING=1
+
+# Create a temporary script to handle expo prebuild
+cat > temp_prebuild.sh << 'EOF'
+#!/bin/bash
+export EXPO_NONINTERACTIVE=1
 npx expo prebuild --platform android --clean --no-install
+EOF
+chmod +x temp_prebuild.sh
+./temp_prebuild.sh
+rm -f temp_prebuild.sh
 
 cd android
 chmod +x gradlew
