@@ -76,10 +76,18 @@ JAVA_VERSION=$(java -version 2>&1 | head -n 1)
 print_status "Node.js: $NODE_VERSION"
 print_status "Java: $JAVA_VERSION"
 
-# Verify SDK
+# Set Android SDK paths if not set
 if [ -z "$ANDROID_HOME" ] && [ -z "$ANDROID_SDK_ROOT" ]; then
-    print_error "ANDROID_HOME or ANDROID_SDK_ROOT not set."
-    exit 1
+    if [ -d "/opt/android-sdk" ]; then
+        export ANDROID_HOME="/opt/android-sdk"
+        export ANDROID_SDK_ROOT="/opt/android-sdk"
+        export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+        print_status "Set ANDROID_HOME to /opt/android-sdk"
+    else
+        print_error "ANDROID_HOME or ANDROID_SDK_ROOT not set and /opt/android-sdk not found."
+        print_error "Please run setup-debian-android.sh first or set ANDROID_HOME manually."
+        exit 1
+    fi
 fi
 
 # Clean and install
@@ -105,6 +113,7 @@ print_status "Cleaning Gradle..."
 print_status "Building APK..."
 export NODE_ENV=production
 export EXPO_PUBLIC_ENV=production
+export EXPO_UNSTABLE_CORE_AUTOLINKING=1
 ./gradlew assembleRelease -Pandroid.enableR8.fullMode=true
 
 APK_PATH="app/build/outputs/apk/release/app-release.apk"
