@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# APK Build Script for Huglu Outdoor Mobile App
-# Builds APK and uploads it to FTP
+# Debian 11 Optimized APK Build Script for Huglu Outdoor Mobile App
+# Builds APK with proper Gradle and Expo configuration
 
 set -e  # Exit on any error
 
-echo "🚀 Starting APK build process for Huglu Outdoor..."
+echo "🚀 Starting APK build process for Huglu Outdoor (Debian 11 optimized)..."
 
 # FTP Configuration
 FTP_HOST="46.202.158.159"
@@ -33,7 +33,7 @@ generate_qr_code() {
     print_status "Generating QR code..."
     if ! command -v qrencode &> /dev/null; then
         print_warning "qrencode not found, installing..."
-        sudo apt-get update && sudo apt-get install -y qrencode
+        apt-get update && apt-get install -y qrencode
     fi
     qrencode -o "${apk_name%.apk}_qr.png" -s 10 -m 1 "$download_url"
 }
@@ -44,7 +44,7 @@ upload_to_ftp() {
     print_status "Uploading $apk_file to FTP..."
     if ! command -v lftp &> /dev/null; then
         print_warning "lftp not found, installing..."
-        sudo apt-get update && sudo apt-get install -y lftp
+        apt-get update && apt-get install -y lftp
     fi
     lftp -c "
     set ftp:ssl-allow no
@@ -102,19 +102,41 @@ if ! command -v expo &> /dev/null; then
     npm install -g @expo/cli
 fi
 
+# Set environment variables for Debian 11 compatibility
+export EXPO_UNSTABLE_CORE_AUTOLINKING=1
+export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
+
 print_status "Running expo prebuild..."
 npx expo prebuild --platform android --clean --no-install
 
 cd android
 chmod +x gradlew
+
+# Create gradle.properties if not exists
+if [ ! -f "gradle.properties" ]; then
+    print_status "Creating gradle.properties..."
+    cat > gradle.properties << EOF
+# Project-wide Gradle settings.
+org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+android.useAndroidX=true
+android.enableJetifier=true
+FLIPPER_VERSION=0.125.0
+reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
+newArchEnabled=false
+hermesEnabled=true
+expo.gif.enabled=true
+expo.webp.enabled=true
+expo.webp.animated=false
+EOF
+fi
+
 print_status "Cleaning Gradle..."
 ./gradlew clean
 
 print_status "Building APK..."
 export NODE_ENV=production
 export EXPO_PUBLIC_ENV=production
-export EXPO_UNSTABLE_CORE_AUTOLINKING=1
-./gradlew assembleRelease -Pandroid.enableR8.fullMode=true
+./gradlew assembleRelease -Pandroid.enableR8.fullMode=true --no-daemon --no-parallel
 
 APK_PATH="app/build/outputs/apk/release/app-release.apk"
 if [ -f "$APK_PATH" ]; then
