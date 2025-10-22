@@ -6,14 +6,14 @@ import { IP_SERVER_CANDIDATES } from './api-config';
 // APK-specific server configurations
 export const APK_SERVER_CONFIG = {
   // Primary server (domain-based)
-  primary: 'https://api.plaxsy.com',
+  primary: 'https://api.plaxsy.com/api',
   
   // Backup servers (IP-based for better reliability)
   backup: IP_SERVER_CANDIDATES.map(ip => `https://${ip}/api`),
   
   // Fallback servers
   fallback: [
-    'https://api.plaxsy.com',
+    'https://api.plaxsy.com/api',
     ...IP_SERVER_CANDIDATES.map(ip => `https://${ip}/api`)
   ],
   
@@ -56,7 +56,7 @@ export async function findBestServerForApk(): Promise<string> {
       }
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      console.log(`❌ APK: Server ${url} error: ${error.message}`);
+      console.log(`❌ APK: Server ${url} error: ${String((error as any)?.message || error)}`);
       return { url, responseTime, success: false };
     }
   });
@@ -96,7 +96,7 @@ export async function testApkConnection(url: string): Promise<boolean> {
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    console.log(`❌ APK: Connection test failed for ${url}:`, error.message);
+    console.log(`❌ APK: Connection test failed for ${url}:`, String((error as any)?.message || error));
     return false;
   }
 }

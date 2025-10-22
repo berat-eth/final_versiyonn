@@ -95,7 +95,7 @@ class ApiService {
     const urls: string[] = [];
 
     // Domain candidate
-    urls.push('https://api.plaxsy.com');
+    urls.push('https://api.plaxsy.com/api');
 
     // IP-based candidates (for both development and production)
     (IP_SERVER_CANDIDATES || []).forEach(ip => {
