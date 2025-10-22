@@ -854,7 +854,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         </View>
       </View>
     </ModernCard>
-  ), [favoriteProducts, handleProductPress, handleToggleFavorite, handleAddToCart]);
+  ), [favoriteProducts, handleProductPress, handleToggleFavorite, handleAddToCart, currentLanguage, isAuthenticated, t]);
 
   const renderPopularProducts = () => (
     <View style={styles.sectionContainer}>
@@ -887,9 +887,9 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         snapToInterval={Math.round(width * 0.4) + Spacing.xl + 15}
         removeClippedSubviews={true}
         maxToRenderPerBatch={3}
-        windowSize={5}
+        windowSize={3}
         initialNumToRender={3}
-          getItemLayout={(data: any, index: number) => ({
+        getItemLayout={(data: any, index: number) => ({
           length: 200,
           offset: 200 * index,
           index,

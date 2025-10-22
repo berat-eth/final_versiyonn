@@ -89,8 +89,13 @@ export default function App() {
 
         // IP ping kaldırıldı
 
+        // Network monitoring - optimized interval (60 saniye)
+        apiService.startNetworkMonitoring(60000);
+
         // No periodic retries after redirect requirement
-        return () => { };
+        return () => { 
+          apiService.stopNetworkMonitoring();
+        };
       } catch (error) {
         console.error('❌ Failed to initialize app:', error);
         if (backendReady === null) setBackendReady(false);

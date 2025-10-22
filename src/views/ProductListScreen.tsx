@@ -86,7 +86,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalProducts, setTotalProducts] = useState(0);
-  const ITEMS_PER_PAGE = 40;
+  const ITEMS_PER_PAGE = 20; // 40'tan 20'ye optimize edildi
 
   const searchInputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
@@ -624,7 +624,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         ref={listRef}
         data={showFlashDeals ? getFlashDealProducts() : filteredProducts}
         renderItem={renderProduct}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
+        keyExtractor={(item) => `product-${item.id}-${item.externalId || ''}`}
         numColumns={viewMode === 'grid' ? 2 : 1}
         key={viewMode}
         contentContainerStyle={[
@@ -649,10 +649,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         ) : renderEmptyState}
         ListFooterComponent={!showFlashDeals ? renderFooter : null}
         removeClippedSubviews={true}
-        maxToRenderPerBatch={20}
+        maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={100}
-        initialNumToRender={50}
-        windowSize={15}
+        initialNumToRender={10}
+        windowSize={5}
         // Sonsuz kaydırma devre dışı (numaralı sayfalama kullanılıyor)
         getItemLayout={viewMode === 'grid' ? undefined : (data, index) => ({
           length: 120,

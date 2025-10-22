@@ -342,15 +342,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     loadStateFromStorage();
   }, []);
 
-  // Save state to AsyncStorage when it changes
+  // Save state to AsyncStorage when it changes (debounced)
   useEffect(() => {
-    saveStateToStorage();
+    const timeoutId = setTimeout(() => {
+      saveStateToStorage();
+    }, 1000); // 1 saniye debounce
+
+    return () => clearTimeout(timeoutId);
   }, [state]);
 
   // Start network monitoring when component mounts
   useEffect(() => {
-    // Start network monitoring with smart intervals
-    apiService.startNetworkMonitoring(20000); // 20 saniye aralıklarla kontrol et (15'ten 20'ye çıkarıldı)
+    // Start network monitoring with optimized intervals
+    apiService.startNetworkMonitoring(60000); // 60 saniye aralıklarla kontrol et (20'den optimize edildi)
     
     // Cleanup on unmount
     return () => {

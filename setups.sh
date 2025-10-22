@@ -4,6 +4,7 @@
 # Huglu + N8N Full Stack Deployment + APK Build Script
 # Debian 11 Bullseye Optimized
 # Domains:
+#   Main Site: plaxsy.com
 #   API: api.plaxsy.com
 #   Admin: admin.plaxsy.com
 #   N8N: otomasyon.plaxsy.com
@@ -23,16 +24,25 @@ NC='\033[0m'
 # --------------------------
 # Değişkenler
 # --------------------------
+# Ana Site
+MAIN_DOMAIN="plaxsy.com"
+MAIN_DIR="/root/final_versiyonn/web"
+MAIN_PORT=3006
+MAIN_PM2_NAME="plaxsy-web"
+
+# API
 API_DOMAIN="api.plaxsy.com"
 API_DIR="/root/final_versiyonn/server"
 API_PORT=3000
 API_PM2_NAME="huglu-api"
 
+# Admin Panel
 ADMIN_DOMAIN="admin.plaxsy.com"
 ADMIN_DIR="/root/final_versiyonn/admin-panel"
 ADMIN_PORT=3001
 ADMIN_PM2_NAME="admin-panel"
 
+# N8N
 N8N_DOMAIN="otomasyon.plaxsy.com"
 N8N_PORT=5678
 N8N_USER=$(whoami)
@@ -50,6 +60,7 @@ ANDROID_HOME="/opt/android-sdk"
 ERRORS=0
 WARNINGS=0
 SKIP_ADMIN=false
+SKIP_MAIN=false
 
 # --------------------------
 # Root kontrolü
@@ -68,13 +79,16 @@ echo -e "${BLUE}========================================${NC}"
 # --------------------------
 cleanup_and_fix() {
     echo -e "${YELLOW}[FIX] Mevcut PM2 ve Nginx konfigürasyonları temizleniyor...${NC}"
+    pm2 delete $MAIN_PM2_NAME 2>/dev/null || true
     pm2 delete $API_PM2_NAME 2>/dev/null || true
     pm2 delete $ADMIN_PM2_NAME 2>/dev/null || true
     pm2 delete n8n 2>/dev/null || true
 
+    rm -f /etc/nginx/sites-enabled/$MAIN_DOMAIN
     rm -f /etc/nginx/sites-enabled/$API_DOMAIN
     rm -f /etc/nginx/sites-enabled/$ADMIN_DOMAIN
     rm -f /etc/nginx/sites-enabled/n8n
+    rm -f /etc/nginx/sites-available/$MAIN_DOMAIN
     rm -f /etc/nginx/sites-available/$API_DOMAIN
     rm -f /etc/nginx/sites-available/$ADMIN_DOMAIN
     rm -f /etc/nginx/sites-available/n8n
@@ -86,7 +100,7 @@ cleanup_and_fix
 # --------------------------
 # Sistem güncelleme ve paketler
 # --------------------------
-echo -e "${BLUE}[1/8] Sistem güncelleniyor...${NC}"
+echo -e "${BLUE}[1/9] Sistem güncelleniyor...${NC}"
 apt update -y && apt upgrade -y
 
 # Debian 11 için gerekli paketler
@@ -113,7 +127,7 @@ apt install -y \
 # --------------------------
 # Java 17 Kurulumu (APK build için)
 # --------------------------
-echo -e "${BLUE}[2/8] Java 17 kuruluyor (APK build için)...${NC}"
+echo -e "${BLUE}[2/9] Java 17 kuruluyor (APK build için)...${NC}"
 if ! java -version 2>&1 | grep -q "version \"17"; then
     wget -O- https://apt.corretto.aws/corretto.key | apt-key add -
     add-apt-repository 'deb https://apt.corretto.aws stable main'
@@ -131,7 +145,7 @@ java -version
 # --------------------------
 # Android SDK ve Build Tools Kurulumu
 # --------------------------
-echo -e "${BLUE}[3/8] Android SDK ve build tools kuruluyor...${NC}"
+echo -e "${BLUE}[3/9] Android SDK ve build tools kuruluyor...${NC}"
 mkdir -p $ANDROID_SDK_ROOT
 cd /tmp
 
@@ -158,7 +172,7 @@ sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.
 # --------------------------
 # Gradle Kurulumu
 # --------------------------
-echo -e "${BLUE}[4/8] Gradle kuruluyor...${NC}"
+echo -e "${BLUE}[4/9] Gradle kuruluyor...${NC}"
 if ! command -v gradle &> /dev/null; then
     GRADLE_VERSION="8.5"
     wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip -P /tmp
@@ -172,7 +186,7 @@ gradle --version
 # --------------------------
 # Node.js ve PM2
 # --------------------------
-echo -e "${BLUE}[5/8] Node.js ve PM2 kuruluyor...${NC}"
+echo -e "${BLUE}[5/9] Node.js ve PM2 kuruluyor...${NC}"
 if ! command -v node &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt install -y nodejs
@@ -186,7 +200,7 @@ npm --version
 # --------------------------
 # Repo klonlama ve dizin kontrol
 # --------------------------
-echo -e "${BLUE}[6/8] Repository klonlanıyor...${NC}"
+echo -e "${BLUE}[6/9] Repository klonlanıyor...${NC}"
 if [ ! -d "/root/final_versiyonn" ]; then
     git clone https://github.com/berat-eth/final_versiyonn.git /root/final_versiyonn
 else
@@ -195,14 +209,66 @@ else
 fi
 
 # --------------------------
+# Ana Site Kurulumu (plaxsy.com - Next.js)
+# --------------------------
+echo -e "${BLUE}[7/9] Ana site kuruluyor (Next.js - plaxsy.com)...${NC}"
+if [ -d "$MAIN_DIR" ]; then
+    cd $MAIN_DIR
+    
+    echo -e "${YELLOW}Next.js dependencies yükleniyor...${NC}"
+    npm install
+    
+    # Next.js build
+    echo -e "${YELLOW}Next.js production build yapılıyor...${NC}"
+    npm run build
+    
+    # PM2 ecosystem dosyası oluştur
+    cat > ecosystem.config.js << EOF
+module.exports = {
+  apps: [{
+    name: '${MAIN_PM2_NAME}',
+    script: 'npm',
+    args: 'start',
+    cwd: '${MAIN_DIR}',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    env: {
+      NODE_ENV: 'production',
+      PORT: ${MAIN_PORT}
+    },
+    error_file: '${MAIN_DIR}/logs/error.log',
+    out_file: '${MAIN_DIR}/logs/out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss'
+  }]
+};
+EOF
+    
+    # Log dizinini oluştur
+    mkdir -p logs
+    
+    # PM2 ile başlat
+    pm2 start ecosystem.config.js
+    pm2 save
+    
+    echo -e "${GREEN}✅ Next.js ana site başarıyla kuruldu${NC}"
+else
+    echo -e "${YELLOW}⚠️  Web dizini bulunamadı: $MAIN_DIR${NC}"
+    echo -e "${YELLOW}Next.js projesi atlanıyor...${NC}"
+    SKIP_MAIN=true
+fi
+
+# --------------------------
 # API Kurulumu
 # --------------------------
-echo -e "${BLUE}[7/8] API kuruluyor...${NC}"
+echo -e "${BLUE}[7/9] API kuruluyor...${NC}"
 if [ -d "$API_DIR" ]; then
     cd $API_DIR
     npm install --production
     pm2 start server.js --name $API_PM2_NAME --time --log-date-format="YYYY-MM-DD HH:mm:ss" --max-memory-restart 500M
     pm2 save
+    echo -e "${GREEN}✅ API başarıyla kuruldu${NC}"
 else
     echo -e "${YELLOW}⚠️  API dizini bulunamadı: $API_DIR${NC}"
 fi
@@ -217,6 +283,7 @@ if [ -d "$ADMIN_DIR" ]; then
     npm run build
     PORT=$ADMIN_PORT pm2 start npm --name "$ADMIN_PM2_NAME" -- start
     pm2 save
+    echo -e "${GREEN}✅ Admin panel başarıyla kuruldu${NC}"
 else
     echo -e "${YELLOW}⚠️  Admin dizini bulunamadı, atlanıyor...${NC}"
     SKIP_ADMIN=true
@@ -268,11 +335,12 @@ EOF
 
 su - $N8N_USER -c "cd $N8N_DIR && pm2 start ecosystem.config.js && pm2 save"
 env PATH=$PATH:/usr/bin pm2 startup systemd -u $N8N_USER --hp /home/$N8N_USER
+echo -e "${GREEN}✅ N8N başarıyla kuruldu${NC}"
 
 # --------------------------
 # APK Build İşlemi
 # --------------------------
-echo -e "${BLUE}[8/8] APK Build işlemi başlatılıyor...${NC}"
+echo -e "${BLUE}[8/9] APK Build işlemi başlatılıyor...${NC}"
 mkdir -p $APK_OUTPUT_DIR
 
 if [ -d "$ANDROID_DIR" ]; then
@@ -332,7 +400,32 @@ fi
 # --------------------------
 # Nginx yapılandırması
 # --------------------------
-echo -e "${BLUE}Nginx yapılandırılıyor...${NC}"
+echo -e "${BLUE}[9/9] Nginx yapılandırılıyor...${NC}"
+
+# Ana Site (plaxsy.com)
+if [ "$SKIP_MAIN" != true ]; then
+cat > /etc/nginx/sites-available/$MAIN_DOMAIN << EOF
+server {
+    listen 80;
+    server_name $MAIN_DOMAIN www.$MAIN_DOMAIN;
+    
+    client_max_body_size 100M;
+    
+    location / {
+        proxy_pass http://127.0.0.1:$MAIN_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+}
+EOF
+ln -sf /etc/nginx/sites-available/$MAIN_DOMAIN /etc/nginx/sites-enabled/
+fi
 
 # API
 cat > /etc/nginx/sites-available/$API_DOMAIN << EOF
@@ -409,10 +502,21 @@ nginx -t && systemctl reload nginx
 # Certbot SSL
 # --------------------------
 echo -e "${BLUE}SSL sertifikaları kuruluyor...${NC}"
+
+# Ana site SSL
+if [ "$SKIP_MAIN" != true ]; then
+    certbot --nginx -d $MAIN_DOMAIN -d www.$MAIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+fi
+
+# API SSL
 certbot --nginx -d $API_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+
+# Admin SSL
 if [ "$SKIP_ADMIN" != true ]; then
     certbot --nginx -d $ADMIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
 fi
+
+# N8N SSL
 certbot --nginx -d $N8N_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
 
 # Otomatik yenileme
@@ -442,11 +546,14 @@ echo -e "${GREEN}✅ Deployment Tamamlandı!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "${BLUE}🌐 Servisler:${NC}"
-echo -e "  API:    https://$API_DOMAIN"
-if [ "$SKIP_ADMIN" != true ]; then
-    echo -e "  Admin:  https://$ADMIN_DOMAIN"
+if [ "$SKIP_MAIN" != true ]; then
+    echo -e "  Ana Site: https://$MAIN_DOMAIN (Port: $MAIN_PORT)"
 fi
-echo -e "  N8N:    https://$N8N_DOMAIN"
+echo -e "  API:      https://$API_DOMAIN (Port: $API_PORT)"
+if [ "$SKIP_ADMIN" != true ]; then
+    echo -e "  Admin:    https://$ADMIN_DOMAIN (Port: $ADMIN_PORT)"
+fi
+echo -e "  N8N:      https://$N8N_DOMAIN (Port: $N8N_PORT)"
 echo ""
 echo -e "${BLUE}📱 APK Build:${NC}"
 if [ -d "$APK_OUTPUT_DIR" ] && [ "$(ls -A $APK_OUTPUT_DIR 2>/dev/null)" ]; then
@@ -459,8 +566,15 @@ echo ""
 echo -e "${BLUE}📊 Yönetim Komutları:${NC}"
 echo -e "  pm2 status              - Servisleri görüntüle"
 echo -e "  pm2 logs                - Logları izle"
+echo -e "  pm2 logs $MAIN_PM2_NAME     - Ana site logları"
+echo -e "  pm2 logs $API_PM2_NAME      - API logları"
 echo -e "  pm2 restart all         - Tüm servisleri yeniden başlat"
+echo -e "  pm2 restart $MAIN_PM2_NAME  - Ana siteyi yeniden başlat"
 echo -e "  nginx -t                - Nginx config test"
 echo -e "  systemctl status nginx  - Nginx durumu"
+echo ""
+echo -e "${BLUE}🔐 SSL Sertifikaları:${NC}"
+echo -e "  certbot certificates    - Sertifikaları listele"
+echo -e "  certbot renew --dry-run - Yenileme testi"
 echo ""
 echo -e "${GREEN}Kurulum başarıyla tamamlandı! 🚀${NC}"

@@ -22,6 +22,7 @@
     "expo-clipboard": "~6.0.3",
     "expo-file-system": "~17.0.1",
     "expo-gl": "~14.0.2",
+    "expo-image": "~1.12.15",
     "expo-image-picker": "~15.0.7",
     "expo-linear-gradient": "~13.0.2",
     "expo-local-authentication": "~14.0.1",

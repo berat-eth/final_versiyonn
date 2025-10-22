@@ -5,7 +5,10 @@ import { getApiKey as getStoredApiKey, getTenantId as getStoredTenantId } from '
 
 // Dynamic API base URL - will be set based on network detection
 let currentApiUrl = getApiBaseUrl();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 dakika cache
+// Optimized cache durations based on data type
+const CACHE_DURATION = 15 * 60 * 1000; // 15 dakika cache (5'ten artırıldı)
+const PRODUCT_CACHE_DURATION = 30 * 60 * 1000; // 30 dakika - ürünler için
+const CATEGORY_CACHE_DURATION = 60 * 60 * 1000; // 1 saat - kategoriler için
 const OFFLINE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 saat offline cache
 
 // Offline özellikleri devre dışı: her zaman ağ üzerinden dene
@@ -271,8 +274,8 @@ class ApiService {
     isOfflineRetry: boolean = false
   ): Promise<ApiResponse<T>> {
     const startTime = Date.now();
-    const TIMEOUT_MS = 60000; // 60 saniye timeout (45'ten 60'a çıkarıldı)
-    const MAX_RETRIES = 2; // 502 gibi geçici hatalar için deneme sayısını artır
+    const TIMEOUT_MS = 15000; // 15 saniye timeout (60'tan optimize edildi)
+    const MAX_RETRIES = 1; // 1 deneme (2'den optimize edildi)
     
     // Network availability check
     // Offline modu devre dışı; ağ yoksa hata akışına düşecek
@@ -604,7 +607,7 @@ class ApiService {
       this.request<any[]>('/products')
         .then(async (fresh) => {
           if (fresh && fresh.success) {
-            await this.setCache(cacheKey, fresh, fresh.isOffline);
+            await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
           }
         })
         .catch(() => {});
@@ -613,7 +616,7 @@ class ApiService {
 
     const result = await this.request<any[]>('/products');
     if (result.success) {
-      await this.setCache(cacheKey, result, result.isOffline);
+      await CacheService.set(cacheKey, result, PRODUCT_CACHE_DURATION);
     }
     return result;
   }
@@ -627,7 +630,7 @@ class ApiService {
       this.request<{ products: any[], total: number, hasMore: boolean }>(`/products?page=${page}&limit=${limit}`)
         .then(async (fresh) => {
           if (fresh && fresh.success) {
-            await this.setCache(cacheKey, fresh, fresh.isOffline);
+            await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
           }
         })
         .catch(() => {});
@@ -636,7 +639,7 @@ class ApiService {
 
     const result = await this.request<{ products: any[], total: number, hasMore: boolean }>(`/products?page=${page}&limit=${limit}`);
     if (result.success) {
-      await this.setCache(cacheKey, result, result.isOffline);
+      await CacheService.set(cacheKey, result, PRODUCT_CACHE_DURATION);
     }
     return result;
   }
@@ -651,7 +654,7 @@ class ApiService {
       this.request<any>(`/products/${id}`)
         .then(async (fresh) => {
           if (fresh && fresh.success) {
-            await this.setCache(cacheKey, fresh, fresh.isOffline);
+            await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
           }
         })
         .catch(() => {});
@@ -660,7 +663,7 @@ class ApiService {
 
     const result = await this.request<any>(`/products/${id}`);
     if (result.success) {
-      await this.setCache(cacheKey, result, result.isOffline);
+      await CacheService.set(cacheKey, result, PRODUCT_CACHE_DURATION);
     }
     return result;
   }
@@ -676,7 +679,7 @@ class ApiService {
         ? (result as any).data
         : ((result as any).data?.products || []);
       (result as any).data = arr;
-      await this.setCache(cacheKey, result as any, (result as any).isOffline);
+      await CacheService.set(cacheKey, result as any, PRODUCT_CACHE_DURATION);
     }
     return result as any;
   }

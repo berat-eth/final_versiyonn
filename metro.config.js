@@ -5,11 +5,15 @@ const config = getDefaultConfig(__dirname);
 // Basic performance optimizations
 config.resolver.platforms = ['ios', 'android', 'native', 'web'];
 
-// Enable tree shaking
+// Enable tree shaking and optimize bundle
 config.transformer.minifierConfig = {
-  keep_fnames: true,
+  compress: {
+    drop_console: !__DEV__, // Production'da console.log'ları kaldır
+    drop_debugger: true,
+    pure_funcs: __DEV__ ? [] : ['console.log', 'console.info', 'console.debug', 'console.warn'],
+  },
   mangle: {
-    keep_fnames: true,
+    keep_fnames: false, // Production'da fonksiyon isimlerini kısalt
   },
 };
 
