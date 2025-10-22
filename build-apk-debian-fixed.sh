@@ -150,7 +150,19 @@ print_status "Cleaning Gradle..."
 print_status "Building APK..."
 export NODE_ENV=production
 export EXPO_PUBLIC_ENV=production
-./gradlew assembleRelease -Pandroid.enableR8.fullMode=true --no-daemon --no-parallel
+
+# Ensure Node is in PATH for Gradle
+export PATH="$PATH:/usr/local/bin:/usr/bin"
+which node || print_error "Node not found in PATH"
+
+# Add Node path to gradle.properties if not already there
+if ! grep -q "react.nodeExecutableAndArgs" gradle.properties; then
+    NODE_PATH=$(which node)
+    echo "react.nodeExecutableAndArgs=$NODE_PATH" >> gradle.properties
+    print_status "Added Node path to gradle.properties: $NODE_PATH"
+fi
+
+./gradlew assembleRelease -Pandroid.enableR8.fullMode=true --no-daemon --no-parallel --stacktrace
 
 APK_PATH="app/build/outputs/apk/release/app-release.apk"
 if [ -f "$APK_PATH" ]; then
