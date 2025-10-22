@@ -31,7 +31,6 @@ const nextConfig = {
   // Network timeout ayarları
   httpAgentOptions: {
     keepAlive: true,
-    timeout: 30000, // 30 saniye timeout
   },
 }
 
