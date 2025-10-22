@@ -26,8 +26,8 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['react-icons'],
   },
-  // Font optimization - build sırasında Google Fonts'u offline kullan
-  optimizeFonts: true,
+  // Font optimization kapatıldı - Debian sunucuda Google Fonts erişim sorunu için
+  optimizeFonts: false,
   // Network timeout ayarları
   httpAgentOptions: {
     keepAlive: true,

@@ -1,16 +1,18 @@
 import type { Metadata } from 'next'
-import { Work_Sans } from 'next/font/google'
+// Google Fonts import kaldırıldı - Debian sunucuda network sorunu için
+// import { Work_Sans } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import WhatsAppWrapper from '@/components/WhatsAppWrapper'
 
-const workSans = Work_Sans({
-  subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-  preload: false, // Build sırasında yüklemeyi devre dışı bırak
-  fallback: ['system-ui', 'arial']
-})
+// Font config kaldırıldı - System fontlar kullanılacak
+// const workSans = Work_Sans({
+//   subsets: ['latin'],
+//   variable: '--font-display',
+//   display: 'swap',
+//   preload: false,
+//   fallback: ['system-ui', 'arial']
+// })
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://huglutekstil.com'),
@@ -139,7 +141,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${workSans.className} bg-background-light dark:bg-background-dark font-display`}>
+      <body className="bg-background-light dark:bg-background-dark font-sans">
         {children}
         <WhatsAppWrapper />
         <Script id="service-worker" strategy="afterInteractive">
