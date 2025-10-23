@@ -168,16 +168,60 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   const handleUpdateQuantity = useCallback(async (cartItemId: number, newQuantity: number) => {
     if (newQuantity < 0) return;
     
+    // ⚡ OPTIMIZASYON: Optimistik UI güncellemesi
+    const oldItems = [...cartItems];
+    const itemIndex = cartItems.findIndex(item => item.id === cartItemId);
+    
+    if (itemIndex === -1) return;
+    
+    // Önce UI'ı güncelle (anında tepki)
+    const updatedItems = [...cartItems];
+    if (newQuantity === 0) {
+      updatedItems.splice(itemIndex, 1);
+    } else {
+      updatedItems[itemIndex] = { ...updatedItems[itemIndex], quantity: newQuantity };
+    }
+    setCartItems(updatedItems);
+    
+    // Context'i hemen güncelle
+    const subtotal = CartController.calculateSubtotal(updatedItems);
+    const itemCount = updatedItems.reduce((total, item) => total + item.quantity, 0);
+    updateCart({
+      items: updatedItems,
+      total: subtotal,
+      itemCount,
+      lastUpdated: new Date().toISOString(),
+    });
+    
     setUpdatingItems(prev => new Set(prev.add(cartItemId)));
     
     try {
+      // Arkaplanda API çağrısı yap
       const result = await CartController.updateQuantity(cartItemId, newQuantity);
-      if (result.success) {
-        await loadCart(); // Reload cart to get updated data
-      } else {
+      if (!result.success) {
+        // Hata varsa geri al
+        setCartItems(oldItems);
+        const oldSubtotal = CartController.calculateSubtotal(oldItems);
+        const oldItemCount = oldItems.reduce((total, item) => total + item.quantity, 0);
+        updateCart({
+          items: oldItems,
+          total: oldSubtotal,
+          itemCount: oldItemCount,
+          lastUpdated: new Date().toISOString(),
+        });
         Alert.alert('Hata', result.message);
       }
     } catch (error) {
+      // Hata varsa geri al
+      setCartItems(oldItems);
+      const oldSubtotal = CartController.calculateSubtotal(oldItems);
+      const oldItemCount = oldItems.reduce((total, item) => total + item.quantity, 0);
+      updateCart({
+        items: oldItems,
+        total: oldSubtotal,
+        itemCount: oldItemCount,
+        lastUpdated: new Date().toISOString(),
+      });
       console.error('Error updating quantity:', error);
       Alert.alert('Hata', 'Miktar güncellenirken bir hata oluştu');
     } finally {
@@ -187,7 +231,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         return newSet;
       });
     }
-  }, [loadCart]);
+  }, [cartItems, updateCart]);
 
   const handleRemoveFromCart = useCallback(async (cartItemId: number, productName: string) => {
     Alert.alert(
@@ -202,31 +246,54 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
           text: 'Kaldır',
           style: 'destructive',
           onPress: async () => {
+            // ⚡ OPTIMIZASYON: Optimistik UI güncellemesi
+            const oldItems = [...cartItems];
+            const updatedItems = cartItems.filter(item => item.id !== cartItemId);
+            
+            // Önce UI'ı güncelle (anında tepki)
+            setCartItems(updatedItems);
+            
+            // Context'i hemen güncelle
+            const subtotal = CartController.calculateSubtotal(updatedItems);
+            const itemCount = updatedItems.reduce((total, item) => total + item.quantity, 0);
+            updateCart({
+              items: updatedItems,
+              total: subtotal,
+              itemCount,
+              lastUpdated: new Date().toISOString(),
+            });
+            
             setUpdatingItems(prev => new Set(prev.add(cartItemId)));
             
             try {
+              // Arkaplanda API çağrısı yap
               const result = await CartController.removeFromCart(cartItemId);
               if (result.success) {
-                // Update cart context
-                const userIdValue = await UserController.getCurrentUserId();
-                const updatedItems = await CartController.getCartItems(userIdValue);
-                const subtotal = CartController.calculateSubtotal(updatedItems || []);
-                const itemCount = (updatedItems || []).reduce((total, item) => total + item.quantity, 0);
+                // Başarılı - UI zaten güncellenmiş
+              } else {
+                // Hata varsa geri al
+                setCartItems(oldItems);
+                const oldSubtotal = CartController.calculateSubtotal(oldItems);
+                const oldItemCount = oldItems.reduce((total, item) => total + item.quantity, 0);
                 updateCart({
-                  items: updatedItems || [],
-                  total: subtotal,
-                  itemCount,
+                  items: oldItems,
+                  total: oldSubtotal,
+                  itemCount: oldItemCount,
                   lastUpdated: new Date().toISOString(),
                 });
-                
-                // Reload cart
-                await loadCart();
-                
-                Alert.alert('Başarılı', 'Ürün sepetinizden kaldırıldı');
-              } else {
                 Alert.alert('Hata', result.message);
               }
             } catch (error) {
+              // Hata varsa geri al
+              setCartItems(oldItems);
+              const oldSubtotal = CartController.calculateSubtotal(oldItems);
+              const oldItemCount = oldItems.reduce((total, item) => total + item.quantity, 0);
+              updateCart({
+                items: oldItems,
+                total: oldSubtotal,
+                itemCount: oldItemCount,
+                lastUpdated: new Date().toISOString(),
+              });
               console.error('Error removing from cart:', error);
               Alert.alert('Hata', 'Ürün kaldırılırken bir hata oluştu');
             } finally {
@@ -240,7 +307,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         }
       ]
     );
-  }, [loadCart, updateCart]);
+  }, [cartItems, updateCart]);
 
 
   const handleCheckout = useCallback(() => {

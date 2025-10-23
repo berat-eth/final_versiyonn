@@ -121,40 +121,40 @@ if (__DEV__) {
 // Tab Icons using assets
 const TabIcons = {
   home: ({ color }: { color: string }) => (
-    <Image 
-      source={require('../../assets/home.png')} 
+    <Image
+      source={require('../../assets/home.png')}
       style={{ width: 30, height: 30, tintColor: color }}
       resizeMode="contain"
     />
   ),
-  
+
   products: ({ color }: { color: string }) => (
-    <Image 
-      source={require('../../assets/ürünler.png')} 
+    <Image
+      source={require('../../assets/ürünler.png')}
       style={{ width: 30, height: 30, tintColor: color }}
       resizeMode="contain"
     />
   ),
-  
+
   cart: ({ color }: { color: string }) => (
-    <Image 
-      source={require('../../assets/cart.png')} 
+    <Image
+      source={require('../../assets/cart.png')}
       style={{ width: 30, height: 30, tintColor: color }}
       resizeMode="contain"
     />
   ),
-  
+
   profile: ({ color }: { color: string }) => (
-    <Image 
-      source={require('../../assets/profile.png')} 
+    <Image
+      source={require('../../assets/profile.png')}
       style={{ width: 30, height: 30, tintColor: color }}
       resizeMode="contain"
     />
   ),
-  
+
   custom: ({ color }: { color: string }) => (
-    <Image 
-      source={require('../../assets/custom_production.png')} 
+    <Image
+      source={require('../../assets/custom_production.png')}
       style={{ width: 30, height: 30, tintColor: color }}
       resizeMode="contain"
     />
@@ -182,8 +182,8 @@ const CustomHeader = ({ navigation, categories }: { navigation: any; categories:
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <HamburgerMenu navigation={navigation} categories={categories} />
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Image 
-            source={require('../../assets/logo.jpg')} 
+          <Image
+            source={require('../../assets/logo.jpg')}
             style={{ width: 160, height: 80 }}
             resizeMode="contain"
           />
@@ -273,31 +273,31 @@ const HomeStack = () => {
         headerShadowVisible: false,
       }}
     >
-      <Stack.Screen 
-        name="HomeMain" 
-        component={HomeScreen} 
+      <Stack.Screen
+        name="HomeMain"
+        component={HomeScreen}
         options={({ navigation }) => ({
           headerTitle: '',
           header: () => <CustomHeader navigation={navigation} categories={categories} />,
         })}
       />
-      <Stack.Screen 
-        name="ProductList" 
+      <Stack.Screen
+        name="ProductList"
         component={ProductListScreen}
         options={{ title: 'Ürünler' }}
       />
-      <Stack.Screen 
-        name="ProductDetail" 
+      <Stack.Screen
+        name="ProductDetail"
         component={ProductDetailScreen}
         options={{ title: 'Ürün Detayı' }}
       />
-      <Stack.Screen 
-        name="StoreLocator" 
+      <Stack.Screen
+        name="StoreLocator"
         component={StoreLocatorScreen}
         options={{ title: 'Mağazalar' }}
       />
-      <Stack.Screen 
-        name="AllCategories" 
+      <Stack.Screen
+        name="AllCategories"
         component={AllCategoriesScreen}
         options={{ headerShown: false }}
       />
@@ -324,24 +324,24 @@ const CartStack = () => {
         headerShadowVisible: false,
       }}
     >
-      <Stack.Screen 
-        name="CartMain" 
-        component={CartScreen} 
+      <Stack.Screen
+        name="CartMain"
+        component={CartScreen}
         options={{ title: 'Sepetim' }}
       />
-      <Stack.Screen 
-        name="Order" 
+      <Stack.Screen
+        name="Order"
         component={OrderScreen as any}
         options={{ title: 'Sipariş' }}
       />
-      <Stack.Screen 
-        name="NfcScan" 
+      <Stack.Screen
+        name="NfcScan"
         component={NfcScanScreen as any}
         options={{ title: 'Temassız Ödeme', headerShown: true }}
       />
-      <Stack.Screen 
-        name="Addresses" 
-        component={AddressesScreen as any} 
+      <Stack.Screen
+        name="Addresses"
+        component={AddressesScreen as any}
         options={{ title: 'Adreslerim', headerShown: false }}
       />
     </Stack.Navigator>
@@ -367,18 +367,18 @@ const ProductsStack = () => {
         headerShadowVisible: false,
       }}
     >
-      <Stack.Screen 
-        name="ProductsMain" 
-        component={ProductListScreen} 
+      <Stack.Screen
+        name="ProductsMain"
+        component={ProductListScreen}
         options={{ title: 'Tüm Ürünler' }}
       />
-      <Stack.Screen 
-        name="StoreLocator" 
+      <Stack.Screen
+        name="StoreLocator"
         component={StoreLocatorScreen}
         options={{ title: 'Mağazalar' }}
       />
-      <Stack.Screen 
-        name="ProductDetail" 
+      <Stack.Screen
+        name="ProductDetail"
         component={ProductDetailScreen}
         options={{ title: 'Ürün Detayı' }}
       />
@@ -405,14 +405,14 @@ const ProfileStack = () => {
         headerShadowVisible: false,
       }}
     >
-      <Stack.Screen 
-        name="ProfileMain" 
-        component={ProfileScreen} 
+      <Stack.Screen
+        name="ProfileMain"
+        component={ProfileScreen}
         options={{ title: 'Hesabım' }}
       />
-      <Stack.Screen 
-        name="DealershipApplications" 
-        component={DealershipApplicationsScreen} 
+      <Stack.Screen
+        name="DealershipApplications"
+        component={DealershipApplicationsScreen}
         options={({ navigation }) => ({
           title: 'Bayilik Başvurularım',
           headerRight: () => (
@@ -425,138 +425,138 @@ const ProfileStack = () => {
           ),
         })}
       />
-      <Stack.Screen 
-        name="DealershipApplication" 
-        component={DealershipApplicationScreen} 
+      <Stack.Screen
+        name="DealershipApplication"
+        component={DealershipApplicationScreen}
         options={{ title: 'Bayilik Başvurusu' }}
       />
-      <Stack.Screen 
-        name="DealershipApplicationDetail" 
-        component={DealershipApplicationDetailScreen as any} 
+      <Stack.Screen
+        name="DealershipApplicationDetail"
+        component={DealershipApplicationDetailScreen as any}
         options={{ title: 'Başvuru Detayı' }}
       />
-      <Stack.Screen 
-        name="StoreLocator" 
+      <Stack.Screen
+        name="StoreLocator"
         component={StoreLocatorScreen}
         options={{ title: 'Mağazada Bul' }}
       />
-      <Stack.Screen 
-        name="CustomRequests" 
-        component={CustomProductionRequestsScreen} 
+      <Stack.Screen
+        name="CustomRequests"
+        component={CustomProductionRequestsScreen}
         options={{ title: 'Özel Üretim Taleplerim' }}
       />
-      <Stack.Screen 
-        name="CustomProductionRequestDetail" 
-        component={CustomProductionRequestDetailScreen} 
+      <Stack.Screen
+        name="CustomProductionRequestDetail"
+        component={CustomProductionRequestDetailScreen}
         options={{ title: 'Talep Detayı' }}
       />
-      <Stack.Screen 
-        name="Wallet" 
-        component={WalletScreen} 
+      <Stack.Screen
+        name="Wallet"
+        component={WalletScreen}
         options={{ title: 'Cüzdanım' }}
       />
-      <Stack.Screen 
-        name="HpayWallet" 
-        component={HpayWalletScreen} 
+      <Stack.Screen
+        name="HpayWallet"
+        component={HpayWalletScreen}
         options={{ title: 'Hpay+ Bakiyem' }}
       />
-      <Stack.Screen 
-        name="ShippingTracking" 
-        component={ShippingTrackingScreen} 
+      <Stack.Screen
+        name="ShippingTracking"
+        component={ShippingTrackingScreen}
         options={{ title: 'Kargo Takibi' }}
       />
-      <Stack.Screen 
-        name="Addresses" 
-        component={AddressesScreen as any} 
+      <Stack.Screen
+        name="Addresses"
+        component={AddressesScreen as any}
         options={{ title: 'Adreslerim', headerShown: false }}
       />
-      <Stack.Screen 
-        name="Favorites" 
-        component={FavoritesScreen} 
+      <Stack.Screen
+        name="Favorites"
+        component={FavoritesScreen}
         options={{ title: 'Favorilerim' }}
       />
-      <Stack.Screen 
-        name="Settings" 
-        component={SettingsScreen} 
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
         options={{ title: 'Ayarlar' }}
       />
-      <Stack.Screen 
-        name="Order" 
+      <Stack.Screen
+        name="Order"
         component={OrderScreen as any}
         options={{ title: 'Sipariş' }}
       />
-      <Stack.Screen 
-        name="Orders" 
+      <Stack.Screen
+        name="Orders"
         component={OrdersScreen}
         options={{ title: 'Siparişlerim' }}
       />
-      <Stack.Screen 
-        name="OrderDetail" 
+      <Stack.Screen
+        name="OrderDetail"
         component={OrderDetailScreen as any}
         options={{ title: 'Sipariş Detayı' }}
       />
-      <Stack.Screen 
-        name="ForgotPassword" 
+      <Stack.Screen
+        name="ForgotPassword"
         component={ForgotPasswordScreen}
         options={{ title: 'Parola Sıfırlama', headerShown: false }}
       />
-      <Stack.Screen 
-        name="ReturnRequests" 
+      <Stack.Screen
+        name="ReturnRequests"
         component={ReturnRequestsScreen}
         options={{ title: 'İade Taleplerim', headerShown: false }}
       />
-      <Stack.Screen 
-        name="FAQ" 
+      <Stack.Screen
+        name="FAQ"
         component={FAQScreen}
         options={{ title: 'S.S.S.', headerShown: false }}
       />
-      <Stack.Screen 
-        name="Support" 
+      <Stack.Screen
+        name="Support"
         component={SupportScreen}
         options={{ title: 'Destek', headerShown: false }}
       />
-      <Stack.Screen 
-        name="AnythingLLMSettings" 
+      <Stack.Screen
+        name="AnythingLLMSettings"
         component={AnythingLLMSettingsScreen}
         options={{ title: 'AnythingLLM Ayarları', headerShown: false }}
       />
-      <Stack.Screen 
+      <Stack.Screen
         name="EditProfile"
         component={EditProfileScreen}
         options={{ title: 'Hesap Düzenle', headerShown: true }}
       />
-      <Stack.Screen 
+      <Stack.Screen
         name="ChangePassword"
         component={ChangePasswordScreen}
         options={{ title: 'Şifre Değiştir', headerShown: true }}
       />
       {/** Bildirim ekranı kaldırıldı */}
-      <Stack.Screen 
+      <Stack.Screen
         name="Payment"
         component={PaymentScreen as any}
         options={{ title: 'Ödeme', headerShown: true }}
       />
-      <Stack.Screen 
+      <Stack.Screen
         name="MyCampaigns"
         component={MyCampaignsScreen as any}
         options={{ title: 'Bana Özel Kampanyalar', headerShown: true }}
       />
-      <Stack.Screen 
+      <Stack.Screen
         name="MyDiscountCodes"
         component={MyDiscountCodesScreen as any}
         options={{ title: 'İndirim Kodlarım', headerShown: true }}
       />
-      <Stack.Screen 
+      <Stack.Screen
         name="Referral"
         component={ReferralScreen as any}
         options={{ title: 'Referans Programı', headerShown: true }}
       />
-      <Stack.Screen 
+      <Stack.Screen
         name="UserLevel"
         component={UserLevelScreen}
         options={{ title: 'Seviye Sistemi', headerShown: true }}
       />
-      <Stack.Screen 
+      <Stack.Screen
         name="Invoices"
         component={InvoicesScreen as any}
         options={{ title: 'Faturalarım', headerShown: true }}
@@ -571,7 +571,7 @@ const TabNavigator = () => {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const cartItemCount = state.cart.itemCount || 0;
-  
+
   // TabNavigator cart state
 
   // Uygulama başladığında sepet state'ini yükle
@@ -581,12 +581,12 @@ const TabNavigator = () => {
         const effectiveUserId = await UserController.getCurrentUserId();
         const cartItems = await CartController.getCartItems(effectiveUserId);
         // Initial cart load
-        
+
         // Sepet boş olsa bile context'i güncelle
         const subtotal = CartController.calculateSubtotal(cartItems || []);
         const itemCount = (cartItems || []).reduce((total, item) => total + item.quantity, 0);
         // Initial cart context update
-        
+
         updateCart({
           items: cartItems || [],
           total: subtotal,
@@ -764,7 +764,7 @@ const AppNavigatorContent = () => {
           <View style={splashStyles.circle2} />
           <View style={splashStyles.circle3} />
         </View>
-        
+
         {/* Logo Container */}
         <Animated.View style={[
           splashStyles.logoContainer,
@@ -773,21 +773,21 @@ const AppNavigatorContent = () => {
             transform: [{ scale: scaleAnim }]
           }
         ]}>
-          <Image 
-            source={require('../../assets/logo.jpg')} 
+          <Image
+            source={require('../../assets/logo.jpg')}
             style={splashStyles.logo}
             resizeMode="contain"
           />
         </Animated.View>
-        
+
         {/* Loading Section */}
         <View style={splashStyles.loadingContainer}>
           <ActivityIndicator size="large" color="#1A1A2E" style={splashStyles.loader} />
           <Text style={splashStyles.loadingText}>Yükleniyor...</Text>
-          
+
           {/* Loading Bar */}
           <View style={splashStyles.loadingBar}>
-            <Animated.View 
+            <Animated.View
               style={[
                 splashStyles.loadingProgress,
                 {
@@ -796,11 +796,11 @@ const AppNavigatorContent = () => {
                     outputRange: ['0%', '100%'],
                   })
                 }
-              ]} 
+              ]}
             />
           </View>
         </View>
-        
+
         {/* Copyright Info */}
         <View style={splashStyles.copyrightContainer}>
           <Text style={splashStyles.copyrightText}>
@@ -810,7 +810,7 @@ const AppNavigatorContent = () => {
             Tüm hakları saklıdır
           </Text>
         </View>
-        
+
         {/* Version Info */}
         <Text style={splashStyles.versionText}>v2.0.1</Text>
       </View>
@@ -852,7 +852,7 @@ const AppNavigatorContent = () => {
           <TabNavigator />
         </BackendErrorProvider>
       </NavigationContainer>
-      
+
       {/* Welcome Popup Modal */}
       {showWelcomePopup && (
         <Modal
@@ -870,7 +870,7 @@ const AppNavigatorContent = () => {
               }
             ]}>
               {/* Close Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={welcomeStyles.closeButton}
                 onPress={() => closeWelcomePopup()}
                 activeOpacity={0.7}
@@ -884,11 +884,11 @@ const AppNavigatorContent = () => {
                 <View style={welcomeStyles.patternCircle2} />
                 <View style={welcomeStyles.patternCircle3} />
               </View>
-              
+
               {/* Logo */}
               <View style={welcomeStyles.logoContainer}>
-                <Image 
-                  source={require('../../assets/logo.jpg')} 
+                <Image
+                  source={require('../../assets/logo.jpg')}
                   style={welcomeStyles.logo}
                   resizeMode="contain"
                 />
@@ -896,23 +896,23 @@ const AppNavigatorContent = () => {
                   <Text style={welcomeStyles.logoBadgeText}>YENİ</Text>
                 </View>
               </View>
-              
+
               {/* Welcome Text */}
               <View style={welcomeStyles.textContainer}>
                 <Text style={welcomeStyles.welcomeTitle}>
                   Hoş Geldiniz! 🎯
                 </Text>
-                
+
                 <Text style={welcomeStyles.welcomeSubtitle}>
                   Huğlu Outdoor'a hoş geldiniz
                 </Text>
-                
+
                 <Text style={welcomeStyles.welcomeDescription}>
-                  Av tüfekleri ve outdoor ürünlerinde kalite ve güvenin adresi. 
+                  Av tüfekleri ve outdoor ürünlerinde kalite ve güvenin adresi.
                   En yeni ürünlerimizi keşfedin ve özel kampanyalarımızdan yararlanın.
                 </Text>
               </View>
-              
+
               {/* Features */}
               <View style={welcomeStyles.featuresContainer}>
                 <View style={welcomeStyles.featureItem}>
@@ -934,10 +934,10 @@ const AppNavigatorContent = () => {
                   <Text style={welcomeStyles.featureText}>Güvenli Ödeme</Text>
                 </View>
               </View>
-              
+
               {/* Action Buttons */}
               <View style={welcomeStyles.buttonsContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={welcomeStyles.continueButton}
                   onPress={() => closeWelcomePopup()}
                   activeOpacity={0.8}
@@ -948,7 +948,7 @@ const AppNavigatorContent = () => {
                   <Icon name="arrow-forward" size={20} color="white" />
                 </TouchableOpacity>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={welcomeStyles.dontShowButton}
                   onPress={() => closeWelcomePopup(true)}
                   activeOpacity={0.7}

@@ -36,6 +36,20 @@ export class CacheService {
     try { await AsyncStorage.removeItem(key); } catch {}
   }
 
+  static async remove(key: string): Promise<void> {
+    return this.del(key);
+  }
+
+  static async clearPattern(pattern: string): Promise<void> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const matchingKeys = keys.filter(k => k.includes(pattern));
+      if (matchingKeys.length > 0) {
+        await AsyncStorage.multiRemove(matchingKeys);
+      }
+    } catch {}
+  }
+
   static async withCache<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
     const cached = await CacheService.get<T>(key);
     if (cached !== null && cached !== undefined) return cached as T;

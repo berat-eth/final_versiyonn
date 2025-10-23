@@ -571,17 +571,35 @@ let pool;
 let xmlSyncService;
 let profileScheduler;
 
-// SQL Query Logger Wrapper
-function logQuery(sql, params, startTime) {
-  const endTime = Date.now();
-  const duration = endTime - startTime;
-  
-  console.log(`\n📊 [SQL QUERY] ${duration}ms`);
-  console.log(`🔍 SQL: ${sql}`);
-  if (params && params.length > 0) {
-    console.log(`📝 Params: ${JSON.stringify(params)}`);
+// ⚡ OPTIMIZASYON: Async Query Logger (non-blocking)
+const queryLogQueue = [];
+const SLOW_QUERY_THRESHOLD = 100; // ms
+
+// Async log processor (her 5 saniyede bir batch write)
+setInterval(() => {
+  if (queryLogQueue.length > 0) {
+    const logs = queryLogQueue.splice(0, 100); // Max 100 log per batch
+    // Production'da file'a yaz, development'ta console
+    if (process.env.NODE_ENV === 'production') {
+      // File write (non-blocking)
+      const fs = require('fs');
+      const logFile = path.join(__dirname, 'logs', 'slow-queries.log');
+      fs.appendFile(logFile, logs.join('\n') + '\n', () => {});
+    } else {
+      // Development: sadece yavaş query'leri logla
+      logs.forEach(log => console.log(log));
+    }
   }
-  console.log(`⏱️  Duration: ${duration}ms`);
+}, 5000);
+
+function logQuery(sql, params, startTime) {
+  const duration = Date.now() - startTime;
+  
+  // ⚡ Sadece yavaş query'leri logla (100ms+)
+  if (duration > SLOW_QUERY_THRESHOLD) {
+    const logEntry = `[${new Date().toISOString()}] SLOW QUERY (${duration}ms): ${sql.substring(0, 200)}`;
+    queryLogQueue.push(logEntry);
+  }
 }
 
 // Wrapped pool methods for logging
@@ -7402,72 +7420,51 @@ async function startServer() {
       
       // Ensure guest user exists (userId = 1)
       if (userId === 1) {
-        const [guestUser] = await poolWrapper.execute(
-          'SELECT id FROM users WHERE id = 1'
-        );
-        
-        if (guestUser.length === 0) {
-          // Create guest user
+        try {
           await poolWrapper.execute(
-            'INSERT INTO users (id, email, password, name, phone, tenantId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT IGNORE INTO users (id, email, password, name, phone, tenantId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [1, 'guest@huglu.com', 'guest', 'Guest User', '', tenantId, new Date().toISOString()]
           );
-          console.log('✅ Guest user created');
+        } catch (e) {
+          // Guest user already exists, ignore
         }
       }
       
-      // Check if item already exists in cart
-      let existingItemQuery = 'SELECT id, quantity FROM cart WHERE tenantId = ? AND productId = ? AND variationString = ?';
-      const existingParams = [tenantId, productId, variationString || ''];
-      if (userId && userId !== 1) {
-        existingItemQuery += ' AND userId = ?';
-        existingParams.push(userId);
-      } else {
-        existingItemQuery += ' AND userId = 1 AND deviceId = ?';
-        existingParams.push(deviceId || '');
-      }
-      const [existingItem] = await poolWrapper.execute(existingItemQuery, existingParams);
+      // ⚡ OPTIMIZASYON: Tek sorgu ile INSERT veya UPDATE (2 sorgu → 1 sorgu)
+      // UNIQUE constraint gerekli: (tenantId, userId, productId, variationString, deviceId)
+      const deviceIdValue = (userId === 1) ? (deviceId || '') : null;
       
-      if (existingItem.length > 0) {
-        // Update existing item
-        const newQuantity = existingItem[0].quantity + quantity;
-        await poolWrapper.execute(
-          'UPDATE cart SET quantity = ?, selectedVariations = ? WHERE id = ?',
-          [newQuantity, JSON.stringify(selectedVariations || {}), existingItem[0].id]
-        );
-        
-        console.log(`✅ Server: Updated cart item ${existingItem[0].id} with quantity ${newQuantity}`);
-        try {
-          const cacheKey = `cart:${tenantId}:${userId}:${userId === 1 ? (deviceId || '') : '-'}`;
-          const fallbackKey = `cart:${tenantId}:${userId}:-`;
-          await delKey(cacheKey);
-          await delKey(fallbackKey);
-        } catch (_) {}
-        res.json({ 
-          success: true, 
-          message: 'Sepete eklendi',
-          data: { cartItemId: existingItem[0].id, quantity: newQuantity }
-        });
-      } else {
-        // Add new item
-        const [result] = await poolWrapper.execute(
-          'INSERT INTO cart (tenantId, userId, deviceId, productId, quantity, variationString, selectedVariations) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [tenantId, userId, userId === 1 ? (deviceId || '') : null, productId, quantity, variationString || '', JSON.stringify(selectedVariations || {})]
-        );
-        
-        console.log(`✅ Server: Added new cart item ${result.insertId} for user ${userId}`);
-        try {
-          const cacheKey = `cart:${tenantId}:${userId}:${userId === 1 ? (deviceId || '') : '-'}`;
-          const fallbackKey = `cart:${tenantId}:${userId}:-`;
-          await delKey(cacheKey);
-          await delKey(fallbackKey);
-        } catch (_) {}
-        res.json({ 
-          success: true, 
-          message: 'Ürün sepete eklendi',
-          data: { cartItemId: result.insertId }
-        });
-      }
+      const [result] = await poolWrapper.execute(`
+        INSERT INTO cart (tenantId, userId, deviceId, productId, quantity, variationString, selectedVariations, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE 
+          quantity = quantity + VALUES(quantity),
+          selectedVariations = VALUES(selectedVariations),
+          updatedAt = NOW()
+      `, [
+        tenantId, 
+        userId, 
+        deviceIdValue, 
+        productId, 
+        quantity, 
+        variationString || '', 
+        JSON.stringify(selectedVariations || {})
+      ]);
+      
+      const cartItemId = result.insertId || result.affectedRows;
+      console.log(`✅ Server: Cart updated for user ${userId}, item ${cartItemId}`);
+      
+      // ⚡ OPTIMIZASYON: Tek cache invalidation
+      try {
+        const cacheKey = `cart:${tenantId}:${userId}:${userId === 1 ? (deviceId || '') : '-'}`;
+        await delKey(cacheKey);
+      } catch (_) {}
+      
+      res.json({ 
+        success: true, 
+        message: 'Ürün sepete eklendi',
+        data: { cartItemId }
+      });
     } catch (error) {
       console.error('❌ Error adding to cart:', error);
       res.status(500).json({ success: false, message: 'Sepete eklenirken hata oluştu' });
@@ -7594,21 +7591,25 @@ async function startServer() {
   app.delete('/api/cart/:cartItemId', async (req, res) => {
     try {
       const { cartItemId } = req.params;
+      const tenantId = req.tenant?.id || 1;
+      
+      // ⚡ OPTIMIZASYON: Önce user bilgisini al, sonra sil
+      const [info] = await poolWrapper.execute('SELECT userId, deviceId FROM cart WHERE id = ?', [cartItemId]);
+      
+      if (!info || info.length === 0) {
+        return res.status(404).json({ success: false, message: 'Cart item not found' });
+      }
+      
+      const uId = info[0].userId;
+      const dId = info[0].deviceId || '';
+      
+      await poolWrapper.execute('DELETE FROM cart WHERE id = ?', [cartItemId]);
+      
+      // ⚡ OPTIMIZASYON: Tek cache invalidation
       try {
-        const tenantId = req.tenant?.id || 1;
-        const [info] = await poolWrapper.execute('SELECT userId, deviceId FROM cart WHERE id = ?', [cartItemId]);
-        const uId = info?.[0]?.userId;
-        const dId = info?.[0]?.deviceId || '';
-        if (uId) {
-          await delKey(`cart:${tenantId}:${uId}:${uId === 1 ? dId : '-'}`);
-          await delKey(`cart:${tenantId}:${uId}:-`);
-        }
+        const cacheKey = `cart:${tenantId}:${uId}:${uId === 1 ? dId : '-'}`;
+        await delKey(cacheKey);
       } catch (_) {}
-
-      await poolWrapper.execute(
-        'DELETE FROM cart WHERE id = ?',
-        [cartItemId]
-      );
       
       res.json({ 
         success: true, 
@@ -7629,8 +7630,15 @@ async function startServer() {
       // Tenant ID from authentication
       const tenantId = req.tenant?.id || 1;
       const cacheKey = `cart:${tenantId}:${userId}:${deviceId ? String(deviceId) : '-'}`;
-      const lockKey = `${cacheKey}:lock`;
       
+      // ⚡ OPTIMIZASYON: Lock kaldırıldı - direkt cache kontrolü
+      const cached = await getJson(cacheKey);
+      if (Array.isArray(cached)) {
+        console.log(`✅ Server: Cache hit for user ${userId}`);
+        return res.json({ success: true, data: cached });
+      }
+
+      // Cache miss - DB'den çek
       let getCartSql = `SELECT c.*, p.name, p.price, p.image, p.stock 
          FROM cart c 
          JOIN products p ON c.productId = p.id 
@@ -7645,26 +7653,10 @@ async function startServer() {
       
       getCartSql += ' ORDER BY c.createdAt DESC';
 
-      const cached = await getJson(cacheKey);
-      if (Array.isArray(cached)) {
-        console.log(`✅ Server: Cache hit for user ${userId}`);
-        return res.json({ success: true, data: cached });
-      }
-
-      let rows;
-      await withLock(lockKey, 5, async () => {
-        const again = await getJson(cacheKey);
-        if (Array.isArray(again)) { rows = again; return; }
-        const [dbRows] = await poolWrapper.execute(getCartSql, getCartParams);
-        rows = dbRows;
-        await setJsonEx(cacheKey, 60, rows);
-      });
-
-      if (!rows) {
-        const [dbRows] = await poolWrapper.execute(getCartSql, getCartParams);
-        rows = dbRows;
-        await setJsonEx(cacheKey, 60, rows);
-      }
+      const [rows] = await poolWrapper.execute(getCartSql, getCartParams);
+      
+      // ⚡ OPTIMIZASYON: Cache süresi 60 → 300 saniye (5 dakika)
+      await setJsonEx(cacheKey, 300, rows);
 
       console.log(`✅ Server: Found ${rows.length} cart items for user ${userId}`);
       res.json({ success: true, data: rows });

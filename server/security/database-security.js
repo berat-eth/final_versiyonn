@@ -46,9 +46,11 @@ class DatabaseSecurity {
       password: process.env.DB_PASSWORD || '38cdfD8217..',
       database: process.env.DB_NAME || 'u987029066_mobil',
       port: parseInt(process.env.DB_PORT) || 3306,
-      connectionLimit: 10,
-      queueLimit: 0,
+      connectionLimit: 50,        // ⚡ 10 → 50 (5x artış)
+      queueLimit: 100,            // ⚡ 0 → 100 (sınırlı kuyruk)
       waitForConnections: true,
+      acquireTimeout: 10000,      // ⚡ 10 saniye timeout
+      timeout: 30000,             // ⚡ Connection timeout
       ssl: sslOptions,
       charset: 'utf8mb4',
       multipleStatements: false,

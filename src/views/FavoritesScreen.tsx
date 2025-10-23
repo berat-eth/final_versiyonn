@@ -185,16 +185,13 @@ export const FavoritesScreen: React.FC<FavoritesScreenProps> = ({ navigation }) 
       const result = await CartController.addToCart(userId, product.id, 1);
 
       if (result.success) {
-        // Global sepet state'ini güncelle
+        // ⚡ OPTIMIZASYON: Optimistik güncelleme
         try {
-          const cartItems = await CartController.getCartItems(userId);
-          const subtotal = CartController.calculateSubtotal(cartItems);
-          const itemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
-          
+          const currentCart = (updateCart as any).cart || { items: [], total: 0, itemCount: 0 };
           updateCart({
-            items: cartItems,
-            total: subtotal,
-            itemCount,
+            items: currentCart.items,
+            total: currentCart.total + product.price,
+            itemCount: currentCart.itemCount + 1,
             lastUpdated: new Date().toISOString(),
           });
         } catch (error) {
@@ -225,16 +222,13 @@ export const FavoritesScreen: React.FC<FavoritesScreenProps> = ({ navigation }) 
       const result = await CartController.addToCart(userId, selectedProduct.id, 1, selectedOptions);
 
       if (result.success) {
-        // Global sepet state'ini güncelle
+        // ⚡ OPTIMIZASYON: Optimistik güncelleme
         try {
-          const cartItems = await CartController.getCartItems(userId);
-          const subtotal = CartController.calculateSubtotal(cartItems);
-          const itemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
-          
+          const currentCart = (updateCart as any).cart || { items: [], total: 0, itemCount: 0 };
           updateCart({
-            items: cartItems,
-            total: subtotal,
-            itemCount,
+            items: currentCart.items,
+            total: currentCart.total + selectedProduct.price,
+            itemCount: currentCart.itemCount + 1,
             lastUpdated: new Date().toISOString(),
           });
         } catch (error) {

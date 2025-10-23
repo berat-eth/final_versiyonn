@@ -50,7 +50,7 @@ export interface ApiError {
 
 class ApiService {
   private cache = new Map<string, CacheItem<any>>();
-  
+
   // No encryption needed - data sent as plain text
   private encryptSensitiveData(data: any): any {
     if (!data || typeof data !== 'object') return data;
@@ -63,7 +63,7 @@ class ApiService {
     if (masked.cvc) masked.cvc = '***';
     return masked;
   }
-  
+
   // No decryption needed - data received as plain text
   private decryptSensitiveData(data: any): any {
     return data;
@@ -116,7 +116,7 @@ class ApiService {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500);
-      
+
       // Yerel adresler zaten oluşturulmuyor; yine de güvenlik için engelle
       if (/localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\./.test(url)) {
         clearTimeout(timeoutId);
@@ -132,7 +132,7 @@ class ApiService {
         },
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
       return response.ok;
     } catch (error) {
@@ -143,13 +143,13 @@ class ApiService {
 
   async autoDetectApiUrl(): Promise<string> {
     // Auto-detecting API URL
-    
+
     // First try current URL if it is not a localhost/LAN address
     // (silindi)
 
     // Generate alternative URLs
     const urls = await this.detectNetworkUrls();
-    
+
     // Test URLs in parallel (but limit concurrent requests)
     const batchSize = 3;
     for (let i = 0; i < urls.length; i += batchSize) {
@@ -160,7 +160,7 @@ class ApiService {
       });
 
       const results = await Promise.all(promises);
-      
+
       for (const result of results) {
         if (result.isWorking) {
           // Found working API URL
@@ -206,7 +206,7 @@ class ApiService {
     try {
       const ttl = isOffline ? OFFLINE_CACHE_DURATION : CACHE_DURATION;
       await CacheService.set<T>(key, data, ttl);
-    } catch {}
+    } catch { }
   }
 
   // Enhanced error handling
@@ -220,17 +220,17 @@ class ApiService {
         retryable: true
       };
     }
-    
+
     if (messageText.includes('failed to fetch') ||
-        messageText.includes('network request failed') ||
-        messageText.includes('network')) {
+      messageText.includes('network request failed') ||
+      messageText.includes('network')) {
       return {
         type: ApiErrorType.NETWORK_ERROR,
         message: 'Ağ bağlantısı hatası',
         retryable: true
       };
     }
-    
+
     if (error.status === 401) {
       return {
         type: ApiErrorType.UNAUTHORIZED_ERROR,
@@ -239,7 +239,7 @@ class ApiService {
         retryable: false
       };
     }
-    
+
     if (error.status === 404) {
       return {
         type: ApiErrorType.NOT_FOUND_ERROR,
@@ -248,7 +248,7 @@ class ApiService {
         retryable: false
       };
     }
-    
+
     if (error.status >= 500) {
       return {
         type: ApiErrorType.SERVER_ERROR,
@@ -257,7 +257,7 @@ class ApiService {
         retryable: true
       };
     }
-    
+
     return {
       type: ApiErrorType.UNKNOWN_ERROR,
       message: error.message || 'Bilinmeyen hata',
@@ -274,12 +274,14 @@ class ApiService {
     isOfflineRetry: boolean = false
   ): Promise<ApiResponse<T>> {
     const startTime = Date.now();
-    const TIMEOUT_MS = 15000; // 15 saniye timeout (60'tan optimize edildi)
-    const MAX_RETRIES = 1; // 1 deneme (2'den optimize edildi)
-    
+    // Sepet işlemleri için daha kısa timeout
+    const isCartOperation = endpoint.includes('/cart');
+    const TIMEOUT_MS = isCartOperation ? 5000 : 10000; // Sepet: 5sn, Diğer: 10sn
+    const MAX_RETRIES = isCartOperation ? 0 : 1; // Sepet: retry yok, hızlı fail
+
     // Network availability check
     // Offline modu devre dışı; ağ yoksa hata akışına düşecek
-    
+
     try {
       const url = `${getApiBaseUrl()}${endpoint}`;
       // API Request
@@ -308,7 +310,7 @@ class ApiService {
         ]);
         if (storedKey) apiKeyToUse = storedKey;
         if (storedTenant) tenantIdToUse = storedTenant;
-      } catch {}
+      } catch { }
 
       // Runtime'da set edilen API anahtarı öncelikli olsun
       if (this.apiKey) {
@@ -354,11 +356,11 @@ class ApiService {
       const response = await fetch(url, config);
       clearTimeout(timeoutId);
       // Response received
-      
+
       // Check if response is JSON before parsing
       const contentType = response.headers.get('content-type');
       let result;
-      
+
       if (contentType && contentType.includes('application/json')) {
         try {
           result = await response.json();
@@ -407,7 +409,7 @@ class ApiService {
       }
 
       const duration = Date.now() - startTime;
-      
+
       // Performance logging
       if (duration > 1000) {
         // Slow API call - silent
@@ -418,7 +420,7 @@ class ApiService {
       if (!response.ok) {
         const status = response.status;
         // 502/503/504 durumlarında otomatik kısa gecikmeli yeniden dene
-        if ([502,503,504].includes(status) && retryCount < MAX_RETRIES) {
+        if ([502, 503, 504].includes(status) && retryCount < MAX_RETRIES) {
           await new Promise(r => setTimeout(r, 500 * (retryCount + 1)));
           return this.request(endpoint, method, body, retryCount + 1, isOfflineRetry);
         }
@@ -448,17 +450,17 @@ class ApiService {
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       // Enhanced retry logic with better offline detection
       if (retryCount < MAX_RETRIES && this.shouldRetry(error)) {
         const delay = this.retryDelays[retryCount] || this.retryDelays[this.retryDelays.length - 1];
         // Retrying request - silent
-        
+
         await new Promise(resolve => setTimeout(resolve, delay));
-        
+
         return this.request(endpoint, method, body, retryCount + 1, isOfflineRetry);
       }
-      
+
       // Try auto-detection if we haven't tried it yet for this request
       if (retryCount === 0 && this.isOfflineRequest(error)) {
         // Attempting API URL auto-detection
@@ -474,10 +476,10 @@ class ApiService {
       }
 
       // Offline geri dönüş devre dışı
-      
+
       const apiError = this.createApiError(error, endpoint);
       console.error(`❌ API request failed: ${endpoint} (${duration}ms)`, apiError);
-      
+
       // Global API durumu güncelle - bağlantı hatası varsa
       if (this.isOfflineRequest(error) || (error as any)?.status >= 500) {
         // BackendErrorService ile hemen hata göster
@@ -486,7 +488,7 @@ class ApiService {
           return this.request(endpoint, method, body, 0, false);
         });
       }
-      
+
       // Check if this is a backend connection error
       const { BackendErrorService } = require('../services/BackendErrorService');
       if (BackendErrorService.isBackendConnectionError(error, endpoint)) {
@@ -497,7 +499,7 @@ class ApiService {
           return this.request(endpoint, method, body, 0, false);
         });
       }
-      
+
       this.isOnline = false;
       this.lastOnlineCheck = Date.now();
       this.consecutiveFailures++;
@@ -517,17 +519,17 @@ class ApiService {
       console.log(`🔄 Retry check: ${error.retryable ? 'YES' : 'NO'} - ${error.type} - ${error.message || 'No message'}`);
       return error.retryable;
     }
-    
+
     const messageText = String(error?.message || '').toLowerCase();
     const retryable = messageText.includes('timeout') ||
-           error.name === 'AbortError' ||
-           messageText.includes('network request failed') ||
-           messageText.includes('network') ||
-           messageText.includes('fetch') ||
-           messageText.includes('failed to fetch') ||
-           messageText.includes('sunucu hatası') ||
-           messageText.includes('server error');
-    
+      error.name === 'AbortError' ||
+      messageText.includes('network request failed') ||
+      messageText.includes('network') ||
+      messageText.includes('fetch') ||
+      messageText.includes('failed to fetch') ||
+      messageText.includes('sunucu hatası') ||
+      messageText.includes('server error');
+
     console.log(`🔄 Retry check: ${retryable ? 'YES' : 'NO'} - ${error.name || 'UNKNOWN'} - ${messageText}`);
     return retryable;
   }
@@ -536,21 +538,21 @@ class ApiService {
   private isOfflineRequest(error: any): boolean {
     // More aggressive offline detection
     const messageText = String(error?.message || '').toLowerCase();
-    return !this.isOnline || 
-           messageText.includes('timeout') ||
-           error.name === 'AbortError' ||
-           messageText.includes('failed to fetch') ||
-           messageText.includes('network request failed') ||
-           messageText.includes('network') ||
-           messageText.includes('econnreset') ||
-           messageText.includes('enotfound') ||
-           messageText.includes('econnrefused');
+    return !this.isOnline ||
+      messageText.includes('timeout') ||
+      error.name === 'AbortError' ||
+      messageText.includes('failed to fetch') ||
+      messageText.includes('network request failed') ||
+      messageText.includes('network') ||
+      messageText.includes('econnreset') ||
+      messageText.includes('enotfound') ||
+      messageText.includes('econnrefused');
   }
 
   // Handle offline requests with cache
   private async handleOfflineRequest<T>(
-    endpoint: string, 
-    method: string, 
+    endpoint: string,
+    method: string,
     body?: any
   ): Promise<ApiResponse<T>> {
     // Offline modu devre dışı
@@ -610,7 +612,7 @@ class ApiService {
             await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
       return cached;
     }
 
@@ -633,7 +635,7 @@ class ApiService {
             await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
       return cached;
     }
 
@@ -657,7 +659,7 @@ class ApiService {
             await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
       return cached;
     }
 
@@ -727,13 +729,25 @@ class ApiService {
     return { success: true, data: false } as any;
   }
 
-  // Enhanced cart endpoints
+  // Enhanced cart endpoints with optimized caching
   async addToCart(cartData: any): Promise<ApiResponse<boolean>> {
-    return this.request('/cart', 'POST', cartData);
+    const result = await this.request<boolean>('/cart', 'POST', cartData);
+    // Başarılı ekleme sonrası sepet cache'ini invalidate et
+    if (result.success && cartData.userId) {
+      const cacheKey = this.getCacheKey(`/cart/user/${cartData.userId}`);
+      await CacheService.remove(cacheKey);
+    }
+    return result;
   }
 
   async removeFromCart(id: number): Promise<ApiResponse<boolean>> {
-    return this.request(`/cart/${id}`, 'DELETE');
+    const result = await this.request<boolean>(`/cart/${id}`, 'DELETE');
+    // Başarılı silme sonrası ilgili cache'leri temizle
+    if (result.success) {
+      // Tüm sepet cache'lerini temizle (userId bilinmediği için)
+      await CacheService.clearPattern('cart/user');
+    }
+    return result;
   }
 
   async checkCartBeforeLogout(userId: number, deviceId?: string): Promise<ApiResponse<{
@@ -747,7 +761,12 @@ class ApiService {
 
 
   async updateCartQuantity(id: number, quantity: number): Promise<ApiResponse<boolean>> {
-    return this.request(`/cart/${id}`, 'PUT', { quantity });
+    const result = await this.request<boolean>(`/cart/${id}`, 'PUT', { quantity });
+    // Başarılı güncelleme sonrası cache'i temizle
+    if (result.success) {
+      await CacheService.clearPattern('cart/user');
+    }
+    return result;
   }
 
   // Return requests endpoints
@@ -793,25 +812,23 @@ class ApiService {
     }
 
     const endpoint = `/cart/user/${userId}`;
+    const cacheKey = this.getCacheKey(endpoint);
 
-    // Cache-first: hızlı değişmeyecek veriler için önbellekten sun
+    // Agresif cache stratejisi: 2 dakika cache
     try {
-      const cacheKey = this.getCacheKey(endpoint);
-      const cached = await this.getFromCache<ApiResponse<any[]>>(cacheKey);
+      const cached = await CacheService.get<ApiResponse<any[]>>(cacheKey);
       if (cached && cached.success && Array.isArray(cached.data)) {
-        // Arkaplanda yenile
-        this.request<any[]>(endpoint)
-          .then(async (fresh) => {
-            if (fresh && fresh.success) {
-              await this.setCache(cacheKey, fresh, fresh.isOffline);
-            }
-          })
-          .catch(() => {});
+        // Cache varsa hemen döndür, arkaplanda yenileme YOK (performans için)
         return cached;
       }
-    } catch {}
+    } catch { }
 
-    return this.request(endpoint);
+    // Cache yoksa API'den çek ve 2 dakika cache'le
+    const result = await this.request<any[]>(endpoint);
+    if (result.success) {
+      await CacheService.set(cacheKey, result, 2 * 60 * 1000); // 2 dakika
+    }
+    return result;
   }
 
   async clearCart(userId: number): Promise<ApiResponse<boolean>> {
@@ -821,7 +838,7 @@ class ApiService {
         const { DiscountWheelController } = require('../controllers/DiscountWheelController');
         const deviceId = await DiscountWheelController.getDeviceId();
         endpoint += `?deviceId=${encodeURIComponent(deviceId)}`;
-      } catch {}
+      } catch { }
     }
     return this.request(endpoint, 'DELETE');
   }
@@ -833,7 +850,7 @@ class ApiService {
         const { DiscountWheelController } = require('../controllers/DiscountWheelController');
         const deviceId = await DiscountWheelController.getDeviceId();
         endpoint += `?deviceId=${encodeURIComponent(deviceId)}`;
-      } catch {}
+      } catch { }
     }
     return this.request(endpoint);
   }
@@ -845,7 +862,7 @@ class ApiService {
         const { DiscountWheelController } = require('../controllers/DiscountWheelController');
         const deviceId = await DiscountWheelController.getDeviceId();
         endpoint += `?deviceId=${encodeURIComponent(deviceId)}`;
-      } catch {}
+      } catch { }
     }
     return this.request(endpoint);
   }
@@ -913,7 +930,7 @@ class ApiService {
   async getCategories(): Promise<ApiResponse<string[]>> {
     const cacheKey = this.getCacheKey('/categories');
     const cached = await this.getFromCache<ApiResponse<string[]>>(cacheKey);
-    
+
     if (cached) {
       return cached;
     }
@@ -928,7 +945,7 @@ class ApiService {
   async getBrands(): Promise<ApiResponse<string[]>> {
     const cacheKey = this.getCacheKey('/brands');
     const cached = await this.getFromCache<ApiResponse<string[]>>(cacheKey);
-    
+
     if (cached) {
       return cached;
     }
@@ -965,7 +982,7 @@ class ApiService {
   async getPriceRange(): Promise<ApiResponse<{ min: number; max: number }>> {
     const cacheKey = this.getCacheKey('/products/price-range');
     const cached = await this.getFromCache<ApiResponse<{ min: number; max: number }>>(cacheKey);
-    
+
     if (cached) {
       return cached;
     }
@@ -1003,7 +1020,7 @@ class ApiService {
         keysToDelete.push(key);
       }
     });
-    
+
     keysToDelete.forEach(key => this.cache.delete(key));
     // Cleared cache entries matching pattern
   }
@@ -1012,28 +1029,28 @@ class ApiService {
   async testConnection(): Promise<ApiResponse<boolean>> {
     try {
       // Testing API connection
-      
+
       // Quick timeout for health check
       const healthTimeout = new Promise<never>((_, reject) => {
         setTimeout(() => {
           reject(new Error('Health check timeout'));
         }, 15000); // 15 saniye health check timeout
       });
-      
+
       const healthPromise = this.request<boolean>('/health');
-      
+
       const result = await Promise.race([healthPromise, healthTimeout]);
       this.isOnline = result.success;
       this.lastOnlineCheck = Date.now();
       this.consecutiveFailures = 0;
-      
+
       if (result.success) {
         // API connection successful
         // Process any queued offline requests
         await this.processOfflineQueue();
       } else {
         // API connection failed, trying auto-detection
-        
+
         // Try auto-detection if health check failed
         try {
           const newUrl = await this.autoDetectApiUrl();
@@ -1051,7 +1068,7 @@ class ApiService {
           // Auto-detection failed - silent
         }
       }
-      
+
       return result;
     } catch (error) {
       // API connection test failed
@@ -1074,18 +1091,18 @@ class ApiService {
         // Already offline, skipping immediate check
         return false;
       }
-      
+
       const result = await this.testConnection();
       this.isOnline = result.success;
       this.lastOnlineCheck = Date.now();
       this.consecutiveFailures = 0;
-      
+
       // If we're back online, process offline queue
       if (this.isOnline && this.offlineQueue.length > 0) {
         // Processing offline requests
         await this.processOfflineQueue();
       }
-      
+
       return result.success;
     } catch {
       this.isOnline = false;
@@ -1100,13 +1117,13 @@ class ApiService {
     if (this.networkMonitoringInterval) {
       clearInterval(this.networkMonitoringInterval);
     }
-    
+
     let currentInterval = intervalMs;
-    
+
     this.networkMonitoringInterval = setInterval(async () => {
       try {
         const isOnline = await this.checkNetworkStatus();
-        
+
         if (isOnline) {
           // Reset on success
           this.consecutiveFailures = 0;
@@ -1115,9 +1132,9 @@ class ApiService {
           // Increase interval on failure
           this.consecutiveFailures++;
           currentInterval = Math.min(currentInterval * 1.5, 120000); // Max 2 minutes
-          
+
           // Network check failed, next check scheduled
-          
+
           // Update interval
           clearInterval(this.networkMonitoringInterval!);
           this.networkMonitoringInterval = setInterval(async () => {
@@ -1128,7 +1145,7 @@ class ApiService {
         console.error('❌ Network monitoring error:', error);
       }
     }, currentInterval);
-    
+
     // Network monitoring started
   }
 
@@ -1152,7 +1169,7 @@ class ApiService {
     // Don't attempt if we've been offline for too long
     const lastOnlineCheck = this.lastOnlineCheck || 0;
     const timeSinceLastCheck = Date.now() - lastOnlineCheck;
-    
+
     // Only attempt every 5 minutes
     return timeSinceLastCheck > 5 * 60 * 1000;
   }
@@ -1175,8 +1192,8 @@ class ApiService {
 
 
   // Wallet API methods
-  async getWallet(userId: number): Promise<ApiResponse<{balance: number, currency: string, transactions: any[]}>> {
-    return this.request<{balance: number, currency: string, transactions: any[]}>(`/wallet/${userId}`);
+  async getWallet(userId: number): Promise<ApiResponse<{ balance: number, currency: string, transactions: any[] }>> {
+    return this.request<{ balance: number, currency: string, transactions: any[] }>(`/wallet/${userId}`);
   }
 
   // Homepage products (server-side cached via Redis/DB)
@@ -1222,8 +1239,8 @@ class ApiService {
   }
 
   async updateCustomProductionRequestStatus(
-    requestId: number, 
-    status: string, 
+    requestId: number,
+    status: string,
     options: {
       estimatedDeliveryDate?: string;
       actualDeliveryDate?: string;
@@ -1311,7 +1328,7 @@ export const apiService = new ApiService();
 export async function safeJsonParse(response: Response): Promise<any> {
   try {
     const responseText = await response.text();
-    
+
     // Boş veya geçersiz response kontrolü
     if (!responseText || responseText.trim() === '' || responseText === 'undefined') {
       console.warn('Empty or invalid response from API');
