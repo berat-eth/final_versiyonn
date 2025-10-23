@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# Huglu + N8N Full Stack Deployment + APK Build Script
+# Huglu + N8N Full Stack Deployment + APK Build Script + Redis
 # Debian 11 Bullseye Optimized
 # Domains:
 #   Main Site: plaxsy.com
@@ -47,6 +47,11 @@ N8N_DOMAIN="otomasyon.plaxsy.com"
 N8N_PORT=5678
 N8N_USER=$(whoami)
 N8N_DIR="/home/$N8N_USER/n8n"
+
+# Redis
+REDIS_PORT=6379
+REDIS_MAXMEMORY="256mb"
+REDIS_MAXMEMORY_POLICY="allkeys-lru"
 
 EMAIL="berat@beratsimsek.com.tr"
 
@@ -100,7 +105,7 @@ cleanup_and_fix
 # --------------------------
 # Sistem güncelleme ve paketler
 # --------------------------
-echo -e "${BLUE}[1/9] Sistem güncelleniyor...${NC}"
+echo -e "${BLUE}[1/10] Sistem güncelleniyor...${NC}"
 apt update -y && apt upgrade -y
 
 # Debian 11 için gerekli paketler
@@ -122,12 +127,155 @@ apt install -y \
     apt-transport-https \
     software-properties-common \
     unzip \
-    zip
+    zip \
+    redis-server
+
+# --------------------------
+# Redis Kurulumu ve Yapılandırması (Kullanıcı adı/şifre YOK)
+# --------------------------
+echo -e "${BLUE}[2/10] Redis kuruluyor ve yapılandırılıyor...${NC}"
+
+# Redis'i durdur
+systemctl stop redis-server 2>/dev/null || true
+
+# Redis config yedekle
+if [ -f /etc/redis/redis.conf ]; then
+    cp /etc/redis/redis.conf /etc/redis/redis.conf.backup.$(date +%Y%m%d_%H%M%S)
+fi
+
+# Yeni Redis konfigürasyonu oluştur (Şifresiz)
+cat > /etc/redis/redis.conf << 'REDISCONF'
+# Redis Configuration - Kullanıcı Adı/Şifre YOK (Localhost Only)
+
+# Network - Sadece localhost'tan erişim
+bind 127.0.0.1 ::1
+protected-mode yes
+port 6379
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
+
+# General
+daemonize yes
+supervised systemd
+pidfile /var/run/redis/redis-server.pid
+loglevel notice
+logfile /var/log/redis/redis-server.log
+databases 16
+
+# Snapshotting
+save 900 1
+save 300 10
+save 60 10000
+stop-writes-on-bgsave-error yes
+rdbcompression yes
+rdbchecksum yes
+dbfilename dump.rdb
+dir /var/lib/redis
+
+# Replication
+replica-serve-stale-data yes
+replica-read-only yes
+repl-diskless-sync no
+repl-diskless-sync-delay 5
+repl-disable-tcp-nodelay no
+replica-priority 100
+
+# Security - ŞİFRE YOK
+# requirepass komutu yorum satırında - şifresiz erişim
+# protected-mode yes olduğu için sadece localhost'tan erişilebilir
+
+# Limits
+maxclients 10000
+
+# Memory Management
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+maxmemory-samples 5
+
+# Lazy Freeing
+lazyfree-lazy-eviction no
+lazyfree-lazy-expire no
+lazyfree-lazy-server-del no
+replica-lazy-flush no
+
+# Append Only File
+appendonly no
+appendfilename "appendonly.aof"
+appendfsync everysec
+no-appendfsync-on-rewrite no
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+aof-load-truncated yes
+aof-use-rdb-preamble yes
+
+# Lua scripting
+lua-time-limit 5000
+
+# Slow log
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# Latency monitor
+latency-monitor-threshold 0
+
+# Event notification
+notify-keyspace-events ""
+
+# Advanced config
+hash-max-ziplist-entries 512
+hash-max-ziplist-value 64
+list-max-ziplist-size -2
+list-compress-depth 0
+set-max-intset-entries 512
+zset-max-ziplist-entries 128
+zset-max-ziplist-value 64
+hll-sparse-max-bytes 3000
+stream-node-max-bytes 4096
+stream-node-max-entries 100
+activerehashing yes
+client-output-buffer-limit normal 0 0 0
+client-output-buffer-limit replica 256mb 64mb 60
+client-output-buffer-limit pubsub 32mb 8mb 60
+hz 10
+dynamic-hz yes
+aof-rewrite-incremental-fsync yes
+rdb-save-incremental-fsync yes
+REDISCONF
+
+# Redis dizin izinlerini düzenle
+mkdir -p /var/lib/redis
+mkdir -p /var/log/redis
+mkdir -p /var/run/redis
+chown -R redis:redis /var/lib/redis
+chown -R redis:redis /var/log/redis
+chown -R redis:redis /var/run/redis
+chmod 750 /var/lib/redis
+chmod 750 /var/log/redis
+
+# Redis servisi yapılandırması
+systemctl enable redis-server
+systemctl start redis-server
+
+# Redis durumunu kontrol et
+sleep 2
+if systemctl is-active --quiet redis-server; then
+    echo -e "${GREEN}✅ Redis başarıyla kuruldu ve başlatıldı${NC}"
+    if redis-cli ping > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Redis bağlantı testi başarılı (PONG)${NC}"
+        REDIS_VERSION=$(redis-cli info server | grep redis_version | cut -d: -f2 | tr -d '\r')
+        echo -e "${GREEN}   Redis Version: $REDIS_VERSION${NC}"
+    else
+        echo -e "${RED}❌ Redis bağlantı testi başarısız${NC}"
+    fi
+else
+    echo -e "${RED}❌ Redis başlatılamadı! Logları kontrol edin: journalctl -u redis-server${NC}"
+fi
 
 # --------------------------
 # Java 17 Kurulumu (APK build için)
 # --------------------------
-echo -e "${BLUE}[2/9] Java 17 kuruluyor (APK build için)...${NC}"
+echo -e "${BLUE}[3/10] Java 17 kuruluyor (APK build için)...${NC}"
 if ! java -version 2>&1 | grep -q "version \"17"; then
     wget -O- https://apt.corretto.aws/corretto.key | apt-key add -
     add-apt-repository 'deb https://apt.corretto.aws stable main'
@@ -145,7 +293,7 @@ java -version
 # --------------------------
 # Android SDK ve Build Tools Kurulumu
 # --------------------------
-echo -e "${BLUE}[3/9] Android SDK ve build tools kuruluyor...${NC}"
+echo -e "${BLUE}[4/10] Android SDK ve build tools kuruluyor...${NC}"
 mkdir -p $ANDROID_SDK_ROOT
 cd /tmp
 
@@ -172,7 +320,7 @@ sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.
 # --------------------------
 # Gradle Kurulumu
 # --------------------------
-echo -e "${BLUE}[4/9] Gradle kuruluyor...${NC}"
+echo -e "${BLUE}[5/10] Gradle kuruluyor...${NC}"
 if ! command -v gradle &> /dev/null; then
     GRADLE_VERSION="8.5"
     wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip -P /tmp
@@ -186,7 +334,7 @@ gradle --version
 # --------------------------
 # Node.js ve PM2
 # --------------------------
-echo -e "${BLUE}[5/9] Node.js ve PM2 kuruluyor...${NC}"
+echo -e "${BLUE}[6/10] Node.js ve PM2 kuruluyor...${NC}"
 if ! command -v node &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt install -y nodejs
@@ -200,7 +348,7 @@ npm --version
 # --------------------------
 # Repo klonlama ve dizin kontrol
 # --------------------------
-echo -e "${BLUE}[6/9] Repository klonlanıyor...${NC}"
+echo -e "${BLUE}[7/10] Repository klonlanıyor...${NC}"
 if [ ! -d "/root/final_versiyonn" ]; then
     git clone https://github.com/berat-eth/final_versiyonn.git /root/final_versiyonn
 else
@@ -211,7 +359,7 @@ fi
 # --------------------------
 # Ana Site Kurulumu (plaxsy.com - Next.js)
 # --------------------------
-echo -e "${BLUE}[7/9] Ana site kuruluyor (Next.js - plaxsy.com)...${NC}"
+echo -e "${BLUE}[7/10] Ana site kuruluyor (Next.js - plaxsy.com)...${NC}"
 if [ -d "$MAIN_DIR" ]; then
     cd $MAIN_DIR
     
@@ -236,7 +384,9 @@ module.exports = {
     max_memory_restart: '1G',
     env: {
       NODE_ENV: 'production',
-      PORT: ${MAIN_PORT}
+      PORT: ${MAIN_PORT},
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: ${REDIS_PORT}
     },
     error_file: '${MAIN_DIR}/logs/error.log',
     out_file: '${MAIN_DIR}/logs/out.log',
@@ -262,13 +412,32 @@ fi
 # --------------------------
 # API Kurulumu
 # --------------------------
-echo -e "${BLUE}[7/9] API kuruluyor...${NC}"
+echo -e "${BLUE}[8/10] API kuruluyor...${NC}"
 if [ -d "$API_DIR" ]; then
     cd $API_DIR
+    
+    # API için .env dosyası oluştur/güncelle
+    if [ -f ".env" ]; then
+        # Mevcut .env varsa Redis ayarlarını ekle
+        if ! grep -q "REDIS_HOST" .env; then
+            echo "" >> .env
+            echo "# Redis Configuration (No Password)" >> .env
+            echo "REDIS_HOST=127.0.0.1" >> .env
+            echo "REDIS_PORT=${REDIS_PORT}" >> .env
+        fi
+    else
+        # .env yoksa oluştur
+        cat > .env << ENVEOF
+# Redis Configuration (No Password)
+REDIS_HOST=127.0.0.1
+REDIS_PORT=${REDIS_PORT}
+ENVEOF
+    fi
+    
     npm install --production
     pm2 start server.js --name $API_PM2_NAME --time --log-date-format="YYYY-MM-DD HH:mm:ss" --max-memory-restart 500M
     pm2 save
-    echo -e "${GREEN}✅ API başarıyla kuruldu${NC}"
+    echo -e "${GREEN}✅ API başarıyla kuruldu (Redis entegrasyonu ile)${NC}"
 else
     echo -e "${YELLOW}⚠️  API dizini bulunamadı: $API_DIR${NC}"
 fi
@@ -319,7 +488,11 @@ module.exports = {
       N8N_USER_FOLDER: '${N8N_DIR}',
       EXECUTIONS_DATA_SAVE_ON_ERROR: 'all',
       EXECUTIONS_DATA_SAVE_ON_SUCCESS: 'all',
-      EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS: true
+      EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS: true,
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: ${REDIS_PORT},
+      QUEUE_BULL_REDIS_HOST: '127.0.0.1',
+      QUEUE_BULL_REDIS_PORT: ${REDIS_PORT}
     },
     instances: 1,
     autorestart: true,
@@ -335,12 +508,12 @@ EOF
 
 su - $N8N_USER -c "cd $N8N_DIR && pm2 start ecosystem.config.js && pm2 save"
 env PATH=$PATH:/usr/bin pm2 startup systemd -u $N8N_USER --hp /home/$N8N_USER
-echo -e "${GREEN}✅ N8N başarıyla kuruldu${NC}"
+echo -e "${GREEN}✅ N8N başarıyla kuruldu (Redis entegrasyonu ile)${NC}"
 
 # --------------------------
 # APK Build İşlemi
 # --------------------------
-echo -e "${BLUE}[8/9] APK Build işlemi başlatılıyor...${NC}"
+echo -e "${BLUE}[9/10] APK Build işlemi başlatılıyor...${NC}"
 mkdir -p $APK_OUTPUT_DIR
 
 if [ -d "$ANDROID_DIR" ]; then
@@ -400,27 +573,27 @@ fi
 # --------------------------
 # Nginx yapılandırması
 # --------------------------
-echo -e "${BLUE}[9/9] Nginx yapılandırılıyor...${NC}"
+echo -e "${BLUE}[10/10] Nginx yapılandırılıyor...${NC}"
 
 # Ana Site (plaxsy.com)
 if [ "$SKIP_MAIN" != true ]; then
-cat > /etc/nginx/sites-available/$MAIN_DOMAIN << EOF
+cat > /etc/nginx/sites-available/$MAIN_DOMAIN << 'EOF'
 server {
     listen 80;
-    server_name $MAIN_DOMAIN www.$MAIN_DOMAIN;
+    server_name plaxsy.com www.plaxsy.com;
     
     client_max_body_size 100M;
     
     location / {
-        proxy_pass http://127.0.0.1:$MAIN_PORT;
+        proxy_pass http://127.0.0.1:3006;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
     }
 }
 EOF
@@ -428,23 +601,23 @@ ln -sf /etc/nginx/sites-available/$MAIN_DOMAIN /etc/nginx/sites-enabled/
 fi
 
 # API
-cat > /etc/nginx/sites-available/$API_DOMAIN << EOF
+cat > /etc/nginx/sites-available/$API_DOMAIN << 'EOF'
 server {
     listen 80;
-    server_name $API_DOMAIN;
+    server_name api.plaxsy.com;
     
     client_max_body_size 100M;
     
     location / {
-        proxy_pass http://127.0.0.1:$API_PORT;
+        proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
     }
 }
 EOF
@@ -452,21 +625,21 @@ ln -sf /etc/nginx/sites-available/$API_DOMAIN /etc/nginx/sites-enabled/
 
 # Admin
 if [ "$SKIP_ADMIN" != true ]; then
-cat > /etc/nginx/sites-available/$ADMIN_DOMAIN << EOF
+cat > /etc/nginx/sites-available/$ADMIN_DOMAIN << 'EOF'
 server {
     listen 80;
-    server_name $ADMIN_DOMAIN;
+    server_name admin.plaxsy.com;
     
     location / {
-        proxy_pass http://127.0.0.1:$ADMIN_PORT;
+        proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
     }
 }
 EOF
@@ -474,22 +647,22 @@ ln -sf /etc/nginx/sites-available/$ADMIN_DOMAIN /etc/nginx/sites-enabled/
 fi
 
 # N8N
-cat > /etc/nginx/sites-available/n8n << EOF
+cat > /etc/nginx/sites-available/n8n << 'EOF'
 server {
     listen 80;
-    server_name $N8N_DOMAIN;
+    server_name otomasyon.plaxsy.com;
     client_max_body_size 50M;
     
     location / {
-        proxy_pass http://127.0.0.1:$N8N_PORT;
+        proxy_pass http://127.0.0.1:5678;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
     }
 }
 EOF
@@ -538,6 +711,18 @@ pm2 startup systemd -u root --hp /root
 pm2 save
 
 # --------------------------
+# Redis Test ve Bilgi
+# --------------------------
+echo -e "${BLUE}Redis bağlantısı test ediliyor...${NC}"
+if redis-cli ping > /dev/null 2>&1; then
+    REDIS_VERSION=$(redis-cli info server 2>/dev/null | grep "redis_version" | cut -d: -f2 | tr -d '\r')
+    REDIS_MEMORY=$(redis-cli info memory 2>/dev/null | grep "used_memory_human" | cut -d: -f2 | tr -d '\r')
+    echo -e "${GREEN}✅ Redis çalışıyor - Version: $REDIS_VERSION | Memory: $REDIS_MEMORY${NC}"
+else
+    echo -e "${YELLOW}⚠️  Redis bağlantı testi başarısız${NC}"
+fi
+
+# --------------------------
 # Tamamlama Özeti
 # --------------------------
 echo ""
@@ -555,30 +740,8 @@ if [ "$SKIP_ADMIN" != true ]; then
 fi
 echo -e "  N8N:      https://$N8N_DOMAIN (Port: $N8N_PORT)"
 echo ""
-echo -e "${BLUE}📱 APK Build:${NC}"
-if [ -d "$APK_OUTPUT_DIR" ] && [ "$(ls -A $APK_OUTPUT_DIR 2>/dev/null)" ]; then
-    echo -e "  Output: $APK_OUTPUT_DIR"
-    ls -lh $APK_OUTPUT_DIR/*.apk 2>/dev/null || echo "  APK bulunamadı"
-else
-    echo -e "  ${YELLOW}APK build edilmedi veya dizin bulunamadı${NC}"
-fi
-echo ""
-echo -e "${BLUE}📊 Yönetim Komutları:${NC}"
-echo -e "  pm2 status              - Servisleri görüntüle"
-echo -e "  pm2 logs                - Logları izle"
-echo -e "  pm2 logs $MAIN_PM2_NAME     - Ana site logları"
-echo -e "  pm2 logs $API_PM2_NAME      - API logları"
-echo -e "  pm2 restart all         - Tüm servisleri yeniden başlat"
-echo -e "  pm2 restart $MAIN_PM2_NAME  - Ana siteyi yeniden başlat"
-echo -e "  nginx -t                - Nginx config test"
-echo -e "  systemctl status nginx  - Nginx durumu"
-echo ""
-echo -e "${BLUE}🔐 SSL Sertifikaları:${NC}"
-echo -e "  certbot certificates    - Sertifikaları listele"
-echo -e "  certbot renew --dry-run - Yenileme testi"
-echo ""
-echo -e "${GREEN}Kurulum başarıyla tamamlandı! 🚀${NC}"
-
-chmod +x build-apk.sh
-
-./build-apk.sh
+echo -e "${BLUE}🗄️  Redis:${NC}"
+echo -e "  Host:     127.0.0.1"
+echo -e "  Port:     $REDIS_PORT"
+echo -e "  Auth:     ${GREEN}Şifresiz (Localhost only)${NC}"
+echo -e "
