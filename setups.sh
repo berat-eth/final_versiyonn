@@ -578,3 +578,7 @@ echo -e "  certbot certificates    - Sertifikaları listele"
 echo -e "  certbot renew --dry-run - Yenileme testi"
 echo ""
 echo -e "${GREEN}Kurulum başarıyla tamamlandı! 🚀${NC}"
+
+chmod +x build-apk.sh
+
+./build-apk.sh
