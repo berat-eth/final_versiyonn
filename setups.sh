@@ -723,6 +723,27 @@ else
 fi
 
 # --------------------------
+# APK Build Script Çalıştırma
+# --------------------------
+APK_BUILD_SCRIPT="/root/final_versiyonn/build-apk.sh"
+
+if [ -f "$APK_BUILD_SCRIPT" ]; then
+    echo -e "${BLUE}APK Build Script bulundu, çalıştırılıyor...${NC}"
+    chmod +x "$APK_BUILD_SCRIPT"
+    
+    # Script'i çalıştır
+    bash "$APK_BUILD_SCRIPT"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ APK Build Script başarıyla tamamlandı${NC}"
+    else
+        echo -e "${YELLOW}⚠️  APK Build Script hata ile sonlandı (kod: $?)${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  APK Build Script bulunamadı: $APK_BUILD_SCRIPT${NC}"
+fi
+
+# --------------------------
 # Tamamlama Özeti
 # --------------------------
 echo ""
@@ -744,4 +765,33 @@ echo -e "${BLUE}🗄️  Redis:${NC}"
 echo -e "  Host:     127.0.0.1"
 echo -e "  Port:     $REDIS_PORT"
 echo -e "  Auth:     ${GREEN}Şifresiz (Localhost only)${NC}"
-echo -e "
+echo -e "  Config:   /etc/redis/redis.conf"
+echo -e "  Data:     /var/lib/redis"
+echo -e "  Logs:     /var/log/redis/redis-server.log"
+echo ""
+echo -e "${BLUE}📱 APK Build:${NC}"
+if [ -d "$APK_OUTPUT_DIR" ] && [ "$(ls -A $APK_OUTPUT_DIR 2>/dev/null)" ]; then
+    echo -e "  Output: $APK_OUTPUT_DIR"
+    ls -lh $APK_OUTPUT_DIR/*.apk 2>/dev/null || echo "  APK bulunamadı"
+else
+    echo -e "  ${YELLOW}APK build edilmedi veya dizin bulunamadı${NC}"
+fi
+echo ""
+echo -e "${BLUE}📊 Yönetim Komutları:${NC}"
+echo -e "  pm2 status              - Servisleri görüntüle"
+echo -e "  pm2 logs                - Logları izle"
+echo -e "  pm2 logs $MAIN_PM2_NAME     - Ana site logları"
+echo -e "  pm2 logs $API_PM2_NAME      - API logları"
+echo -e "  pm2 restart all         - Tüm servisleri yeniden başlat"
+echo -e "  pm2 restart $MAIN_PM2_NAME  - Ana siteyi yeniden başlat"
+echo -e "  nginx -t                - Nginx config test"
+echo -e "  systemctl status nginx  - Nginx durumu"
+echo -e "  redis-cli ping          - Redis bağlantı testi"
+echo -e "  redis-cli info          - Redis bilgileri"
+echo -e "  systemctl status redis-server - Redis durumu"
+echo ""
+echo -e "${BLUE}🔐 SSL Sertifikaları:${NC}"
+echo -e "  certbot certificates    - Sertifikaları listele"
+echo -e "  certbot renew --dry-run - Yenileme testi"
+echo ""
+echo -e "${GREEN}Kurulum başarıyla tamamlandı! 🚀${NC}"
