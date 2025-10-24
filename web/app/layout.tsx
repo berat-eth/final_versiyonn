@@ -65,7 +65,10 @@ export default function RootLayout({
   return (
     <html lang="tr" className="light">
       <head>
-
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+          rel="stylesheet"
+        />
         <link rel="canonical" href="https://huglutekstil.com" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
         <meta name="theme-color" content="#1173d4" />
