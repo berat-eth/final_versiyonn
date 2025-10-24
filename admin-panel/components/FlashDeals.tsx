@@ -42,7 +42,7 @@ export default function FlashDeals() {
     const [formData, setFormData] = useState({
         name: '',
         description: '',
-        discountType: 'percentage' as const,
+        discountType: 'percentage' as 'percentage' | 'fixed',
         discountValue: 0,
         targetType: 'category' as 'category' | 'product',
         targetId: undefined as number | undefined,
@@ -192,7 +192,7 @@ export default function FlashDeals() {
             setFormData({
                 name: '',
                 description: '',
-                discountType: 'percentage' as const,
+                discountType: 'percentage' as 'percentage' | 'fixed',
                 discountValue: 0,
                 targetType: 'category' as 'category' | 'product',
                 targetId: undefined,
@@ -354,7 +354,7 @@ export default function FlashDeals() {
                         setFormData({
                             name: '',
                             description: '',
-                            discountType: 'percentage' as const,
+                            discountType: 'percentage' as 'percentage' | 'fixed',
                             discountValue: 0,
                             targetType: 'category' as 'category' | 'product',
                             targetId: undefined,
