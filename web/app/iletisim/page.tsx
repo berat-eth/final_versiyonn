@@ -18,17 +18,17 @@ export default function Iletisim() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (isSubmitting) return
-    
+
     // Honeypot kontrolü - bot ise gönderme
     if (formData.honeypot !== '') {
       console.log('Bot detected')
       return
     }
-    
+
     setIsSubmitting(true)
-    
+
     try {
       const response = await fetch('/api/iletisim', {
         method: 'POST',
@@ -65,7 +65,7 @@ export default function Iletisim() {
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Header />
-      
+
       <main className="flex-grow px-4 md:px-10 lg:px-20 py-16">
         <div className="max-w-[1400px] mx-auto">
           {/* Hero Section */}
@@ -86,29 +86,29 @@ export default function Iletisim() {
             {/* İletişim Bilgileri */}
             <div className="space-y-6">
               {[
-                { 
-                  icon: 'location_on', 
-                  title: 'Adres', 
+                {
+                  icon: 'location_on',
+                  title: 'Adres',
                   content: 'Huğlu, Beyşehir, Konya, Türkiye',
                   gradient: 'from-blue-500 to-cyan-500'
                 },
-                { 
-                  icon: 'call', 
-                  title: 'Telefon', 
+                {
+                  icon: 'call',
+                  title: 'Telefon',
                   content: '+90 212 123 45 67',
                   link: 'tel:+902121234567',
                   gradient: 'from-purple-500 to-pink-500'
                 },
-                { 
-                  icon: 'mail', 
-                  title: 'E-posta', 
+                {
+                  icon: 'mail',
+                  title: 'E-posta',
                   content: 'info@huglutekstil.com',
                   link: 'mailto:info@huglutekstil.com',
                   gradient: 'from-orange-500 to-red-500'
                 },
-                { 
-                  icon: 'schedule', 
-                  title: 'Çalışma Saatleri', 
+                {
+                  icon: 'schedule',
+                  title: 'Çalışma Saatleri',
                   content: 'Hafta içi: 09:00 - 18:00',
                   gradient: 'from-green-500 to-emerald-500'
                 }
@@ -208,7 +208,7 @@ export default function Iletisim() {
                     required
                   />
                 </div>
-                
+
                 {/* Honeypot field - Bot koruması */}
                 <div className="hidden" aria-hidden="true">
                   <label htmlFor="website">Website</label>
@@ -222,8 +222,8 @@ export default function Iletisim() {
                     autoComplete="off"
                   />
                 </div>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={isSubmitting}
                   className="group w-full h-14 rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white font-bold shadow-lg hover:shadow-xl hover:shadow-purple-500/50 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
                   {isSubmitting ? (

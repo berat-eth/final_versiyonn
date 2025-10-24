@@ -56,7 +56,8 @@ export default function Header() {
               height={77}
               className="h-20 w-auto object-contain group-hover:scale-105 transition-transform duration-300"
               priority
-              quality={85}
+              quality={100}
+              unoptimized
             />
           </Link>
 
@@ -72,6 +73,18 @@ export default function Header() {
                 <span className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg">info</span>
                   Hakkımızda
+                </span>
+              </Link>
+              <Link className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isTransparent ? 'text-white hover:text-purple-300 hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`} href="/mobil-uygulama">
+                <span className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg">smartphone</span>
+                  Mobil Uygulama
+                </span>
+              </Link>
+              <Link className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isTransparent ? 'text-white hover:text-purple-300 hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`} href="/teklif-al">
+                <span className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg">request_quote</span>
+                  Teklif Al
                 </span>
               </Link>
               <Link className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isTransparent ? 'text-white hover:text-purple-300 hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`} href="/iletisim">
@@ -100,6 +113,14 @@ export default function Header() {
               <Link className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2" href="/hakkimizda">
                 <span className="material-symbols-outlined text-lg">info</span>
                 Hakkımızda
+              </Link>
+              <Link className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2" href="/mobil-uygulama">
+                <span className="material-symbols-outlined text-lg">smartphone</span>
+                Mobil Uygulama
+              </Link>
+              <Link className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2" href="/teklif-al">
+                <span className="material-symbols-outlined text-lg">request_quote</span>
+                Teklif Al
               </Link>
               <Link className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2" href="/iletisim">
                 <span className="material-symbols-outlined text-lg">contact_mail</span>

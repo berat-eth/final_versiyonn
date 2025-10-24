@@ -26,12 +26,6 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['react-icons'],
   },
-  // Font optimization kapatıldı - Debian sunucuda Google Fonts erişim sorunu için
-  optimizeFonts: false,
-  // Network timeout ayarları
-  httpAgentOptions: {
-    keepAlive: true,
-  },
 }
 
 module.exports = nextConfig
