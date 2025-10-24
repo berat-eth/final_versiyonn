@@ -89,14 +89,14 @@ export default function Iletisim() {
                 {
                   icon: 'location_on',
                   title: 'Adres',
-                  content: 'Huğlu, Beyşehir, Konya, Türkiye',
+                  content: 'KOMEK, Huğlu, 43173.SK SİTESİ NO:20, 42700 Beyşehir/Konya',
                   gradient: 'from-blue-500 to-cyan-500'
                 },
                 {
                   icon: 'call',
                   title: 'Telefon',
-                  content: '+90 212 123 45 67',
-                  link: 'tel:+902121234567',
+                  content: '0530 312 58 13',
+                  link: 'tel:+905303125813',
                   gradient: 'from-purple-500 to-pink-500'
                 },
                 {
@@ -253,7 +253,7 @@ export default function Iletisim() {
             <div className="rounded-2xl overflow-hidden shadow-xl">
               <div className="h-[400px] w-full">
                 <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d49668.89693093!2d31.5!3d37.85!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14d0a7e8e8e8e8e8%3A0x8e8e8e8e8e8e8e8e!2zSHXEn2x1LCBCZXnFn2VoaXIvS29ueWE!5e0!3m2!1str!2str!4v1700000000000"
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3137.5!2d31.7!3d37.85!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMzfCsDUxJzAwLjAiTiAzMcKwNDInMDAuMCJF!5e0!3m2!1str!2str!4v1700000000000&q=KOMEK,+Huğlu,+43173.SK+SİTESİ+NO:20,+42700+Beyşehir/Konya"
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}

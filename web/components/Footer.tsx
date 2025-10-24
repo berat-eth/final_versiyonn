@@ -86,11 +86,11 @@ export default function Footer() {
                         <ul className="space-y-4">
                             <li className="flex items-start gap-3 text-sm text-gray-400">
                                 <span className="material-symbols-outlined text-blue-400 text-xl mt-0.5">location_on</span>
-                                <span>Huğlu, Beyşehir<br/>Konya, Türkiye</span>
+                                <span>KOMEK, Huğlu, 43173.SK SİTESİ NO:20<br/>42700 Beyşehir/Konya</span>
                             </li>
                             <li className="flex items-center gap-3 text-sm text-gray-400 hover:text-blue-400 transition-colors">
                                 <span className="material-symbols-outlined text-blue-400 text-xl">phone</span>
-                                <a href="tel:+902121234567">(0212) 123 45 67</a>
+                                <a href="tel:+905303125813">0530 312 58 13</a>
                             </li>
                             <li className="flex items-center gap-3 text-sm text-gray-400 hover:text-blue-400 transition-colors">
                                 <span className="material-symbols-outlined text-blue-400 text-xl">email</span>

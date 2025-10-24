@@ -83,18 +83,19 @@ export default function RootLayout({
               image: 'https://huglutekstil.com/assets/logo.png',
               '@id': 'https://huglutekstil.com',
               url: 'https://huglutekstil.com',
-              telephone: '+90-XXX-XXX-XXXX',
+              telephone: '+90-530-312-58-13',
               address: {
                 '@type': 'PostalAddress',
-                streetAddress: 'Adres Bilgisi',
-                addressLocality: 'Huğlu',
-                postalCode: 'XXXXX',
+                streetAddress: 'KOMEK, 43173.SK SİTESİ NO:20',
+                addressLocality: 'Beyşehir',
+                addressRegion: 'Konya',
+                postalCode: '42700',
                 addressCountry: 'TR'
               },
               geo: {
                 '@type': 'GeoCoordinates',
-                latitude: 40.0,
-                longitude: 32.0
+                latitude: 37.85,
+                longitude: 31.7
               },
               openingHoursSpecification: {
                 '@type': 'OpeningHoursSpecification',
