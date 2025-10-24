@@ -11,8 +11,10 @@ const Footer = dynamic(() => import('@/components/Footer'), { ssr: true })
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [showPopup, setShowPopup] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     // Popup'ı sadece ilk ziyarette göster
     const hasVisited = localStorage.getItem('hasVisited')
     if (!hasVisited) {
@@ -32,25 +34,25 @@ export default function Home() {
 
   const slides = [
     {
-      image: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=1200&q=75&auto=format&fit=crop',
+      image: '/assets/slider-1.jpg',
       title: 'Özel İş Kıyafetlerinde',
       highlight: 'Kalite ve Ustalık',
       description: 'Size özel tasarımlarla, işinize en uygun kıyafetleri üretiyoruz'
     },
     {
-      image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=1200&q=75&auto=format&fit=crop',
+      image: '/assets/slider-2.jpg',
       title: 'Profesyonel Üretim',
       highlight: 'Modern Teknoloji',
       description: 'En son teknoloji ile kusursuz işçilik sunuyoruz'
     },
     {
-      image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=1200&q=75&auto=format&fit=crop',
+      image: '/assets/slider-3.jpg',
       title: 'Markanıza Özel',
       highlight: 'Tasarım Çözümleri',
       description: 'Logo baskı ve nakış ile markanızı öne çıkarın'
     },
     {
-      image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1200&q=75&auto=format&fit=crop',
+      image: '/assets/slider-4.jpg',
       title: 'Hızlı ve Güvenilir',
       highlight: 'Teslimat Garantisi',
       description: 'Siparişlerinizi zamanında ve eksiksiz teslim ediyoruz'
@@ -70,7 +72,7 @@ export default function Home() {
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Popup Modal */}
-      {showPopup && (
+      {mounted && showPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="relative bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-md w-full mx-4 p-8 animate-scaleIn">
             {/* Decorative Elements */}
