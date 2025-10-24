@@ -133,14 +133,16 @@ export class DiscountWheelController {
       
       const response = await apiService.get(`/discount-codes/${userId}`);
       
-      if (response.success && response.data) {
+      if (response.success && response.data && Array.isArray(response.data)) {
         console.log(`✅ Retrieved ${response.data.length} discount codes`);
         return response.data;
       }
       
+      console.log('⚠️ No discount codes found or invalid response format');
       return [];
     } catch (error) {
       console.error('❌ DiscountWheelController - getUserDiscountCodes error:', error);
+      // Hata durumunda boş array döndür, çökme olmasın
       return [];
     }
   }

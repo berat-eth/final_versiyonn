@@ -973,14 +973,8 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
     const now = nowTs;
     const flash = (campaigns || []).filter((c: any) => c.isActive && c.status === 'active' && c.endDate);
     
-    // Polar hırka ürünlerini flash indirimlere ekle (ilk 5 ürün)
-    const polarFlashProducts = polarProducts.slice(0, 5).map((product: Product) => ({
-      ...product,
-      flashDiscount: 10,
-      flashEndDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 saat sonra
-    }));
-
-    const allFlashItems = [...flash, ...polarFlashProducts];
+    // Flash deals API'sinden gelen veriler kullanılacak
+    const allFlashItems = [...flash];
     
     if (allFlashItems.length === 0) return null;
     

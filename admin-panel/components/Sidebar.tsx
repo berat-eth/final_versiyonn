@@ -70,7 +70,9 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         { id: 'sms', label: 'SMS', icon: Smartphone },
         { id: 'push-notifications', label: 'Push Bildirimler', icon: Bell },
         { id: 'stories', label: "Story'ler", icon: Image },
-        { id: 'banners', label: 'Banner Yönetimi', icon: Image },
+        { id: 'sliders', label: 'Slider Yönetimi', icon: Image },
+        { id: 'flash-deals', label: 'Flash İndirimler', icon: DollarSign },
+        { id: 'live-users', label: 'Canlı Kullanıcılar', icon: Users },
       ]
     },
     {

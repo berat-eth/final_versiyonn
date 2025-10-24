@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Folder, File, Upload, Download, Trash2, RefreshCw, Plus, ArrowLeft, Edit, Save, X, Code } from 'lucide-react'
+import { Folder, File, RefreshCw, ArrowLeft, Eye, X, Code } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
 
@@ -18,10 +18,9 @@ export default function FileManager() {
   const [items, setItems] = useState<FsItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [editingFile, setEditingFile] = useState<string | null>(null)
+  const [viewingFile, setViewingFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string>('')
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
+  const [isViewing, setIsViewing] = useState(false)
 
   const loadList = async (dir: string) => {
     try {
@@ -73,7 +72,7 @@ export default function FileManager() {
     return langMap[extension || ''] || 'plaintext'
   }
 
-  const handleEditFile = async (filePath: string) => {
+  const handleViewFile = async (filePath: string) => {
     try {
       setLoading(true)
       setError(null)
@@ -81,8 +80,8 @@ export default function FileManager() {
       const response = await api.get('/admin/files/content', { path: filePath })
       if ((response as any)?.success) {
         setFileContent((response as any).data.content || '')
-        setEditingFile(filePath)
-        setIsEditing(true)
+        setViewingFile(filePath)
+        setIsViewing(true)
       } else {
         setError('Dosya içeriği yüklenemedi')
       }
@@ -93,36 +92,9 @@ export default function FileManager() {
     }
   }
 
-  const handleSaveFile = async () => {
-    if (!editingFile) return
-    
-    try {
-      setIsSaving(true)
-      setError(null)
-      
-      const response = await api.post('/admin/files/save-content', {
-        path: editingFile,
-        content: fileContent
-      })
-      
-      if ((response as any)?.success) {
-        alert('Dosya başarıyla kaydedildi!')
-        setIsEditing(false)
-        setEditingFile(null)
-        setFileContent('')
-      } else {
-        alert('Dosya kaydedilemedi!')
-      }
-    } catch (e: any) {
-      setError(e?.message || 'Dosya kaydedilemedi')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleCancelEdit = () => {
-    setIsEditing(false)
-    setEditingFile(null)
+  const handleCloseViewer = () => {
+    setIsViewing(false)
+    setViewingFile(null)
     setFileContent('')
   }
 
@@ -130,12 +102,11 @@ export default function FileManager() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Dosya Yöneticisi</h2>
-          <p className="text-slate-500 mt-1">Sunucu dosyalarını görüntüleyin ve yönetin</p>
+          <h2 className="text-3xl font-bold text-slate-800">Dosya Görüntüleyici</h2>
+          <p className="text-slate-500 mt-1">Sunucu dosyalarını görüntüleyin</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={()=>loadList(cwd)} className="px-4 py-3 border rounded-xl hover:bg-slate-50 flex items-center gap-2"><RefreshCw className="w-4 h-4"/>Yenile</button>
-          <button className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2"><Plus className="w-4 h-4"/>Klasör</button>
         </div>
       </div>
 
@@ -162,12 +133,14 @@ export default function FileManager() {
                 </div>
                 <div className="flex items-center gap-2">
                   {it.type==='file' && (
-                    <>
-                      <button onClick={(e)=>{ e.stopPropagation(); handleEditFile(it.path) }} title="Düzenle" className="p-2 hover:bg-slate-100 rounded-lg"><Edit className="w-4 h-4"/></button>
-                      <a href={`#`} onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); typeof window !== 'undefined' && window.open(`${window.location.origin}/api/admin/files/download?path=${encodeURIComponent(it.path)}`,'_blank') }} title="İndir" className="p-2 hover:bg-slate-100 rounded-lg"><Download className="w-4 h-4"/></a>
-                    </>
+                    <button 
+                      onClick={(e)=>{ e.stopPropagation(); handleViewFile(it.path) }} 
+                      title="Görüntüle" 
+                      className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 hover:text-blue-700"
+                    >
+                      <Eye className="w-4 h-4"/>
+                    </button>
                   )}
-                  <button onClick={async (e)=>{ e.stopPropagation(); try{ await api.delete<any>(`/admin/files?path=${encodeURIComponent(it.path)}`); await loadList(cwd) } catch { alert('Silinemedi'); } }} title="Sil" className="p-2 hover:bg-slate-100 rounded-lg"><Trash2 className="w-4 h-4"/></button>
                 </div>
               </div>
             </motion.div>
@@ -178,8 +151,8 @@ export default function FileManager() {
         </div>
       </div>
 
-      {/* Dosya Editörü */}
-      {isEditing && editingFile && (
+      {/* Dosya Görüntüleyici */}
+      {isViewing && viewingFile && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -189,42 +162,33 @@ export default function FileManager() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
                 <Code className="w-4 h-4" />
-                <span className="font-medium">{editingFile.split('/').pop()}</span>
+                <span className="font-medium">{viewingFile.split('/').pop()}</span>
                 <span className="text-slate-400">•</span>
-                <span className="text-slate-400">{getFileLanguage(editingFile)}</span>
+                <span className="text-slate-400">{getFileLanguage(viewingFile)}</span>
+                <span className="text-slate-400">•</span>
+                <span className="text-slate-400">Salt Okunur</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleSaveFile}
-                  disabled={isSaving}
-                  className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 text-sm"
-                >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
-                </button>
-                <button
-                  onClick={handleCancelEdit}
+                  onClick={handleCloseViewer}
                   className="px-3 py-1 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2 text-sm"
                 >
                   <X className="w-4 h-4" />
-                  İptal
+                  Kapat
                 </button>
               </div>
             </div>
           </div>
           <div className="relative">
-            <textarea
-              value={fileContent}
-              onChange={(e) => setFileContent(e.target.value)}
-              className="w-full h-96 p-4 font-mono text-sm bg-slate-900 text-slate-100 border-0 outline-none resize-none"
-              placeholder="Dosya içeriği yükleniyor..."
-              spellCheck={false}
+            <pre className="w-full h-96 p-4 font-mono text-sm bg-slate-900 text-slate-100 border-0 outline-none overflow-auto whitespace-pre-wrap"
               style={{
                 fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
                 lineHeight: '1.5',
                 tabSize: 2
               }}
-            />
+            >
+              {fileContent || 'Dosya içeriği yükleniyor...'}
+            </pre>
             <div className="absolute top-4 right-4 text-xs text-slate-500">
               {fileContent.split('\n').length} satır
             </div>

@@ -98,13 +98,16 @@ export class BuyTogetherController {
       });
 
       if (!response.ok) {
-        throw new Error('Birlikte al teklifleri yüklenemedi');
+        console.warn('⚠️ Buy together offers API failed, returning empty array');
+        return [];
       }
 
       const result = await safeJsonParse(response);
-      return result.success ? (result.data?.offers || []) : [];
+      const offers = result.success ? (result.data?.offers || []) : [];
+      console.log(`✅ Retrieved ${offers.length} buy together offers`);
+      return offers;
     } catch (error) {
-      console.error('Error fetching buy together offers:', error);
+      console.warn('⚠️ Buy together offers failed, returning empty array:', error);
       return [];
     }
   }

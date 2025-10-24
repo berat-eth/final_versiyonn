@@ -85,15 +85,15 @@ export const validateDate = (date: string): boolean => {
   const selectedDate = new Date(date)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  
+
   // Geçmiş tarih olamaz
   if (selectedDate < today) {
     return false
   }
-  
+
   // 2 yıldan fazla ileri tarih olamaz
   const maxDate = new Date()
   maxDate.setFullYear(maxDate.getFullYear() + 2)
-  
+
   return selectedDate <= maxDate
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, Upload, Database, Clock, CheckCircle, AlertTriangle, HardDrive, Cloud, RefreshCw, Trash2, Calendar, X, Save } from 'lucide-react'
+import { Download, Upload, Database, Clock, CheckCircle, AlertTriangle, HardDrive, Cloud, RefreshCw, Trash2, Calendar, X, Save, FileText, FileCode } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
 
@@ -12,6 +12,8 @@ interface BackupItem {
   size: string
   type: 'auto' | 'manual'
   status: 'completed' | 'in-progress' | 'failed'
+  format: 'json' | 'sql'
+  fileType: string
 }
 
 export default function Backup() {
@@ -21,6 +23,8 @@ export default function Backup() {
   const [autoBackup, setAutoBackup] = useState(true)
   const [backupFrequency, setBackupFrequency] = useState('daily')
   const [showFtpModal, setShowFtpModal] = useState(false)
+  const [backupFormat, setBackupFormat] = useState<'json' | 'sql'>('json')
+  const [showFormatModal, setShowFormatModal] = useState(false)
   const [ftpData, setFtpData] = useState({
     host: '',
     port: '21',
@@ -34,33 +38,68 @@ export default function Backup() {
     // Gelecekte /admin/backups gibi bir uç nokta eklendiğinde burası güncellenebilir
   }
 
-  const handleCreateBackup = async () => {
+  const handleCreateBackup = async (format: 'json' | 'sql' = backupFormat) => {
     try {
       setIsCreatingBackup(true)
-      const res = await api.get<any>('/admin/backup')
-      if (res && typeof window !== 'undefined') {
-        const jsonString = JSON.stringify(res, null, 2)
-        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-        a.href = url
-        a.download = `backup-${timestamp}.json`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+      
+      if (format === 'sql') {
+        // SQL yedek oluştur
+        const res = await api.get<any>('/admin/backup/sql')
+        if (res && typeof window !== 'undefined') {
+          const sqlString = res.sql || res.data || '-- SQL Backup\n-- No data available'
+          const blob = new Blob([sqlString], { type: 'application/sql;charset=utf-8' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+          a.href = url
+          a.download = `backup-${timestamp}.sql`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
 
-        const sizeKb = Math.max(1, Math.round(jsonString.length / 1024))
-        const item: BackupItem = {
-          id: Date.now(),
-          name: `Yedek - ${new Date().toLocaleDateString('tr-TR')}`,
-          date: new Date().toLocaleString('tr-TR'),
-          size: `${sizeKb} KB`,
-          type: 'manual',
-          status: 'completed'
+          const sizeKb = Math.max(1, Math.round(sqlString.length / 1024))
+          const item: BackupItem = {
+            id: Date.now(),
+            name: `SQL Yedek - ${new Date().toLocaleDateString('tr-TR')}`,
+            date: new Date().toLocaleString('tr-TR'),
+            size: `${sizeKb} KB`,
+            type: 'manual',
+            status: 'completed',
+            format: 'sql',
+            fileType: 'SQL Database'
+          }
+          setBackups([item, ...backups])
         }
-        setBackups([item, ...backups])
+      } else {
+        // JSON yedek oluştur
+        const res = await api.get<any>('/admin/backup')
+        if (res && typeof window !== 'undefined') {
+          const jsonString = JSON.stringify(res, null, 2)
+          const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+          a.href = url
+          a.download = `backup-${timestamp}.json`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+
+          const sizeKb = Math.max(1, Math.round(jsonString.length / 1024))
+          const item: BackupItem = {
+            id: Date.now(),
+            name: `JSON Yedek - ${new Date().toLocaleDateString('tr-TR')}`,
+            date: new Date().toLocaleString('tr-TR'),
+            size: `${sizeKb} KB`,
+            type: 'manual',
+            status: 'completed',
+            format: 'json',
+            fileType: 'JSON Data'
+          }
+          setBackups([item, ...backups])
+        }
       }
     } catch (e:any) {
       alert(e?.message || 'Yedek oluşturulamadı')
@@ -71,20 +110,38 @@ export default function Backup() {
 
   const handleDownload = async (backup: BackupItem) => {
     try {
-      const res = await api.get<any>('/admin/backup')
-      if (res && typeof window !== 'undefined') {
-        const jsonString = JSON.stringify(res, null, 2)
-        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        const safeName = backup?.name?.replace(/\s+/g, '-').toLowerCase() || 'backup'
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-        a.href = url
-        a.download = `${safeName}-${timestamp}.json`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+      if (backup.format === 'sql') {
+        const res = await api.get<any>('/admin/backup/sql')
+        if (res && typeof window !== 'undefined') {
+          const sqlString = res.sql || res.data || '-- SQL Backup\n-- No data available'
+          const blob = new Blob([sqlString], { type: 'application/sql;charset=utf-8' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          const safeName = backup?.name?.replace(/\s+/g, '-').toLowerCase() || 'backup'
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+          a.href = url
+          a.download = `${safeName}-${timestamp}.sql`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }
+      } else {
+        const res = await api.get<any>('/admin/backup')
+        if (res && typeof window !== 'undefined') {
+          const jsonString = JSON.stringify(res, null, 2)
+          const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          const safeName = backup?.name?.replace(/\s+/g, '-').toLowerCase() || 'backup'
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+          a.href = url
+          a.download = `${safeName}-${timestamp}.json`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }
       }
     } catch (e:any) {
       alert(e?.message || 'İndirme başarısız')
@@ -118,23 +175,36 @@ export default function Backup() {
           <h2 className="text-3xl font-bold text-slate-800">Veri Yedekleme</h2>
           <p className="text-slate-500 mt-1">Verilerinizi yedekleyin ve geri yükleyin</p>
         </div>
-        <button
-          onClick={handleCreateBackup}
-          disabled={isCreatingBackup}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow disabled:opacity-50"
-        >
-          {isCreatingBackup ? (
-            <>
-              <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-              Yedekleniyor...
-            </>
-          ) : (
-            <>
-              <Download className="w-5 h-5 mr-2" />
-              Yeni Yedek Oluştur
-            </>
-          )}
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowFormatModal(true)}
+            disabled={isCreatingBackup}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow disabled:opacity-50"
+          >
+            {isCreatingBackup ? (
+              <>
+                <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                Yedekleniyor...
+              </>
+            ) : (
+              <>
+                <Download className="w-5 h-5 mr-2" />
+                Yeni Yedek Oluştur
+              </>
+            )}
+          </button>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-slate-600">Format:</span>
+            <select
+              value={backupFormat}
+              onChange={(e) => setBackupFormat(e.target.value as 'json' | 'sql')}
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="json">JSON</option>
+              <option value="sql">SQL</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Stats */}
@@ -349,27 +419,27 @@ export default function Backup() {
           <h3 className="text-xl font-bold text-slate-800 mb-6">Hızlı İşlemler</h3>
           
           <div className="space-y-4">
-            <button onClick={handleCreateBackup} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl hover:shadow-md transition-all">
+            <button onClick={() => handleCreateBackup('json')} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl hover:shadow-md transition-all">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Download className="w-5 h-5 text-white" />
+                  <FileText className="w-5 h-5 text-white" />
                 </div>
                 <div className="text-left">
-                  <p className="font-semibold text-slate-800">Tam Yedek Al</p>
-                  <p className="text-xs text-slate-600">Tüm verileri yedekle</p>
+                  <p className="font-semibold text-slate-800">JSON Yedek</p>
+                  <p className="text-xs text-slate-600">Tüm verileri JSON formatında</p>
                 </div>
               </div>
               <span className="text-blue-600 font-semibold">→</span>
             </button>
 
-            <button onClick={handleCreateBackup} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl hover:shadow-md transition-all">
+            <button onClick={() => handleCreateBackup('sql')} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl hover:shadow-md transition-all">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
-                  <Database className="w-5 h-5 text-white" />
+                  <FileCode className="w-5 h-5 text-white" />
                 </div>
                 <div className="text-left">
-                  <p className="font-semibold text-slate-800">Veritabanı Yedeği</p>
-                  <p className="text-xs text-slate-600">Sadece veritabanını yedekle</p>
+                  <p className="font-semibold text-slate-800">SQL Yedek</p>
+                  <p className="text-xs text-slate-600">Veritabanını SQL formatında</p>
                 </div>
               </div>
               <span className="text-green-600 font-semibold">→</span>
@@ -416,6 +486,7 @@ export default function Backup() {
             <thead>
               <tr className="border-b border-slate-200">
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Yedek Adı</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Format</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Tarih</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Boyut</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Tür</th>
@@ -434,9 +505,20 @@ export default function Backup() {
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
-                      <Database className="w-5 h-5 text-blue-600" />
+                      {backup.format === 'sql' ? (
+                        <FileCode className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <FileText className="w-5 h-5 text-blue-600" />
+                      )}
                       <span className="font-semibold text-slate-800">{backup.name}</span>
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                      backup.format === 'sql' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {backup.format === 'sql' ? 'SQL' : 'JSON'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-slate-600">{backup.date}</td>
                   <td className="px-6 py-4 font-semibold text-slate-800">{backup.size}</td>
@@ -493,6 +575,94 @@ export default function Backup() {
           </table>
         </div>
       </div>
+
+      {/* Format Selection Modal */}
+      <AnimatePresence>
+        {showFormatModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowFormatModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
+            >
+              <div className="p-6 border-b border-slate-200">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Download className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800">Yedek Formatı Seç</h3>
+                    <p className="text-sm text-slate-500">Hangi formatta yedek almak istiyorsunuz?</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <button
+                  onClick={() => {
+                    setBackupFormat('json')
+                    setShowFormatModal(false)
+                    handleCreateBackup('json')
+                  }}
+                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold text-slate-800">JSON Format</p>
+                      <p className="text-xs text-slate-600">Tüm verileri JSON formatında yedekle</p>
+                    </div>
+                  </div>
+                  <span className="text-blue-600 font-semibold">→</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setBackupFormat('sql')
+                    setShowFormatModal(false)
+                    handleCreateBackup('sql')
+                  }}
+                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                      <FileCode className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-semibold text-slate-800">SQL Format</p>
+                      <p className="text-xs text-slate-600">Veritabanını SQL formatında yedekle</p>
+                    </div>
+                  </div>
+                  <span className="text-green-600 font-semibold">→</span>
+                </button>
+
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-semibold mb-1">Format Farkları:</p>
+                      <ul className="space-y-1 text-xs">
+                        <li>• <strong>JSON:</strong> Tüm uygulama verileri (kullanıcılar, ürünler, ayarlar)</li>
+                        <li>• <strong>SQL:</strong> Sadece veritabanı yapısı ve verileri</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* FTP Modal */}
       <AnimatePresence>

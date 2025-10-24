@@ -1032,6 +1032,45 @@ try {
   console.warn('⚠️ Stories routes could not be mounted:', e.message);
 }
 
+
+// Sliders Routes
+try {
+  const slidersRoutes = require('./routes/sliders');
+  app.use('/api/admin/sliders', slidersRoutes);
+  console.log('✅ Sliders routes mounted at /api/admin/sliders');
+} catch (e) {
+  console.warn('⚠️ Sliders routes could not be mounted:', e.message);
+}
+
+// Flash Deals Routes
+try {
+  const flashDealsRoutes = require('./routes/flash-deals');
+  app.use('/api/admin/flash-deals', flashDealsRoutes);
+  app.use('/api/flash-deals', flashDealsRoutes);
+  console.log('✅ Flash deals routes mounted at /api/admin/flash-deals and /api/flash-deals');
+} catch (e) {
+  console.warn('⚠️ Flash deals routes could not be mounted:', e.message);
+}
+
+// Live Users Routes
+try {
+  const liveUsersRoutes = require('./routes/live-users');
+  app.use('/api/admin/live-users', liveUsersRoutes);
+  app.use('/api/live-users', liveUsersRoutes);
+  console.log('✅ Live users routes mounted at /api/admin/live-users and /api/live-users');
+} catch (e) {
+  console.warn('⚠️ Live users routes could not be mounted:', e.message);
+}
+
+// Backup Routes
+try {
+  const backupRoutes = require('./routes/backup');
+  app.use('/api/admin/backup', backupRoutes);
+  console.log('✅ Backup routes mounted at /api/admin/backup');
+} catch (e) {
+  console.warn('⚠️ Backup routes could not be mounted:', e.message);
+}
+
 // Scrapers Routes
 try {
   const scrapersRoutes = require('./routes/scrapers');

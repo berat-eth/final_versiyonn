@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Audio } from 'expo-av';
 import { DiscountWheelController, DiscountWheelResult, WheelCheckResult } from '../controllers/DiscountWheelController';
 import { useAppContext } from '../contexts/AppContext';
 
@@ -24,7 +25,8 @@ interface DiscountWheelProps {
 }
 
 export default function DiscountWheel({ visible, onClose, onSpinComplete }: DiscountWheelProps) {
-  const { user } = useAppContext();
+  const { state } = useAppContext();
+  const user = state.user;
   const [wheelStatus, setWheelStatus] = useState<WheelCheckResult>({ canSpin: true, alreadySpun: false });
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinResult, setSpinResult] = useState<DiscountWheelResult | null>(null);
@@ -32,12 +34,65 @@ export default function DiscountWheel({ visible, onClose, onSpinComplete }: Disc
   
   const spinAnimation = useRef(new Animated.Value(0)).current;
   const scaleAnimation = useRef(new Animated.Value(1)).current;
+  const slotAnimation1 = useRef(new Animated.Value(0)).current;
+  const slotAnimation2 = useRef(new Animated.Value(0)).current;
+  const slotAnimation3 = useRef(new Animated.Value(0)).current;
+  
+  // Ses efektleri için refs
+  const spinSound = useRef<Audio.Sound | null>(null);
+  const winSound = useRef<Audio.Sound | null>(null);
+  const clickSound = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     if (visible) {
       checkWheelStatus();
+      loadSounds();
     }
+    
+    return () => {
+      // Cleanup sounds when component unmounts
+      unloadSounds();
+    };
   }, [visible]);
+
+  const loadSounds = async () => {
+    try {
+      // Ses dosyaları mevcut değilse sessiz çalış
+      console.log('Sound effects disabled - files not found');
+    } catch (error) {
+      console.warn('Could not load sound effects:', error);
+    }
+  };
+
+  const unloadSounds = async () => {
+    try {
+      if (spinSound.current) {
+        await spinSound.current.unloadAsync();
+        spinSound.current = null;
+      }
+      if (winSound.current) {
+        await winSound.current.unloadAsync();
+        winSound.current = null;
+      }
+      if (clickSound.current) {
+        await clickSound.current.unloadAsync();
+        clickSound.current = null;
+      }
+    } catch (error) {
+      console.warn('Could not unload sounds:', error);
+    }
+  };
+
+  const playSound = async (soundRef: React.RefObject<Audio.Sound | null>) => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.replayAsync();
+      }
+    } catch (error) {
+      // Ses dosyası yoksa sessiz geç
+      console.log('Sound effect skipped - file not available');
+    }
+  };
 
   const checkWheelStatus = async () => {
     try {
@@ -500,6 +555,103 @@ const styles = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
     marginBottom: 3,
+  },
+  // Slot Machine Styles
+  slotMachineContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  slotMachineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  slotMachineTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginHorizontal: 10,
+    textAlign: 'center',
+  },
+  slotMachineDescription: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  slotMachine: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  slotMachineFrame: {
+    backgroundColor: '#2c3e50',
+    borderRadius: 15,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  slotMachineScreen: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    borderWidth: 3,
+    borderColor: '#ffd700',
+  },
+  slotRow: {
+    height: 60,
+    width: 200,
+    overflow: 'hidden',
+    marginBottom: 5,
+    backgroundColor: '#000',
+    borderRadius: 5,
+  },
+  slot: {
+    flexDirection: 'column',
+  },
+  slotItem: {
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  slotText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textShadowColor: '#000',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  slotMachineLights: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10,
+  },
+  light: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  lightRed: {
+    backgroundColor: '#ff4757',
+  },
+  lightYellow: {
+    backgroundColor: '#ffa502',
+  },
+  lightGreen: {
+    backgroundColor: '#2ed573',
+  },
+  lightBlue: {
+    backgroundColor: '#3742fa',
   },
 });
 

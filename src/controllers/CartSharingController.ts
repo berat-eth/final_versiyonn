@@ -83,13 +83,16 @@ export class CartSharingController {
       });
 
       if (!response.ok) {
-        throw new Error('Paylaşılan sepetler yüklenemedi');
+        console.warn('⚠️ Shared carts API failed, returning empty array');
+        return [];
       }
 
       const result = await safeJsonParse(response);
-      return result.success ? (result.data?.sharedCarts || []) : [];
+      const carts = result.success ? (result.data?.sharedCarts || []) : [];
+      console.log(`✅ Retrieved ${carts.length} shared carts`);
+      return carts;
     } catch (error) {
-      console.error('Error fetching shared carts:', error);
+      console.warn('⚠️ Shared carts failed, returning empty array:', error);
       return [];
     }
   }

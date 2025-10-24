@@ -32,6 +32,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { EmptyState } from '../components/EmptyState';
 import { UserLevelCard } from '../components/UserLevelCard';
 import DiscountWheel from '../components/DiscountWheel';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const { width } = Dimensions.get('window');
 
@@ -65,6 +66,89 @@ export default function MyCampaignsScreen() {
         return;
       }
 
+      // API çağrılarını daha güvenli hale getir - her birini ayrı ayrı try-catch ile sar
+      const loadPersonalizedContent = async () => {
+        try {
+          return await PersonalizationController.generatePersonalizedContent(user.id);
+        } catch (error) {
+          console.warn('Personalized content failed:', error);
+          return null;
+        }
+      };
+
+      const loadCampaigns = async () => {
+        try {
+          return await CampaignController.getAvailableCampaigns(user.id);
+        } catch (error) {
+          console.warn('Campaigns failed:', error);
+          return [];
+        }
+      };
+
+      const loadDiscountCodes = async () => {
+        try {
+          return await DiscountWheelController.getUserDiscountCodes(user.id);
+        } catch (error) {
+          console.warn('Discount codes failed:', error);
+          return [];
+        }
+      };
+
+      const loadSocialTasks = async () => {
+        try {
+          return await SocialSharingController.getUserSocialTasks(String(user.id));
+        } catch (error) {
+          console.warn('⚠️ Social tasks failed:', error);
+          return [];
+        }
+      };
+
+      const loadGroupDiscounts = async () => {
+        try {
+          return await GroupDiscountController.getUserGroupDiscounts(String(user.id));
+        } catch (error) {
+          console.warn('⚠️ Group discounts failed:', error);
+          return [];
+        }
+      };
+
+      const loadCompetitions = async () => {
+        try {
+          return await ShoppingCompetitionController.getActiveCompetitions(String(user.id));
+        } catch (error) {
+          console.warn('⚠️ Competitions failed:', error);
+          return [];
+        }
+      };
+
+      const loadSharedCarts = async () => {
+        try {
+          return await CartSharingController.getUserSharedCarts(String(user.id));
+        } catch (error) {
+          console.warn('⚠️ Shared carts failed:', error);
+          return [];
+        }
+      };
+
+      const loadBuyTogether = async () => {
+        try {
+          return await BuyTogetherController.getActiveOffers(String(user.id));
+        } catch (error) {
+          console.warn('⚠️ Buy together failed:', error);
+          return [];
+        }
+      };
+
+      const loadUserLevel = async () => {
+        try {
+          return await UserLevelController.getUserLevel(String(user.id));
+        } catch (error) {
+          console.warn('User level failed:', error);
+          return null;
+        }
+      };
+
+      // Paralel çağrıları yap ama her birinin başarısız olması durumunda diğerlerini etkilemesin
       const [
         content,
         campaigns,
@@ -75,30 +159,32 @@ export default function MyCampaignsScreen() {
         sharedCartsData,
         buyTogetherData,
         levelData
-      ] = await Promise.all([
-        PersonalizationController.generatePersonalizedContent(user.id).catch(() => null),
-        CampaignController.getAvailableCampaigns(user.id).catch(() => []),
-        DiscountWheelController.getUserDiscountCodes(user.id).catch(() => []),
-        SocialSharingController.getUserSocialTasks(String(user.id)).catch(() => []),
-        GroupDiscountController.getUserGroupDiscounts(String(user.id)).catch(() => []),
-        ShoppingCompetitionController.getActiveCompetitions(String(user.id)).catch(() => []),
-        CartSharingController.getUserSharedCarts(String(user.id)).catch(() => []),
-        BuyTogetherController.getActiveOffers(String(user.id)).catch(() => []),
-        UserLevelController.getUserLevel(String(user.id)).catch(() => null)
+      ] = await Promise.allSettled([
+        loadPersonalizedContent(),
+        loadCampaigns(),
+        loadDiscountCodes(),
+        loadSocialTasks(),
+        loadGroupDiscounts(),
+        loadCompetitions(),
+        loadSharedCarts(),
+        loadBuyTogether(),
+        loadUserLevel()
       ]);
 
-      setPersonalizedContent(content);
-      setAvailableCampaigns(campaigns || []);
-      setDiscountCodes(codes || []);
-      setSocialTasks(socialTasksData || []);
-      setGroupDiscounts(groupDiscountsData || []);
-      setCompetitions(competitionsData || []);
-      setSharedCarts(sharedCartsData || []);
-      setBuyTogetherOffers(buyTogetherData || []);
-      setUserLevel(levelData);
+      // Sonuçları güvenli şekilde ayarla
+      setPersonalizedContent(content.status === 'fulfilled' ? content.value : null);
+      setAvailableCampaigns(campaigns.status === 'fulfilled' ? (campaigns.value || []) : []);
+      setDiscountCodes(codes.status === 'fulfilled' ? (codes.value || []) : []);
+      setSocialTasks(socialTasksData.status === 'fulfilled' ? (socialTasksData.value || []) : []);
+      setGroupDiscounts(groupDiscountsData.status === 'fulfilled' ? (groupDiscountsData.value || []) : []);
+      setCompetitions(competitionsData.status === 'fulfilled' ? (competitionsData.value || []) : []);
+      setSharedCarts(sharedCartsData.status === 'fulfilled' ? (sharedCartsData.value || []) : []);
+      setBuyTogetherOffers(buyTogetherData.status === 'fulfilled' ? (buyTogetherData.value || []) : []);
+      setUserLevel(levelData.status === 'fulfilled' ? levelData.value : null);
+
     } catch (error) {
-      console.error('Error loading campaigns data:', error);
-      // Hata durumunda da loading'i kapat ki sosyal kampanyalar görünsün
+      console.error('Critical error in loadData:', error);
+      // Kritik hata durumunda da loading'i kapat ki sosyal kampanyalar görünsün
       setPersonalizedContent(null);
       setAvailableCampaigns([]);
       setDiscountCodes([]);
@@ -403,16 +489,17 @@ export default function MyCampaignsScreen() {
   const showLoading = loading && user?.id;
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* İç başlık kaldırıldı; üst başlık navigator tarafından geliyor */}
+    <ErrorBoundary>
+      <SafeAreaView style={styles.container}>
+        {/* İç başlık kaldırıldı; üst başlık navigator tarafından geliyor */}
 
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        showsVerticalScrollIndicator={false}
-      >
+        <ScrollView
+          style={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
         {/* User Level Section */}
         {userLevel && (
           <View style={styles.section}>
@@ -434,7 +521,7 @@ export default function MyCampaignsScreen() {
         {/* Discount Wheel Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🎰 İndirim Çarkı</Text>
+            <Text style={styles.sectionTitle}>🎯 İndirim Çarkı</Text>
             <Text style={styles.sectionSubtitle}>Şansınızı deneyin!</Text>
           </View>
           <TouchableOpacity
@@ -442,10 +529,10 @@ export default function MyCampaignsScreen() {
             onPress={() => setShowDiscountWheel(true)}
           >
             <LinearGradient
-              colors={['#ff6b6b', '#ee5a24']}
+              colors={['#007bff', '#0056b3']}
               style={styles.wheelButtonGradient}
             >
-              <Icon name="refresh" size={30} color="white" />
+              <Icon name="card-giftcard" size={30} color="white" />
               <Text style={styles.wheelButtonText}>Çarkı Çevir</Text>
               <Text style={styles.wheelButtonSubtext}>%1, %3, %5, %7, %10 veya %20 indirim kazan!</Text>
             </LinearGradient>
@@ -628,7 +715,7 @@ export default function MyCampaignsScreen() {
           <View style={styles.competitionCard}>
             <View style={styles.competitionHeader}>
               <View style={styles.competitionIcon}>
-                <Icon name="trophy" size={24} color="white" />
+                <Icon name="emoji-events" size={24} color="white" />
               </View>
               <View style={styles.competitionInfo}>
                 <Text style={styles.competitionTitle}>Aylık Liderlik Yarışması</Text>
@@ -838,7 +925,7 @@ export default function MyCampaignsScreen() {
               </View>
             </View>
             <TouchableOpacity style={styles.cartShareButton}>
-              <Icon name="gift-outline" size={20} color="#17a2b8" />
+              <Icon name="card-giftcard" size={20} color="#17a2b8" />
               <Text style={styles.cartShareButtonText}>Hediye Gönder</Text>
             </TouchableOpacity>
           </View>
@@ -1033,20 +1120,21 @@ export default function MyCampaignsScreen() {
           <EmptyState
             title="Henüz Kampanya Yok"
             message="Size özel kampanyalar henüz hazır değil"
-            icon="gift-outline"
+            icon="card-giftcard"
           />
         )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* Discount Wheel Modal */}
-      <DiscountWheel
-        visible={showDiscountWheel}
-        onClose={() => setShowDiscountWheel(false)}
-        onSpinComplete={handleDiscountWheelComplete}
-      />
-    </SafeAreaView>
+        {/* Discount Wheel Modal */}
+        <DiscountWheel
+          visible={showDiscountWheel}
+          onClose={() => setShowDiscountWheel(false)}
+          onSpinComplete={handleDiscountWheelComplete}
+        />
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 }
 

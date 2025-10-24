@@ -26,7 +26,9 @@ import BulkCustomProduction from '@/components/BulkCustomProduction'
 import Backup from '@/components/Backup'
 import ServerStats from '@/components/ServerStats'
 import PushNotifications from '@/components/PushNotifications'
-import Banners from '@/components/Banners'
+import Sliders from '@/components/Sliders'
+import FlashDeals from '@/components/FlashDeals'
+import LiveUsers from '@/components/LiveUsers'
 import Coupons from '@/components/Coupons'
 import Reviews from '@/components/Reviews'
 import FileManager from '@/components/FileManager'
@@ -205,7 +207,9 @@ export default function DashboardPage() {
           {activeTab === 'campaigns' && <Campaigns />}
           {activeTab === 'coupons' && <Coupons />}
           {activeTab === 'stories' && <Stories />}
-          {activeTab === 'banners' && <Banners />}
+          {activeTab === 'sliders' && <Sliders />}
+          {activeTab === 'flash-deals' && <FlashDeals />}
+          {activeTab === 'live-users' && <LiveUsers />}
           {activeTab === 'push-notifications' && <PushNotifications />}
           {activeTab === 'reviews' && <Reviews />}
           {activeTab === 'applications' && <Applications />}

@@ -17,9 +17,11 @@ import { useAppContext } from '../contexts/AppContext';
 import { DiscountWheelController, DiscountCode } from '../controllers/DiscountWheelController';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { EmptyState } from '../components/EmptyState';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function MyDiscountCodesScreen() {
-  const { user } = useAppContext();
+  const { state } = useAppContext();
+  const user = state.user;
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,15 +31,19 @@ export default function MyDiscountCodesScreen() {
   }, []);
 
   const loadDiscountCodes = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
       const codes = await DiscountWheelController.getUserDiscountCodes(user.id);
-      setDiscountCodes(codes);
+      setDiscountCodes(Array.isArray(codes) ? codes : []);
     } catch (error) {
       console.error('Error loading discount codes:', error);
-      Alert.alert('Hata', 'İndirim kodları yüklenirken hata oluştu');
+      // Hata durumunda boş array set et, alert gösterme
+      setDiscountCodes([]);
     } finally {
       setLoading(false);
     }
@@ -174,20 +180,23 @@ export default function MyDiscountCodesScreen() {
     return 'Aktif';
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <LoadingIndicator />
-      </SafeAreaView>
-    );
-  }
-
   const activeCodes = discountCodes.filter(code => !code.isUsed && !DiscountWheelController.isDiscountCodeExpired(code.expiresAt));
   const usedCodes = discountCodes.filter(code => code.isUsed);
   const expiredCodes = discountCodes.filter(code => !code.isUsed && DiscountWheelController.isDiscountCodeExpired(code.expiresAt));
 
+  if (loading) {
+    return (
+      <ErrorBoundary>
+        <SafeAreaView style={styles.container}>
+          <LoadingIndicator />
+        </SafeAreaView>
+      </ErrorBoundary>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <ErrorBoundary>
+      <SafeAreaView style={styles.container}>
       {/* İç başlık kaldırıldı; üst başlık navigator tarafından geliyor */}
 
       <ScrollView
@@ -248,7 +257,8 @@ export default function MyDiscountCodesScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 }
 

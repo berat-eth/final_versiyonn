@@ -213,24 +213,11 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       }
     }
     
-    // Polar hırka ürünlerini ekle (flash indirim için)
-    const polarProducts = products.filter(product => 
-      product.category === 'Polar Bere' || 
-      product.name.toLowerCase().includes('polar') ||
-      product.name.toLowerCase().includes('hırka')
-    );
-    
-    // Kampanya ürünleri + polar ürünleri birleştir
+    // Flash deals API'sinden gelen veriler kullanılacak
     const pool = selectedCategory ? products : (filteredProducts.length ? filteredProducts : products);
     const campaignProducts = pool.filter(p => productIds.has(p.id));
-    const allFlashProducts = [...campaignProducts, ...polarProducts];
     
-    // Duplikatları kaldır
-    const uniqueProducts = allFlashProducts.filter((product, index, self) => 
-      index === self.findIndex(p => p.id === product.id)
-    );
-    
-    return uniqueProducts;
+    return campaignProducts;
   };
 
   const formatHMS = (totalSeconds: number) => {

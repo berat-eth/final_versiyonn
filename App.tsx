@@ -12,6 +12,7 @@ import { getApiBaseUrl, DEFAULT_TENANT_API_KEY, DEFAULT_TENANT_ID } from './src/
 // Bildirim sistemi kaldırıldı
 import { setApiKey as persistApiKey } from './src/services/AuthKeyStore';
 import { installGlobalErrorMonitor, ErrorBoundaryLogger } from './src/utils/error-monitor';
+import { liveUserService, setupAppLifecycleTracking } from './src/services/LiveUserService';
 
 // TurboModule uyarılarını gizle
 LogBox.ignoreLogs([
@@ -43,6 +44,10 @@ export default function App() {
             persistApiKey(DEFAULT_TENANT_API_KEY).catch(() => { });
           }
         } catch { }
+
+        // Live user tracking başlat
+        liveUserService.startTracking();
+        console.log('🟢 Live user tracking initialized');
 
         // Açılışta backend health zorunlu; başarısızsa uygulamayı yükleme
         try {

@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ModernTabBar } from './ModernTabBar';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setupNavigationTracking } from '../services/LiveUserService';
 
 // Screens
 import { HomeScreen } from '../views/HomeScreen';
@@ -847,7 +848,21 @@ const AppNavigatorContent = () => {
   // Main navigation - simple tab navigator
   return (
     <AppProvider>
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer 
+        ref={navigationRef}
+        onStateChange={(state) => {
+          // Navigation state değişikliklerini live user service'e bildir
+          if (state) {
+            const currentRoute = navigationRef.current?.getCurrentRoute();
+            if (currentRoute?.name) {
+              // Live user service'e sayfa değişikliğini bildir
+              import('../services/LiveUserService').then(({ liveUserService }) => {
+                liveUserService.updatePage(`/${currentRoute.name}`);
+              });
+            }
+          }
+        }}
+      >
         <BackendErrorProvider navigation={navigationRef}>
           <TabNavigator />
         </BackendErrorProvider>

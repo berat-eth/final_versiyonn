@@ -75,6 +75,8 @@ export class ShoppingCompetitionController {
   // Aktif yarışmaları getir
   static async getActiveCompetitions(userId: string): Promise<Competition[]> {
     try {
+      console.log('🔄 Fetching competitions for user:', userId);
+      
       const response = await fetch(`${this.baseUrl}/active/${userId}`, {
         method: 'GET',
         headers: {
@@ -83,7 +85,8 @@ export class ShoppingCompetitionController {
       });
 
       if (!response.ok) {
-        throw new Error('Yarışmalar yüklenemedi');
+        console.warn('⚠️ Competitions API failed, returning empty array');
+        return [];
       }
 
       // Response'u önce text olarak al
@@ -91,7 +94,7 @@ export class ShoppingCompetitionController {
       
       // Boş veya geçersiz response kontrolü
       if (!responseText || responseText.trim() === '' || responseText === 'undefined') {
-        console.warn('Empty or invalid response from competitions API');
+        console.warn('⚠️ Empty or invalid response from competitions API');
         return [];
       }
 

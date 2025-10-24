@@ -31,6 +31,8 @@ export class SocialSharingController {
   // Kullanıcının sosyal paylaşım görevlerini getir
   static async getUserSocialTasks(userId: string): Promise<SocialTask[]> {
     try {
+      console.log('🔄 Fetching social tasks for user:', userId);
+      
       const response = await fetch(`${this.baseUrl}/tasks/${userId}`, {
         method: 'GET',
         headers: {
@@ -39,13 +41,16 @@ export class SocialSharingController {
       });
 
       if (!response.ok) {
-        throw new Error('Sosyal görevler yüklenemedi');
+        console.warn('⚠️ Social tasks API failed, returning empty array');
+        return [];
       }
 
       const result = await safeJsonParse(response);
-      return result.success ? (result.data?.tasks || []) : [];
+      const tasks = result.success ? (result.data?.tasks || []) : [];
+      console.log(`✅ Retrieved ${tasks.length} social tasks`);
+      return tasks;
     } catch (error) {
-      console.error('Error fetching social tasks:', error);
+      console.warn('⚠️ Social tasks failed, returning empty array:', error);
       return [];
     }
   }

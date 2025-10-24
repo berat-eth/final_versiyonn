@@ -68,13 +68,16 @@ export class GroupDiscountController {
       });
 
       if (!response.ok) {
-        throw new Error('Grup indirimleri yüklenemedi');
+        console.warn('⚠️ Group discounts API failed, returning empty array');
+        return [];
       }
 
       const result = await safeJsonParse(response);
-      return result.success ? (result.data?.groups || []) : [];
+      const groups = result.success ? (result.data?.groups || []) : [];
+      console.log(`✅ Retrieved ${groups.length} group discounts`);
+      return groups;
     } catch (error) {
-      console.error('Error fetching group discounts:', error);
+      console.warn('⚠️ Group discounts failed, returning empty array:', error);
       return [];
     }
   }

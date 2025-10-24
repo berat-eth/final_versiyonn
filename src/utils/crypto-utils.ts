@@ -11,8 +11,19 @@ import CryptoJS from 'crypto-js';
  * @returns Hex formatında random string
  */
 export function generateSecureRandomString(length: number = 16): string {
-  const randomBytes = CryptoJS.lib.WordArray.random(length);
-  return randomBytes.toString(CryptoJS.enc.Hex);
+  try {
+    const randomBytes = CryptoJS.lib.WordArray.random(length);
+    return randomBytes.toString(CryptoJS.enc.Hex);
+  } catch (error) {
+    console.warn('CryptoJS failed, using fallback random:', error);
+    // Fallback: Math.random() kullan
+    let result = '';
+    const chars = '0123456789abcdef';
+    for (let i = 0; i < length * 2; i++) {
+      result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
+  }
 }
 
 /**
@@ -71,10 +82,16 @@ export function generateSecureUUID(): string {
  * @returns Random sayı
  */
 export function generateSecureRandomNumber(min: number, max: number): number {
-  const range = max - min + 1;
-  const randomBytes = CryptoJS.lib.WordArray.random(4);
-  const randomInt = parseInt(randomBytes.toString(CryptoJS.enc.Hex), 16);
-  return min + (randomInt % range);
+  try {
+    const range = max - min + 1;
+    const randomBytes = CryptoJS.lib.WordArray.random(4);
+    const randomInt = parseInt(randomBytes.toString(CryptoJS.enc.Hex), 16);
+    return min + (randomInt % range);
+  } catch (error) {
+    console.warn('CryptoJS failed, using fallback random number:', error);
+    // Fallback: Math.random() kullan
+    return min + Math.floor(Math.random() * (max - min + 1));
+  }
 }
 
 /**

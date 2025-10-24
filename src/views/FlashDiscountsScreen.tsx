@@ -46,6 +46,21 @@ export const FlashDiscountsScreen: React.FC<FlashDiscountsScreenProps> = ({ navi
 
   const nowTs = Date.now();
 
+  // Flash deals API'sinden veri çek
+  const [flashDeals, setFlashDeals] = useState<any[]>([]);
+  
+  const loadFlashDeals = useCallback(async () => {
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/flash-deals`);
+      const data = await response.json();
+      if (data.success) {
+        setFlashDeals(data.data || []);
+      }
+    } catch (error) {
+      console.error('Flash deals yükleme hatası:', error);
+    }
+  }, []);
+
   // Flash kampanyalarını filtrele
   const flashCampaigns = useMemo(() => {
     return (campaigns || []).filter(c => 
@@ -145,11 +160,12 @@ export const FlashDiscountsScreen: React.FC<FlashDiscountsScreenProps> = ({ navi
     const loadData = async () => {
       await Promise.all([
         loadCampaigns(),
-        loadFavorites()
+        loadFavorites(),
+        loadFlashDeals()
       ]);
     };
     loadData();
-  }, [loadCampaigns, loadFavorites]);
+  }, [loadCampaigns, loadFavorites, loadFlashDeals]);
 
   useEffect(() => {
     if (flashCampaigns.length > 0) {
