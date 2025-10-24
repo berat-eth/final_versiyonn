@@ -19,7 +19,8 @@ const config: Config = {
         'metin-koyu': '#212529',
       },
       fontFamily: {
-        display: ['Work Sans', 'Noto Sans', 'sans-serif'],
+        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        display: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: '0.25rem',

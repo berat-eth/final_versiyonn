@@ -1,16 +1,7 @@
 import type { Metadata } from 'next'
-import { Work_Sans } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import WhatsAppWrapper from '@/components/WhatsAppWrapper'
-
-const workSans = Work_Sans({
-  subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-  preload: true,
-  fallback: ['system-ui', 'arial']
-})
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://huglutekstil.com'),
@@ -74,30 +65,7 @@ export default function RootLayout({
   return (
     <html lang="tr" className="light">
       <head>
-        <link
-          rel="preconnect"
-          href="https://fonts.googleapis.com"
-        />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&display=swap"
-          rel="stylesheet"
-          media="print"
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                var link = document.querySelector('link[media="print"]');
-                if (link) link.media = 'all';
-              })();
-            `,
-          }}
-        />
+
         <link rel="canonical" href="https://huglutekstil.com" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
         <meta name="theme-color" content="#1173d4" />
@@ -139,7 +107,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${workSans.className} bg-background-light dark:bg-background-dark font-display`}>
+      <body className="bg-background-light dark:bg-background-dark font-sans">
         {children}
         <WhatsAppWrapper />
         <Script id="service-worker" strategy="afterInteractive">
