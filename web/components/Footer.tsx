@@ -94,7 +94,7 @@ export default function Footer() {
                             </li>
                             <li className="flex items-center gap-3 text-sm text-gray-400 hover:text-blue-400 transition-colors">
                                 <span className="material-symbols-outlined text-blue-400 text-xl">email</span>
-                                <a href="mailto:bilgi@huglutekstil.com">bilgi@huglutekstil.com</a>
+                                <a href="mailto:info@hugluoutdoor.com">info@hugluoutdoor.com</a>
                             </li>
                         </ul>
                     </div>

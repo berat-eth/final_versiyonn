@@ -102,8 +102,8 @@ export default function Iletisim() {
                 {
                   icon: 'mail',
                   title: 'E-posta',
-                  content: 'info@huglutekstil.com',
-                  link: 'mailto:info@huglutekstil.com',
+                  content: 'info@hugluoutdoor.com',
+                  link: 'mailto:info@hugluoutdoor.com',
                   gradient: 'from-orange-500 to-red-500'
                 },
                 {
