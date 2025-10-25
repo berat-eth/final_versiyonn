@@ -620,8 +620,8 @@ export default function FlashDeals() {
                                                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                                                     {getFilteredItems().map(item => {
                                                         const isSelected = formData.targetType === 'product' 
-                                                            ? selectedProducts.find(p => p.id === item.id)
-                                                            : selectedCategories.find(c => c.id === item.id)
+                                                            ? selectedProducts.find(p => p.id === item.id) !== undefined
+                                                            : selectedCategories.find(c => c.id === item.id) !== undefined
                                                         
                                                         return (
                                                             <div key={item.id} className="p-2">
