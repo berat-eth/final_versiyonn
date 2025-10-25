@@ -18,7 +18,7 @@ interface Slider {
   duration: number // saniye
   clickAction?: {
     type: 'product' | 'category' | 'url' | 'none'
-    value?: string
+    value: string
   }
   buttonText?: string
   buttonColor?: string
@@ -136,7 +136,7 @@ export default function Sliders() {
       order: slider.order,
       autoPlay: slider.autoPlay,
       duration: slider.duration,
-      clickAction: slider.clickAction || { type: 'none', value: '' },
+      clickAction: slider.clickAction || { type: 'none' as const, value: '' },
       buttonText: slider.buttonText || 'Keşfet',
       buttonColor: slider.buttonColor || '#3B82F6',
       textColor: slider.textColor || '#FFFFFF',
