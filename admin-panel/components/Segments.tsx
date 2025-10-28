@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { UsersRound, Plus, Users, TrendingUp, X, ShoppingBag, DollarSign, Mail, Phone, MapPin, Eye, Award } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { UsersRound, Plus, Users, TrendingUp, X, ShoppingBag, DollarSign, Mail, Phone, MapPin, Eye, Award, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -27,6 +27,10 @@ interface SegmentUser {
 }
 
 export default function Segments() {
+  const [segments, setSegments] = useState<Segment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [segmentUsers, setSegmentUsers] = useState<SegmentUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
   const [viewingSegment, setViewingSegment] = useState<Segment | null>(null)
   const [showUsers, setShowUsers] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
@@ -35,13 +39,58 @@ export default function Segments() {
   const [criteria, setCriteria] = useState('')
   const [color, setColor] = useState('from-blue-500 to-blue-600')
   
-  // Mock segment verileri kaldırıldı - Backend entegrasyonu için hazır
-  const segments: Segment[] = []
+  // Segment verilerini yükle
+  useEffect(() => {
+    loadSegments()
+  }, [])
 
-  // Segment kullanıcıları - gerçek uygulamada API'den gelecek
-  const getSegmentUsers = (segmentId: number): SegmentUser[] => {
-    // Mock kullanıcı listeleri kaldırıldı - Backend entegrasyonu için hazır
-    return []
+  const loadSegments = async () => {
+    try {
+      setLoading(true)
+      const response = await api.get<any>('/admin/segments')
+      if (response.success) {
+        setSegments(response.data || [])
+      } else {
+        setSegments([])
+      }
+    } catch (error) {
+      console.error('Segment yükleme hatası:', error)
+      setSegments([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Segment kullanıcıları yükle
+  const loadSegmentUsers = async (segmentId: number) => {
+    try {
+      setLoadingUsers(true)
+      const response = await api.get<any>(`/admin/segments/${segmentId}/users`)
+      if (response.success) {
+        setSegmentUsers(response.data || [])
+      } else {
+        setSegmentUsers([])
+      }
+    } catch (error) {
+      console.error('Segment kullanıcıları yükleme hatası:', error)
+      setSegmentUsers([])
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  // Segment kullanıcıları - API'den gelecek
+  const getSegmentUsers = async (segmentId: number): Promise<SegmentUser[]> => {
+    try {
+      const response = await api.get<any>(`/admin/segments/${segmentId}/users`)
+      if (response.success) {
+        return response.data || []
+      }
+      return []
+    } catch (error) {
+      console.error('Segment kullanıcıları yükleme hatası:', error)
+      return []
+    }
   }
 
   const membershipColors = {
@@ -58,14 +107,38 @@ export default function Segments() {
           <h2 className="text-3xl font-bold text-slate-800">Müşteri Segmentleri</h2>
           <p className="text-slate-500 mt-1">Müşterilerinizi segmentlere ayırın</p>
         </div>
-        <button onClick={()=>setShowAdd(true)} className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg">
-          <Plus className="w-5 h-5 mr-2" />
-          Yeni Segment
-        </button>
+        <div className="flex items-center space-x-3">
+          <button 
+            onClick={loadSegments}
+            disabled={loading}
+            className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Yenile</span>
+          </button>
+          <button onClick={()=>setShowAdd(true)} className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg">
+            <Plus className="w-5 h-5 mr-2" />
+            Yeni Segment
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {segments.map((segment, index) => (
+        {loading ? (
+          <div className="col-span-full flex items-center justify-center py-12">
+            <div className="flex items-center space-x-3">
+              <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+              <span className="text-slate-600">Segmentler yükleniyor...</span>
+            </div>
+          </div>
+        ) : segments.length === 0 ? (
+          <div className="col-span-full text-center py-12">
+            <UsersRound className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-600 mb-2">Henüz segment bulunmuyor</h3>
+            <p className="text-slate-500 mb-4">İlk segmentinizi oluşturmak için "Yeni Segment" butonuna tıklayın</p>
+          </div>
+        ) : (
+          segments.map((segment, index) => (
           <motion.div
             key={segment.id}
             initial={{ opacity: 0, scale: 0.9 }}
@@ -99,7 +172,8 @@ export default function Segments() {
               Detayları Gör
             </button>
           </motion.div>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Detay Modal */}
@@ -193,6 +267,7 @@ export default function Segments() {
                 <button
                   onClick={() => {
                     setShowUsers(true)
+                    loadSegmentUsers(viewingSegment.id)
                   }}
                   className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium"
                 >
@@ -228,7 +303,7 @@ export default function Segments() {
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-slate-800">{viewingSegment.name}</h3>
-                    <p className="text-sm text-slate-500">{getSegmentUsers(viewingSegment.id).length} kullanıcı</p>
+                    <p className="text-sm text-slate-500">{segmentUsers.length} kullanıcı</p>
                   </div>
                 </div>
                 <button
@@ -255,7 +330,16 @@ export default function Segments() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {getSegmentUsers(viewingSegment.id).map((user, index) => (
+                      {loadingUsers ? (
+                        <tr>
+                          <td colSpan={8} className="px-6 py-12 text-center">
+                            <div className="flex items-center justify-center space-x-3">
+                              <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+                              <span className="text-slate-600">Kullanıcılar yükleniyor...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : segmentUsers.map((user, index) => (
                         <motion.tr
                           key={user.id}
                           initial={{ opacity: 0, x: -20 }}
@@ -326,7 +410,7 @@ export default function Segments() {
                   </table>
                 </div>
 
-                {getSegmentUsers(viewingSegment.id).length === 0 && (
+                {!loadingUsers && segmentUsers.length === 0 && (
                   <div className="text-center py-12">
                     <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                     <p className="text-slate-500">Bu segmentte henüz kullanıcı bulunmuyor</p>
@@ -382,10 +466,13 @@ export default function Segments() {
                         setShowAdd(false)
                         setName(''); setCriteria('')
                         alert('Segment oluşturuldu')
+                        loadSegments() // Segmentleri yeniden yükle
                       } else {
                         alert('Segment eklenemedi')
                       }
-                    } catch { alert('Segment eklenemedi') } finally { setAdding(false) }
+                    } catch { 
+                      alert('Segment eklenemedi') 
+                    } finally { setAdding(false) }
                   }}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
                 >Kaydet</button>

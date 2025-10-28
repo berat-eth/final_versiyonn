@@ -67,4 +67,35 @@ export const productService = {
   }) => {
     return api.post<ApiResponse<{ success: boolean }>>('/production/notify', payload);
   },
+
+  // Update product
+  updateProduct: async (productId: number, data: Partial<Product>) => {
+    return api.put<ApiResponse<Product>>(`/admin/products/${productId}`, data);
+  },
+
+  // Toggle product status (active/inactive)
+  toggleProductStatus: async (productId: number, isActive: boolean) => {
+    return api.patch<ApiResponse<{ success: boolean; isActive: boolean }>>(`/admin/products/${productId}/status`, { isActive });
+  },
+
+  // Delete product
+  deleteProduct: async (productId: number) => {
+    return api.delete<ApiResponse<{ success: boolean }>>(`/admin/products/${productId}`);
+  },
+
+  // Bulk update products
+  bulkUpdateProducts: async (productIds: number[], updates: Partial<Product>) => {
+    return api.patch<ApiResponse<{ success: boolean; updatedCount: number }>>('/admin/products/bulk', {
+      productIds,
+      updates
+    });
+  },
+
+  // Bulk toggle product status
+  bulkToggleStatus: async (productIds: number[], isActive: boolean) => {
+    return api.patch<ApiResponse<{ success: boolean; updatedCount: number }>>('/admin/products/bulk-status', {
+      productIds,
+      isActive
+    });
+  },
 };

@@ -27,8 +27,6 @@ import Backup from '@/components/Backup'
 import ServerStats from '@/components/ServerStats'
 import PushNotifications from '@/components/PushNotifications'
 import Sliders from '@/components/Sliders'
-import FlashDeals from '@/components/FlashDeals'
-import LiveUsers from '@/components/LiveUsers'
 import Coupons from '@/components/Coupons'
 import Reviews from '@/components/Reviews'
 import FileManager from '@/components/FileManager'
@@ -42,7 +40,6 @@ import SMS from '@/components/SMS'
 import ProductionPlanning from '@/components/ProductionPlanning'
 import ProductionOrders from '@/components/ProductionOrders'
 import ProductionTracking from '@/components/ProductionTracking'
-import WarehouseManagement from '@/components/WarehouseManagement'
 import Categories from '@/components/Categories'
 import PaymentTransactions from '@/components/PaymentTransactions'
 import ReturnRequests from '@/components/ReturnRequests'
@@ -51,15 +48,10 @@ import WalletTransactions from '@/components/WalletTransactions'
 import WalletRechargeRequests from '@/components/WalletRechargeRequests'
 import WalletWithdrawRequests from '@/components/WalletWithdrawRequests'
 import ReferralEarnings from '@/components/ReferralEarnings'
-import UserDiscountCodes from '@/components/UserDiscountCodes'
 import DiscountWheelSpins from '@/components/DiscountWheelSpins'
-import GiftCards from '@/components/GiftCards'
 import Recommendations from '@/components/Recommendations'
 // CustomProductionMessages merged into BulkCustomProduction
-import Hepsiburada from '@/components/Hepsiburada'
-import Trendyol from '@/components/Trendyol'
 import GoogleMapsScraper from '@/components/GoogleMapsScraper'
-import IntegrationMonitor from '@/components/IntegrationMonitor'
 
 
 export default function DashboardPage() {
@@ -208,8 +200,6 @@ export default function DashboardPage() {
           {activeTab === 'coupons' && <Coupons />}
           {activeTab === 'stories' && <Stories />}
           {activeTab === 'sliders' && <Sliders />}
-          {activeTab === 'flash-deals' && <FlashDeals />}
-          {activeTab === 'live-users' && <LiveUsers />}
           {activeTab === 'push-notifications' && <PushNotifications />}
           {activeTab === 'reviews' && <Reviews />}
           {activeTab === 'applications' && <Applications />}
@@ -235,7 +225,6 @@ export default function DashboardPage() {
           {activeTab === 'production-planning' && <ProductionPlanning />}
           {activeTab === 'production-orders' && <ProductionOrders />}
           {activeTab === 'production-tracking' && <ProductionTracking />}
-          {activeTab === 'warehouse-management' && <WarehouseManagement />}
           {activeTab === 'categories' && <Categories />}
           {activeTab === 'payment-transactions' && <PaymentTransactions />}
           {activeTab === 'return-requests' && <ReturnRequests />}
@@ -244,13 +233,8 @@ export default function DashboardPage() {
           {activeTab === 'wallet-recharge-requests' && <WalletRechargeRequests />}
           {activeTab === 'wallet-withdraw-requests' && <WalletWithdrawRequests />}
           {activeTab === 'referral-earnings' && <ReferralEarnings />}
-          {activeTab === 'user-discount-codes' && <UserDiscountCodes />}
           {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
-          {activeTab === 'gift-cards' && <GiftCards />}
           {activeTab === 'recommendations' && <Recommendations />}
-          {activeTab === 'integration-monitor' && <IntegrationMonitor />}
-          {activeTab === 'hepsiburada' && <Hepsiburada />}
-          {activeTab === 'trendyol' && <Trendyol />}
           {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
         </main>
       </div>

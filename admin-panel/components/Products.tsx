@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield, UploadCloud, Activity } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield, UploadCloud, Activity, ToggleLeft, ToggleRight, CheckSquare, Square } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { productService } from '@/lib/services'
 import type { Product } from '@/lib/api'
@@ -36,6 +36,9 @@ export default function Products() {
   const [sizesLoading, setSizesLoading] = useState<Record<number, boolean>>({})
   const [productSizes, setProductSizes] = useState<Record<number, Record<string, number>>>({})
   const [showViewModal, setShowViewModal] = useState<{ open: boolean; product?: Product | null; details?: any; variations?: any[] }>({ open: false, product: null, details: null, variations: [] })
+  const [selectedProducts, setSelectedProducts] = useState<number[]>([])
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [statusToggleLoading, setStatusToggleLoading] = useState<Record<number, boolean>>({})
 
   const categories = ['Tümü', 'Kamp Malzemeleri', 'Outdoor Giyim', 'Ayakkabı', 'Aksesuar']
 
@@ -226,6 +229,8 @@ export default function Products() {
     if (form.stock !== undefined) payload.stock = Number(form.stock)
     if (form.brand !== undefined) payload.brand = form.brand
     if (form.hasVariations !== undefined) payload.hasVariations = !!form.hasVariations
+    if (form.isActive !== undefined) payload.isActive = !!form.isActive
+    if (form.excludeFromXml !== undefined) payload.excludeFromXml = !!form.excludeFromXml
     return payload
   }
 
@@ -291,6 +296,91 @@ export default function Products() {
     }
   }
 
+  // Toggle product status (active/inactive)
+  const toggleProductStatus = async (productId: number, currentStatus: boolean) => {
+    try {
+      setStatusToggleLoading(prev => ({ ...prev, [productId]: true }))
+      const newStatus = !currentStatus
+      await productService.toggleProductStatus(productId, newStatus)
+      
+      // Update local state
+      setProducts(prev => prev.map(p => 
+        p.id === productId ? { ...p, isActive: newStatus } : p
+      ))
+      
+      // Show success message
+      const statusText = newStatus ? 'aktif' : 'pasif'
+      alert(`Ürün ${statusText} edildi`)
+    } catch (error) {
+      console.error('Status toggle error:', error)
+      alert('Durum değiştirilemedi')
+    } finally {
+      setStatusToggleLoading(prev => ({ ...prev, [productId]: false }))
+    }
+  }
+
+  // Bulk toggle status
+  const bulkToggleStatus = async (isActive: boolean) => {
+    if (selectedProducts.length === 0) {
+      alert('Lütfen ürün seçin')
+      return
+    }
+
+    try {
+      setBulkActionLoading(true)
+      await productService.bulkToggleStatus(selectedProducts, isActive)
+      
+      // Update local state
+      setProducts(prev => prev.map(p => 
+        selectedProducts.includes(p.id) ? { ...p, isActive } : p
+      ))
+      
+      const statusText = isActive ? 'aktif' : 'pasif'
+      alert(`${selectedProducts.length} ürün ${statusText} edildi`)
+      setSelectedProducts([])
+    } catch (error) {
+      console.error('Bulk status toggle error:', error)
+      alert('Toplu durum değiştirilemedi')
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }
+
+  // Delete product
+  const deleteProduct = async (productId: number, productName: string) => {
+    if (!confirm(`"${productName}" ürününü silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) {
+      return
+    }
+
+    try {
+      await productService.deleteProduct(productId)
+      setProducts(prev => prev.filter(p => p.id !== productId))
+      alert('Ürün silindi')
+    } catch (error) {
+      console.error('Delete error:', error)
+      alert('Ürün silinemedi')
+    }
+  }
+
+  // Select/deselect product
+  const toggleProductSelection = (productId: number) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    )
+  }
+
+  // Select all products
+  const selectAllProducts = () => {
+    setSelectedProducts(filteredProducts.map(p => p.id))
+  }
+
+  // Deselect all products
+  const deselectAllProducts = () => {
+    setSelectedProducts([])
+  }
+
   if (loading && products.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -325,6 +415,35 @@ export default function Products() {
           <p className="text-slate-500 mt-1">Backend'den gelen ürünler</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Bulk Actions */}
+          {selectedProducts.length > 0 && (
+            <div className="flex items-center gap-2 mr-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
+              <span className="text-sm text-blue-700 font-medium">
+                {selectedProducts.length} ürün seçildi
+              </span>
+              <button
+                onClick={() => bulkToggleStatus(true)}
+                disabled={bulkActionLoading}
+                className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50"
+              >
+                Aktif Et
+              </button>
+              <button
+                onClick={() => bulkToggleStatus(false)}
+                disabled={bulkActionLoading}
+                className="px-3 py-1 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-50"
+              >
+                Pasif Et
+              </button>
+              <button
+                onClick={deselectAllProducts}
+                className="px-3 py-1 bg-slate-600 text-white rounded text-sm hover:bg-slate-700"
+              >
+                Temizle
+              </button>
+            </div>
+          )}
+          
           <button
             onClick={() => setShowAddModal(true)}
             className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl flex items-center hover:shadow-lg transition-shadow"
@@ -605,12 +724,62 @@ export default function Products() {
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                      <p className="text-xs text-slate-600">Not: "Aktif" ve "XML muaf" alanları için backend alanları eklenmeden kalıcı değildir.</p>
-                      <div className="mt-2 flex items-center gap-4">
-                        <label className="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={form.isActive} onChange={(e)=>setForm({...form,isActive:e.target.checked})} />Aktif</label>
-                        <label className="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={form.excludeFromXml} onChange={(e)=>setForm({...form,excludeFromXml:e.target.checked})} />XML muaf</label>
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                      <h4 className="text-sm font-semibold text-slate-800 mb-3">Ürün Durumu</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                          <div>
+                            <label className="text-sm font-medium text-slate-700">Ürün Durumu</label>
+                            <p className="text-xs text-slate-500">Ürünün aktif/pasif durumu</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${form.isActive ? 'text-green-600' : 'text-orange-600'}`}>
+                              {form.isActive ? 'Aktif' : 'Pasif'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setForm({...form, isActive: !form.isActive})}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                form.isActive ? 'bg-green-600' : 'bg-orange-400'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  form.isActive ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                          <div>
+                            <label className="text-sm font-medium text-slate-700">XML Senkron Muafiyeti</label>
+                            <p className="text-xs text-slate-500">XML güncellemelerinden muaf tut</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${form.excludeFromXml ? 'text-red-600' : 'text-green-600'}`}>
+                              {form.excludeFromXml ? 'Muaf' : 'Senkron'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setForm({...form, excludeFromXml: !form.excludeFromXml})}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                form.excludeFromXml ? 'bg-red-600' : 'bg-green-400'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  form.excludeFromXml ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                      <p className="text-xs text-slate-500 mt-3">
+                        Not: Bu ayarlar backend'de kalıcı olarak saklanır ve ürünün görünürlüğünü etkiler.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -690,6 +859,23 @@ export default function Products() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-200">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                      onChange={() => {
+                        if (selectedProducts.length === filteredProducts.length) {
+                          deselectAllProducts()
+                        } else {
+                          selectAllProducts()
+                        }
+                      }}
+                      className="rounded border-slate-300"
+                    />
+                    <span>Seç</span>
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Ürün</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Kategori</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Fiyat</th>
@@ -712,6 +898,14 @@ export default function Products() {
                     transition={{ delay: index * 0.05 }}
                     className="hover:bg-slate-50 transition-colors"
                   >
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.includes(product.id)}
+                        onChange={() => toggleProductSelection(product.id)}
+                        className="rounded border-slate-300"
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl flex items-center justify-center overflow-hidden">
@@ -770,14 +964,34 @@ export default function Products() {
                       <span className="text-slate-700 font-medium">{product.brand}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium border ${
-                        status === 'active' ? 'bg-green-100 text-green-700 border-green-200' :
-                        status === 'low-stock' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                        'bg-red-100 text-red-700 border-red-200'
-                      }`}>
-                        {status === 'active' ? 'Aktif' :
-                         status === 'low-stock' ? 'Düşük Stok' : 'Stok Yok'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                          status === 'active' ? 'bg-green-100 text-green-700 border-green-200' :
+                          status === 'low-stock' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                          'bg-red-100 text-red-700 border-red-200'
+                        }`}>
+                          {status === 'active' ? 'Aktif' :
+                           status === 'low-stock' ? 'Düşük Stok' : 'Stok Yok'}
+                        </span>
+                        <button
+                          onClick={() => toggleProductStatus(product.id, (product as any).isActive ?? true)}
+                          disabled={statusToggleLoading[product.id]}
+                          className={`p-1 rounded transition-colors ${
+                            (product as any).isActive 
+                              ? 'text-green-600 hover:bg-green-50' 
+                              : 'text-orange-600 hover:bg-orange-50'
+                          }`}
+                          title={(product as any).isActive ? 'Pasif et' : 'Aktif et'}
+                        >
+                          {statusToggleLoading[product.id] ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (product as any).isActive ? (
+                            <ToggleRight className="w-4 h-4" />
+                          ) : (
+                            <ToggleLeft className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-slate-500 font-mono">{product.sku || '-'}</span>
@@ -799,6 +1013,13 @@ export default function Products() {
                         </button>
                         <button onClick={() => openEdit(product)} className="p-2 hover:bg-blue-50 rounded-lg" title="Güncelle">
                           <Edit className="w-4 h-4 text-blue-600" />
+                        </button>
+                        <button 
+                          onClick={() => deleteProduct(product.id, product.name)} 
+                          className="p-2 hover:bg-red-50 rounded-lg" 
+                          title="Sil"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600" />
                         </button>
                       </div>
                     </td>

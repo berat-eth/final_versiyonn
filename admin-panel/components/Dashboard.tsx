@@ -8,19 +8,6 @@ import dynamic from 'next/dynamic'
 import { analyticsService, productService } from '@/lib/services'
 import { api } from '@/lib/api'
 
-// Leaflet'i client-side only olarak yükle
-const LiveUserMap = dynamic(() => import('./LiveUserMap'), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-slate-100 rounded-xl">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-        <p className="text-slate-600">Harita yükleniyor...</p>
-      </div>
-    </div>
-  ),
-})
-
 // Stok uyarıları, canlı kullanıcılar ve istatistikleri state'e alındı
 
 // SMS ve Email İstatistikleri
@@ -92,8 +79,6 @@ export default function Dashboard() {
   const [kpiMetrics, setKpiMetrics] = useState<Array<{ title: string; value: string; target: string; progress: number; trend: 'up' | 'down'; change: string }>>([])
   const [trafficSources, setTrafficSources] = useState<Array<{ source: string; visitors: number; conversion: number; revenue: number; color: string }>>([])
   const [stockAlerts, setStockAlerts] = useState<Array<{ product: string; category: string; stock: number; minStock: number; status: 'critical' | 'warning' }>>([])
-  const [liveUsers, setLiveUsers] = useState<Array<any>>([])
-  const [liveUserStats, setLiveUserStats] = useState({ total: 0, withCart: 0, totalCartValue: 0, totalCartItems: 0, inCheckout: 0 })
   const [snortStats, setSnortStats] = useState<{ total: number; high: number; medium: number; low: number; alerts: number; dropped: number; last: string }>({ total: 0, high: 0, medium: 0, low: 0, alerts: 0, dropped: 0, last: '' })
 
   // Özel toptan üretim istatistikleri
@@ -264,8 +249,6 @@ export default function Dashboard() {
 
         // Basit KPI ve kaynak dağılımını statülerden türet
         setKpiMetrics([
-          { title: 'Teslim Oranı', value: `${totalOrders? Math.round((deliveredCount/Math.max(totalOrders,1))*100):0}%`, target: '95%', progress: Math.min(100, Math.round((deliveredCount/Math.max(totalOrders,1))*100)), trend: 'up', change: '+2%' },
-          { title: 'İade Oranı', value: `${returnableCount}`, target: 'Düşük', progress: 30, trend: 'down', change: '-1%' },
         ])
 
         setTrafficSources([
@@ -308,19 +291,6 @@ export default function Dashboard() {
           ])
         } catch {}
 
-        // Canlı kullanıcı istatistikleri (harita için konum verisi yoksa boş)
-        setLiveUsers([])
-        try {
-          const views = (liveViews as any)?.data || []
-          const userIds = Array.from(new Set(views.map((v:any)=>v.userId).filter(Boolean)))
-          setLiveUserStats({
-            total: userIds.length,
-            withCart: views.filter((v:any)=>v.addedToCart).length,
-            totalCartValue: 0,
-            totalCartItems: 0,
-            inCheckout: 0,
-          })
-        } catch {}
       } catch {
         // sessiz geç
       }
@@ -412,7 +382,6 @@ export default function Dashboard() {
     csvContent += '=== SMS PAZARLAMA İSTATİSTİKLERİ ===\n'
     csvContent += `Gönderilen SMS,${smsStats.totalSent}\n`
     csvContent += `Teslim Edilen,${smsStats.delivered}\n`
-    csvContent += `Teslimat Oranı,${smsStats.deliveryRate}%\n`
     csvContent += `Aktif Şablon,${smsStats.activeTemplates}\n`
     csvContent += `Aktif Kampanya,${smsStats.activeCampaigns}\n`
     csvContent += `Son Kampanya,${smsStats.lastCampaign}\n\n`
@@ -904,115 +873,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Canlı Kullanıcı Haritası ve İstatistikleri */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Canlı Kullanıcı İstatistikleri */}
-        <div className="space-y-4">
-          <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-xl p-6 text-white">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                  <Users className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">Canlı Kullanıcılar</h3>
-                  <p className="text-purple-100 text-sm">Şu anda sitede</p>
-                </div>
-              </div>
-              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                <Users className="w-5 h-5 mb-2 opacity-80" />
-                <p className="text-purple-100 text-xs mb-1">Toplam</p>
-                <p className="text-3xl font-bold">{liveUserStats.total}</p>
-              </div>
-
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                <ShoppingCart className="w-5 h-5 mb-2 opacity-80" />
-                <p className="text-purple-100 text-xs mb-1">Sepetli</p>
-                <p className="text-3xl font-bold">{liveUserStats.withCart}</p>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-purple-100">Sepet Değeri</span>
-                <span className="font-bold">₺{liveUserStats.totalCartValue.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-purple-100">Ürün Sayısı</span>
-                <span className="font-bold">{liveUserStats.totalCartItems}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-purple-100">Ödeme Aşamasında</span>
-                <span className="font-bold text-green-300">{liveUserStats.inCheckout}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Pazarlama Özeti */}
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h4 className="font-bold text-slate-800 mb-4">Pazarlama Özeti</h4>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl">
-                <div className="flex items-center space-x-2">
-                  <Smartphone className="w-5 h-5 text-green-600" />
-                  <span className="text-sm font-medium text-slate-700">SMS</span>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-500">Teslimat</p>
-                  <p className="font-bold text-green-600">{smsStats.deliveryRate}%</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
-                <div className="flex items-center space-x-2">
-                  <Mail className="w-5 h-5 text-blue-600" />
-                  <span className="text-sm font-medium text-slate-700">Email</span>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-500">Açılma</p>
-                  <p className="font-bold text-blue-600">{emailStats.openRate}%</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* OpenStreetMap Haritası */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Coğrafi Dağılım</h3>
-            <div className="flex items-center space-x-2 text-sm text-slate-500">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>Canlı Güncelleme</span>
-            </div>
-          </div>
-
-          {/* OpenStreetMap */}
-          <div style={{ height: '500px' }} className="rounded-xl overflow-hidden border-2 border-slate-200">
-            <LiveUserMap users={liveUsers} />
-          </div>
-
-          {/* Harita Lejantı */}
-          <div className="mt-4 flex items-center justify-center space-x-6 text-sm">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <span className="text-slate-600">Geziniyor</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-              <span className="text-slate-600">Sepetli</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span className="text-slate-600">Ödeme Aşamasında</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Snort IDS Güvenlik İstatistikleri */}
       <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-xl p-6">

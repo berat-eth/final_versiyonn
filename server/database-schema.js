@@ -31,6 +31,8 @@ async function createDatabaseSchema(pool) {
           'campaign_usage', 'customer_analytics', 'discount_wheel_spins', 'chatbot_analytics',
           'wallet_recharge_requests', 'user_discount_codes', 'referral_earnings', 'user_events',
           'user_profiles', 'categories', 'recommendations', 'gift_cards', 'security_events',
+          // Segments
+          'segments', 'user_segments', 'segment_stats',
           // Warehouse/Inventory
           'warehouses', 'warehouse_locations', 'bins', 'inventory_items', 'inventory_movements',
           'suppliers', 'purchase_orders', 'purchase_order_items',
@@ -1486,6 +1488,122 @@ async function createDatabaseSchema(pool) {
   `);
 
       // CRM tabloları kaldırıldı
+
+      // =========================
+      // CUSTOMER SEGMENTS
+      // =========================
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS segments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      criteria TEXT NOT NULL,
+      color VARCHAR(100) DEFAULT 'from-blue-500 to-blue-600',
+      count INT DEFAULT 0,
+      revenue DECIMAL(12,2) DEFAULT 0.00,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      INDEX idx_tenant_segments (tenantId),
+      INDEX idx_name (name),
+      INDEX idx_created_at (createdAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Segments table ready');
+
+      // User Segment İlişkisi Tablosu
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_segments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      userId INT NOT NULL,
+      segmentId INT NOT NULL,
+      assignedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (segmentId) REFERENCES segments(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_user_segment (userId, segmentId),
+      INDEX idx_tenant_user_segments (tenantId),
+      INDEX idx_user_id (userId),
+      INDEX idx_segment_id (segmentId)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ User segments table ready');
+
+      // Segment İstatistikleri Tablosu
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS segment_stats (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      segmentId INT NOT NULL,
+      statDate DATE NOT NULL,
+      totalUsers INT DEFAULT 0,
+      totalRevenue DECIMAL(12,2) DEFAULT 0.00,
+      avgOrderValue DECIMAL(10,2) DEFAULT 0.00,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (segmentId) REFERENCES segments(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_segment_date (segmentId, statDate),
+      INDEX idx_tenant_segment_stats (tenantId),
+      INDEX idx_segment_id (segmentId),
+      INDEX idx_stat_date (statDate)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Segment stats table ready');
+
+      // Varsayılan segmentleri ekle
+      try {
+        const [existingSegments] = await pool.execute('SELECT COUNT(*) as count FROM segments WHERE tenantId = 1');
+        if (existingSegments[0].count === 0) {
+          await pool.execute(`
+            INSERT INTO segments (tenantId, name, criteria, color, count, revenue) VALUES
+            (1, 'VIP Müşteriler', 'Toplam harcama > 5000 TL', 'from-purple-500 to-purple-600', 45, 125000),
+            (1, 'Yeni Müşteriler', 'Son 30 gün içinde kayıt olanlar', 'from-green-500 to-green-600', 120, 45000),
+            (1, 'Sadık Müşteriler', '5+ sipariş vermiş müşteriler', 'from-blue-500 to-blue-600', 78, 89000),
+            (1, 'Yüksek Harcama', 'Ortalama sipariş tutarı > 1000 TL', 'from-orange-500 to-orange-600', 32, 156000)
+          `);
+          console.log('✅ Default segments inserted');
+        }
+      } catch (error) {
+        console.log('⚠️ Could not insert default segments:', error.message);
+      }
+
+      // Segment istatistiklerini güncellemek için trigger'lar
+      try {
+        await pool.execute(`
+          CREATE TRIGGER IF NOT EXISTS update_segment_stats_after_user_assignment
+              AFTER INSERT ON user_segments
+              FOR EACH ROW
+          BEGIN
+              UPDATE segments 
+              SET count = (
+                  SELECT COUNT(*) 
+                  FROM user_segments 
+                  WHERE segmentId = NEW.segmentId AND tenantId = NEW.tenantId
+              )
+              WHERE id = NEW.segmentId AND tenantId = NEW.tenantId;
+          END
+        `);
+        console.log('✅ Segment assignment trigger created');
+
+        await pool.execute(`
+          CREATE TRIGGER IF NOT EXISTS update_segment_stats_after_user_removal
+              AFTER DELETE ON user_segments
+              FOR EACH ROW
+          BEGIN
+              UPDATE segments 
+              SET count = (
+                  SELECT COUNT(*) 
+                  FROM user_segments 
+                  WHERE segmentId = OLD.segmentId AND tenantId = OLD.tenantId
+              )
+              WHERE id = OLD.segmentId AND tenantId = OLD.tenantId;
+          END
+        `);
+        console.log('✅ Segment removal trigger created');
+      } catch (error) {
+        console.log('⚠️ Could not create segment triggers:', error.message);
+      }
 
       // Migration: Add importance_level to production_orders if not exists
       try {

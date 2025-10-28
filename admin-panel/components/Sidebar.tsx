@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Warehouse, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface SidebarProps {
@@ -55,24 +55,19 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         { id: 'production-planning', label: 'Üretim Planlama', icon: Factory },
         { id: 'production-orders', label: 'Üretim Emirleri', icon: ClipboardList },
         { id: 'production-tracking', label: 'Üretim Takibi', icon: PackageCheck },
-        { id: 'warehouse-management', label: 'Depo Yönetimi', icon: Warehouse },
       ]
     },
     {
       title: 'Pazarlama',
       items: [
         { id: 'campaigns', label: 'Kampanyalar', icon: Megaphone },
-        { id: 'coupons', label: 'Kupon Kodları', icon: Ticket },
-        { id: 'user-discount-codes', label: 'Kullanıcı İndirim Kodları', icon: Ticket },
+        { id: 'coupons', label: 'Kupon & İndirim Yönetimi', icon: Ticket },
         { id: 'discount-wheel-spins', label: 'Çarkıfelek', icon: Disc },
-        { id: 'gift-cards', label: 'Hediye Kartları', icon: Gift },
         { id: 'email', label: 'E-posta', icon: Mail },
         { id: 'sms', label: 'SMS', icon: Smartphone },
         { id: 'push-notifications', label: 'Push Bildirimler', icon: Bell },
         { id: 'stories', label: "Story'ler", icon: Image },
         { id: 'sliders', label: 'Slider Yönetimi', icon: Image },
-        { id: 'flash-deals', label: 'Flash İndirimler', icon: DollarSign },
-        { id: 'live-users', label: 'Canlı Kullanıcılar', icon: Users },
       ]
     },
     {
@@ -119,14 +114,6 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         { id: 'applications', label: 'Bayilik Başvuruları', icon: FileText },
         { id: 'bulk-custom-production', label: 'Özel Toptan Üretim', icon: Crown },
         { id: 'google-maps-scraper', label: 'Google Maps Data Scrapper', icon: Link },
-      ]
-    },
-    {
-      title: 'Entegrasyon',
-      items: [
-        { id: 'integration-monitor', label: 'Entegrasyon Monitörü', icon: Monitor },
-        { id: 'hepsiburada', label: 'Hepsiburada', icon: Link },
-        { id: 'trendyol', label: 'Trendyol', icon: Link },
       ]
     },
   ]
