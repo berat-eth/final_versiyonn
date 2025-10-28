@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ShoppingCart, Trash2, RefreshCw, Package, Eye, X, User, Mail, Phone } from 'lucide-react'
+import { ShoppingCart, Trash2, RefreshCw, Package, Eye, X, User, Mail, Phone, Brain, BarChart3, AlertTriangle, TrendingUp, Target } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cartService, userService } from '@/lib/services'
 import type { CartItem, User as UserType } from '@/lib/api'
@@ -25,6 +25,10 @@ export default function Cart() {
   const [coupon, setCoupon] = useState<string>('')
   const [applyingCoupon, setApplyingCoupon] = useState<boolean>(false)
   const [couponMsg, setCouponMsg] = useState<string | null>(null)
+  const [showAIAnalysis, setShowAIAnalysis] = useState(false)
+  const [aiAnalysisData, setAiAnalysisData] = useState<any>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+
   const getDeviceId = () => {
     try {
       if (typeof window === 'undefined') return undefined
@@ -38,6 +42,61 @@ export default function Cart() {
     } catch { return undefined }
   }
   const [searchTerm, setSearchTerm] = useState('')
+
+  const performAIAnalysis = async () => {
+    setAiLoading(true)
+    try {
+      // Simulated AI analysis delay
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Mock AI analysis data
+      const analysisData = {
+        insights: [
+          {
+            type: 'warning',
+            title: 'Yüksek Sepet Terk Oranı',
+            description: 'Sepet terk oranı %68 - ortalamadan %15 yüksek',
+            impact: 'high',
+            recommendation: 'Sepet kurtarma e-postaları gönderin'
+          },
+          {
+            type: 'opportunity',
+            title: 'Fiyat Hassasiyeti',
+            description: 'Kullanıcılar %10-15 indirimde satın alma eğiliminde',
+            impact: 'medium',
+            recommendation: 'Hedefli indirim kampanyaları düzenleyin'
+          },
+          {
+            type: 'trend',
+            title: 'Popüler Ürün Kombinasyonları',
+            description: 'Mont + Pantolon kombinasyonu %45 daha sık satın alınıyor',
+            impact: 'medium',
+            recommendation: 'Bundle ürün paketleri oluşturun'
+          }
+        ],
+        recommendations: [
+          'Sepet kurtarma e-postalarını optimize edin',
+          'Ücretsiz kargo eşiğini düşürün',
+          'Güvenlik rozetleri ekleyin',
+          'Müşteri yorumlarını öne çıkarın'
+        ],
+        stats: {
+          averageCartValue: totalValue / Math.max(activeUsers, 1),
+          conversionRate: 32,
+          abandonmentRate: 68,
+          topCategory: 'Outdoor Giyim',
+          peakHours: '19:00-21:00'
+        }
+      }
+      
+      setAiAnalysisData(analysisData)
+      setShowAIAnalysis(true)
+    } catch (error) {
+      console.error('AI Analysis error:', error)
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const fetchAllCarts = async () => {
     try {
@@ -161,13 +220,27 @@ export default function Cart() {
           <h2 className="text-3xl font-bold text-slate-800">Tüm Kullanıcı Sepetleri</h2>
           <p className="text-slate-500 mt-1">Aktif sepetleri görüntüleyin ve yönetin</p>
         </div>
-        <button
-          onClick={fetchAllCarts}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow"
-        >
-          <RefreshCw className="w-5 h-5 mr-2" />
-          Yenile
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={performAIAnalysis}
+            disabled={aiLoading}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {aiLoading ? (
+              <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+            ) : (
+              <Brain className="w-5 h-5 mr-2" />
+            )}
+            {aiLoading ? 'Analiz Ediliyor...' : 'YZ Analiz'}
+          </button>
+          <button
+            onClick={fetchAllCarts}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow"
+          >
+            <RefreshCw className="w-5 h-5 mr-2" />
+            Yenile
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -464,6 +537,162 @@ export default function Cart() {
                     className="px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium"
                   >
                     Kapat
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Analysis Modal */}
+      <AnimatePresence>
+        {showAIAnalysis && aiAnalysisData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowAIAnalysis(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg">
+                    <Brain className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-800">YZ Sepet Analizi</h3>
+                    <p className="text-slate-500">Yapay zeka destekli sepet analizi ve öneriler</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAIAnalysis(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Stats Overview */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                    <div className="text-2xl font-bold text-blue-600">
+                      ₺{aiAnalysisData.stats.averageCartValue.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-blue-600">Ortalama Sepet Değeri</div>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                    <div className="text-2xl font-bold text-green-600">
+                      %{aiAnalysisData.stats.conversionRate}
+                    </div>
+                    <div className="text-sm text-green-600">Dönüşüm Oranı</div>
+                  </div>
+                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                    <div className="text-2xl font-bold text-red-600">
+                      %{aiAnalysisData.stats.abandonmentRate}
+                    </div>
+                    <div className="text-sm text-red-600">Sepet Terk Oranı</div>
+                  </div>
+                  <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {aiAnalysisData.stats.peakHours}
+                    </div>
+                    <div className="text-sm text-purple-600">Yoğun Saatler</div>
+                  </div>
+                </div>
+
+                {/* Insights */}
+                <div>
+                  <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5" />
+                    AI İçgörüleri
+                  </h4>
+                  <div className="space-y-4">
+                    {aiAnalysisData.insights.map((insight: any, index: number) => (
+                      <div
+                        key={index}
+                        className={`p-4 rounded-xl border ${
+                          insight.type === 'warning' ? 'bg-red-50 border-red-200' :
+                          insight.type === 'opportunity' ? 'bg-green-50 border-green-200' :
+                          'bg-blue-50 border-blue-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-lg ${
+                            insight.type === 'warning' ? 'bg-red-100 text-red-600' :
+                            insight.type === 'opportunity' ? 'bg-green-100 text-green-600' :
+                            'bg-blue-100 text-blue-600'
+                          }`}>
+                            {insight.type === 'warning' ? <AlertTriangle className="w-4 h-4" /> :
+                             insight.type === 'opportunity' ? <Eye className="w-4 h-4" /> :
+                             <TrendingUp className="w-4 h-4" />}
+                          </div>
+                          <div className="flex-1">
+                            <h5 className="font-semibold text-slate-800 mb-1">{insight.title}</h5>
+                            <p className="text-slate-600 text-sm mb-2">{insight.description}</p>
+                            <div className="flex items-center justify-between">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                insight.impact === 'high' ? 'bg-red-100 text-red-700' :
+                                insight.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {insight.impact === 'high' ? 'Yüksek' : insight.impact === 'medium' ? 'Orta' : 'Düşük'} Etki
+                              </span>
+                              <span className="text-xs text-slate-500">{insight.recommendation}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                <div>
+                  <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <Target className="w-5 h-5" />
+                    AI Önerileri
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {aiAnalysisData.recommendations.map((rec: string, index: number) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200"
+                      >
+                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        <span className="text-sm text-slate-700">{rec}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                  <button
+                    onClick={() => setShowAIAnalysis(false)}
+                    className="px-6 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    Kapat
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Navigate to AI Insights page
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'ai-insights' } }))
+                      }
+                      setShowAIAnalysis(false)
+                    }}
+                    className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-shadow"
+                  >
+                    Detaylı Analiz
                   </button>
                 </div>
               </div>

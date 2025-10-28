@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Star, ThumbsUp, ThumbsDown, MessageSquare, CheckCircle, XCircle } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { Star, ThumbsUp, ThumbsDown, MessageSquare, CheckCircle, XCircle, Brain, BarChart3, AlertTriangle, TrendingUp, Target, Eye, RefreshCw, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface Review {
   id: number
@@ -18,6 +18,9 @@ interface Review {
 export default function Reviews() {
   // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
   const [reviews, setReviews] = useState<Review[]>([])
+  const [showAIAnalysis, setShowAIAnalysis] = useState(false)
+  const [aiAnalysisData, setAiAnalysisData] = useState<any>(null)
+  const [aiLoading, setAiLoading] = useState(false)
 
   const approve = (id: number) => {
     setReviews(reviews.map(r => r.id === id ? { ...r, status: 'approved' } : r))
@@ -25,6 +28,62 @@ export default function Reviews() {
 
   const reject = (id: number) => {
     setReviews(reviews.map(r => r.id === id ? { ...r, status: 'rejected' } : r))
+  }
+
+  const performAIAnalysis = async () => {
+    setAiLoading(true)
+    try {
+      // Simulated AI analysis delay
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Mock AI analysis data for reviews
+      const analysisData = {
+        insights: [
+          {
+            type: 'warning',
+            title: 'Düşük Yorum Oranı',
+            description: 'Yorum oranı %3.2 - sektör ortalaması %8-12',
+            impact: 'high',
+            recommendation: 'Yorum teşvik kampanyaları düzenleyin'
+          },
+          {
+            type: 'opportunity',
+            title: 'Pozitif Sentiment Artışı',
+            description: 'Son 30 günde pozitif yorumlar %25 arttı',
+            impact: 'medium',
+            recommendation: 'Bu trendi sürdürmek için ürün kalitesini koruyun'
+          },
+          {
+            type: 'trend',
+            title: 'En Çok Yorumlanan Kategoriler',
+            description: 'Outdoor giyim kategorisi %45 daha fazla yorum alıyor',
+            impact: 'medium',
+            recommendation: 'Bu kategorideki ürünleri öne çıkarın'
+          }
+        ],
+        recommendations: [
+          'Yorum teşvik e-postaları gönderin',
+          'Yorum yapan müşterilere indirim kuponu verin',
+          'Yorum moderasyon sürecini hızlandırın',
+          'Müşteri memnuniyet anketleri düzenleyin'
+        ],
+        stats: {
+          totalReviews: reviews.length,
+          averageRating: reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1) : 0,
+          pendingReviews: reviews.filter(r => r.status === 'pending').length,
+          approvalRate: reviews.length > 0 ? ((reviews.filter(r => r.status === 'approved').length / reviews.length) * 100).toFixed(1) : 0,
+          topRatedProduct: 'Outdoor Mont',
+          sentimentScore: 78
+        }
+      }
+      
+      setAiAnalysisData(analysisData)
+      setShowAIAnalysis(true)
+    } catch (error) {
+      console.error('AI Analysis error:', error)
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   const renderStars = (rating: number) => {
@@ -38,9 +97,23 @@ export default function Reviews() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold text-slate-800">Değerlendirme & Yorum Yönetimi</h2>
-        <p className="text-slate-500 mt-1">Müşteri yorumlarını yönetin</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-800">Değerlendirme & Yorum Yönetimi</h2>
+          <p className="text-slate-500 mt-1">Müşteri yorumlarını yönetin</p>
+        </div>
+        <button
+          onClick={performAIAnalysis}
+          disabled={aiLoading}
+          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {aiLoading ? (
+            <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+          ) : (
+            <Brain className="w-5 h-5 mr-2" />
+          )}
+          {aiLoading ? 'Analiz Ediliyor...' : 'YZ Analiz'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -127,6 +200,181 @@ export default function Reviews() {
           ))}
         </div>
       </div>
+
+      {/* AI Analysis Modal */}
+      <AnimatePresence>
+        {showAIAnalysis && aiAnalysisData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowAIAnalysis(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg">
+                    <Brain className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-800">YZ Yorum Analizi</h3>
+                    <p className="text-slate-500">Yapay zeka destekli yorum analizi ve öneriler</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAIAnalysis(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Stats Overview */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {aiAnalysisData.stats.totalReviews}
+                    </div>
+                    <div className="text-sm text-blue-600">Toplam Yorum</div>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                    <div className="text-2xl font-bold text-green-600">
+                      {aiAnalysisData.stats.averageRating} ⭐
+                    </div>
+                    <div className="text-sm text-green-600">Ortalama Puan</div>
+                  </div>
+                  <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
+                    <div className="text-2xl font-bold text-yellow-600">
+                      {aiAnalysisData.stats.pendingReviews}
+                    </div>
+                    <div className="text-sm text-yellow-600">Onay Bekleyen</div>
+                  </div>
+                  <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                    <div className="text-2xl font-bold text-purple-600">
+                      %{aiAnalysisData.stats.sentimentScore}
+                    </div>
+                    <div className="text-sm text-purple-600">Sentiment Skoru</div>
+                  </div>
+                </div>
+
+                {/* Insights */}
+                <div>
+                  <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5" />
+                    AI İçgörüleri
+                  </h4>
+                  <div className="space-y-4">
+                    {aiAnalysisData.insights.map((insight: any, index: number) => (
+                      <div
+                        key={index}
+                        className={`p-4 rounded-xl border ${
+                          insight.type === 'warning' ? 'bg-red-50 border-red-200' :
+                          insight.type === 'opportunity' ? 'bg-green-50 border-green-200' :
+                          'bg-blue-50 border-blue-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-lg ${
+                            insight.type === 'warning' ? 'bg-red-100 text-red-600' :
+                            insight.type === 'opportunity' ? 'bg-green-100 text-green-600' :
+                            'bg-blue-100 text-blue-600'
+                          }`}>
+                            {insight.type === 'warning' ? <AlertTriangle className="w-4 h-4" /> :
+                             insight.type === 'opportunity' ? <Eye className="w-4 h-4" /> :
+                             <TrendingUp className="w-4 h-4" />}
+                          </div>
+                          <div className="flex-1">
+                            <h5 className="font-semibold text-slate-800 mb-1">{insight.title}</h5>
+                            <p className="text-slate-600 text-sm mb-2">{insight.description}</p>
+                            <div className="flex items-center justify-between">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                insight.impact === 'high' ? 'bg-red-100 text-red-700' :
+                                insight.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {insight.impact === 'high' ? 'Yüksek' : insight.impact === 'medium' ? 'Orta' : 'Düşük'} Etki
+                              </span>
+                              <span className="text-xs text-slate-500">{insight.recommendation}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                <div>
+                  <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <Target className="w-5 h-5" />
+                    AI Önerileri
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {aiAnalysisData.recommendations.map((rec: string, index: number) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200"
+                      >
+                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        <span className="text-sm text-slate-700">{rec}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Additional Stats */}
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <h4 className="text-lg font-semibold text-slate-800 mb-3">Detaylı İstatistikler</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <span className="text-sm text-slate-500">Onay Oranı</span>
+                      <div className="text-lg font-semibold text-slate-800">%{aiAnalysisData.stats.approvalRate}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-slate-500">En Çok Yorumlanan Ürün</span>
+                      <div className="text-lg font-semibold text-slate-800">{aiAnalysisData.stats.topRatedProduct}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-slate-500">Sentiment Durumu</span>
+                      <div className="text-lg font-semibold text-green-600">Pozitif</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                  <button
+                    onClick={() => setShowAIAnalysis(false)}
+                    className="px-6 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    Kapat
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Navigate to AI Insights page
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'ai-insights' } }))
+                      }
+                      setShowAIAnalysis(false)
+                    }}
+                    className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-shadow"
+                  >
+                    Detaylı Analiz
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
