@@ -6,10 +6,17 @@ export interface GiftCard {
   fromUserId?: number;
   recipient?: string;
   recipientUserId?: number;
+  userId?: number;
   amount: number;
+  balance: number;
   status: 'active' | 'used' | 'expired' | 'cancelled';
   expiresAt: string;
+  validUntil: string;
   usedAt?: string | null;
+  recipientEmail?: string;
+  recipientName?: string;
+  message?: string;
+  createdAt?: string;
 }
 
 export const giftCardService = {

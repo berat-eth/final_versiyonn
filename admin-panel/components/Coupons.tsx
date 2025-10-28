@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Ticket, Plus, Copy, Trash2, TrendingUp, Gift, Search, Filter, CheckCircle, XCircle, Clock, Eye, Edit, DollarSign, Percent, Calendar, Users, X, Save } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
-import { giftCardService } from '@/lib/services/giftCardService'
+import { giftCardService, GiftCard } from '@/lib/services/giftCardService'
 
 interface Coupon {
   id: number
@@ -27,6 +27,7 @@ interface UserDiscountCode {
   type: 'percentage' | 'fixed'
   userId?: number
   userName?: string
+  userEmail?: string
   minAmount?: number
   maxUses?: number
   used: number
@@ -35,18 +36,6 @@ interface UserDiscountCode {
   createdAt?: string
 }
 
-interface GiftCard {
-  id: number
-  code: string
-  amount: number
-  balance: number
-  status: 'active' | 'used' | 'expired'
-  recipientEmail?: string
-  recipientName?: string
-  message?: string
-  validUntil: string
-  createdAt?: string
-}
 
 export default function Coupons() {
   // State'ler
