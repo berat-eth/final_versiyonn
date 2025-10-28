@@ -31,7 +31,6 @@ import Coupons from '@/components/Coupons'
 import Reviews from '@/components/Reviews'
 import FileManager from '@/components/FileManager'
 import SnortLogs from '@/components/SnortLogs'
-import UserDatabase from '@/components/UserDatabase'
 import Settings from '@/components/Settings'
 import SQLQuery from '@/components/SQLQuery'
 import ProjectAjax from '@/components/ProjectAjax'
@@ -52,6 +51,7 @@ import DiscountWheelSpins from '@/components/DiscountWheelSpins'
 import Recommendations from '@/components/Recommendations'
 // CustomProductionMessages merged into BulkCustomProduction
 import GoogleMapsScraper from '@/components/GoogleMapsScraper'
+import AIInsights from '@/components/AIInsights'
 
 
 export default function DashboardPage() {
@@ -192,6 +192,7 @@ export default function DashboardPage() {
             )}
           </AnimatePresence>
           {activeTab === 'dashboard' && <Dashboard />}
+          {activeTab === 'ai-insights' && <AIInsights />}
           {activeTab === 'customers' && <Customers />}
           {activeTab === 'orders' && <Orders />}
           {activeTab === 'cart' && <Cart />}
@@ -216,7 +217,6 @@ export default function DashboardPage() {
           {activeTab === 'security' && <Security />}
           {activeTab === 'snort-logs' && <SnortLogs />}
           {activeTab === 'sql-query' && <SQLQuery />}
-          {activeTab === 'user-database' && <UserDatabase />}
           {activeTab === 'settings' && <Settings />}
           {activeTab === 'bulk-custom-production' && <BulkCustomProduction />}
           {activeTab === 'project-ajax' && <ProjectAjax />}

@@ -1,8 +1,11 @@
 'use client'
 
-import { Search, Bell, Mail, User, List, Shield } from 'lucide-react'
+import { Search, Bell, Mail, User, List, Shield, X, Package, Users, ShoppingCart } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
+import { productService } from '@/lib/services/productService'
+import { userService } from '@/lib/services/userService'
+import { api } from '@/lib/api'
  
 
 export default function Header() {
@@ -10,6 +13,72 @@ export default function Header() {
   const [logs, setLogs] = useState<any[]>([])
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  
+  // Arama için yeni state'ler
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{
+    products: any[]
+    users: any[]
+    orders: any[]
+  }>({ products: [], users: [], orders: [] })
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
+
+  // Arama fonksiyonu
+  const performSearch = async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults({ products: [], users: [], orders: [] })
+      setShowSearchResults(false)
+      return
+    }
+
+    setSearchLoading(true)
+    try {
+      const [productsRes, usersRes, ordersRes] = await Promise.allSettled([
+        productService.searchProducts(query, 1, 5),
+        userService.searchUsers(query, 0),
+        api.get(`/admin/orders/search?q=${encodeURIComponent(query)}&limit=5`)
+      ])
+
+      const results = {
+        products: productsRes.status === 'fulfilled' && productsRes.value?.success ? productsRes.value.data || [] : [],
+        users: usersRes.status === 'fulfilled' && usersRes.value?.success ? usersRes.value.data || [] : [],
+        orders: ordersRes.status === 'fulfilled' && ordersRes.value?.success ? ordersRes.value.data || [] : []
+      }
+
+      setSearchResults(results)
+      setShowSearchResults(true)
+    } catch (error) {
+      console.error('Arama hatası:', error)
+      setSearchResults({ products: [], users: [], orders: [] })
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  // Debounced arama
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      performSearch(searchQuery)
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery])
+
+  // Arama sonuçları panelini dışarı tıklandığında kapat
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.search-container')) {
+        setShowSearchResults(false)
+      }
+    }
+
+    if (showSearchResults) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSearchResults])
 
   const loadLogs = () => {
     try {
@@ -52,17 +121,160 @@ export default function Header() {
     } catch {}
   }
 
+  // Arama sonuçlarından ilgili sayfalara yönlendirme
+  const navigateToResult = (type: 'product' | 'user' | 'order', id: number) => {
+    setShowSearchResults(false)
+    setSearchQuery('')
+    
+    // URL'yi güncelle ve sayfayı yenile
+    if (typeof window !== 'undefined') {
+      if (type === 'product') {
+        window.location.href = '/products'
+      } else if (type === 'user') {
+        window.location.href = '/customers'
+      } else if (type === 'order') {
+        window.location.href = '/dashboard'
+      }
+    }
+  }
+
   return (
     <header className="bg-white/80 backdrop-blur-lg border-b border-slate-200 px-6 py-4 sticky top-0 z-10">
       <div className="flex items-center justify-between">
         <div className="flex-1 max-w-xl">
-          <div className="relative">
+          <div className="relative search-container">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
               type="text"
               placeholder="Ürün, sipariş veya müşteri ara..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => searchQuery.length >= 2 && setShowSearchResults(true)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
             />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('')
+                  setShowSearchResults(false)
+                }}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            
+            {/* Arama Sonuçları */}
+            {showSearchResults && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-96 overflow-y-auto">
+                {searchLoading ? (
+                  <div className="p-4 text-center text-slate-500">
+                    <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                    Aranıyor...
+                  </div>
+                ) : (
+                  <>
+                    {/* Ürünler */}
+                    {searchResults.products.length > 0 && (
+                      <div className="p-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                          <Package className="w-4 h-4" />
+                          Ürünler ({searchResults.products.length})
+                        </div>
+                        {searchResults.products.map((product) => (
+                          <div
+                            key={product.id}
+                            onClick={() => navigateToResult('product', product.id)}
+                            className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"
+                          >
+                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                              <Package className="w-4 h-4 text-slate-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-slate-900 truncate">
+                                {product.name}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                SKU: {product.sku || 'N/A'}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Kullanıcılar */}
+                    {searchResults.users.length > 0 && (
+                      <div className="p-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                          <Users className="w-4 h-4" />
+                          Müşteriler ({searchResults.users.length})
+                        </div>
+                        {searchResults.users.map((user) => (
+                          <div
+                            key={user.id}
+                            onClick={() => navigateToResult('user', user.id)}
+                            className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"
+                          >
+                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                              <Users className="w-4 h-4 text-slate-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-slate-900 truncate">
+                                {user.name}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                {user.email}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Siparişler */}
+                    {searchResults.orders.length > 0 && (
+                      <div className="p-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                          <ShoppingCart className="w-4 h-4" />
+                          Siparişler ({searchResults.orders.length})
+                        </div>
+                        {searchResults.orders.map((order) => (
+                          <div
+                            key={order.id}
+                            onClick={() => navigateToResult('order', order.id)}
+                            className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"
+                          >
+                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                              <ShoppingCart className="w-4 h-4 text-slate-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-slate-900">
+                                Sipariş #{order.id}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                {order.status} - ₺{order.totalAmount}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Sonuç bulunamadı */}
+                    {searchResults.products.length === 0 && 
+                     searchResults.users.length === 0 && 
+                     searchResults.orders.length === 0 && (
+                      <div className="p-4 text-center text-slate-500">
+                        <Search className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                        <div className="text-sm">Arama sonucu bulunamadı</div>
+                        <div className="text-xs mt-1">Farklı anahtar kelimeler deneyin</div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
