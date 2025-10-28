@@ -1,12 +1,13 @@
 'use client'
 
-import { TrendingUp, Package, ShoppingCart, Users, ArrowUp, ArrowDown, DollarSign, Eye, AlertTriangle, CheckCircle, Clock, Star, Truck, CreditCard, RefreshCw, Activity, Target, Zap, TrendingDown, UserPlus, MessageSquare, Heart, BarChart3, Calendar, Filter, Download, Bell, X, Shield, Mail, Send, Smartphone, MousePointer, MapPin, Navigation } from 'lucide-react'
+import { TrendingUp, Package, ShoppingCart, Users, ArrowUp, ArrowDown, DollarSign, Eye, AlertTriangle, CheckCircle, Clock, Star, Truck, CreditCard, RefreshCw, Activity, Target, Zap, TrendingDown, UserPlus, MessageSquare, Heart, BarChart3, Calendar, Filter, Download, Bell, X, Shield, Mail, Send, Smartphone, MousePointer, MapPin, Navigation, Brain } from 'lucide-react'
 import { Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart } from 'recharts'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { analyticsService, productService } from '@/lib/services'
 import { api } from '@/lib/api'
+import AIAlertWidget from './AIAlertWidget'
 
 // Stok uyarıları, canlı kullanıcılar ve istatistikleri state'e alındı
 
@@ -1427,6 +1428,61 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* AI İçgörüleri Uyarı Alanı */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <AIAlertWidget />
+        
+        {/* Sistem Durumu Kartı */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-800">Sistem Durumu</h3>
+              <p className="text-sm text-green-600">Tüm sistemler çalışıyor</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-600">API Durumu</span>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-green-600">Aktif</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-600">Veritabanı</span>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-green-600">Bağlı</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-600">Önbellek</span>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-green-600">Çalışıyor</span>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  try { sessionStorage.removeItem('healthChecked') } catch {}
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('open-health-modal'))
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors text-sm font-medium"
+              >
+                <Activity className="w-4 h-4" />
+                <span>Detaylı Durum</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
