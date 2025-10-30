@@ -178,20 +178,20 @@ export default function Chatbot() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Canlı Destek</h2>
-          <p className="text-slate-500 mt-1">Müşterilerinizle anlık iletişim</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Canlı Destek</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Müşterilerinizle anlık iletişim</p>
         </div>
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`p-3 rounded-xl transition-colors ${soundEnabled ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'
+            className={`p-3 rounded-xl transition-colors ${soundEnabled ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
               }`}
             title={soundEnabled ? 'Sesi Kapat' : 'Sesi Aç'}
           >
             {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </button>
           {totalUnread > 0 && (
-            <div className="px-4 py-2 bg-red-100 text-red-600 rounded-xl font-bold">
+            <div className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl font-bold">
               {totalUnread} Yeni Mesaj
             </div>
           )}
@@ -203,7 +203,7 @@ export default function Chatbot() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-5 text-white"
+          className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 rounded-xl shadow-lg p-5 text-white"
         >
           <MessageSquare className="w-6 h-6 opacity-80 mb-2" />
           <p className="text-blue-100 text-sm mb-1">Toplam Konuşma</p>
@@ -214,7 +214,7 @@ export default function Chatbot() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-5 text-white"
+          className="bg-gradient-to-br from-green-500 to-green-600 dark:from-green-700 dark:to-green-800 rounded-xl shadow-lg p-5 text-white"
         >
           <Users className="w-6 h-6 opacity-80 mb-2" />
           <p className="text-green-100 text-sm mb-1">Aktif Müşteri</p>
@@ -225,7 +225,7 @@ export default function Chatbot() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-5 text-white"
+          className="bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-700 dark:to-purple-800 rounded-xl shadow-lg p-5 text-white"
         >
           <TrendingUp className="w-6 h-6 opacity-80 mb-2" />
           <p className="text-purple-100 text-sm mb-1">Çözüm Oranı</p>
@@ -236,7 +236,7 @@ export default function Chatbot() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-5 text-white"
+          className="bg-gradient-to-br from-orange-500 to-orange-600 dark:from-orange-700 dark:to-orange-800 rounded-xl shadow-lg p-5 text-white"
         >
           <Clock className="w-6 h-6 opacity-80 mb-2" />
           <p className="text-orange-100 text-sm mb-1">Ort. Yanıt Süresi</p>
@@ -247,16 +247,16 @@ export default function Chatbot() {
       {/* Chat Interface */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Conversations List */}
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-200">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-700">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
               <input
                 type="text"
                 placeholder="Müşteri ara..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white dark:placeholder-slate-400"
               />
             </div>
           </div>
@@ -279,7 +279,7 @@ export default function Chatbot() {
                     return newConvs
                   })
                 }}
-                className={`p-4 border-b border-slate-100 cursor-pointer transition-colors ${selectedChat === conv.id ? 'bg-blue-50' : 'hover:bg-slate-50'
+                className={`p-4 border-b border-slate-100 dark:border-slate-700 cursor-pointer transition-colors ${selectedChat === conv.id ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
               >
                 <div className="flex items-start space-x-3">
@@ -293,10 +293,10 @@ export default function Chatbot() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="font-semibold text-slate-800 truncate">{conv.customer}</p>
-                      <span className="text-xs text-slate-400 flex-shrink-0 ml-2">{conv.time}</span>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200 truncate">{conv.customer}</p>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0 ml-2">{conv.time}</span>
                     </div>
-                    <p className="text-sm text-slate-600 truncate">{conv.lastMessage}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 truncate">{conv.lastMessage}</p>
                   </div>
                   {conv.unread > 0 && (
                     <div className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
@@ -314,7 +314,7 @@ export default function Chatbot() {
           {selectedConversation ? (
             <>
               {/* Chat Header */}
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50">
+              <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
                 <div className="flex items-center space-x-3">
                   <div className="relative">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
@@ -325,28 +325,28 @@ export default function Chatbot() {
                       }`}></div>
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">{selectedConversation.customer}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedConversation.customer}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {selectedConversation.status === 'online' ? 'Çevrimiçi' :
                         selectedConversation.status === 'away' ? 'Uzakta' : 'Çevrimdışı'}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button className="p-2 hover:bg-white rounded-lg transition-colors">
-                    <Phone className="w-5 h-5 text-slate-600" />
+                  <button className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <Phone className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   </button>
-                  <button className="p-2 hover:bg-white rounded-lg transition-colors">
-                    <Video className="w-5 h-5 text-slate-600" />
+                  <button className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <Video className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   </button>
-                  <button className="p-2 hover:bg-white rounded-lg transition-colors">
-                    <MoreVertical className="w-5 h-5 text-slate-600" />
+                  <button className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <MoreVertical className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   </button>
                 </div>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 dark:bg-slate-900">
                 {selectedConversation.messages.map((message, index) => (
                   <motion.div
                     key={message.id}
@@ -358,7 +358,7 @@ export default function Chatbot() {
                     <div className={`max-w-[70%] ${message.sender === 'agent' ? 'order-2' : 'order-1'}`}>
                       <div className={`rounded-2xl px-4 py-3 ${message.sender === 'agent'
                         ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
-                        : 'bg-white border border-slate-200 text-slate-800'
+                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'
                         }`}>
                         <p className="text-sm">{message.text}</p>
                       </div>
@@ -376,13 +376,13 @@ export default function Chatbot() {
               </div>
 
               {/* Message Input */}
-              <div className="p-4 border-t border-slate-200 bg-white">
+              <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-card">
                 <div className="flex items-center space-x-2">
-                  <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                    <Paperclip className="w-5 h-5 text-slate-600" />
+                  <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <Paperclip className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   </button>
-                  <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                    <Smile className="w-5 h-5 text-slate-600" />
+                  <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <Smile className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   </button>
                   <input
                     type="text"
@@ -390,7 +390,7 @@ export default function Chatbot() {
                     onChange={(e) => setMessageText(e.target.value)}
                     onKeyDown={handleKeyPress}
                     placeholder="Mesajınızı yazın..."
-                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white dark:placeholder-slate-400"
                   />
                   <button
                     onClick={() => sendMessage()}
@@ -405,11 +405,11 @@ export default function Chatbot() {
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <MessageSquare className="w-10 h-10 text-blue-600" />
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <MessageSquare className="w-10 h-10 text-blue-600 dark:text-blue-400" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Konuşma Seçin</h3>
-                <p className="text-slate-500">Müşterilerinizle sohbet etmek için bir konuşma seçin</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Konuşma Seçin</h3>
+                <p className="text-slate-500 dark:text-slate-400">Müşterilerinizle sohbet etmek için bir konuşma seçin</p>
               </div>
             </div>
           )}

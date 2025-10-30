@@ -411,14 +411,14 @@ export default function Products() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Ürün Yönetimi</h2>
-          <p className="text-slate-500 mt-1">Backend'den gelen ürünler</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Ürün Yönetimi</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Backend'den gelen ürünler</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Bulk Actions */}
           {selectedProducts.length > 0 && (
-            <div className="flex items-center gap-2 mr-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
-              <span className="text-sm text-blue-700 font-medium">
+            <div className="flex items-center gap-2 mr-4 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
+              <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
                 {selectedProducts.length} ürün seçildi
               </span>
               <button
@@ -479,25 +479,25 @@ export default function Products() {
       </div>
 
       {/* Sync status panel */}
-      <div className="bg-white rounded-xl shadow-sm p-4 card-hover">
+      <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${syncStatus?.running ? 'bg-green-100' : 'bg-slate-100'}`}>
               <Activity className={`w-5 h-5 ${syncStatus?.running ? 'text-green-600 animate-pulse' : 'text-slate-600'}`} />
             </div>
             <div>
-              <p className="text-slate-700 font-semibold">XML Senkron Durumu</p>
-              <p className="text-sm text-slate-500">{syncStatus?.running ? 'Çalışıyor' : 'Beklemede'}{syncStatus?.last ? ` • Son: ${new Date(syncStatus.last).toLocaleString('tr-TR')}` : ''}</p>
+            <p className="text-slate-700 dark:text-slate-200 font-semibold">XML Senkron Durumu</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{syncStatus?.running ? 'Çalışıyor' : 'Beklemede'}{syncStatus?.last ? ` • Son: ${new Date(syncStatus.last).toLocaleString('tr-TR')}` : ''}</p>
             </div>
           </div>
-          <div className="text-sm text-slate-500">Kaynak: Ticimax XML</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Kaynak: Ticimax XML</div>
         </div>
 
         {/* Progress Bar */}
         {syncProgress && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">
+              <span className="text-slate-600 dark:text-slate-300">
                 {syncProgress.current} / {syncProgress.total} ürün işlendi
               </span>
               <span className="text-slate-500">
@@ -505,7 +505,7 @@ export default function Products() {
               </span>
             </div>
             
-            <div className="w-full bg-slate-200 rounded-full h-2.5">
+            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
               <div 
                 className="bg-gradient-to-r from-blue-500 to-green-500 h-2.5 rounded-full transition-all duration-300 ease-out"
                 style={{ width: `${syncProgress.percentage}%` }}
@@ -526,7 +526,7 @@ export default function Products() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-4 card-hover">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm">Toplam Ürün</p>
@@ -538,7 +538,7 @@ export default function Products() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4 card-hover">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm">Aktif Ürün</p>
@@ -552,7 +552,7 @@ export default function Products() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4 card-hover">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm">Düşük Stok</p>
@@ -566,7 +566,7 @@ export default function Products() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4 card-hover">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm">Stok Yok</p>

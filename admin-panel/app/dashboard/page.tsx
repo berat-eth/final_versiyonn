@@ -119,7 +119,7 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
@@ -132,26 +132,26 @@ export default function DashboardPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 20 }}
-                  className="absolute left-1/2 top-10 -translate-x-1/2 w-[90%] max-w-xl bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden"
+                  className="absolute left-1/2 top-10 -translate-x-1/2 w-[90%] max-w-xl bg-white dark:bg-dark-card rounded-xl shadow-xl border border-slate-200 dark:border-dark-border overflow-hidden"
                 >
-                  <div className="flex items-center justify-between p-4 border-b">
+                  <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-2">
                       {healthLoading ? (
-                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                        <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-500 animate-spin" />
                       ) : healthError || health?.success === false ? (
-                        <AlertTriangle className="w-5 h-5 text-amber-600" />
+                        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500" />
                       ) : (
-                        <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                        <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
                       )}
-                      <h3 className="text-slate-800 font-semibold">Sistem Sağlık Kontrolü</h3>
+                      <h3 className="text-slate-800 dark:text-slate-200 font-semibold">Sistem Sağlık Kontrolü</h3>
                     </div>
-                    <button onClick={() => setShowHealthModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
-                      <X className="w-5 h-5 text-slate-500" />
+                    <button onClick={() => setShowHealthModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                      <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                     </button>
                   </div>
                   <div className="p-4 space-y-3">
                     {healthLoading && (
-                      <div className="flex items-center gap-3 text-slate-600">
+                      <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Kontrol ediliyor...
                       </div>
@@ -159,33 +159,33 @@ export default function DashboardPage() {
                     {!healthLoading && (
                       <>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                          <div className="p-3 rounded-lg bg-slate-50">
-                            <div className="text-slate-500">Sunucu</div>
-                            <div className="font-medium text-slate-800">{healthError ? 'HATA' : 'OK'}</div>
+                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                            <div className="text-slate-500 dark:text-slate-400">Sunucu</div>
+                            <div className="font-medium text-slate-800 dark:text-slate-200">{healthError ? 'HATA' : 'OK'}</div>
                           </div>
-                          <div className="p-3 rounded-lg bg-slate-50">
-                            <div className="text-slate-500">Veritabanı</div>
-                            <div className="font-medium text-slate-800">{health?.database || (healthError ? 'bilinmiyor' : 'ok')}</div>
+                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                            <div className="text-slate-500 dark:text-slate-400">Veritabanı</div>
+                            <div className="font-medium text-slate-800 dark:text-slate-200">{health?.database || (healthError ? 'bilinmiyor' : 'ok')}</div>
                           </div>
-                          <div className="p-3 rounded-lg bg-slate-50">
-                            <div className="text-slate-500">Uptime</div>
-                            <div className="font-mono text-slate-800 text-xs">{typeof health?.uptime !== 'undefined' ? `${Math.round(health.uptime)} sn` : '-'}</div>
+                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                            <div className="text-slate-500 dark:text-slate-400">Uptime</div>
+                            <div className="font-mono text-slate-800 dark:text-slate-200 text-xs">{typeof health?.uptime !== 'undefined' ? `${Math.round(health.uptime)} sn` : '-'}</div>
                           </div>
-                          <div className="p-3 rounded-lg bg-slate-50">
-                            <div className="text-slate-500">Saat</div>
-                            <div className="font-mono text-slate-800 text-xs">{health?.timestamp || new Date().toISOString()}</div>
+                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                            <div className="text-slate-500 dark:text-slate-400">Saat</div>
+                            <div className="font-mono text-slate-800 dark:text-slate-200 text-xs">{health?.timestamp || new Date().toISOString()}</div>
                           </div>
                         </div>
                         {healthError && (
-                          <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
                             {healthError}
                           </div>
                         )}
                       </>
                     )}
                   </div>
-                  <div className="p-4 border-t bg-slate-50 flex items-center justify-end">
-                    <button onClick={() => setShowHealthModal(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-900">Tamam</button>
+                  <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-end">
+                    <button onClick={() => setShowHealthModal(false)} className="px-4 py-2 rounded-lg bg-slate-800 dark:bg-slate-700 text-white hover:bg-slate-900 dark:hover:bg-slate-600">Tamam</button>
                   </div>
                 </motion.div>
               </div>

@@ -15,11 +15,11 @@ export default function Analytics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Detaylı Analitik</h2>
-          <p className="text-slate-500 mt-1">İşletmenizin derinlemesine analizi</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Detaylı Analitik</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">İşletmenizin derinlemesine analizi</p>
         </div>
         <div className="flex items-center space-x-3">
-          <button className="flex items-center space-x-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
+          <button className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-300">
             <Calendar className="w-4 h-4" />
             <span>Tarih Seç</span>
           </button>
@@ -30,8 +30,8 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-6">Gelir & Gider Analizi</h3>
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">Gelir & Gider Analizi</h3>
           <ResponsiveContainer width="100%" height={300}>
             {monthlyData && monthlyData.length > 0 ? (
             <BarChart data={monthlyData}>
@@ -52,13 +52,13 @@ export default function Analytics() {
               <Bar dataKey="kar" fill="#43e97b" radius={[8, 8, 0, 0]} />
             </BarChart>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">Veri yok</div>
             )}
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-6">Müşteri Davranış Analizi</h3>
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">Müşteri Davranış Analizi</h3>
           <ResponsiveContainer width="100%" height={300}>
             {customerBehavior && customerBehavior.length > 0 ? (
             <RadarChart data={customerBehavior}>
@@ -69,17 +69,17 @@ export default function Analytics() {
               <Tooltip />
             </RadarChart>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">Veri yok</div>
             )}
           </ResponsiveContainer>
           <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">92%</p>
-              <p className="text-xs text-slate-600">Memnuniyet</p>
+            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">92%</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Memnuniyet</p>
             </div>
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <p className="text-2xl font-bold text-green-600">78%</p>
-              <p className="text-xs text-slate-600">Tekrar Alım</p>
+            <div className="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">78%</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Tekrar Alım</p>
             </div>
           </div>
         </div>
@@ -128,29 +128,29 @@ export default function Analytics() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-white rounded-2xl shadow-sm p-6 card-hover"
+            className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 card-hover"
           >
             <div className={`w-12 h-12 bg-gradient-to-br ${segment.color} rounded-xl flex items-center justify-center mb-4`}>
               <Users className="w-6 h-6 text-white" />
             </div>
-            <h4 className="font-semibold text-slate-800 mb-2">{segment.segment}</h4>
+            <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">{segment.segment}</h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Müşteri</span>
-                <span className="font-bold text-slate-800">{segment.count}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Müşteri</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{segment.count}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Gelir</span>
-                <span className="font-bold text-slate-800">₺{(segment.revenue / 1000).toFixed(0)}K</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Gelir</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">₺{(segment.revenue / 1000).toFixed(0)}K</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Ort. Sipariş</span>
-                <span className="font-bold text-slate-800">₺{segment.avgOrder}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Ort. Sipariş</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">₺{segment.avgOrder}</span>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Büyüme</span>
+                <span className="text-slate-500 dark:text-slate-400">Büyüme</span>
                 <div className="flex items-center space-x-1">
                   <ArrowUp className="w-4 h-4 text-green-600" />
                   <span className="font-semibold text-green-600">+{(Math.random() * 20 + 5).toFixed(1)}%</span>
@@ -162,7 +162,7 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 text-white">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 rounded-2xl shadow-lg p-6 text-white">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-lg font-semibold">Dönüşüm Oranı</h4>
             <TrendingUp className="w-6 h-6" />
@@ -177,7 +177,7 @@ export default function Analytics() {
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg p-6 text-white">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 dark:from-green-700 dark:to-green-800 rounded-2xl shadow-lg p-6 text-white">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-lg font-semibold">Sepet Ortalaması</h4>
             <ShoppingBag className="w-6 h-6" />
@@ -192,7 +192,7 @@ export default function Analytics() {
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white">
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-700 dark:to-purple-800 rounded-2xl shadow-lg p-6 text-white">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-lg font-semibold">Müşteri Yaşam Değeri</h4>
             <DollarSign className="w-6 h-6" />

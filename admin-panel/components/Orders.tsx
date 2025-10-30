@@ -227,8 +227,8 @@ export default function Orders() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Sipariş Yönetimi</h2>
-          <p className="text-slate-500 mt-1">Tüm siparişlerinizi takip edin</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Sipariş Yönetimi</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Tüm siparişlerinizi takip edin</p>
         </div>
         <button
           onClick={() => {
@@ -277,16 +277,16 @@ export default function Orders() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-white rounded-xl shadow-sm p-5 card-hover"
+            className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 card-hover"
           >
-            <p className="text-slate-500 text-sm mb-2">{stat.label}</p>
-            <p className="text-3xl font-bold text-slate-800">{stat.value}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">{stat.label}</p>
+            <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{stat.value}</p>
             <div className={`mt-3 h-2 bg-gradient-to-r ${stat.color} rounded-full`}></div>
           </motion.div>
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div className="flex-1 max-w-md">
             <div className="relative">
@@ -294,17 +294,17 @@ export default function Orders() {
               <input
                 type="text"
                 placeholder="Sipariş veya müşteri ara..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-800 transition-all dark:text-white dark:placeholder-slate-400"
               />
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
-            <button className="flex items-center space-x-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
+            <button className="flex items-center space-x-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors dark:text-white">
               <Filter className="w-4 h-4" />
               <span>Filtrele</span>
             </button>
-            <select className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 dark:text-white">
               <option>Tüm Durumlar</option>
               <option>Beklemede</option>
               <option>İşleniyor</option>
@@ -317,18 +317,18 @@ export default function Orders() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Sipariş</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Müşteri</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Tarih</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Ürün</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Ödeme</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Tutar</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Durum</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">İşlem</th>
+              <tr className="border-b border-slate-200 dark:border-slate-700">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">Sipariş</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">Müşteri</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">Tarih</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">Ürün</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">Ödeme</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">Tutar</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">Durum</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">İşlem</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {orders.map((order, index) => {
                 const StatusIcon = statusConfig[order.status as NonNullable<Order['status']>].icon
                 return (
@@ -337,10 +337,10 @@ export default function Orders() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="hover:bg-slate-50 transition-colors"
+                    className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     <td className="px-6 py-4">
-                      <span className="font-semibold text-slate-800">#{order.id}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">#{order.id}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
@@ -348,20 +348,20 @@ export default function Orders() {
                           {(order as any).userName?.charAt ? (order as any).userName.charAt(0) : 'U'}
                         </div>
                         <div>
-                          <span className="text-slate-700 font-medium">{(order as any).userName || '—'}</span>
-                          <p className="text-xs text-slate-500">{(order as any).userEmail || ''}</p>
+                          <span className="text-slate-700 dark:text-slate-300 font-medium">{(order as any).userName || '—'}</span>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{(order as any).userEmail || ''}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 text-sm">{order.createdAt}</td>
+                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400 text-sm">{order.createdAt}</td>
                     <td className="px-6 py-4">
-                      <span className="text-slate-600 text-sm">{(order as any).itemCount ?? (order.items?.length || 0)} ürün</span>
+                      <span className="text-slate-600 dark:text-slate-400 text-sm">{(order as any).itemCount ?? (order.items?.length || 0)} ürün</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-slate-600 text-sm">{(order as any).paymentMethod || '—'}</span>
+                      <span className="text-slate-600 dark:text-slate-400 text-sm">{(order as any).paymentMethod || '—'}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="font-bold text-slate-800">₺{order.totalAmount.toLocaleString()}</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">₺{order.totalAmount.toLocaleString()}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg border ${statusConfig[order.status as NonNullable<Order['status']>].color}`}>
@@ -431,22 +431,22 @@ export default function Orders() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between mt-6 pt-6 border-t border-slate-200">
-          <p className="text-sm text-slate-600">Toplam 1,234 sipariş içinden 1-6 arası gösteriliyor</p>
+        <div className="flex items-center justify-between mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+          <p className="text-sm text-slate-600 dark:text-slate-400">Toplam 1,234 sipariş içinden 1-6 arası gösteriliyor</p>
           <div className="flex items-center space-x-2">
-            <button className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm">
+            <button className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-slate-300">
               Önceki
             </button>
             <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
               1
             </button>
-            <button className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm">
+            <button className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-slate-300">
               2
             </button>
-            <button className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm">
+            <button className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-slate-300">
               3
             </button>
-            <button className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm">
+            <button className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-slate-300">
               Sonraki
             </button>
           </div>

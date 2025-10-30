@@ -99,8 +99,8 @@ export default function Reviews() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Değerlendirme & Yorum Yönetimi</h2>
-          <p className="text-slate-500 mt-1">Müşteri yorumlarını yönetin</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Değerlendirme & Yorum Yönetimi</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Müşteri yorumlarını yönetin</p>
         </div>
         <button
           onClick={performAIAnalysis}
@@ -117,28 +117,28 @@ export default function Reviews() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <p className="text-slate-500 text-sm mb-2">Toplam Yorum</p>
-          <p className="text-3xl font-bold text-slate-800">{reviews.length}</p>
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5">
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Toplam Yorum</p>
+          <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{reviews.length}</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <p className="text-slate-500 text-sm mb-2">Onay Bekleyen</p>
-          <p className="text-3xl font-bold text-yellow-600">{reviews.filter(r => r.status === 'pending').length}</p>
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5">
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Onay Bekleyen</p>
+          <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{reviews.filter(r => r.status === 'pending').length}</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <p className="text-slate-500 text-sm mb-2">Ortalama Puan</p>
-          <p className="text-3xl font-bold text-green-600">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5">
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Ortalama Puan</p>
+          <p className="text-3xl font-bold text-green-600 dark:text-green-400">
             {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)} ⭐
           </p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-5">
-          <p className="text-slate-500 text-sm mb-2">Faydalı Bulunma</p>
-          <p className="text-3xl font-bold text-blue-600">{reviews.reduce((sum, r) => sum + r.helpful, 0)}</p>
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5">
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Faydalı Bulunma</p>
+          <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{reviews.reduce((sum, r) => sum + r.helpful, 0)}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        <h3 className="text-xl font-bold text-slate-800 mb-6">Yorumlar</h3>
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+        <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">Yorumlar</h3>
         <div className="space-y-4">
           {reviews.map((review, index) => (
             <motion.div
@@ -146,7 +146,7 @@ export default function Reviews() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="border border-slate-200 rounded-xl p-5"
+              className="border border-slate-200 dark:border-slate-700 rounded-xl p-5 dark:bg-slate-800"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
@@ -155,24 +155,24 @@ export default function Reviews() {
                       {review.customer.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-800">{review.customer}</p>
-                      <p className="text-sm text-slate-500">{review.product}</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{review.customer}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">{review.product}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2 mb-2">
                     {renderStars(review.rating)}
-                    <span className="text-sm text-slate-500">{review.date}</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">{review.date}</span>
                   </div>
-                  <p className="text-slate-700 mb-3">{review.comment}</p>
+                  <p className="text-slate-700 dark:text-slate-300 mb-3">{review.comment}</p>
                   <div className="flex items-center space-x-4 text-sm">
-                    <span className="flex items-center text-slate-500">
+                    <span className="flex items-center text-slate-500 dark:text-slate-400">
                       <ThumbsUp className="w-4 h-4 mr-1" />
                       {review.helpful} faydalı
                     </span>
                     <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                      review.status === 'approved' ? 'bg-green-100 text-green-700' :
-                      review.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-red-100 text-red-700'
+                      review.status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' :
+                      review.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400' :
+                      'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
                     }`}>
                       {review.status === 'approved' ? 'Onaylandı' :
                        review.status === 'pending' ? 'Beklemede' : 'Reddedildi'}
@@ -183,15 +183,15 @@ export default function Reviews() {
                   <div className="flex items-center space-x-2 ml-4">
                     <button
                       onClick={() => approve(review.id)}
-                      className="p-2 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                      className="p-2 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-800/40 rounded-lg transition-colors"
                     >
-                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
                     </button>
                     <button
                       onClick={() => reject(review.id)}
-                      className="p-2 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                      className="p-2 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-800/40 rounded-lg transition-colors"
                     >
-                      <XCircle className="w-5 h-5 text-red-600" />
+                      <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                     </button>
                   </div>
                 )}
@@ -216,23 +216,23 @@ export default function Reviews() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-dark-card">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg">
                     <Brain className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800">YZ Yorum Analizi</h3>
-                    <p className="text-slate-500">Yapay zeka destekli yorum analizi ve öneriler</p>
+                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">YZ Yorum Analizi</h3>
+                    <p className="text-slate-500 dark:text-slate-400">Yapay zeka destekli yorum analizi ve öneriler</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowAIAnalysis(false)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 dark:text-slate-400" />
                 </button>
               </div>
 
@@ -267,7 +267,7 @@ export default function Reviews() {
 
                 {/* Insights */}
                 <div>
-                  <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <h4 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <BarChart3 className="w-5 h-5" />
                     AI İçgörüleri
                   </h4>
@@ -313,7 +313,7 @@ export default function Reviews() {
 
                 {/* Recommendations */}
                 <div>
-                  <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <h4 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <Target className="w-5 h-5" />
                     AI Önerileri
                   </h4>
@@ -321,39 +321,39 @@ export default function Reviews() {
                     {aiAnalysisData.recommendations.map((rec: string, index: number) => (
                       <div
                         key={index}
-                        className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200"
+                        className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700"
                       >
                         <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                        <span className="text-sm text-slate-700">{rec}</span>
+                        <span className="text-sm text-slate-700 dark:text-slate-300">{rec}</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 {/* Additional Stats */}
-                <div className="bg-slate-50 rounded-xl p-4">
-                  <h4 className="text-lg font-semibold text-slate-800 mb-3">Detaylı İstatistikler</h4>
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                  <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Detaylı İstatistikler</h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
-                      <span className="text-sm text-slate-500">Onay Oranı</span>
-                      <div className="text-lg font-semibold text-slate-800">%{aiAnalysisData.stats.approvalRate}</div>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">Onay Oranı</span>
+                      <div className="text-lg font-semibold text-slate-800 dark:text-slate-200">%{aiAnalysisData.stats.approvalRate}</div>
                     </div>
                     <div>
-                      <span className="text-sm text-slate-500">En Çok Yorumlanan Ürün</span>
-                      <div className="text-lg font-semibold text-slate-800">{aiAnalysisData.stats.topRatedProduct}</div>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">En Çok Yorumlanan Ürün</span>
+                      <div className="text-lg font-semibold text-slate-800 dark:text-slate-200">{aiAnalysisData.stats.topRatedProduct}</div>
                     </div>
                     <div>
-                      <span className="text-sm text-slate-500">Sentiment Durumu</span>
-                      <div className="text-lg font-semibold text-green-600">Pozitif</div>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">Sentiment Durumu</span>
+                      <div className="text-lg font-semibold text-green-600 dark:text-green-400">Pozitif</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
                   <button
                     onClick={() => setShowAIAnalysis(false)}
-                    className="px-6 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    className="px-6 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                   >
                     Kapat
                   </button>

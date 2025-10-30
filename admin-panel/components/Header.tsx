@@ -1,14 +1,16 @@
 'use client'
 
-import { Search, Bell, Mail, User, List, Shield, X, Package, Users, ShoppingCart } from 'lucide-react'
+import { Search, Bell, Mail, User, List, Shield, X, Package, Users, ShoppingCart, Sun, Moon } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { productService } from '@/lib/services/productService'
 import { userService } from '@/lib/services/userService'
 import { api } from '@/lib/api'
+import { useTheme } from '@/lib/ThemeContext'
  
 
 export default function Header() {
+  const { theme, toggleTheme } = useTheme()
   const [showLogs, setShowLogs] = useState(false)
   const [logs, setLogs] = useState<any[]>([])
   const [query, setQuery] = useState('')
@@ -139,7 +141,7 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-white/80 backdrop-blur-lg border-b border-slate-200 px-6 py-4 sticky top-0 z-10">
+    <header className="bg-white/80 dark:bg-dark-bg/90 backdrop-blur-lg border-b border-slate-200 dark:border-dark-border px-6 py-4 sticky top-0 z-10">
       <div className="flex items-center justify-between">
         <div className="flex-1 max-w-xl">
           <div className="relative search-container">
@@ -150,7 +152,7 @@ export default function Header() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => searchQuery.length >= 2 && setShowSearchResults(true)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-800 transition-all dark:text-white dark:placeholder-slate-400"
             />
             {searchQuery && (
               <button
@@ -166,7 +168,7 @@ export default function Header() {
             
             {/* Arama Sonuçları */}
             {showSearchResults && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-96 overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-xl shadow-lg dark:shadow-xl z-50 max-h-96 overflow-y-auto">
                 {searchLoading ? (
                   <div className="p-4 text-center text-slate-500">
                     <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
@@ -282,18 +284,18 @@ export default function Header() {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
-            <Bell className="w-6 h-6 text-slate-600" />
+            <Bell className="w-6 h-6 text-slate-600 dark:text-slate-300" />
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </motion.button>
 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
-            <Mail className="w-6 h-6 text-slate-600" />
+            <Mail className="w-6 h-6 text-slate-600 dark:text-slate-300" />
             <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
           </motion.button>
 
@@ -301,10 +303,10 @@ export default function Header() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowLogs(!showLogs)}
-            className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             title="API Logları"
           >
-            <List className="w-6 h-6 text-slate-600" />
+            <List className="w-6 h-6 text-slate-600 dark:text-slate-300" />
           </motion.button>
 
           {/* Sistem Durumu butonu */}
@@ -323,12 +325,27 @@ export default function Header() {
             <Shield className="w-4 h-4" /> Sistem Durumu
           </motion.button>
 
-          <div className="h-8 w-px bg-slate-200"></div>
+          {/* Dark Mode Toggle */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={toggleTheme}
+            className="p-2 rounded-lg transition-colors inline-flex items-center justify-center dark:bg-slate-700 bg-slate-100 hover:bg-slate-200 dark:hover:bg-slate-600"
+            title={theme === 'light' ? 'Karanlık Mod' : 'Aydınlık Mod'}
+          >
+            {theme === 'light' ? (
+              <Moon className="w-5 h-5 text-slate-700" />
+            ) : (
+              <Sun className="w-5 h-5 text-yellow-300" />
+            )}
+          </motion.button>
+
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
 
           <div className="flex items-center space-x-3">
             <div className="text-right">
-              <p className="text-sm font-semibold text-slate-700">Admin User</p>
-              <p className="text-xs text-slate-500">Yönetici</p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Admin User</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Yönetici</p>
             </div>
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold cursor-pointer hover:shadow-lg transition-shadow">
               AY
@@ -337,7 +354,7 @@ export default function Header() {
         </div>
       </div>
       {showLogs && (
-        <div className="mt-4 bg-white rounded-xl border border-slate-200 p-4 max-h-96 overflow-auto">
+        <div className="mt-4 bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-dark-border p-4 max-h-96 overflow-auto">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <h4 className="text-sm font-semibold text-slate-700">API Logları</h4>

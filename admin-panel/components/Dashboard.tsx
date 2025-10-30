@@ -4,6 +4,7 @@ import { TrendingUp, Package, ShoppingCart, Users, ArrowUp, ArrowDown, DollarSig
 import { Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart } from 'recharts'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState } from 'react'
+import { useTheme } from '@/lib/ThemeContext'
 import dynamic from 'next/dynamic'
 import { analyticsService, productService } from '@/lib/services'
 import { api } from '@/lib/api'
@@ -49,6 +50,7 @@ const snortThreatData: Array<{ hour: string; threats: number }> = []
 const recentThreats: Array<{ type: string; severity: 'high' | 'medium' | 'low'; ip: string; time: string; status: 'blocked' | 'alert' }> = []
 
 export default function Dashboard() {
+  const { theme } = useTheme()
   const [timeRange, setTimeRange] = useState('1day')
   const [activeChart, setActiveChart] = useState('sales')
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
@@ -528,13 +530,13 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden card-hover cursor-pointer"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden card-hover cursor-pointer"
             >
               <div className={`bg-gradient-to-br ${stat.bgGradient} p-6`}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-slate-600 text-sm font-medium mb-2">{stat.title}</p>
-                    <p className="text-3xl font-bold text-slate-800 mb-2">{stat.value}</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-sm font-medium mb-2">{stat.title}</p>
+                    <p className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">{stat.value}</p>
                     <div className="flex items-center space-x-1 mb-2">
                       {stat.trend === 'up' ? (
                         <ArrowUp className="w-4 h-4 text-green-600" />
@@ -544,9 +546,9 @@ export default function Dashboard() {
                       <span className={`text-sm font-semibold ${stat.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
                         {stat.change}
                       </span>
-                      <span className="text-xs text-slate-500">bu ay</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">bu ay</span>
                     </div>
-                    <p className="text-xs text-slate-500">{stat.detail}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{stat.detail}</p>
                   </div>
                   <div className={`bg-gradient-to-br ${stat.gradient} p-3 rounded-xl shadow-lg`}>
                     <Icon className="w-6 h-6 text-white" />
@@ -563,40 +565,40 @@ export default function Dashboard() {
         <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">B2B • Özel Toptan Üretim</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-sm p-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-slate-600 text-sm">Toplam Talep</p>
-              <p className="text-3xl font-bold text-slate-800">{customProdTotal}</p>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Talep</p>
+              <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{customProdTotal}</p>
             </div>
             <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
               <Package className="w-5 h-5 text-yellow-600" />
             </div>
           </div>
         </motion.div>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl shadow-sm p-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-slate-600 text-sm">Devam Eden</p>
-              <p className="text-3xl font-bold text-blue-600">{customProdInProgress}</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-sm">Devam Eden</p>
+                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{customProdInProgress}</p>
             </div>
-            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Activity className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+              <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
         </motion.div>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white rounded-2xl shadow-sm p-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-slate-600 text-sm">Tamamlanan</p>
-              <p className="text-3xl font-bold text-green-600">{customProdCompleted}</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-sm">Tamamlanan</p>
+                    <p className="text-3xl font-bold text-green-600 dark:text-green-400">{customProdCompleted}</p>
             </div>
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-green-600" />
             </div>
           </div>
         </motion.div>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white rounded-2xl shadow-sm p-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-slate-600 text-sm">Toplam Tutar</p>
@@ -617,16 +619,16 @@ export default function Dashboard() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-white rounded-2xl shadow-sm p-6 hover:shadow-lg transition-shadow"
+            className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium text-slate-600">{kpi.title}</h4>
-              <Target className="w-4 h-4 text-slate-400" />
+              <h4 className="text-sm font-medium text-slate-600 dark:text-slate-300">{kpi.title}</h4>
+              <Target className="w-4 h-4 text-slate-400 dark:text-slate-500" />
             </div>
             <div className="flex items-end justify-between mb-3">
               <div>
-                <p className="text-2xl font-bold text-slate-800">{kpi.value}</p>
-                <p className="text-xs text-slate-500">Hedef: {kpi.target}</p>
+                <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{kpi.value}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Hedef: {kpi.target}</p>
               </div>
               <div className="flex items-center space-x-1">
                 {kpi.trend === 'up' ? (
@@ -639,7 +641,7 @@ export default function Dashboard() {
                 </span>
               </div>
             </div>
-            <div className="relative h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div className="relative h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${kpi.progress}%` }}
@@ -654,27 +656,27 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6">
+        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Satış Trendi</h3>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Satış Trendi</h3>
             <div className="flex space-x-2">
               <button
                 onClick={() => setActiveChart('sales')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'sales' ? 'bg-blue-100 text-blue-600' : 'text-slate-600 hover:bg-slate-100'
+                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'sales' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
               >
                 Satış
               </button>
               <button
                 onClick={() => setActiveChart('orders')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'orders' ? 'bg-blue-100 text-blue-600' : 'text-slate-600 hover:bg-slate-100'
+                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'orders' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
               >
                 Sipariş
               </button>
               <button
                 onClick={() => setActiveChart('customers')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'customers' ? 'bg-blue-100 text-blue-600' : 'text-slate-600 hover:bg-slate-100'
+                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'customers' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
               >
                 Müşteri
@@ -698,12 +700,12 @@ export default function Dashboard() {
                   <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
+              <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#334155' : '#f0f0f0'} />
+              <XAxis dataKey="name" stroke={theme === 'dark' ? '#cbd5e1' : '#94a3b8'} />
+              <YAxis stroke={theme === 'dark' ? '#cbd5e1' : '#94a3b8'} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'white',
+                  backgroundColor: theme === 'dark' ? '#1e293b' : 'white',
                   border: 'none',
                   borderRadius: '12px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
@@ -725,7 +727,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Kategori Dağılımı</h3>
           <ResponsiveContainer width="100%" height={300}>
             {categoryData && categoryData.length > 0 ? (
@@ -764,7 +766,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-slate-800">Kategori Performansı</h3>
             <button
@@ -814,7 +816,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-slate-800 flex items-center">
               <AlertTriangle className="w-5 h-5 text-orange-600 mr-2" />
@@ -1084,7 +1086,7 @@ export default function Dashboard() {
 
       {/* Gelir Analizi ve Saatlik Aktivite */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-slate-800">Gelir Analizi</h3>
             <BarChart3 className="w-5 h-5 text-slate-400" />
@@ -1092,12 +1094,12 @@ export default function Dashboard() {
           <ResponsiveContainer width="100%" height={300}>
             {revenueData && revenueData.length > 0 ? (
             <ComposedChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#334155' : '#f0f0f0'} />
               <XAxis dataKey="month" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
+              <YAxis stroke={theme === 'dark' ? '#cbd5e1' : '#94a3b8'} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'white',
+                  backgroundColor: theme === 'dark' ? '#1e293b' : 'white',
                   border: 'none',
                   borderRadius: '12px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
@@ -1115,7 +1117,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-slate-800">Saatlik Aktivite</h3>
             <Activity className="w-5 h-5 text-slate-400" />
@@ -1133,12 +1135,12 @@ export default function Dashboard() {
                   <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#334155' : '#f0f0f0'} />
               <XAxis dataKey="hour" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
+              <YAxis stroke={theme === 'dark' ? '#cbd5e1' : '#94a3b8'} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'white',
+                  backgroundColor: theme === 'dark' ? '#1e293b' : 'white',
                   border: 'none',
                   borderRadius: '12px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
@@ -1157,7 +1159,7 @@ export default function Dashboard() {
 
       {/* Müşteri Davranışı ve Gerçek Zamanlı Aktivite */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-slate-800">Müşteri Davranışı</h3>
             <Users className="w-5 h-5 text-slate-400" />
@@ -1365,7 +1367,7 @@ export default function Dashboard() {
       
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">En Çok Satan Ürünler</h3>
           <div className="space-y-4">
             {topProducts.map((product, index) => (
@@ -1397,7 +1399,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Son Siparişler</h3>
           <div className="space-y-4">
             {recentOrders.map((order) => (

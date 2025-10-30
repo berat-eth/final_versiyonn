@@ -104,14 +104,14 @@ export default function Segments() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Müşteri Segmentleri</h2>
-          <p className="text-slate-500 mt-1">Müşterilerinizi segmentlere ayırın</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Müşteri Segmentleri</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Müşterilerinizi segmentlere ayırın</p>
         </div>
         <div className="flex items-center space-x-3">
           <button 
             onClick={loadSegments}
             disabled={loading}
-            className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+            className="flex items-center space-x-2 px-4 py-2 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Yenile</span>
@@ -128,14 +128,14 @@ export default function Segments() {
           <div className="col-span-full flex items-center justify-center py-12">
             <div className="flex items-center space-x-3">
               <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
-              <span className="text-slate-600">Segmentler yükleniyor...</span>
+              <span className="text-slate-600 dark:text-slate-400">Segmentler yükleniyor...</span>
             </div>
           </div>
         ) : segments.length === 0 ? (
           <div className="col-span-full text-center py-12">
-            <UsersRound className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-slate-600 mb-2">Henüz segment bulunmuyor</h3>
-            <p className="text-slate-500 mb-4">İlk segmentinizi oluşturmak için "Yeni Segment" butonuna tıklayın</p>
+            <UsersRound className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-400 mb-2">Henüz segment bulunmuyor</h3>
+            <p className="text-slate-500 dark:text-slate-500 mb-4">İlk segmentinizi oluşturmak için "Yeni Segment" butonuna tıklayın</p>
           </div>
         ) : (
           segments.map((segment, index) => (
@@ -144,30 +144,30 @@ export default function Segments() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-white rounded-2xl shadow-sm p-6 card-hover"
+            className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 card-hover"
           >
             <div className={`w-12 h-12 bg-gradient-to-br ${segment.color} rounded-xl flex items-center justify-center mb-4`}>
               <UsersRound className="w-6 h-6 text-white" />
             </div>
-            <h3 className="font-bold text-slate-800 mb-2">{segment.name}</h3>
-            <p className="text-sm text-slate-500 mb-4">{segment.criteria}</p>
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-2">{segment.name}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{segment.criteria}</p>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Müşteri Sayısı</span>
-                <span className="font-bold text-slate-800">{segment.count}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Müşteri Sayısı</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{segment.count}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Toplam Gelir</span>
-                <span className="font-bold text-green-600">₺{(segment.revenue / 1000).toFixed(0)}K</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Toplam Gelir</span>
+                <span className="font-bold text-green-600 dark:text-green-400">₺{(segment.revenue / 1000).toFixed(0)}K</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Ort. Harcama</span>
-                <span className="font-bold text-blue-600">₺{Math.round(segment.revenue / segment.count).toLocaleString()}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Ort. Harcama</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">₺{Math.round(segment.revenue / segment.count).toLocaleString()}</span>
               </div>
             </div>
             <button 
               onClick={() => setViewingSegment(segment)}
-              className="w-full mt-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium"
+              className="w-full mt-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium"
             >
               Detayları Gör
             </button>
@@ -191,15 +191,15 @@ export default function Segments() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-slate-800">Segment Detayları</h3>
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Segment Detayları</h3>
                 <button
                   onClick={() => setViewingSegment(null)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 dark:text-slate-400" />
                 </button>
               </div>
 
@@ -209,18 +209,18 @@ export default function Segments() {
                     <UsersRound className="w-8 h-8 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-2xl font-bold text-slate-800">{viewingSegment.name}</h4>
-                    <p className="text-slate-500">{viewingSegment.criteria}</p>
+                    <h4 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{viewingSegment.name}</h4>
+                    <p className="text-slate-500 dark:text-slate-400">{viewingSegment.criteria}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-                    <div className="flex items-center text-blue-600 mb-2">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center text-blue-600 dark:text-blue-400 mb-2">
                       <Users className="w-5 h-5 mr-2" />
                       <p className="text-sm font-medium">Müşteri Sayısı</p>
                     </div>
-                    <p className="text-3xl font-bold text-blue-700">{viewingSegment.count}</p>
+                    <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">{viewingSegment.count}</p>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
                     <div className="flex items-center text-green-600 mb-2">
@@ -308,9 +308,9 @@ export default function Segments() {
                 </div>
                 <button
                   onClick={() => setShowUsers(false)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 dark:text-slate-400" />
                 </button>
               </div>
 

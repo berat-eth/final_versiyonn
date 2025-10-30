@@ -416,20 +416,20 @@ export default function ProductionPlanning() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Üretim Planlama</h2>
-          <p className="text-slate-500 mt-1">Fabrika üretim planlarını görselleştirin ve yönetin</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Üretim Planlama</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Fabrika üretim planlarını görselleştirin ve yönetin</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
             <button
               onClick={() => setViewMode('kanban')}
-              className={`px-4 py-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}
+              className={`px-4 py-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'}`}
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`px-4 py-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}
+              className={`px-4 py-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'}`}
             >
               <List className="w-4 h-4" />
             </button>
@@ -449,7 +449,7 @@ export default function ProductionPlanning() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg"
+          className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 rounded-2xl p-6 text-white shadow-lg"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -464,7 +464,7 @@ export default function ProductionPlanning() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl p-6 text-white shadow-lg"
+          className="bg-gradient-to-br from-yellow-500 to-orange-500 dark:from-yellow-700 dark:to-orange-700 rounded-2xl p-6 text-white shadow-lg"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -479,7 +479,7 @@ export default function ProductionPlanning() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
+          className="bg-gradient-to-br from-green-500 to-emerald-600 dark:from-green-700 dark:to-emerald-800 rounded-2xl p-6 text-white shadow-lg"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -494,7 +494,7 @@ export default function ProductionPlanning() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg"
+          className="bg-gradient-to-br from-purple-500 to-pink-600 dark:from-purple-700 dark:to-pink-800 rounded-2xl p-6 text-white shadow-lg"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -507,17 +507,17 @@ export default function ProductionPlanning() {
       </div>
 
       {/* Filtreler ve Arama */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Ürün adı, kodu veya fabrika ara..."
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white dark:placeholder-slate-400"
               />
             </div>
           </div>
@@ -620,7 +620,7 @@ export default function ProductionPlanning() {
       </div>
 
       {/* Düşük Stoklu Ürünler */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-xl font-bold text-slate-800">Düşük Stoklu Ürünler</h3>
@@ -794,7 +794,7 @@ export default function ProductionPlanning() {
 
 
       {/* Üretim Planları Listesi */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
         <h3 className="text-xl font-bold text-slate-800 mb-4">Aktif Üretim Planları</h3>
         <div className="space-y-4">
           {plans.map((plan, index) => {

@@ -35,8 +35,8 @@ export default function Categories() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Kategoriler</h2>
-          <p className="text-slate-500 mt-1">Ürün kategorilerini yönetin</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Kategoriler</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Ürün kategorilerini yönetin</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
@@ -47,7 +47,7 @@ export default function Categories() {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
         <div className="flex items-center space-x-4 mb-6">
           <div className="flex-1 relative">
             <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
@@ -56,10 +56,10 @@ export default function Categories() {
               placeholder="Kategori ara..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 bg-white dark:bg-slate-800 dark:text-white dark:placeholder-slate-400"
             />
           </div>
-          <button className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center space-x-2">
+          <button className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center space-x-2 dark:text-white">
             <Filter className="w-4 h-4" />
             <span>Filtrele</span>
           </button>
@@ -79,20 +79,20 @@ export default function Categories() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="p-4 border border-slate-200 rounded-xl hover:shadow-md transition-shadow"
+                className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl hover:shadow-md transition-shadow bg-white dark:bg-dark-card"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <FolderTree className="w-5 h-5 text-blue-600" />
                     <div>
-                      <h3 className="font-semibold text-slate-800">{name}</h3>
+                      <h3 className="font-semibold text-slate-800 dark:text-slate-200">{name}</h3>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <button className="p-2 hover:bg-blue-50 rounded-lg transition-colors">
+                    <button className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors">
                       <Edit2 className="w-4 h-4 text-blue-600" />
                     </button>
-                    <button className="p-2 hover:bg-red-50 rounded-lg transition-colors">
+                    <button className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
                       <Trash2 className="w-4 h-4 text-red-600" />
                     </button>
                   </div>
@@ -106,17 +106,17 @@ export default function Categories() {
       {/* Yeni Kategori Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full" onClick={(e)=>e.stopPropagation()}>
-            <div className="p-6 border-b flex items-center justify-between">
-              <h3 className="text-2xl font-bold">Yeni Kategori</h3>
-              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-md w-full" onClick={(e)=>e.stopPropagation()}>
+            <div className="p-6 border-b dark:border-slate-700 flex items-center justify-between">
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Yeni Kategori</h3>
+              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
                 <X className="w-6 h-6" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Kategori Adı</label>
-                <input value={newCategoryName} onChange={(e)=>setNewCategoryName(e.target.value)} placeholder="Örn: Polar Bere" className="w-full px-4 py-3 border rounded-xl" />
+                <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Kategori Adı</label>
+                <input value={newCategoryName} onChange={(e)=>setNewCategoryName(e.target.value)} placeholder="Örn: Polar Bere" className="w-full px-4 py-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white dark:placeholder-slate-400" />
               </div>
               <div className="flex space-x-3 pt-2">
                 <button
@@ -138,7 +138,7 @@ export default function Categories() {
                   }}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
                 >Kaydet</button>
-                <button onClick={()=>setShowAddModal(false)} className="px-6 py-3 border rounded-xl">İptal</button>
+                <button onClick={()=>setShowAddModal(false)} className="px-6 py-3 border dark:border-slate-700 rounded-xl dark:text-slate-300">İptal</button>
               </div>
             </div>
           </div>

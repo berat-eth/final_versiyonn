@@ -217,8 +217,8 @@ export default function Cart() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Tüm Kullanıcı Sepetleri</h2>
-          <p className="text-slate-500 mt-1">Aktif sepetleri görüntüleyin ve yönetin</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Tüm Kullanıcı Sepetleri</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Aktif sepetleri görüntüleyin ve yönetin</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -244,31 +244,31 @@ export default function Cart() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Aktif Sepet</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{activeUsers}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Aktif Sepet</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{activeUsers}</p>
             </div>
             <ShoppingCart className="w-8 h-8 text-blue-600" />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Toplam Ürün</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{totalItems}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Toplam Ürün</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{totalItems}</p>
             </div>
             <Package className="w-8 h-8 text-green-600" />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Toplam Değer</p>
-              <p className="text-2xl font-bold text-purple-600 mt-1">
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Toplam Değer</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
                 ₺{totalValue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
               </p>
             </div>
@@ -276,11 +276,11 @@ export default function Cart() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Ort. Sepet Değeri</p>
-              <p className="text-2xl font-bold text-orange-600 mt-1">
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Ort. Sepet Değeri</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
                 ₺{activeUsers > 0 ? (totalValue / activeUsers).toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0.00'}
               </p>
             </div>
@@ -289,7 +289,7 @@ export default function Cart() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex-1 max-w-md">
             <div className="relative">
@@ -299,7 +299,7 @@ export default function Cart() {
                 placeholder="Kullanıcı ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-800 transition-all dark:text-white dark:placeholder-slate-400"
               />
             </div>
           </div>
@@ -307,9 +307,9 @@ export default function Cart() {
 
         {filteredCarts.length === 0 ? (
           <div className="text-center py-12">
-            <ShoppingCart className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-800 mb-2">Aktif Sepet Bulunamadı</h3>
-            <p className="text-slate-500">Henüz hiçbir kullanıcının sepetinde ürün yok</p>
+            <ShoppingCart className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">Aktif Sepet Bulunamadı</h3>
+            <p className="text-slate-500 dark:text-slate-400">Henüz hiçbir kullanıcının sepetinde ürün yok</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
@@ -319,7 +319,7 @@ export default function Cart() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl p-5 hover:shadow-lg transition-all"
+                className="bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-5 hover:shadow-lg transition-all"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
@@ -329,13 +329,13 @@ export default function Cart() {
                       </span>
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-800">{cart.userName}</h3>
-                      <p className="text-xs text-slate-500">ID: #{cart.userId}</p>
+                      <h3 className="font-bold text-slate-800 dark:text-slate-200">{cart.userName}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">ID: #{cart.userId}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setViewingCart(cart)}
-                    className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                   >
                     <Eye className="w-5 h-5 text-blue-600" />
                   </button>
@@ -354,11 +354,11 @@ export default function Cart() {
                   )}
                 </div>
 
-                <div className="bg-white rounded-lg p-3 mb-4">
+                <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-500">Ürün Sayısı</span>
-                      <span className="font-bold text-slate-800">{cart.items.length}</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">Ürün Sayısı</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{cart.items.length}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500">Toplam</span>

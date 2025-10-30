@@ -134,8 +134,8 @@ export default function Customers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Müşteri Yönetimi</h2>
-          <p className="text-slate-500 mt-1">Tüm müşteri bilgilerini yönetin</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Müşteri Yönetimi</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Tüm müşteri bilgilerini yönetin</p>
         </div>
         <button
           onClick={fetchCustomers}
@@ -147,13 +147,13 @@ export default function Customers() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm p-2 flex gap-2 overflow-x-auto">
+      <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-2 flex gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('list')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             activeTab === 'list'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           Müşteri Listesi
@@ -163,7 +163,7 @@ export default function Customers() {
           className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             activeTab === 'levels'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           Kullanıcı Seviyeleri
@@ -173,7 +173,7 @@ export default function Customers() {
           className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             activeTab === 'profiles'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           Profiller
@@ -183,7 +183,7 @@ export default function Customers() {
           className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             activeTab === 'addresses'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           Adresler
@@ -193,7 +193,7 @@ export default function Customers() {
           className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             activeTab === 'events'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           Etkinlikler
@@ -203,7 +203,7 @@ export default function Customers() {
           className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
             activeTab === 'analytics'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           Analitik
@@ -215,11 +215,11 @@ export default function Customers() {
         <>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Toplam Müşteri</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{customers.length}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Toplam Müşteri</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{customers.length}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-6 h-6 text-blue-600" />
@@ -227,19 +227,19 @@ export default function Customers() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Aktif Müşteri</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{customers.length}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Aktif Müşteri</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{customers.length}</p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm">Yeni Müşteri (Bu Ay)</p>
@@ -258,7 +258,7 @@ export default function Customers() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm">Kayıtlı Email</p>
@@ -656,19 +656,19 @@ export default function Customers() {
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-slate-500 text-sm">Toplam Müşteri</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{customers.length}</p>
+            <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Toplam Müşteri</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{customers.length}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
               <p className="text-slate-500 text-sm">Email Kayıtlı</p>
               <p className="text-2xl font-bold text-blue-600 mt-1">{customers.filter(c => !!c.email).length}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
               <p className="text-slate-500 text-sm">Telefon Kayıtlı</p>
               <p className="text-2xl font-bold text-green-600 mt-1">{customers.filter(c => !!c.phone).length}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4">
               <p className="text-slate-500 text-sm">Adres Kayıtlı</p>
               <p className="text-2xl font-bold text-orange-600 mt-1">{customers.filter(c => !!c.address).length}</p>
             </div>
