@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, Database, Table, Search, Play, Download, Eye, Settings, BarChart3, Activity } from 'lucide-react'
+import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, Database, Table, Search, Play, Download, Eye, Settings, BarChart3, Activity, Brain, TestTube2 } from 'lucide-react'
 import { OllamaService, OllamaConfig, OllamaMessage } from '@/lib/services/ollama-service'
 import { analyticsService, productService, orderService } from '@/lib/services'
 import { api } from '@/lib/api'
+import { aiProvidersService } from '@/lib/services/ai-providers'
 
 interface Message {
     id: string
@@ -72,6 +73,9 @@ export default function ProjectAjax() {
     const [input, setInput] = useState('')
     const [isTyping, setIsTyping] = useState(false)
     const [selectedModel, setSelectedModel] = useState('ollama-gemma3:1b')
+    const [aiProvider, setAiProvider] = useState<'openai'|'anthropic'|'google'|'ollama'>('ollama')
+    const [aiApiKey, setAiApiKey] = useState('')
+    const [aiModel, setAiModel] = useState('gpt-4o-mini')
     const [streamingContent, setStreamingContent] = useState('')
     const [isStreaming, setIsStreaming] = useState(false)
 
@@ -139,6 +143,14 @@ export default function ProjectAjax() {
         loadOllamaConfig()
         checkOllamaStatus()
         loadSessions()
+        // Ayarlar'daki AI config'i yükle
+        ;(async ()=>{
+            try {
+                const cfg = await aiProvidersService.getConfig()
+                setAiProvider((cfg.provider as any) || 'ollama')
+                setAiModel(cfg.model || 'gpt-4o-mini')
+            } catch {}
+        })()
     }, [])
 
     // Session değiştiğinde mesajları yükle
@@ -331,41 +343,40 @@ export default function ProjectAjax() {
                 const modelName = selectedModel.replace('ollama-', '')
                 await sendToOllama(currentInput, modelName)
             } else {
-                // Diğer modeller için simüle edilmiş yanıt
-                setTimeout(async () => {
-                    const content = await generateAIResponse(currentInput)
-                    
-                    // Streaming animasyonu başlat
-                    setIsStreaming(true)
+                // Sağlayıcı üzerinden generate
+                const payload = {
+                    provider: aiProvider,
+                    apiKey: aiApiKey,
+                    model: aiModel,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        ...messages.slice(-2).map(m => ({ role: m.role, content: m.content })),
+                        { role: 'user', content: currentInput }
+                    ]
+                }
+                const resp = await fetch('https://api.plaxsy.com/api/ai/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                const data = await resp.json()
+                const content = data?.data?.text || (await generateAIResponse(currentInput))
+
+                // Streaming animasyonu başlat
+                setIsStreaming(true)
+                setStreamingContent('')
+                const tempMessageId = (Date.now() + 1).toString()
+                const tempMessage: Message = { id: tempMessageId, role: 'assistant', content: '', timestamp: new Date() }
+                setMessages(prev => [...prev, tempMessage])
+                setIsTyping(false)
+                simulateTyping(content, (partialContent) => {
+                    setStreamingContent(partialContent)
+                    setMessages(prev => prev.map(msg => msg.id === tempMessageId ? { ...msg, content: partialContent } : msg))
+                })
+                setTimeout(() => {
+                    setIsStreaming(false)
                     setStreamingContent('')
-                    
-                    // Geçici mesaj ekle
-                    const tempMessageId = (Date.now() + 1).toString()
-                    const tempMessage: Message = {
-                        id: tempMessageId,
-                        role: 'assistant',
-                        content: '',
-                        timestamp: new Date()
-                    }
-                    setMessages(prev => [...prev, tempMessage])
-                    setIsTyping(false)
-
-                    // Yazıyormuş gibi animasyon
-                    simulateTyping(content, (partialContent) => {
-                        setStreamingContent(partialContent)
-                        setMessages(prev => prev.map(msg => 
-                            msg.id === tempMessageId 
-                                ? { ...msg, content: partialContent }
-                                : msg
-                        ))
-                    })
-
-                    // Animasyon tamamlandığında streaming'i durdur
-                    setTimeout(() => {
-                        setIsStreaming(false)
-                        setStreamingContent('')
-                    }, content.length * 30 + 500)
-                }, 1500)
+                }, content.length * 30 + 500)
             }
         } catch (error) {
             console.error('❌ Mesaj gönderilemedi:', error)
@@ -963,6 +974,34 @@ export default function ProjectAjax() {
                             <BarChart3 className="w-4 h-4" />
                             <span className="text-sm font-medium">API Analizi</span>
                         </button>
+                        <div className="hidden lg:flex items-center space-x-2 bg-slate-700/60 rounded-lg px-2 py-1">
+                            <Brain className="w-3.5 h-3.5 text-white/80" />
+                            <select value={aiProvider} onChange={(e)=> setAiProvider(e.target.value as any)} className="bg-transparent text-white text-xs outline-none">
+                                <option value="ollama">Ollama</option>
+                                <option value="openai">ChatGPT</option>
+                                <option value="anthropic">Claude</option>
+                                <option value="google">Gemini</option>
+                            </select>
+                            {aiProvider !== 'ollama' && (
+                                <>
+                                    <input type="password" placeholder="API Key" value={aiApiKey} onChange={(e)=> setAiApiKey(e.target.value)} className="bg-transparent text-white text-xs outline-none placeholder:text-white/50" />
+                                    <input type="text" placeholder="Model" value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="bg-transparent text-white text-xs outline-none placeholder:text-white/50" />
+                                    <button
+                                        onClick={async ()=>{
+                                            try {
+                                                const r = await fetch('https://api.plaxsy.com/api/ai/providers/test', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey, model: aiModel }) })
+                                                const j = await r.json();
+                                                alert(j.success ? '✅ Sağlayıcı bağlantısı başarılı' : `❌ ${j.message || 'Test başarısız'}`)
+                                            } catch { alert('❌ Test başarısız') }
+                                        }}
+                                        className="text-white/90 text-xs px-2 py-1 bg-slate-600 rounded flex items-center space-x-1"
+                                    >
+                                        <TestTube2 className="w-3 h-3" />
+                                        <span>Test</span>
+                                    </button>
+                                </>
+                            )}
+                        </div>
                         <button
                             onClick={() => setShowPromptModal(!showPromptModal)}
                             className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${

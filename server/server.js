@@ -10038,6 +10038,131 @@ async function startServer() {
     return statusMap[status] || status;
   }
 
+  // ==================== AI PROVIDERS ENDPOINTS ====================
+
+  const aiProviderConfig = {
+    enabled: false,
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    temperature: 0.7,
+    maxTokens: 2000,
+    // Bellekte tutulan anahtarlar (örn. süreç ömrü boyunca). Production için gizli kasada saklayın.
+    openaiKey: null,
+    anthropicKey: null,
+    googleKey: null
+  };
+
+  app.get('/api/ai/providers/config', (req, res) => {
+    res.json(aiProviderConfig);
+  });
+
+  app.post('/api/ai/providers/config', (req, res) => {
+    try {
+      const { enabled, provider, model, temperature, maxTokens, apiKey } = req.body || {};
+      aiProviderConfig.enabled = !!enabled;
+      if (provider) aiProviderConfig.provider = provider;
+      if (model) aiProviderConfig.model = model;
+      if (typeof temperature === 'number') aiProviderConfig.temperature = temperature;
+      if (typeof maxTokens === 'number') aiProviderConfig.maxTokens = maxTokens;
+      // Sağlayıcıya göre anahtarı sakla
+      if (apiKey && typeof apiKey === 'string') {
+        if ((provider || aiProviderConfig.provider) === 'openai') aiProviderConfig.openaiKey = apiKey;
+        if ((provider || aiProviderConfig.provider) === 'anthropic') aiProviderConfig.anthropicKey = apiKey;
+        if ((provider || aiProviderConfig.provider) === 'google') aiProviderConfig.googleKey = apiKey;
+      }
+      res.json({ success: true });
+    } catch (e) {
+      res.status(400).json({ success: false, message: 'Config kaydedilemedi' });
+    }
+  });
+
+  app.get('/api/ai/providers/models', (req, res) => {
+    const provider = (req.query.provider || 'openai').toString();
+    let models = [];
+    if (provider === 'openai') models = ['gpt-4o-mini','gpt-4o','gpt-4.1'];
+    else if (provider === 'anthropic') models = ['claude-3-5-sonnet','claude-3-haiku'];
+    else if (provider === 'google') models = ['gemini-1.5-flash','gemini-1.5-pro'];
+    res.json({ models });
+  });
+
+  app.post('/api/ai/providers/test', async (req, res) => {
+    try {
+      const { provider, apiKey } = req.body || {};
+      if (!provider || !apiKey) return res.status(400).json({ success: false, message: 'provider ve apiKey zorunlu' });
+      if (provider === 'openai' && !apiKey.startsWith('sk-')) return res.json({ success: false, message: 'OpenAI anahtarı geçersiz görünüyor' });
+      if (provider === 'anthropic' && !apiKey.startsWith('sk-')) return res.json({ success: false, message: 'Anthropic anahtarı geçersiz görünüyor' });
+      if (provider === 'google' && apiKey.length < 20) return res.json({ success: false, message: 'Google API anahtarı kısa görünüyor' });
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, message: 'Test başarısız' });
+    }
+  });
+
+  app.get('/api/ai/insights', (req, res) => {
+    const insights = [
+      { id: '1', type: 'opportunity', title: 'Yüksek Potansiyelli Müşteri Segmenti', description: '25-35 yaş arası segment fırsatı', impact: 'high', confidence: 87, category: 'customers', actionable: true, estimatedValue: 45000, timeframe: '30 gün', priority: 1, createdAt: new Date().toISOString(), tags: ['segmentasyon'] },
+    ];
+    const predictions = [
+      { metric: 'Aylık Satış', currentValue: 125000, predictedValue: 142000, confidence: 82, timeframe: '30 gün', trend: 'up', factors: ['Sezonluk artış'] },
+    ];
+    const recommendations = [
+      { id: '1', title: 'Akıllı Fiyatlandırma Sistemi', description: 'Dinamik fiyatlandırma ile artış', category: 'Sales', priority: 'high', effort: 'medium', impact: 'high', roi: 340, timeframe: '45 gün', status: 'pending' },
+    ];
+    res.json({ insights, predictions, recommendations });
+  });
+
+  app.post('/api/ai/generate', async (req, res) => {
+    try {
+      const { provider, apiKey, model, messages, temperature = 0.7, maxTokens = 2000 } = req.body || {};
+      if (!provider || !model || !Array.isArray(messages)) {
+        return res.status(400).json({ success: false, message: 'provider, model ve messages zorunlu' });
+      }
+      // Anahtar yoksa config’ten kullan
+      let effectiveKey = apiKey;
+      if (!effectiveKey) {
+        if (provider === 'openai') effectiveKey = aiProviderConfig.openaiKey;
+        if (provider === 'anthropic') effectiveKey = aiProviderConfig.anthropicKey;
+        if (provider === 'google') effectiveKey = aiProviderConfig.googleKey;
+      }
+      if (!effectiveKey) {
+        return res.status(400).json({ success: false, message: 'API anahtarı bulunamadı. Ayarlar’dan ekleyin.' });
+      }
+      let resultText = '';
+      if (provider === 'openai') {
+        const r = await axios.post('https://api.openai.com/v1/chat/completions', {
+          model,
+          messages,
+          temperature,
+          max_tokens: maxTokens
+        }, {
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${effectiveKey}` }, timeout: 60000
+        });
+        resultText = r.data?.choices?.[0]?.message?.content || '';
+      } else if (provider === 'anthropic') {
+        const r = await axios.post('https://api.anthropic.com/v1/messages', {
+          model,
+          messages,
+          max_tokens: maxTokens,
+          temperature
+        }, {
+          headers: { 'Content-Type': 'application/json', 'x-api-key': effectiveKey, 'anthropic-version': '2023-06-01' }, timeout: 60000
+        });
+        resultText = r.data?.content?.[0]?.text || '';
+      } else if (provider === 'google') {
+        const r = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(effectiveKey)}`, {
+          contents: [ { role: 'user', parts: [ { text: messages.map((m)=>`${m.role.toUpperCase()}: ${m.content}`).join('\n\n') } ] } ],
+          generationConfig: { temperature, maxOutputTokens: maxTokens }
+        }, { headers: { 'Content-Type': 'application/json' }, timeout: 60000 });
+        resultText = r.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        return res.status(400).json({ success: false, message: 'Desteklenmeyen sağlayıcı' });
+      }
+      return res.json({ success: true, data: { text: resultText } });
+    } catch (e) {
+      return res.status(500).json({ success: false, message: 'İçerik üretilemedi' });
+    }
+  });
+
   // ==================== WALLET RECHARGE API ENDPOINTS ====================
 
   // Cüzdan bakiyesi sorgulama

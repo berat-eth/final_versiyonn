@@ -1028,7 +1028,7 @@ export default function Settings() {
                                                     setAiLoading(true)
                                                     setAiTestMessage(null)
                                                     try {
-                                                        await aiProvidersService.saveConfig({ ...aiConfig })
+                                                        await aiProvidersService.saveConfig({ ...aiConfig, apiKey: aiApiKey || undefined })
                                                         setAiTestMessage('Ayarlar kaydedildi')
                                                     } catch (e:any) {
                                                         setAiTestMessage(e?.message || 'Kayıt başarısız')
