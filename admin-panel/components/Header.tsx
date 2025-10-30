@@ -41,9 +41,9 @@ export default function Header() {
       ])
 
       const results = {
-        products: productsRes.status === 'fulfilled' && productsRes.value?.success ? productsRes.value.data || [] : [],
-        users: usersRes.status === 'fulfilled' && usersRes.value?.success ? usersRes.value.data || [] : [],
-        orders: ordersRes.status === 'fulfilled' && ordersRes.value?.success ? ordersRes.value.data || [] : []
+        products: productsRes.status === 'fulfilled' && (productsRes.value as any)?.success ? (productsRes.value as any).data || [] : [],
+        users: usersRes.status === 'fulfilled' && (usersRes.value as any)?.success ? (usersRes.value as any).data || [] : [],
+        orders: ordersRes.status === 'fulfilled' && (ordersRes.value as any)?.success ? (ordersRes.value as any).data || [] : []
       }
 
       setSearchResults(results)
