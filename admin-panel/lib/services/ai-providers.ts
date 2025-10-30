@@ -28,15 +28,13 @@ export const aiProvidersService = {
   },
 
   async saveConfig(payload: SaveProviderPayload): Promise<{ success: boolean }> {
-    return await api.post<{ success: boolean }>('/ai/providers/config', {
-      body: JSON.stringify(payload)
-    } as any)
+    return await api.post<{ success: boolean }>('/ai/providers/config', payload)
   },
 
   async testProvider(payload: TestProviderPayload): Promise<{ success: boolean; message?: string }>{
     return await api.post<{ success: boolean; message?: string }>(
       '/ai/providers/test',
-      { body: JSON.stringify(payload) } as any
+      payload
     )
   },
 
