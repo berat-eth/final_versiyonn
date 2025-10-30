@@ -14,7 +14,8 @@ import {
   Eye,
   Clock,
   DollarSign,
-  Activity
+  Activity,
+  CheckCircle
 } from 'lucide-react'
 
 interface AIAlert {
