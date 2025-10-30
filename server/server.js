@@ -10149,17 +10149,44 @@ async function startServer() {
         });
         resultText = r.data?.content?.[0]?.text || '';
       } else if (provider === 'google') {
-        const r = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(effectiveKey)}`, {
-          contents: [ { role: 'user', parts: [ { text: messages.map((m)=>`${m.role.toUpperCase()}: ${m.content}`).join('\n\n') } ] } ],
-          generationConfig: { temperature, maxOutputTokens: maxTokens }
-        }, { headers: { 'Content-Type': 'application/json' }, timeout: 60000 });
+        // Google Gemini - Google AI Platform (Generative Language) v1beta
+        // Önerilen: API key'ı query yerine header'da gönder
+        // Mesajları tek bir metin içine birleştir
+        const joined = (messages || [])
+          .map((m) => `${(m.role || 'user')}: ${m.content}`)
+          .join('\n\n');
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+        const body = {
+          contents: [
+            {
+              role: 'user',
+              parts: [ { text: joined } ]
+            }
+          ],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: maxTokens
+          }
+        };
+
+        const r = await axios.post(url, body, {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': effectiveKey
+          },
+          timeout: 60000
+        });
         resultText = r.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
       } else {
         return res.status(400).json({ success: false, message: 'Desteklenmeyen sağlayıcı' });
       }
       return res.json({ success: true, data: { text: resultText } });
     } catch (e) {
-      return res.status(500).json({ success: false, message: 'İçerik üretilemedi' });
+      const status = e?.response?.status || 500;
+      const providerMsg = e?.response?.data?.error?.message || e?.response?.data?.message || e?.message || 'İçerik üretilemedi';
+      console.error('❌ AI generate error:', providerMsg);
+      return res.status(status).json({ success: false, message: providerMsg });
     }
   });
 
