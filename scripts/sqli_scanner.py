@@ -174,7 +174,7 @@ def build_test_patterns(method: str, path: str):
 
 def run_scan():
     # Buradan API base URL'ini ayarlayın
-    BASE_URL = os.environ.get('API_BASE_URL', 'https://api.zerodaysoftware.tr')
+    BASE_URL = os.environ.get('API_BASE_URL', 'https://api.plaxsy.com')
     TIMEOUT = float(os.environ.get('SQLI_TIMEOUT', '8.0'))
     SERVER_JS = os.environ.get('SERVER_JS_PATH', r'C:\Users\Lenovo\Desktop\vio\Yeni klasör\final_versiyon\server\server.js')
 

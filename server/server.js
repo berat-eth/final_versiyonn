@@ -3888,7 +3888,7 @@ app.get('/api/admin/panel-config', authenticateAdmin, async (req, res) => {
       cfg = JSON.parse(raw);
     } catch (_) {
       cfg = {
-        API_BASE_URL: 'https://api.zerodaysoftware.tr/api',
+        API_BASE_URL: 'https://api.plaxsy.com/api',
         ADMIN_TOKEN: '',
         TENANT_API_KEY: '',
         FTP_BACKUP: { enabled: false, host: '', port: 21, user: '', password: '', remoteDir: '/backups' }

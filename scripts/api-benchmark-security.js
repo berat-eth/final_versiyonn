@@ -6,7 +6,7 @@
   - Sonuç: p50/p95 ve özet tablo
 
   Kullanım:
-    node scripts/api-benchmark-security.js --base https://api.zerodaysoftware.tr/api \
+    node scripts/api-benchmark-security.js --base https://api.plaxsy.com/api \
       --apiKey <KEY> --tenantId 1 --runs 3 --timeout 20000
 
   Not: Uygulamaya dahil değildir. Geçici test için yazılmıştır.
@@ -27,7 +27,7 @@ function getArg(name, def) {
   return args[idx + 1] && !args[idx + 1].startsWith('--') ? args[idx + 1] : true;
 }
 
-const BASE = (getArg('base', 'https://api.zerodaysoftware.tr/api') || '').replace(/\/$/, '');
+const BASE = (getArg('base', 'https://api.plaxsy.com/api') || '').replace(/\/$/, '');
 const API_KEY = getArg('apiKey', '') || '';
 const TENANT_ID = getArg('tenantId', '1');
 const RUNS = parseInt(getArg('runs', '3'), 10) || 3;

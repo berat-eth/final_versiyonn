@@ -37,6 +37,7 @@ import {
 } from 'lucide-react'
 import { Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts'
 import { api } from '@/lib/api'
+import { aiProvidersService } from '@/lib/services/ai-providers'
 
 interface AIInsight {
   id: string
@@ -91,16 +92,19 @@ export default function AIInsights() {
     timeframe: 'all'
   })
 
-  // Mock data - gerçek uygulamada API'den gelecek
+  // API verisi (başarısız olursa mock fallback)
   useEffect(() => {
     const loadAIData = async () => {
       setLoading(true)
-      
-      // Simulated API delay
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      // Mock insights
-      setInsights([
+      try {
+        const res = await aiProvidersService.fetchInsights()
+        const data = (res as any) || {}
+        if (Array.isArray(data.insights)) setInsights(data.insights)
+        if (Array.isArray(data.predictions)) setPredictions(data.predictions)
+        if (Array.isArray(data.recommendations)) setRecommendations(data.recommendations)
+      } catch {
+        // Mock fallback
+        setInsights([
         {
           id: '1',
           type: 'opportunity',
@@ -161,8 +165,6 @@ export default function AIInsights() {
           tags: ['fiyat', 'optimizasyon', 'kamp']
         }
       ])
-
-      // Mock predictions
       setPredictions([
         {
           metric: 'Aylık Satış',
@@ -192,8 +194,6 @@ export default function AIInsights() {
           factors: ['Sezon sonu', 'Yeni ürün girişi', 'Tedarik gecikmeleri']
         }
       ])
-
-      // Mock recommendations
       setRecommendations([
         {
           id: '1',
@@ -232,8 +232,9 @@ export default function AIInsights() {
           status: 'pending'
         }
       ])
-
-      setLoading(false)
+      } finally {
+        setLoading(false)
+      }
     }
 
     loadAIData()

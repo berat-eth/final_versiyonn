@@ -1,6 +1,6 @@
 SQLi Tarama Raporu
 Tarih: 2025-10-17T12:27:18.360036Z
-Base URL: https://api.zerodaysoftware.tr
+Base URL: https://api.plaxsy.com
 Endpoint sayısı: 266
 Toplam test: 7448 | Issue: 0
 
