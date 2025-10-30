@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { formatDDMMYYYY } from '@/lib/date'
 import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield, UploadCloud, Activity, ToggleLeft, ToggleRight, CheckSquare, Square } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { productService } from '@/lib/services'
@@ -487,7 +488,7 @@ export default function Products() {
             </div>
             <div>
             <p className="text-slate-700 dark:text-slate-200 font-semibold">XML Senkron Durumu</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">{syncStatus?.running ? 'Çalışıyor' : 'Beklemede'}{syncStatus?.last ? ` • Son: ${new Date(syncStatus.last).toLocaleString('tr-TR')}` : ''}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{syncStatus?.running ? 'Çalışıyor' : 'Beklemede'}{syncStatus?.last ? ` • Son: ${formatDDMMYYYY(syncStatus.last)} ${new Date(syncStatus.last).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}` : ''}</p>
             </div>
           </div>
           <div className="text-sm text-slate-500 dark:text-slate-400">Kaynak: Ticimax XML</div>

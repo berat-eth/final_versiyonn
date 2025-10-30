@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { formatDDMMYYYY } from '@/lib/date'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, ShieldCheck, AlertTriangle, X } from 'lucide-react'
 import Dashboard from '@/components/Dashboard'
@@ -173,7 +174,7 @@ export default function DashboardPage() {
                           </div>
                           <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
                             <div className="text-slate-500 dark:text-slate-400">Saat</div>
-                            <div className="font-mono text-slate-800 dark:text-slate-200 text-xs">{health?.timestamp || new Date().toISOString()}</div>
+                            <div className="font-mono text-slate-800 dark:text-slate-200 text-xs">{health?.timestamp ? formatDDMMYYYY(health.timestamp) : formatDDMMYYYY(new Date())}</div>
                           </div>
                         </div>
                         {healthError && (

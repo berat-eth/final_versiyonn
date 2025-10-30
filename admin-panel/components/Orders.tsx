@@ -253,7 +253,7 @@ export default function Orders() {
                 const url = URL.createObjectURL(blob)
                 const a = document.createElement('a')
                 a.href = url
-                a.download = `siparisler-${new Date().toISOString().slice(0,10)}.csv`
+                a.download = `siparisler-${formatDDMMYYYY(new Date())}.csv`
                 document.body.appendChild(a)
                 a.click()
                 document.body.removeChild(a)
@@ -835,7 +835,7 @@ export default function Orders() {
                       const raw = (viewingOrder as any).createdAt || (viewingOrder as any).date
                       if (!raw) return '-'
                       const d = new Date(raw)
-                      return isNaN(d.getTime()) ? String(raw) : d.toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })
+                      return isNaN(d.getTime()) ? String(raw) : `${formatDDMMYYYY(d)} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`
                     })()}</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">

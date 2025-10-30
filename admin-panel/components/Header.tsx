@@ -3,6 +3,7 @@
 import { Search, Bell, Mail, User, List, Shield, X, Package, Users, ShoppingCart, Sun, Moon } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
+import { formatDDMMYYYY } from '@/lib/date'
 import { productService } from '@/lib/services/productService'
 import { userService } from '@/lib/services/userService'
 import { api } from '@/lib/api'
@@ -382,7 +383,7 @@ export default function Header() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`px-2 py-0.5 rounded border ${methodColor(log.method)}`}>{(log.method||'GET').toUpperCase()}</span>
                       <span className={`px-2 py-0.5 rounded border ${statusColor(Number(log.status||0))}`}>{log.status}</span>
-                      <span className="text-slate-400">{new Date(log.time).toLocaleString('tr-TR')}</span>
+                      <span className="text-slate-400">{formatDDMMYYYY(log.time)} {new Date(log.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={()=>copy(urlText)} className="px-2 py-0.5 border border-slate-200 rounded hover:bg-slate-100">Kopyala</button>

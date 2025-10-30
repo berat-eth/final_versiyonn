@@ -5,6 +5,7 @@ import { Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useTheme } from '@/lib/ThemeContext'
+import { formatDDMMYYYY } from '@/lib/date'
 import dynamic from 'next/dynamic'
 import { analyticsService, productService } from '@/lib/services'
 import { api } from '@/lib/api'
@@ -224,7 +225,7 @@ export default function Dashboard() {
           const byDay = new Map<string, { satis: number; siparis: number }>()
           orders.forEach((o) => {
             const d = new Date(o.createdAt)
-            const key = d.toISOString().slice(0,10)
+            const key = formatDDMMYYYY(d)
             const prev = byDay.get(key) || { satis: 0, siparis: 0 }
             prev.satis += Number(o.totalAmount) || 0
             prev.siparis += 1
@@ -245,7 +246,11 @@ export default function Dashboard() {
 
           // Revenue by month (yıl bazlı basit özet)
           const byMonth = new Map<string, number>()
-          orders.forEach((o:any)=>{ const m = new Date(o.createdAt).toISOString().slice(0,7); byMonth.set(m, (byMonth.get(m)||0) + (Number(o.totalAmount)||0)) })
+          orders.forEach((o:any)=>{ 
+            const date = new Date(o.createdAt);
+            const m = `${date.getMonth()+1}-${date.getFullYear()}`; 
+            byMonth.set(m, (byMonth.get(m)||0) + (Number(o.totalAmount)||0)) 
+          })
           const months = Array.from(byMonth.entries()).sort((a,b)=>a[0]<b[0]? -1:1).slice(-6)
           setRevenueData(months.map(([month, gelir])=>({ month, gelir, gider: Math.round(gelir*0.6), kar: Math.round(gelir*0.4), hedef: Math.round(gelir*1.05) })))
         }
@@ -304,7 +309,7 @@ export default function Dashboard() {
   const downloadReport = () => {
     // CSV formatında rapor oluştur
     const reportData = {
-      tarih: new Date().toLocaleDateString('tr-TR'),
+      tarih: formatDDMMYYYY(new Date()),
       saat: new Date().toLocaleTimeString('tr-TR'),
       donem: timeRange === '1day' ? 'Son 1 Gün' :
         timeRange === '3days' ? 'Son 3 Gün' :
@@ -414,7 +419,7 @@ export default function Dashboard() {
       const url = URL.createObjectURL(blob)
 
       link.setAttribute('href', url)
-      link.setAttribute('download', `dashboard-raporu-${new Date().toISOString().split('T')[0]}.csv`)
+      link.setAttribute('download', `dashboard-raporu-${formatDDMMYYYY(new Date())}.csv`)
       link.style.visibility = 'hidden'
 
       document.body.appendChild(link)
@@ -473,20 +478,20 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Dashboard</h2>
-          <p className="text-slate-500 mt-1">Hoş geldiniz! İşte bugünün özeti</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Dashboard</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Hoş geldiniz! İşte bugünün özeti</p>
         </div>
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setShowFilterModal(true)}
-            className="px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center space-x-2"
+            className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center space-x-2 dark:text-slate-300"
           >
             <Filter className="w-4 h-4" />
             <span>Filtrele</span>
           </button>
           <button
             onClick={downloadReport}
-            className="px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center space-x-2"
+            className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center space-x-2 dark:text-slate-300"
           >
             <Download className="w-4 h-4" />
             <span>Rapor İndir</span>
@@ -494,7 +499,7 @@ export default function Dashboard() {
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value)}
-            className="px-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-300"
           >
             <option value="1day">Son 1 Gün</option>
             <option value="3days">Son 3 Gün</option>
@@ -532,7 +537,7 @@ export default function Dashboard() {
               transition={{ delay: index * 0.1 }}
               className="bg-white dark:bg-dark-card rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden card-hover cursor-pointer"
             >
-              <div className={`bg-gradient-to-br ${stat.bgGradient} p-6`}>
+              <div className={`bg-gradient-to-br ${stat.bgGradient} dark:from-slate-800 dark:to-slate-900 p-6`}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <p className="text-slate-600 dark:text-slate-300 text-sm font-medium mb-2">{stat.title}</p>
@@ -562,7 +567,7 @@ export default function Dashboard() {
 
       {/* Özel Toptan Üretim Özet Kartları (B2B) */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">B2B • Özel Toptan Üretim</h3>
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">B2B • Özel Toptan Üretim</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
@@ -571,8 +576,8 @@ export default function Dashboard() {
               <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Talep</p>
               <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{customProdTotal}</p>
             </div>
-            <div className="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
-              <Package className="w-5 h-5 text-yellow-600" />
+                    <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center">
+              <Package className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
             </div>
           </div>
         </motion.div>
@@ -593,19 +598,19 @@ export default function Dashboard() {
                     <p className="text-slate-600 dark:text-slate-300 text-sm">Tamamlanan</p>
                     <p className="text-3xl font-bold text-green-600 dark:text-green-400">{customProdCompleted}</p>
             </div>
-            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-600" />
+            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-slate-600 text-sm">Toplam Tutar</p>
-              <p className="text-3xl font-bold text-purple-600">₺{customProdAmount.toLocaleString('tr-TR')}</p>
+                    <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Tutar</p>
+                    <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">₺{customProdAmount.toLocaleString('tr-TR')}</p>
             </div>
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-purple-600" />
+            <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
         </motion.div>
@@ -768,10 +773,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Kategori Performansı</h3>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Kategori Performansı</h3>
             <button
               onClick={() => setShowCategoryDetails(true)}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
             >
               Tümünü Gör
             </button>
@@ -783,31 +788,31 @@ export default function Dashboard() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="p-4 bg-gradient-to-r from-slate-50 to-white border border-slate-200 rounded-xl hover:shadow-md transition-shadow"
+                className="p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-slate-800">{cat.name}</h4>
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium">
+                  <h4 className="font-bold text-slate-800 dark:text-slate-200">{cat.name}</h4>
+                  <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-medium">
                     {cat.siparisler} sipariş
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Satış</p>
-                    <p className="font-bold text-green-600">₺{(cat.satis / 1000).toFixed(0)}K</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Satış</p>
+                    <p className="font-bold text-green-600 dark:text-green-400">₺{(cat.satis / 1000).toFixed(0)}K</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Kar</p>
-                    <p className="font-bold text-blue-600">₺{(cat.kar / 1000).toFixed(0)}K</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Kar</p>
+                    <p className="font-bold text-blue-600 dark:text-blue-400">₺{(cat.kar / 1000).toFixed(0)}K</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Stok</p>
-                    <p className="font-bold text-purple-600">{cat.stok}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Stok</p>
+                    <p className="font-bold text-purple-600 dark:text-purple-400">{cat.stok}</p>
                   </div>
                 </div>
-                <div className="mt-3 bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div className="mt-3 bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                   <div
-                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-full rounded-full"
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 h-full rounded-full"
                     style={{ width: `${(cat.satis / 145000) * 100}%` }}
                   ></div>
                 </div>
@@ -818,11 +823,11 @@ export default function Dashboard() {
 
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800 flex items-center">
-              <AlertTriangle className="w-5 h-5 text-orange-600 mr-2" />
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center">
+              <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400 mr-2" />
               Stok Uyarıları
             </h3>
-            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium">
+            <span className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-xs font-medium">
               {stockAlerts.length} Uyarı
             </span>
           </div>
@@ -834,30 +839,30 @@ export default function Dashboard() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
                 className={`p-4 rounded-xl border-l-4 ${alert.status === 'critical'
-                  ? 'bg-red-50 border-red-500'
-                  : 'bg-orange-50 border-orange-500'
+                  ? 'bg-red-50 dark:bg-red-900/30 border-red-500 dark:border-red-700'
+                  : 'bg-orange-50 dark:bg-orange-900/30 border-orange-500 dark:border-orange-700'
                   }`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <p className="font-semibold text-slate-800">{alert.product}</p>
-                    <p className="text-xs text-slate-500">{alert.category}</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">{alert.product}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{alert.category}</p>
                   </div>
                   <span className={`px-2 py-1 rounded-lg text-xs font-medium ${alert.status === 'critical'
-                    ? 'bg-red-200 text-red-800'
-                    : 'bg-orange-200 text-orange-800'
+                    ? 'bg-red-200 dark:bg-red-900/50 text-red-800 dark:text-red-300'
+                    : 'bg-orange-200 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300'
                     }`}>
                     {alert.status === 'critical' ? 'Kritik' : 'Uyarı'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">Mevcut Stok:</span>
-                  <span className={`font-bold ${alert.status === 'critical' ? 'text-red-600' : 'text-orange-600'
+                  <span className="text-slate-600 dark:text-slate-300">Mevcut Stok:</span>
+                  <span className={`font-bold ${alert.status === 'critical' ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'
                     }`}>
                     {alert.stock} / {alert.minStock}
                   </span>
                 </div>
-                <div className="mt-2 bg-white rounded-full h-2 overflow-hidden">
+                <div className="mt-2 bg-white dark:bg-slate-800 rounded-full h-2 overflow-hidden">
                   <div
                     className={`h-full rounded-full ${alert.status === 'critical' ? 'bg-red-500' : 'bg-orange-500'
                       }`}
@@ -869,7 +874,7 @@ export default function Dashboard() {
           </div>
           <button
             onClick={() => setShowStockAlerts(true)}
-            className="w-full mt-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-shadow font-medium"
+            className="w-full mt-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-700 dark:to-purple-700 text-white rounded-lg hover:shadow-lg transition-shadow font-medium"
           >
             Tüm Stok Uyarılarını Gör
           </button>
@@ -1088,8 +1093,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Gelir Analizi</h3>
-            <BarChart3 className="w-5 h-5 text-slate-400" />
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Gelir Analizi</h3>
+            <BarChart3 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
           </div>
           <ResponsiveContainer width="100%" height={300}>
             {revenueData && revenueData.length > 0 ? (
@@ -1119,8 +1124,8 @@ export default function Dashboard() {
 
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Saatlik Aktivite</h3>
-            <Activity className="w-5 h-5 text-slate-400" />
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Saatlik Aktivite</h3>
+            <Activity className="w-5 h-5 text-slate-400 dark:text-slate-500" />
           </div>
           <ResponsiveContainer width="100%" height={300}>
             {hourlyActivity && hourlyActivity.length > 0 ? (
@@ -1161,15 +1166,15 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Müşteri Davranışı</h3>
-            <Users className="w-5 h-5 text-slate-400" />
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Müşteri Davranışı</h3>
+            <Users className="w-5 h-5 text-slate-400 dark:text-slate-500" />
           </div>
           <ResponsiveContainer width="100%" height={300}>
             {customerBehavior && customerBehavior.length > 0 ? (
             <RadarChart data={customerBehavior}>
-              <PolarGrid stroke="#e2e8f0" />
-              <PolarAngleAxis dataKey="metric" stroke="#64748b" />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} stroke="#64748b" />
+              <PolarGrid stroke={theme === 'dark' ? '#334155' : '#e2e8f0'} />
+              <PolarAngleAxis dataKey="metric" stroke={theme === 'dark' ? '#94a3b8' : '#64748b'} />
+              <PolarRadiusAxis angle={90} domain={[0, 100]} stroke={theme === 'dark' ? '#94a3b8' : '#64748b'} />
               <Radar name="Puan" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
               <Tooltip />
             </RadarChart>
@@ -1180,22 +1185,22 @@ export default function Dashboard() {
           <div className="mt-4 space-y-2">
             {customerBehavior.map((item) => (
               <div key={item.metric} className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">{item.metric}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-300">{item.metric}</span>
                 <div className="flex items-center space-x-2">
-                  <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
                       style={{ width: `${item.value}%` }}
                     />
                   </div>
-                  <span className="text-sm font-semibold text-slate-800 w-8">{item.value}</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 w-8">{item.value}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
+        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <div className="relative">
@@ -1205,54 +1210,54 @@ export default function Dashboard() {
                 </div>
               </div>
               <div>
-                <h3 className="text-xl font-bold text-slate-800">Gerçek Zamanlı Aktivite</h3>
-                <p className="text-xs text-slate-500">Canlı sistem olayları</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Gerçek Zamanlı Aktivite</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Canlı sistem olayları</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
-                <span className="text-xs font-medium text-green-700">CANLI</span>
+                <span className="text-xs font-medium text-green-700 dark:text-green-400">CANLI</span>
               </div>
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors">
-                <span className="text-xs font-medium text-slate-700">Tümü</span>
+              <button className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors">
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Tümü</span>
               </button>
             </div>
           </div>
 
           {/* Aktivite İstatistikleri */}
           <div className="grid grid-cols-4 gap-3 mb-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
-                <ShoppingCart className="w-4 h-4 text-blue-600" />
-                <span className="text-xs text-blue-600 font-medium">+12</span>
+                <ShoppingCart className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">+12</span>
               </div>
-              <p className="text-lg font-bold text-slate-800">52</p>
-              <p className="text-xs text-slate-600">Sipariş</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">52</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">Sipariş</p>
             </div>
-            <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+            <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
-                <Users className="w-4 h-4 text-green-600" />
-                <span className="text-xs text-green-600 font-medium">+8</span>
+                <Users className="w-4 h-4 text-green-600 dark:text-green-400" />
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium">+8</span>
               </div>
-              <p className="text-lg font-bold text-slate-800">145</p>
-              <p className="text-xs text-slate-600">Ziyaretçi</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">145</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">Ziyaretçi</p>
             </div>
-            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+            <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
-                <Star className="w-4 h-4 text-purple-600" />
-                <span className="text-xs text-purple-600 font-medium">+5</span>
+                <Star className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">+5</span>
               </div>
-              <p className="text-lg font-bold text-slate-800">23</p>
-              <p className="text-xs text-slate-600">Yorum</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">23</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">Yorum</p>
             </div>
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+            <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
-                <DollarSign className="w-4 h-4 text-orange-600" />
-                <span className="text-xs text-orange-600 font-medium">+₺45K</span>
+                <DollarSign className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">+₺45K</span>
               </div>
-              <p className="text-lg font-bold text-slate-800">₺215K</p>
-              <p className="text-xs text-slate-600">Gelir</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">₺215K</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">Gelir</p>
             </div>
           </div>
 
@@ -1368,28 +1373,28 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-6">En Çok Satan Ürünler</h3>
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">En Çok Satan Ürünler</h3>
           <div className="space-y-4">
             {topProducts.map((product, index) => (
-              <div key={product.name} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
+              <div key={product.name} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 <div className="flex items-center space-x-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold">
                     {index + 1}
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">{product.name}</p>
-                    <p className="text-sm text-slate-500">{product.sales} satış</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">{product.name}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{product.sales} satış</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-slate-800">₺{(product.revenue / 1000).toFixed(0)}K</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-100">₺{(product.revenue / 1000).toFixed(0)}K</p>
                   <div className="flex items-center justify-end space-x-1">
                     {product.trend > 0 ? (
-                      <ArrowUp className="w-3 h-3 text-green-600" />
+                      <ArrowUp className="w-3 h-3 text-green-600 dark:text-green-400" />
                     ) : (
-                      <ArrowDown className="w-3 h-3 text-red-600" />
+                      <ArrowDown className="w-3 h-3 text-red-600 dark:text-red-400" />
                     )}
-                    <span className={`text-xs font-semibold ${product.trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`text-xs font-semibold ${product.trend > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                       {Math.abs(product.trend)}%
                     </span>
                   </div>
@@ -1400,31 +1405,31 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-6">Son Siparişler</h3>
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">Son Siparişler</h3>
           <div className="space-y-4">
             {recentOrders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:border-blue-300 transition-colors">
+              <div key={order.id} className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-500 transition-colors">
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-slate-800">{order.id}</span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                      order.status === 'processing' ? 'bg-blue-100 text-blue-700' :
-                        'bg-yellow-100 text-yellow-700'
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{order.id}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${order.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                      order.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                        'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                       }`}>
                       {order.status === 'completed' ? 'Tamamlandı' :
                         order.status === 'processing' ? 'İşleniyor' : 'Beklemede'}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-600">{order.customer}</p>
-                  <p className="text-xs text-slate-500">{order.product}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">{order.customer}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{order.product}</p>
                 </div>
                 <div className="text-right ml-4">
-                  <p className="font-bold text-slate-800">₺{order.amount.toLocaleString()}</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-100">₺{order.amount.toLocaleString()}</p>
                   <button
                     onClick={() => setSelectedOrder(order)}
-                    className="text-blue-600 hover:text-blue-700 text-sm mt-1 flex items-center"
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm mt-1 flex items-center"
                   >
-                    <Eye className="w-4 h-4 mr-1" />
+                    <Eye className="w-4 h-4 mr-1 text-blue-600 dark:text-blue-400" />
                     Detay
                   </button>
                 </div>
@@ -1439,39 +1444,39 @@ export default function Dashboard() {
         <AIAlertWidget />
         
         {/* Sistem Durumu Kartı */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-slate-800">Sistem Durumu</h3>
-              <p className="text-sm text-green-600">Tüm sistemler çalışıyor</p>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Sistem Durumu</h3>
+              <p className="text-sm text-green-600 dark:text-green-400">Tüm sistemler çalışıyor</p>
             </div>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">API Durumu</span>
+              <span className="text-sm text-slate-600 dark:text-slate-300">API Durumu</span>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium text-green-600">Aktif</span>
+                <span className="text-sm font-medium text-green-600 dark:text-green-400">Aktif</span>
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">Veritabanı</span>
+              <span className="text-sm text-slate-600 dark:text-slate-300">Veritabanı</span>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium text-green-600">Bağlı</span>
+                <span className="text-sm font-medium text-green-600 dark:text-green-400">Bağlı</span>
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">Önbellek</span>
+              <span className="text-sm text-slate-600 dark:text-slate-300">Önbellek</span>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium text-green-600">Çalışıyor</span>
+                <span className="text-sm font-medium text-green-600 dark:text-green-400">Çalışıyor</span>
               </div>
             </div>
-            <div className="pt-3 border-t border-slate-100">
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-700">
               <button
                 onClick={() => {
                   try { sessionStorage.removeItem('healthChecked') } catch {}
@@ -1479,9 +1484,9 @@ export default function Dashboard() {
                     window.dispatchEvent(new CustomEvent('open-health-modal'))
                   }
                 }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors text-sm font-medium"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors text-sm font-medium text-slate-700 dark:text-slate-300"
               >
-                <Activity className="w-4 h-4" />
+                <Activity className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                 <span>Detaylı Durum</span>
               </button>
             </div>

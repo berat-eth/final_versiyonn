@@ -118,20 +118,20 @@ export default function AIAlertWidget() {
 
   const getAlertColor = (type: string) => {
     switch (type) {
-      case 'warning': return 'text-red-600 bg-red-100 border-red-200'
-      case 'opportunity': return 'text-green-600 bg-green-100 border-green-200'
-      case 'trend': return 'text-blue-600 bg-blue-100 border-blue-200'
-      case 'recommendation': return 'text-purple-600 bg-purple-100 border-purple-200'
-      default: return 'text-gray-600 bg-gray-100 border-gray-200'
+      case 'warning': return 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 border-red-200 dark:border-red-800'
+      case 'opportunity': return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-800'
+      case 'trend': return 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'
+      case 'recommendation': return 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800'
+      default: return 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
     }
   }
 
   const getImpactColor = (impact: string) => {
     switch (impact) {
-      case 'high': return 'text-red-600 bg-red-100'
-      case 'medium': return 'text-yellow-600 bg-yellow-100'
-      case 'low': return 'text-green-600 bg-green-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'high': return 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30'
+      case 'medium': return 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30'
+      case 'low': return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30'
+      default: return 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800'
     }
   }
 
@@ -144,19 +144,19 @@ export default function AIAlertWidget() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
             <Brain className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-800">AI İçgörüleri</h3>
-            <p className="text-sm text-slate-500">Analiz ediliyor...</p>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100">AI İçgörüleri</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Analiz ediliyor...</p>
           </div>
         </div>
         <div className="animate-pulse space-y-3">
-          <div className="h-4 bg-slate-200 rounded w-3/4"></div>
-          <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
         </div>
       </div>
     )
@@ -164,17 +164,17 @@ export default function AIAlertWidget() {
 
   if (visibleAlerts.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
             <CheckCircle className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-800">AI İçgörüleri</h3>
-            <p className="text-sm text-green-600">Tüm sistemler normal</p>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100">AI İçgörüleri</h3>
+            <p className="text-sm text-green-600 dark:text-green-400">Tüm sistemler normal</p>
           </div>
         </div>
-        <p className="text-slate-500 text-sm">Şu anda kritik bir içgörü bulunmuyor.</p>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">Şu anda kritik bir içgörü bulunmuyor.</p>
       </div>
     )
   }
@@ -187,8 +187,8 @@ export default function AIAlertWidget() {
             <Brain className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-800">AI İçgörüleri</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100">AI İçgörüleri</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               {visibleAlerts.length} kritik içgörü
               {visibleAlerts.filter(a => a.impact === 'high').length > 0 && 
                 ` • ${visibleAlerts.filter(a => a.impact === 'high').length} yüksek öncelik`
@@ -200,14 +200,14 @@ export default function AIAlertWidget() {
           {visibleAlerts.length > 2 && (
             <button
               onClick={() => setShowAll(!showAll)}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
             >
               {showAll ? 'Daha Az' : 'Tümünü Gör'}
             </button>
           )}
           <button
             onClick={() => typeof window !== 'undefined' && window.dispatchEvent(new CustomEvent('goto-tab', { detail: { tab: 'ai-insights' } }))}
-            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
           >
             <span>Detaylar</span>
             <ArrowRight className="w-3 h-3" />
@@ -233,28 +233,28 @@ export default function AIAlertWidget() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
-                      <h4 className="font-medium text-sm mb-1">{alert.title}</h4>
+                      <h4 className="font-medium text-sm mb-1 dark:text-slate-200">{alert.title}</h4>
                       <button
                         onClick={() => dismissAlert(alert.id)}
-                        className="flex-shrink-0 p-1 hover:bg-black/10 rounded"
+                        className="flex-shrink-0 p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded"
                       >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
-                    <p className="text-xs opacity-80 mb-2 line-clamp-2">{alert.description}</p>
+                    <p className="text-xs opacity-80 mb-2 line-clamp-2 dark:text-slate-300">{alert.description}</p>
                     <div className="flex items-center gap-3 text-xs">
                       <span className={`px-2 py-0.5 rounded-full ${getImpactColor(alert.impact)}`}>
                         {alert.impact === 'high' ? 'Yüksek' : alert.impact === 'medium' ? 'Orta' : 'Düşük'}
                       </span>
-                      <span className="opacity-70">{alert.confidence}% güven</span>
+                      <span className="opacity-70 dark:text-slate-300">{alert.confidence}% güven</span>
                       {alert.estimatedValue && (
-                        <span className="opacity-70 flex items-center gap-1">
+                        <span className="opacity-70 dark:text-slate-300 flex items-center gap-1">
                           <DollarSign className="w-3 h-3" />
                           ₺{alert.estimatedValue.toLocaleString()}
                         </span>
                       )}
                       {alert.timeframe && (
-                        <span className="opacity-70 flex items-center gap-1">
+                        <span className="opacity-70 dark:text-slate-300 flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {alert.timeframe}
                         </span>
@@ -269,8 +269,8 @@ export default function AIAlertWidget() {
       </div>
 
       {visibleAlerts.length > 2 && !showAll && (
-        <div className="mt-4 pt-3 border-t border-slate-100">
-          <p className="text-xs text-slate-500 text-center">
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
+          <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
             +{visibleAlerts.length - 2} daha fazla içgörü mevcut
           </p>
         </div>
