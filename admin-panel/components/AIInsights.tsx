@@ -729,10 +729,10 @@ export default function AIInsights() {
               className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${getInsightColor(selectedInsight.type)}`}>
-                    {React.createElement(getInsightIcon(selectedInsight.type), { className: "w-6 h-6" })}
+                    {(() => { const Icon = getInsightIcon(selectedInsight.type); return <Icon className="w-6 h-6" /> })()}
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-slate-800">{selectedInsight.title}</h3>
