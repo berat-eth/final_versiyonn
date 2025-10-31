@@ -378,7 +378,7 @@ export default function DesignEditorPage() {
                     </label>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleResize(selectedElement, -10)}
+                        onClick={() => selectedElement && handleResize(selectedElement, -10)}
                         className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">remove</span>
@@ -387,7 +387,7 @@ export default function DesignEditorPage() {
                         {Math.round(selectedElementData.width)}px
                       </span>
                       <button
-                        onClick={() => handleResize(selectedElement, 10)}
+                        onClick={() => selectedElement && handleResize(selectedElement, 10)}
                         className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">add</span>
@@ -402,7 +402,7 @@ export default function DesignEditorPage() {
                     </label>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleRotate(selectedElement, -5)}
+                        onClick={() => selectedElement && handleRotate(selectedElement, -5)}
                         className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">rotate_left</span>
@@ -411,7 +411,7 @@ export default function DesignEditorPage() {
                         {Math.round(selectedElementData.rotation || 0)}°
                       </span>
                       <button
-                        onClick={() => handleRotate(selectedElement, 5)}
+                        onClick={() => selectedElement && handleRotate(selectedElement, 5)}
                         className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">rotate_right</span>
