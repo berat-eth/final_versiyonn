@@ -3,6 +3,34 @@
 import { TrendingUp, Users, ShoppingBag, DollarSign, ArrowUp, ArrowDown, Calendar } from 'lucide-react'
 import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
 import { motion } from 'framer-motion'
+import { useTheme } from '@/lib/ThemeContext'
+
+// Custom Tooltip component for dark mode support
+const CustomTooltip = ({ active, payload, label }: any) => {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  
+  if (!active || !payload || !payload.length) return null
+  
+  return (
+    <div 
+      className={`rounded-xl shadow-lg p-3 ${
+        isDark ? 'bg-slate-800 text-slate-100 border border-slate-700' : 'bg-white text-slate-800 border border-slate-200'
+      }`}
+      style={{
+        borderRadius: '12px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+      }}
+    >
+      <p className={`font-semibold mb-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{label}</p>
+      {payload.map((entry: any, index: number) => (
+        <p key={index} style={{ color: entry.color }} className="text-sm">
+          {entry.name}: <span className="font-bold">{entry.value}</span>
+        </p>
+      ))}
+    </div>
+  )
+}
 
 // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
 const monthlyData: any[] = []
@@ -38,15 +66,7 @@ export default function Analytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" className="dark:stroke-slate-700" />
               <XAxis dataKey="month" stroke="#94a3b8" className="dark:stroke-slate-400" />
               <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'white', 
-                  border: 'none', 
-                  borderRadius: '12px', 
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' 
-                }}
-                className="dark:bg-slate-800 dark:text-slate-100"
-              />
+              <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Bar dataKey="gelir" fill="#667eea" radius={[8, 8, 0, 0]} />
               <Bar dataKey="gider" fill="#f093fb" radius={[8, 8, 0, 0]} />
@@ -67,7 +87,7 @@ export default function Analytics() {
               <PolarAngleAxis dataKey="category" stroke="#64748b" className="dark:stroke-slate-400" />
               <PolarRadiusAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
               <Radar name="Puan" dataKey="value" stroke="#667eea" fill="#667eea" fillOpacity={0.6} />
-              <Tooltip />
+              <Tooltip content={<CustomTooltip />} />
             </RadarChart>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">Veri yok</div>
@@ -104,15 +124,7 @@ export default function Analytics() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" className="dark:stroke-slate-700" />
             <XAxis dataKey="name" stroke="#94a3b8" className="dark:stroke-slate-400" />
             <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: 'white', 
-                border: 'none', 
-                borderRadius: '12px', 
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' 
-              }}
-              className="dark:bg-slate-800 dark:text-slate-100"
-            />
+            <Tooltip content={<CustomTooltip />} />
             <Legend />
             <Area type="monotone" dataKey="satis" stroke="#667eea" strokeWidth={2} fillOpacity={1} fill="url(#colorSatis)" />
             <Area type="monotone" dataKey="siparis" stroke="#f093fb" strokeWidth={2} fillOpacity={1} fill="url(#colorSiparis)" />

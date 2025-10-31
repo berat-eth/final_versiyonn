@@ -5,6 +5,34 @@ import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, Che
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Bar, Legend } from 'recharts'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
+import { useTheme } from '@/lib/ThemeContext'
+
+// Custom Tooltip component for dark mode support
+const CustomTooltip = ({ active, payload, label }: any) => {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  
+  if (!active || !payload || !payload.length) return null
+  
+  return (
+    <div 
+      className={`rounded-xl shadow-lg p-3 ${
+        isDark ? 'bg-slate-800 text-slate-100 border border-slate-700' : 'bg-white text-slate-800 border border-slate-200'
+      }`}
+      style={{
+        borderRadius: '12px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+      }}
+    >
+      <p className={`font-semibold mb-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{label}</p>
+      {payload.map((entry: any, index: number) => (
+        <p key={index} style={{ color: entry.color }} className="text-sm">
+          {entry.name}: <span className="font-bold">{entry.value}</span>
+        </p>
+      ))}
+    </div>
+  )
+}
 
 export default function ServerStats() {
   const [cpuUsage, setCpuUsage] = useState(0)
@@ -442,7 +470,7 @@ export default function ServerStats() {
             <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" className="dark:stroke-slate-700" />
             <XAxis dataKey="t" stroke="#94a3b8" className="dark:stroke-slate-400" interval={4} />
             <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" domain={[0, 100]} />
-            <Tooltip contentStyle={{ backgroundColor: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} className="dark:bg-slate-800 dark:text-slate-100" />
+            <Tooltip content={<CustomTooltip />} />
             <Legend />
             <Area type="monotone" dataKey="cpu" stroke="#ef4444" fill="#ef444433" strokeWidth={2} isAnimationActive />
             <Line type="monotone" dataKey="ram" stroke="#8b5cf6" strokeWidth={2} dot={false} isAnimationActive />
@@ -462,7 +490,7 @@ export default function ServerStats() {
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" className="dark:stroke-slate-700" />
               <XAxis dataKey="time" stroke="#94a3b8" className="dark:stroke-slate-400" />
               <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
-              <Tooltip contentStyle={{ backgroundColor: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} className="dark:bg-slate-800 dark:text-slate-100" />
+              <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Bar dataKey="load1" barSize={18} fill="#3b82f6" radius={[4,4,0,0]} />
               <Bar dataKey="load5" barSize={18} fill="#8b5cf6" radius={[4,4,0,0]} />
@@ -483,7 +511,7 @@ export default function ServerStats() {
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" className="dark:stroke-slate-700" />
               <XAxis dataKey="time" stroke="#94a3b8" className="dark:stroke-slate-400" />
               <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
-              <Tooltip contentStyle={{ backgroundColor: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} className="dark:bg-slate-800 dark:text-slate-100" />
+              <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Area type="monotone" dataKey="download" stroke="#10b981" fill="#10b98133" strokeWidth={2} />
               <Line type="monotone" dataKey="upload" stroke="#f59e0b" strokeWidth={2} dot={false} />
