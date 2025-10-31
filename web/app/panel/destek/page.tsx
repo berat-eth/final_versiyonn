@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { supportApi } from '@/utils/api'
 
 export default function SupportPage() {
   const { user } = useAuth()
@@ -22,13 +23,24 @@ export default function SupportPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: Backend'den destek endpoint'i eklendikten sonra entegre edilecek
-    setSubmitting(true)
-    setTimeout(() => {
-      setSubmitting(false)
+    if (!user?.id) return
+    
+    try {
+      setSubmitting(true)
+      await supportApi.createTicket({
+        userId: user.id,
+        subject: formData.subject,
+        category: formData.category,
+        message: formData.message,
+      })
       setSubmitted(true)
       setFormData({ subject: '', message: '', category: 'general' })
-    }, 1000)
+    } catch (error) {
+      console.error('Destek talebi oluşturulamadı:', error)
+      alert('Destek talebi oluşturulamadı. Lütfen tekrar deneyin.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (submitted) {

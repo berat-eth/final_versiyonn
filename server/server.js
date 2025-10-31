@@ -5382,16 +5382,18 @@ app.post('/api/users', async (req, res) => {
       marketingPhone
     } = req.body;
 
-    // Validate required fields
-    if (!name || !email || !password || !phone || !birthDate) {
+    // Validate required fields - web için esnek: name, email, password yeterli
+    if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Name, email, password, phone and birthDate are required'
+        message: 'Name, email and password are required'
       });
     }
 
-    // Validate privacy and terms acceptance
-    if (!privacyAccepted || !termsAccepted) {
+    // Validate privacy and terms acceptance - web için opsiyonel
+    // Mobil uygulama için zorunlu, web için opsiyonel
+    const isWebRequest = !phone && !birthDate && (!privacyAccepted || !termsAccepted);
+    if (!isWebRequest && (!privacyAccepted || !termsAccepted)) {
       return res.status(400).json({
         success: false,
         message: 'Privacy policy and terms must be accepted'
@@ -5468,11 +5470,21 @@ app.post('/api/users', async (req, res) => {
       [userId, tenantId, name, plainEmail, hashedPassword, plainPhone, (gender || null), validBirthDate, plainAddress]
     );
 
+    // Return user data for web panel
+    const [newUser] = await poolWrapper.execute(
+      'SELECT id, name, email, phone, address, createdAt FROM users WHERE id = ? AND tenantId = ?',
+      [result.insertId, tenantId]
+    );
+
     res.json({
       success: true,
-      data: {
-        userId: result.insertId,
-        user_id: userId
+      data: newUser.length > 0 ? newUser[0] : {
+        id: result.insertId,
+        name: name,
+        email: email,
+        phone: plainPhone,
+        address: plainAddress,
+        createdAt: new Date().toISOString()
       },
       message: 'User created successfully'
     });
@@ -5692,13 +5704,272 @@ app.put('/api/users/:id', async (req, res) => {
       );
     }
 
+    // Return updated user data
+    const [updatedUser] = await poolWrapper.execute(
+      'SELECT id, name, email, phone, address, createdAt FROM users WHERE id = ? AND tenantId = ?',
+      [id, req.tenant.id]
+    );
+
     res.json({
       success: true,
+      data: updatedUser.length > 0 ? updatedUser[0] : null,
       message: 'User updated successfully'
     });
   } catch (error) {
     console.error('❌ Error updating user:', error);
     res.status(500).json({ success: false, message: 'Error updating user' });
+  }
+});
+
+// ========== User Favorites Endpoints ==========
+// Get user favorites
+app.get('/api/favorites/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const tenantId = req.tenant?.id || 1;
+
+    const [favorites] = await poolWrapper.execute(`
+      SELECT f.id, f.productId, f.createdAt,
+             p.name, p.price, p.image, p.stock, p.description
+      FROM user_favorites_v2 f
+      JOIN products p ON f.productId = p.id AND p.tenantId = ?
+      WHERE f.userId = ?
+      ORDER BY f.createdAt DESC
+    `, [tenantId, userId]);
+
+    res.json({ success: true, data: favorites });
+  } catch (error) {
+    console.error('❌ Error getting favorites:', error);
+    res.status(500).json({ success: false, message: 'Error getting favorites' });
+  }
+});
+
+// Add to favorites
+app.post('/api/favorites', async (req, res) => {
+  try {
+    const { userId, productId } = req.body;
+
+    if (!userId || !productId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and product ID are required'
+      });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+
+    // Check if already favorited
+    const [existing] = await poolWrapper.execute(
+      'SELECT id FROM user_favorites_v2 WHERE userId = ? AND productId = ?',
+      [userId, productId]
+    );
+
+    if (existing.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product already in favorites'
+      });
+    }
+
+    // Check if product exists
+    const [product] = await poolWrapper.execute(
+      'SELECT id FROM products WHERE id = ? AND tenantId = ?',
+      [productId, tenantId]
+    );
+
+    if (product.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Add to favorites
+    const [result] = await poolWrapper.execute(
+      'INSERT INTO user_favorites_v2 (userId, productId) VALUES (?, ?)',
+      [userId, productId]
+    );
+
+    res.json({
+      success: true,
+      data: { id: result.insertId },
+      message: 'Product added to favorites'
+    });
+  } catch (error) {
+    console.error('❌ Error adding to favorites:', error);
+    res.status(500).json({ success: false, message: 'Error adding to favorites' });
+  }
+});
+
+// Remove from favorites
+app.delete('/api/favorites/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    // Verify ownership
+    const [favorite] = await poolWrapper.execute(
+      'SELECT id FROM user_favorites_v2 WHERE id = ? AND userId = ?',
+      [id, userId]
+    );
+
+    if (favorite.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Favorite not found or not owned by user'
+      });
+    }
+
+    await poolWrapper.execute(
+      'DELETE FROM user_favorites_v2 WHERE id = ? AND userId = ?',
+      [id, userId]
+    );
+
+    res.json({ success: true, message: 'Removed from favorites' });
+  } catch (error) {
+    console.error('❌ Error removing from favorites:', error);
+    res.status(500).json({ success: false, message: 'Error removing from favorites' });
+  }
+});
+
+// Remove from favorites by productId
+app.delete('/api/favorites/product/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    await poolWrapper.execute(
+      'DELETE FROM user_favorites_v2 WHERE productId = ? AND userId = ?',
+      [productId, userId]
+    );
+
+    res.json({ success: true, message: 'Removed from favorites' });
+  } catch (error) {
+    console.error('❌ Error removing from favorites:', error);
+    res.status(500).json({ success: false, message: 'Error removing from favorites' });
+  }
+});
+
+// ========== Support Tickets Endpoints ==========
+// Get user support tickets
+app.get('/api/support-tickets/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const tenantId = req.tenant?.id || 1;
+
+    const [tickets] = await poolWrapper.execute(`
+      SELECT id, subject, category, status, message, createdAt, updatedAt
+      FROM support_tickets
+      WHERE userId = ? AND tenantId = ?
+      ORDER BY createdAt DESC
+    `, [userId, tenantId]);
+
+    res.json({ success: true, data: tickets });
+  } catch (error) {
+    console.error('❌ Error getting support tickets:', error);
+    
+    // Check if table doesn't exist
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      return res.json({ success: true, data: [] });
+    }
+    
+    res.status(500).json({ success: false, message: 'Error getting support tickets' });
+  }
+});
+
+// Create support ticket
+app.post('/api/support-tickets', async (req, res) => {
+  try {
+    const { userId, subject, category, message } = req.body;
+
+    if (!userId || !subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID, subject and message are required'
+      });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+
+    // Verify user exists
+    const [user] = await poolWrapper.execute(
+      'SELECT id FROM users WHERE id = ? AND tenantId = ?',
+      [userId, tenantId]
+    );
+
+    if (user.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const [result] = await poolWrapper.execute(
+      'INSERT INTO support_tickets (tenantId, userId, subject, category, message, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [tenantId, userId, subject, category || 'general', message, 'pending']
+    );
+
+    res.json({
+      success: true,
+      data: { id: result.insertId },
+      message: 'Support ticket created successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error creating support ticket:', error);
+    
+    // Check if table doesn't exist
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      console.log('⚠️ support_tickets table does not exist, creating it...');
+      try {
+        await poolWrapper.execute(`
+          CREATE TABLE IF NOT EXISTS support_tickets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenantId INT NOT NULL,
+            userId INT NOT NULL,
+            subject VARCHAR(255) NOT NULL,
+            category VARCHAR(50) DEFAULT 'general',
+            message TEXT NOT NULL,
+            status VARCHAR(50) DEFAULT 'pending',
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_user (userId, tenantId),
+            INDEX idx_status (status)
+          )
+        `);
+        
+        // Retry insert
+        const tenantId = req.tenant?.id || 1;
+        const { userId, subject, category, message } = req.body;
+        const [result] = await poolWrapper.execute(
+          'INSERT INTO support_tickets (tenantId, userId, subject, category, message, status) VALUES (?, ?, ?, ?, ?, ?)',
+          [tenantId, userId, subject, category || 'general', message, 'pending']
+        );
+        
+        return res.json({
+          success: true,
+          data: { id: result.insertId },
+          message: 'Support ticket created successfully'
+        });
+      } catch (createError) {
+        console.error('❌ Error creating support_tickets table:', createError);
+      }
+    }
+    
+    res.status(500).json({ success: false, message: 'Error creating support ticket' });
   }
 });
 

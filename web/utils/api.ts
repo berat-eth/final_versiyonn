@@ -259,6 +259,47 @@ export const addressApi = {
   },
 };
 
+// Favorites API methods
+export const favoritesApi = {
+  getUserFavorites: async (userId: number) => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.get(`/favorites/user/${userId}`, { requiresAuth: true });
+  },
+
+  addToFavorites: async (userId: number, productId: number) => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.post('/favorites', { userId, productId }, { requiresAuth: true });
+  },
+
+  removeFromFavorites: async (favoriteId: number, userId: number) => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.delete(`/favorites/${favoriteId}`, { params: { userId }, requiresAuth: true });
+  },
+
+  removeFromFavoritesByProduct: async (productId: number, userId: number) => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.delete(`/favorites/product/${productId}`, { params: { userId }, requiresAuth: true });
+  },
+};
+
+// Support Tickets API methods
+export const supportApi = {
+  getUserTickets: async (userId: number) => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.get(`/support-tickets/user/${userId}`, { requiresAuth: true });
+  },
+
+  createTicket: async (ticketData: {
+    userId: number;
+    subject: string;
+    category?: string;
+    message: string;
+  }) => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.post('/support-tickets', ticketData, { requiresAuth: true });
+  },
+};
+
 // Export default client instance
 export const apiClient = new ApiClient(API_BASE_URL);
 export default apiClient;
