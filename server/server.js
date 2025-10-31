@@ -6751,12 +6751,13 @@ app.get('/api/products', async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
     const language = req.query.language || 'tr'; // Default to Turkish
+    const tekstilOnly = req.query.tekstilOnly === 'true' || req.query.tekstilOnly === true; // Sadece kullanıcı panelinden true gelirse filtrele
 
-    // Redis hot cache for list page 1 (most requested)
+    // Redis hot cache for list page 1 (most requested) - cache key'e tekstilOnly ekle
     if (page === 1) {
       try {
         if (global.redis) {
-          const key = `products:list:${req.tenant.id}:p1:${limit}`;
+          const key = `products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`;
           const cached = await global.redis.get(key);
           if (cached) {
             res.setHeader('Cache-Control', 'public, max-age=30');
@@ -6766,29 +6767,42 @@ app.get('/api/products', async (req, res) => {
       } catch { }
     }
 
-    // Get total count - sadece tekstil ürünleri
-    // Tekstil kategorileri: Tişört, Gömlek, Pantolon, Mont, Hırka, vb.
+    // Tekstil kategorileri (sadece tekstilOnly=true ise kullanılacak)
     const tekstilKategoriler = [
       'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
       'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
-      'Yağmurluk', 'Rüzgarlık', 'Mutfak Ürünleri', 'Camp Ürünleri'
+      'Yağmurluk', 'Rüzgarlık', 'Mutfak Ürünleri'
+      // Camp Ürünleri ve Silah Aksesuarları çıkarıldı - kullanıcı panelinde görünmeyecek ama diğer yerlerde görünecek
     ];
-    const kategoriConditions = tekstilKategoriler.map(() => 'category LIKE ?').join(' OR ');
-    const [countRows] = await poolWrapper.execute(
-      `SELECT COUNT(*) as total FROM products WHERE tenantId = ? AND (${kategoriConditions})`,
-      [req.tenant.id, ...tekstilKategoriler.map(kat => `%${kat}%`)]
-    );
+
+    let countQuery = 'SELECT COUNT(*) as total FROM products WHERE tenantId = ?';
+    let countParams = [req.tenant.id];
+    
+    let selectQuery = `SELECT id, name, price, image, brand, category, lastUpdated, rating, reviewCount, stock, sku
+       FROM products
+       WHERE tenantId = ?`;
+    let selectParams = [req.tenant.id];
+
+    // Sadece tekstilOnly=true ise filtrele
+    if (tekstilOnly) {
+      const kategoriConditions = tekstilKategoriler.map(() => 'category LIKE ?').join(' OR ');
+      countQuery += ` AND (${kategoriConditions})`;
+      selectQuery += ` AND (${kategoriConditions})`;
+      
+      tekstilKategoriler.forEach(kat => {
+        countParams.push(`%${kat}%`);
+        selectParams.push(`%${kat}%`);
+      });
+    }
+
+    // Get total count
+    const [countRows] = await poolWrapper.execute(countQuery, countParams);
     const total = countRows[0].total;
 
-    // Get paginated products - sadece tekstil ürünleri (category filtreleme ile)
-    const [rows] = await poolWrapper.execute(
-      `SELECT id, name, price, image, brand, category, lastUpdated, rating, reviewCount, stock, sku
-       FROM products
-       WHERE tenantId = ? AND (${kategoriConditions})
-       ORDER BY lastUpdated DESC
-       LIMIT ? OFFSET ?`,
-      [req.tenant.id, ...tekstilKategoriler.map(kat => `%${kat}%`), limit, offset]
-    );
+    // Get paginated products
+    selectQuery += ' ORDER BY lastUpdated DESC LIMIT ? OFFSET ?';
+    selectParams.push(limit, offset);
+    const [rows] = await poolWrapper.execute(selectQuery, selectParams);
 
     // Clean HTML entities from all products
     const cleanedProducts = rows.map(cleanProductData);
@@ -6800,9 +6814,9 @@ app.get('/api/products', async (req, res) => {
       total: total,
       hasMore: offset + limit < total
     };
-    // Save to Redis (page 1 only)
+    // Save to Redis (page 1 only) - cache key'e tekstilOnly ekle
     if (page === 1) {
-      try { if (global.redis) await global.redis.setEx(`products:list:${req.tenant.id}:p1:${limit}`, 300, JSON.stringify(payload)); } catch { }
+      try { if (global.redis) await global.redis.setEx(`products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`, 300, JSON.stringify(payload)); } catch { }
     }
     res.json({ success: true, data: payload });
   } catch (error) {
@@ -7297,12 +7311,14 @@ app.post('/api/products/filter', async (req, res) => {
     let query = 'SELECT * FROM products WHERE tenantId = ?';
     const params = [req.tenant.id];
 
-    // Tekstil ürünleri için kategori filtreleme (varsayılan olarak tekstil ürünleri)
-    if (tekstilOnly !== false) {
+    // Tekstil ürünleri için kategori filtreleme (sadece eksplisit olarak tekstilOnly=true ise)
+    // Varsayılan olarak false - yani tüm ürünler gelir
+    if (tekstilOnly === true || tekstilOnly === 'true') {
       const tekstilKategoriler = [
         'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
         'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
-        'Yağmurluk', 'Rüzgarlık', 'Mutfak Ürünleri', 'Camp Ürünleri'
+        'Yağmurluk', 'Rüzgarlık', 'Mutfak Ürünleri'
+        // Camp Ürünleri ve Silah Aksesuarları çıkarıldı - kullanıcı panelinde görünmeyecek ama diğer yerlerde görünecek
       ];
       const kategoriConditions = tekstilKategoriler.map(() => 'category LIKE ?').join(' OR ');
       query += ` AND (${kategoriConditions})`;

@@ -39,12 +39,15 @@ export default function ProductsPage() {
   const loadProducts = async () => {
     try {
       setLoading(true)
-      // Backend'den sadece tekstil ürünleri çek (backend zaten filtreliyor)
+      // Backend'den sadece tekstil ürünleri çek (Camp Ürünleri ve Silah Aksesuarları hariç)
       const response = await productsApi.filterProducts({
-        // Backend varsayılan olarak tekstil ürünlerini döndürüyor
+        tekstilOnly: true // Sadece tekstil ürünleri (kullanıcı paneli için)
       })
+      console.log('Ürünler yükleme response:', response)
       if (response.success && response.data) {
         setProducts(response.data)
+      } else {
+        console.warn('Ürünler yüklenemedi:', response.message || 'Bilinmeyen hata')
       }
     } catch (error) {
       console.error('Ürünler yüklenemedi:', error)
@@ -221,11 +224,11 @@ export default function ProductsPage() {
                     </h3>
                   </Link>
                   
-                  {product.rating && (
+                  {product.rating !== null && product.rating !== undefined && !isNaN(Number(product.rating)) && (
                     <div className="flex items-center gap-1 mb-2">
                       <span className="material-symbols-outlined text-yellow-400 text-sm">star</span>
                       <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        {product.rating.toFixed(1)}
+                        {Number(product.rating).toFixed(1)}
                       </span>
                       {product.reviewCount && (
                         <span className="text-xs text-gray-500 dark:text-gray-500">
@@ -237,7 +240,7 @@ export default function ProductsPage() {
 
                   <div className="flex items-center justify-between mt-4">
                     <p className="text-xl font-black text-blue-600 dark:text-blue-400">
-                      {product.price.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
+                      {Number(product.price || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
                     </p>
                     <button
                       onClick={() => toggleFavorite(product.id)}

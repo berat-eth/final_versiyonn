@@ -4,6 +4,7 @@
 import type { ApiResponse, User, Order, CartItem, UserAddress, LoginResponse } from '@/lib/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
 
 export interface ApiRequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
@@ -66,6 +67,7 @@ class ApiClient {
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'X-API-Key': API_KEY, // Backend tenant authentication için gerekli
       ...(headers as Record<string, string>),
     };
 
@@ -324,7 +326,8 @@ export const productsApi = {
 
   getProductById: async (productId: number): Promise<ApiResponse<any>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.get<ApiResponse<any>>(`/products/${productId}`, { requiresAuth: true });
+    // Ürün detayı için user authentication gerekli değil, sadece tenant authentication (API key) yeterli
+    return client.get<ApiResponse<any>>(`/products/${productId}`, { requiresAuth: false });
   },
 
   filterProducts: async (filters: {
@@ -333,9 +336,11 @@ export const productsApi = {
     maxPrice?: number;
     brand?: string;
     search?: string;
+    tekstilOnly?: boolean;
   }): Promise<ApiResponse<any[]>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post<ApiResponse<any[]>>('/products/filter', filters, { requiresAuth: true });
+    // Ürün listesi için user authentication gerekli değil, sadece tenant authentication (API key) yeterli
+    return client.post<ApiResponse<any[]>>('/products/filter', filters, { requiresAuth: false });
   },
 };
 
