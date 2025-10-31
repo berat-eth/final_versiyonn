@@ -24,6 +24,18 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next()
 
+  // Dynamic pages için cache'i devre dışı bırak
+  if (pathname.startsWith('/urunler') || 
+      pathname.startsWith('/panel') ||
+      pathname.startsWith('/teklif')) {
+    response.headers.set(
+      'Cache-Control',
+      'no-cache, no-store, must-revalidate, max-age=0'
+    )
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+  }
+
   // Cache headers for static assets
   if (pathname.startsWith('/assets')) {
     response.headers.set(

@@ -6922,8 +6922,8 @@ app.get('/api/products', async (req, res) => {
     const tekstilKategoriler = [
       'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
       'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
-      'Yağmurluk', 'Rüzgarlık', 'Mutfak Ürünleri'
-      // Camp Ürünleri ve Silah Aksesuarları çıkarıldı - kullanıcı panelinde görünmeyecek ama diğer yerlerde görünecek
+      'Yağmurluk', 'Rüzgarlık'
+      // Camp Ürünleri, Silah Aksesuarları ve Mutfak Ürünleri çıkarıldı - web sitesinde görünmeyecek
     ];
 
     let countQuery = 'SELECT COUNT(*) as total FROM products WHERE tenantId = ?';
@@ -7468,8 +7468,8 @@ app.post('/api/products/filter', async (req, res) => {
       const tekstilKategoriler = [
         'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
         'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
-        'Yağmurluk', 'Rüzgarlık', 'Mutfak Ürünleri'
-        // Camp Ürünleri ve Silah Aksesuarları çıkarıldı - kullanıcı panelinde görünmeyecek ama diğer yerlerde görünecek
+        'Yağmurluk', 'Rüzgarlık'
+        // Camp Ürünleri, Silah Aksesuarları ve Mutfak Ürünleri çıkarıldı - web sitesinde görünmeyecek
       ];
       const kategoriConditions = tekstilKategoriler.map(() => 'category LIKE ?').join(' OR ');
       query += ` AND (${kategoriConditions})`;

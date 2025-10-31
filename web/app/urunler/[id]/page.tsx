@@ -44,7 +44,23 @@ export default function ProductDetailPage() {
       const response = await productsApi.getProductById(productId)
       
       if (response.success && response.data) {
-        setProduct(response.data)
+        const productData = response.data
+        
+        // İstenmeyen kategorileri kontrol et
+        const excludedCategories = ['Camp Ürünleri', 'Silah Aksesuarları', 'Mutfak Ürünleri']
+        const productCategory = productData.category || ''
+        
+        const isExcluded = excludedCategories.some(excludedCat => 
+          productCategory.toLowerCase().includes(excludedCat.toLowerCase())
+        )
+        
+        if (isExcluded) {
+          setError('Bu ürün kategorisi web sitesinde görüntülenemez')
+          setProduct(null)
+          return
+        }
+        
+        setProduct(productData)
       } else {
         setError('Ürün bulunamadı')
       }
@@ -80,7 +96,7 @@ export default function ProductDetailPage() {
             {error || 'Ürün bulunamadı'}
           </h2>
           <Link
-            href="/panel/urunler"
+            href="/urunler"
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:shadow-lg transition-all"
           >
             <span className="material-symbols-outlined">arrow_back</span>
@@ -96,7 +112,7 @@ export default function ProductDetailPage() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12">
         {/* Breadcrumb */}
         <nav className="mb-8 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <Link href="/panel/urunler" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+          <Link href="/urunler" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
             Ürünler
           </Link>
           <span className="material-symbols-outlined text-sm">chevron_right</span>
@@ -225,7 +241,7 @@ export default function ProductDetailPage() {
 
             {/* Back to Products Button */}
             <Link
-              href="/panel/urunler"
+              href="/urunler"
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
             >
               <span className="material-symbols-outlined">arrow_back</span>

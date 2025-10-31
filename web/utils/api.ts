@@ -79,9 +79,16 @@ class ApiClient {
     }
 
     try {
+      // API çağrıları için cache'i devre dışı bırak - her zaman fresh data
       const response = await fetch(url, {
         ...fetchOptions,
-        headers: requestHeaders,
+        headers: {
+          ...requestHeaders,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store' // Browser cache'i bypass et
       });
 
       if (!response.ok) {
@@ -339,40 +346,42 @@ export const customProductionApi = {
 
   getUserRequests: async (userId: number): Promise<ApiResponse<any[]>> => {
     const client = new ApiClient(API_BASE_URL);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    if (!token) {
-      throw new Error('Authentication required');
-    }
     // userKey olarak userId kullanıyoruz (backend resolveUserKeyToPk ile çözüyor)
-    return client.get<ApiResponse<any[]>>(`/custom-production-requests/${userId}`, { requiresAuth: true });
+    // Backend endpoint'i authentication gerektirmiyor, sadece X-API-Key gerekiyor
+    return client.get<ApiResponse<any[]>>(`/custom-production-requests/${userId}`, { requiresAuth: false });
   },
 
   getRequestById: async (requestId: number, userId: number): Promise<ApiResponse<any>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.get<ApiResponse<any>>(`/custom-production-requests/${userId}/${requestId}`, { requiresAuth: true });
+    // Backend endpoint'i authentication gerektirmiyor, sadece X-API-Key gerekiyor
+    return client.get<ApiResponse<any>>(`/custom-production-requests/${userId}/${requestId}`, { requiresAuth: false });
   },
 
   updateQuoteStatus: async (requestId: number, status: 'accepted' | 'rejected'): Promise<ApiResponse<any>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.put<ApiResponse<any>>(`/custom-production-requests/${requestId}/quote-status`, { status }, { requiresAuth: true });
+    // Backend endpoint'i authentication gerektirmiyor, sadece X-API-Key gerekiyor
+    return client.put<ApiResponse<any>>(`/custom-production-requests/${requestId}/quote-status`, { status }, { requiresAuth: false });
   },
 };
 
 // Products API methods
 export const productsApi = {
-  getProducts: async (page = 1, limit = 20, category?: string): Promise<ApiResponse<{ products: any[]; total: number; hasMore: boolean }>> => {
+  getProducts: async (page = 1, limit = 20, category?: string, tekstilOnly?: boolean): Promise<ApiResponse<{ products: any[]; total: number; hasMore: boolean }>> => {
     const client = new ApiClient(API_BASE_URL);
     const params: Record<string, string | number | boolean> = { page: page.toString(), limit: limit.toString() };
     if (category) {
       params.category = category;
     }
-    return client.get<ApiResponse<{ products: any[]; total: number; hasMore: boolean }>>('/products', { params, requiresAuth: true });
+    if (tekstilOnly !== undefined) {
+      params.tekstilOnly = tekstilOnly;
+    }
+    return client.get<ApiResponse<{ products: any[]; total: number; hasMore: boolean }>>('/products', { params, requiresAuth: false });
   },
 
   searchProducts: async (query: string, page = 1, limit = 50): Promise<ApiResponse<any[]>> => {
     const client = new ApiClient(API_BASE_URL);
     const params: Record<string, string | number | boolean> = { q: query, page: page.toString(), limit: limit.toString() };
-    return client.get<ApiResponse<any[]>>('/products/search', { params, requiresAuth: true });
+    return client.get<ApiResponse<any[]>>('/products/search', { params, requiresAuth: false });
   },
 
   getProductById: async (productId: number): Promise<ApiResponse<any>> => {
