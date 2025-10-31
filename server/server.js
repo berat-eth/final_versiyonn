@@ -5390,10 +5390,10 @@ app.post('/api/users', async (req, res) => {
       });
     }
 
-    // Validate privacy and terms acceptance - web için opsiyonel
-    // Mobil uygulama için zorunlu, web için opsiyonel
-    const isWebRequest = !phone && !birthDate && (!privacyAccepted || !termsAccepted);
-    if (!isWebRequest && (!privacyAccepted || !termsAccepted)) {
+    // Validate privacy and terms acceptance
+    // Mobil uygulama için zorunlu (phone ve birthDate varsa), web için opsiyonel
+    const isMobileRequest = phone && birthDate;
+    if (isMobileRequest && (!privacyAccepted || !termsAccepted)) {
       return res.status(400).json({
         success: false,
         message: 'Privacy policy and terms must be accepted'
