@@ -1,6 +1,8 @@
 // API Client for Backend Communication
 // UZAK SUNUCU: Tüm istekler https://api.plaxsy.com/api'ye gider
 
+import type { ApiResponse, User, Order, CartItem, UserAddress, LoginResponse } from '@/lib/types';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api';
 
 export interface ApiRequestOptions extends RequestInit {
@@ -61,10 +63,10 @@ class ApiClient {
 
     const url = this.buildUrl(endpoint, params);
     
-    const requestHeaders: HeadersInit = {
+    const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...headers,
+      ...(headers as Record<string, string>),
     };
 
     if (requiresAuth) {
@@ -125,40 +127,40 @@ class ApiClient {
 
 // Auth-specific methods
 export const authApi = {
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string): Promise<LoginResponse> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post('/users/login', { email, password });
+    return client.post<LoginResponse>('/users/login', { email, password });
   },
 
-  googleLogin: async (idToken: string) => {
+  googleLogin: async (idToken: string): Promise<LoginResponse> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post('/auth/google/verify', { idToken });
+    return client.post<LoginResponse>('/auth/google/verify', { idToken });
   },
 
-  register: async (userData: { name: string; email: string; password: string; phone?: string }) => {
+  register: async (userData: { name: string; email: string; password: string; phone?: string }): Promise<LoginResponse> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post('/users', userData);
+    return client.post<LoginResponse>('/users', userData);
   },
 };
 
 // User API methods
 export const userApi = {
-  getProfile: async (userId: number) => {
+  getProfile: async (userId: number): Promise<ApiResponse<User>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.get(`/users/${userId}`, { requiresAuth: true });
+    return client.get<ApiResponse<User>>(`/users/${userId}`, { requiresAuth: true });
   },
 
-  updateProfile: async (userId: number, data: Partial<{ name: string; email: string; phone: string; address: string; currentPassword?: string; newPassword?: string }>) => {
+  updateProfile: async (userId: number, data: Partial<{ name: string; email: string; phone: string; address: string; currentPassword?: string; newPassword?: string }>): Promise<ApiResponse<User>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.put(`/users/${userId}`, data, { requiresAuth: true });
+    return client.put<ApiResponse<User>>(`/users/${userId}`, data, { requiresAuth: true });
   },
 };
 
 // Orders API methods
 export const ordersApi = {
-  getUserOrders: async (userId: number) => {
+  getUserOrders: async (userId: number): Promise<ApiResponse<Order[]>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.get(`/orders/user/${userId}`, { requiresAuth: true });
+    return client.get<ApiResponse<Order[]>>(`/orders/user/${userId}`, { requiresAuth: true });
   },
 
   createOrder: async (orderData: {
@@ -174,50 +176,53 @@ export const ordersApi = {
     customerName?: string;
     customerEmail?: string;
     customerPhone?: string;
-  }) => {
+  }): Promise<ApiResponse<Order>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post('/orders', orderData, { requiresAuth: true });
+    return client.post<ApiResponse<Order>>('/orders', orderData, { requiresAuth: true });
   },
 };
 
 // Cart API methods
 export const cartApi = {
-  getCart: async (userId: number) => {
+  getCart: async (userId: number): Promise<ApiResponse<CartItem[]>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.get(`/cart/user/${userId}`, { requiresAuth: true });
+    return client.get<ApiResponse<CartItem[]>>(`/cart/user/${userId}`, { requiresAuth: true });
   },
 
   addToCart: async (cartData: {
     userId: number;
     productId: number;
     quantity: number;
-  }) => {
+  }): Promise<ApiResponse<CartItem>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post('/cart', cartData, { requiresAuth: true });
+    return client.post<ApiResponse<CartItem>>('/cart', cartData, { requiresAuth: true });
   },
 
-  updateCartItem: async (cartItemId: number, quantity: number) => {
+  updateCartItem: async (cartItemId: number, quantity: number): Promise<ApiResponse<CartItem>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.put(`/cart/${cartItemId}`, { quantity }, { requiresAuth: true });
+    return client.put<ApiResponse<CartItem>>(`/cart/${cartItemId}`, { quantity }, { requiresAuth: true });
   },
 
-  removeFromCart: async (cartItemId: number) => {
+  removeFromCart: async (cartItemId: number): Promise<ApiResponse<void>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.delete(`/cart/${cartItemId}`, { requiresAuth: true });
+    return client.delete<ApiResponse<void>>(`/cart/${cartItemId}`, { requiresAuth: true });
   },
 
-  clearCart: async (userId: number) => {
+  clearCart: async (userId: number): Promise<ApiResponse<void>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.delete(`/cart/user/${userId}`, { requiresAuth: true });
+    return client.delete<ApiResponse<void>>(`/cart/user/${userId}`, { requiresAuth: true });
   },
 };
 
 // Address API methods
 export const addressApi = {
-  getAddresses: async (userId: number, addressType?: 'shipping' | 'billing') => {
+  getAddresses: async (userId: number, addressType?: 'shipping' | 'billing'): Promise<ApiResponse<UserAddress[]>> => {
     const client = new ApiClient(API_BASE_URL);
-    const params = addressType ? { userId: userId.toString(), addressType } : { userId: userId.toString() };
-    return client.get('/user-addresses', { params, requiresAuth: true });
+    const params: Record<string, string | number | boolean> = { userId: userId.toString() };
+    if (addressType) {
+      params.addressType = addressType;
+    }
+    return client.get<ApiResponse<UserAddress[]>>('/user-addresses', { params, requiresAuth: true });
   },
 
   createAddress: async (addressData: {
@@ -230,9 +235,9 @@ export const addressApi = {
     district?: string;
     postalCode?: string;
     isDefault?: boolean;
-  }) => {
+  }): Promise<ApiResponse<{ id: number }>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post('/user-addresses', addressData, { requiresAuth: true });
+    return client.post<ApiResponse<{ id: number }>>('/user-addresses', addressData, { requiresAuth: true });
   },
 
   updateAddress: async (addressId: number, addressData: Partial<{
@@ -243,50 +248,50 @@ export const addressApi = {
     district: string;
     postalCode: string;
     isDefault: boolean;
-  }>) => {
+  }>): Promise<ApiResponse<UserAddress>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.put(`/user-addresses/${addressId}`, addressData, { requiresAuth: true });
+    return client.put<ApiResponse<UserAddress>>(`/user-addresses/${addressId}`, addressData, { requiresAuth: true });
   },
 
-  deleteAddress: async (addressId: number) => {
+  deleteAddress: async (addressId: number): Promise<ApiResponse<void>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.delete(`/user-addresses/${addressId}`, { requiresAuth: true });
+    return client.delete<ApiResponse<void>>(`/user-addresses/${addressId}`, { requiresAuth: true });
   },
 
-  setDefaultAddress: async (addressId: number) => {
+  setDefaultAddress: async (addressId: number): Promise<ApiResponse<void>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.put(`/user-addresses/${addressId}/set-default`, {}, { requiresAuth: true });
+    return client.put<ApiResponse<void>>(`/user-addresses/${addressId}/set-default`, {}, { requiresAuth: true });
   },
 };
 
 // Favorites API methods
 export const favoritesApi = {
-  getUserFavorites: async (userId: number) => {
+  getUserFavorites: async (userId: number): Promise<ApiResponse<any[]>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.get(`/favorites/user/${userId}`, { requiresAuth: true });
+    return client.get<ApiResponse<any[]>>(`/favorites/user/${userId}`, { requiresAuth: true });
   },
 
-  addToFavorites: async (userId: number, productId: number) => {
+  addToFavorites: async (userId: number, productId: number): Promise<ApiResponse<{ id: number }>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post('/favorites', { userId, productId }, { requiresAuth: true });
+    return client.post<ApiResponse<{ id: number }>>('/favorites', { userId, productId }, { requiresAuth: true });
   },
 
-  removeFromFavorites: async (favoriteId: number, userId: number) => {
+  removeFromFavorites: async (favoriteId: number, userId: number): Promise<ApiResponse<void>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.delete(`/favorites/${favoriteId}`, { params: { userId }, requiresAuth: true });
+    return client.delete<ApiResponse<void>>(`/favorites/${favoriteId}`, { params: { userId }, requiresAuth: true });
   },
 
-  removeFromFavoritesByProduct: async (productId: number, userId: number) => {
+  removeFromFavoritesByProduct: async (productId: number, userId: number): Promise<ApiResponse<void>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.delete(`/favorites/product/${productId}`, { params: { userId }, requiresAuth: true });
+    return client.delete<ApiResponse<void>>(`/favorites/product/${productId}`, { params: { userId }, requiresAuth: true });
   },
 };
 
 // Support Tickets API methods
 export const supportApi = {
-  getUserTickets: async (userId: number) => {
+  getUserTickets: async (userId: number): Promise<ApiResponse<any[]>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.get(`/support-tickets/user/${userId}`, { requiresAuth: true });
+    return client.get<ApiResponse<any[]>>(`/support-tickets/user/${userId}`, { requiresAuth: true });
   },
 
   createTicket: async (ticketData: {
@@ -294,9 +299,9 @@ export const supportApi = {
     subject: string;
     category?: string;
     message: string;
-  }) => {
+  }): Promise<ApiResponse<{ id: number }>> => {
     const client = new ApiClient(API_BASE_URL);
-    return client.post('/support-tickets', ticketData, { requiresAuth: true });
+    return client.post<ApiResponse<{ id: number }>>('/support-tickets', ticketData, { requiresAuth: true });
   },
 };
 
