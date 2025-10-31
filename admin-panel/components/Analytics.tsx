@@ -30,14 +30,14 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
           <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">Gelir & Gider Analizi</h3>
           <ResponsiveContainer width="100%" height={300}>
             {monthlyData && monthlyData.length > 0 ? (
             <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" className="dark:stroke-slate-700" />
+              <XAxis dataKey="month" stroke="#94a3b8" className="dark:stroke-slate-400" />
+              <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
               <Tooltip 
                 contentStyle={{ 
                   backgroundColor: 'white', 
@@ -45,6 +45,7 @@ export default function Analytics() {
                   borderRadius: '12px', 
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' 
                 }}
+                className="dark:bg-slate-800 dark:text-slate-100"
               />
               <Legend />
               <Bar dataKey="gelir" fill="#667eea" radius={[8, 8, 0, 0]} />
@@ -57,14 +58,14 @@ export default function Analytics() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
           <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">Müşteri Davranış Analizi</h3>
           <ResponsiveContainer width="100%" height={300}>
             {customerBehavior && customerBehavior.length > 0 ? (
             <RadarChart data={customerBehavior}>
-              <PolarGrid stroke="#e2e8f0" />
-              <PolarAngleAxis dataKey="category" stroke="#64748b" />
-              <PolarRadiusAxis stroke="#94a3b8" />
+              <PolarGrid stroke="#e2e8f0" className="dark:stroke-slate-700" />
+              <PolarAngleAxis dataKey="category" stroke="#64748b" className="dark:stroke-slate-400" />
+              <PolarRadiusAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
               <Radar name="Puan" dataKey="value" stroke="#667eea" fill="#667eea" fillOpacity={0.6} />
               <Tooltip />
             </RadarChart>
@@ -73,11 +74,11 @@ export default function Analytics() {
             )}
           </ResponsiveContainer>
           <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800">
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">92%</p>
               <p className="text-xs text-slate-600 dark:text-slate-400">Memnuniyet</p>
             </div>
-            <div className="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
+            <div className="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">78%</p>
               <p className="text-xs text-slate-600 dark:text-slate-400">Tekrar Alım</p>
             </div>
@@ -85,8 +86,8 @@ export default function Analytics() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        <h3 className="text-xl font-bold text-slate-800 mb-6">Kategori Performansı</h3>
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+        <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">Kategori Performansı</h3>
         <ResponsiveContainer width="100%" height={350}>
           {categoryPerformance && categoryPerformance.length > 0 ? (
           <AreaChart data={categoryPerformance}>
@@ -100,9 +101,9 @@ export default function Analytics() {
                 <stop offset="95%" stopColor="#f093fb" stopOpacity={0}/>
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="name" stroke="#94a3b8" />
-            <YAxis stroke="#94a3b8" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" className="dark:stroke-slate-700" />
+            <XAxis dataKey="name" stroke="#94a3b8" className="dark:stroke-slate-400" />
+            <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
             <Tooltip 
               contentStyle={{ 
                 backgroundColor: 'white', 
@@ -110,13 +111,14 @@ export default function Analytics() {
                 borderRadius: '12px', 
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' 
               }}
+              className="dark:bg-slate-800 dark:text-slate-100"
             />
             <Legend />
             <Area type="monotone" dataKey="satis" stroke="#667eea" strokeWidth={2} fillOpacity={1} fill="url(#colorSatis)" />
             <Area type="monotone" dataKey="siparis" stroke="#f093fb" strokeWidth={2} fillOpacity={1} fill="url(#colorSiparis)" />
           </AreaChart>
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+            <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">Veri yok</div>
           )}
         </ResponsiveContainer>
       </div>
@@ -128,7 +130,7 @@ export default function Analytics() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 card-hover"
+            className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 card-hover border border-slate-200 dark:border-slate-700"
           >
             <div className={`w-12 h-12 bg-gradient-to-br ${segment.color} rounded-xl flex items-center justify-center mb-4`}>
               <Users className="w-6 h-6 text-white" />
@@ -152,8 +154,8 @@ export default function Analytics() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500 dark:text-slate-400">Büyüme</span>
                 <div className="flex items-center space-x-1">
-                  <ArrowUp className="w-4 h-4 text-green-600" />
-                  <span className="font-semibold text-green-600">+{(Math.random() * 20 + 5).toFixed(1)}%</span>
+                  <ArrowUp className="w-4 h-4 text-green-600 dark:text-green-400" />
+                  <span className="font-semibold text-green-600 dark:text-green-400">+{(Math.random() * 20 + 5).toFixed(1)}%</span>
                 </div>
               </div>
             </div>

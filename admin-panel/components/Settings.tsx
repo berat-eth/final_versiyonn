@@ -387,15 +387,15 @@ export default function Settings() {
                                                 animate={{ scale: 1, opacity: 1 }}
                                                 exit={{ scale: 0.9, opacity: 0 }}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+                                                className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full"
                                             >
-                                                <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                                                    <h3 className="text-2xl font-bold text-slate-800">Yeni Admin Kullanıcı Ekle</h3>
+                                                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                                                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Yeni Admin Kullanıcı Ekle</h3>
                                                     <button
                                                         onClick={() => setShowAddAdminModal(false)}
-                                                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                                                     >
-                                                        <X className="w-6 h-6" />
+                                                        <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                                                     </button>
                                                 </div>
 
@@ -403,15 +403,15 @@ export default function Settings() {
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Ad Soyad</label>
-                                                            <input type="text" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ahmet Yılmaz" />
+                                                            <input type="text" className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300" placeholder="Ahmet Yılmaz" />
                                                         </div>
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">E-posta</label>
-                                                            <input type="email" className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="admin@example.com" />
+                                                            <input type="email" className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300" placeholder="admin@example.com" />
                                                         </div>
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Rol</label>
-                                                            <select className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                            <select className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300">
                                                                 <option>Super Admin</option>
                                                                 <option>Admin</option>
                                                                 <option>Moderatör</option>
@@ -420,7 +420,7 @@ export default function Settings() {
                                                         </div>
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Durum</label>
-                                                            <select className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                            <select className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300">
                                                                 <option>Aktif</option>
                                                                 <option>Pasif</option>
                                                             </select>
@@ -432,27 +432,27 @@ export default function Settings() {
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <label className="flex items-center space-x-2">
                                                                 <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700">Ürün Yönetimi</span>
+                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Ürün Yönetimi</span>
                                                             </label>
                                                             <label className="flex items-center space-x-2">
                                                                 <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700">Sipariş Yönetimi</span>
+                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Sipariş Yönetimi</span>
                                                             </label>
                                                             <label className="flex items-center space-x-2">
                                                                 <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700">Müşteri Yönetimi</span>
+                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Müşteri Yönetimi</span>
                                                             </label>
                                                             <label className="flex items-center space-x-2">
                                                                 <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700">Raporlar</span>
+                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Raporlar</span>
                                                             </label>
                                                             <label className="flex items-center space-x-2">
                                                                 <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700">Ayarlar</span>
+                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Ayarlar</span>
                                                             </label>
                                                             <label className="flex items-center space-x-2">
                                                                 <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700">Tüm Yetkiler</span>
+                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Tüm Yetkiler</span>
                                                             </label>
                                                         </div>
                                                     </div>
@@ -463,7 +463,7 @@ export default function Settings() {
                                                         </button>
                                                         <button 
                                                             onClick={() => setShowAddAdminModal(false)}
-                                                            className="flex-1 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl hover:bg-slate-200 transition-colors font-medium"
+                                                            className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-6 py-3 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors font-medium"
                                                         >
                                                             İptal
                                                         </button>
@@ -489,12 +489,12 @@ export default function Settings() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                                         <div className="flex items-center space-x-3">
-                                            <Mail className="w-5 h-5 text-blue-600" />
+                                            <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                             <div>
-                                                <p className="font-medium text-slate-800">Email Bildirimleri</p>
-                                                <p className="text-xs text-slate-500">Seçili değil</p>
+                                                <p className="font-medium text-slate-800 dark:text-slate-100">Email Bildirimleri</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Seçili değil</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -508,12 +508,12 @@ export default function Settings() {
                                         </label>
                                     </div>
 
-                                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                                         <div className="flex items-center space-x-3">
-                                            <Smartphone className="w-5 h-5 text-green-600" />
+                                            <Smartphone className="w-5 h-5 text-green-600 dark:text-green-400" />
                                             <div>
-                                                <p className="font-medium text-slate-800">SMS Bildirimleri</p>
-                                                <p className="text-xs text-slate-500">Seçili değil</p>
+                                                <p className="font-medium text-slate-800 dark:text-slate-100">SMS Bildirimleri</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Seçili değil</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -527,12 +527,12 @@ export default function Settings() {
                                         </label>
                                     </div>
 
-                                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                                         <div className="flex items-center space-x-3">
-                                            <Bell className="w-5 h-5 text-purple-600" />
+                                            <Bell className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                                             <div>
-                                                <p className="font-medium text-slate-800">Push Bildirimleri</p>
-                                                <p className="text-xs text-slate-500">Seçili değil</p>
+                                                <p className="font-medium text-slate-800 dark:text-slate-100">Push Bildirimleri</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Seçili değil</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -604,12 +604,12 @@ export default function Settings() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                                         <div className="flex items-center space-x-3">
-                                            <Shield className="w-5 h-5 text-blue-600" />
+                                            <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                             <div>
-                                                <p className="font-medium text-slate-800">İki Faktörlü Doğrulama</p>
-                                                <p className="text-xs text-slate-500">Ekstra güvenlik katmanı ekleyin</p>
+                                                <p className="font-medium text-slate-800 dark:text-slate-100">İki Faktörlü Doğrulama</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Ekstra güvenlik katmanı ekleyin</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -623,12 +623,12 @@ export default function Settings() {
                                         </label>
                                     </div>
 
-                                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                                         <div className="flex items-center space-x-3">
-                                            <Bell className="w-5 h-5 text-green-600" />
+                                            <Bell className="w-5 h-5 text-green-600 dark:text-green-400" />
                                             <div>
-                                                <p className="font-medium text-slate-800">Giriş Uyarıları</p>
-                                                <p className="text-xs text-slate-500">Yeni giriş yapıldığında bildirim alın</p>
+                                                <p className="font-medium text-slate-800 dark:text-slate-100">Giriş Uyarıları</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Yeni giriş yapıldığında bildirim alın</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -642,14 +642,14 @@ export default function Settings() {
                                         </label>
                                     </div>
 
-                                    <div className="p-4 bg-slate-50 rounded-xl">
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                                             Oturum Zaman Aşımı (dakika)
                                         </label>
                                         <select
                                             value={securitySettings.sessionTimeout}
                                             onChange={(e) => setSecuritySettings({ ...securitySettings, sessionTimeout: e.target.value })}
-                                            className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
+                                            className="w-full px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-slate-300"
                                         >
                                             <option value="15">15 dakika</option>
                                             <option value="30">30 dakika</option>
@@ -659,9 +659,9 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                        <h4 className="font-semibold text-slate-800 mb-2">Aktif Oturumlar</h4>
-                                        <p className="text-sm text-slate-600">Oturum bilgisi bulunmuyor.</p>
+                                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                                        <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Aktif Oturumlar</h4>
+                                        <p className="text-sm text-slate-600 dark:text-slate-400">Oturum bilgisi bulunmuyor.</p>
                                     </div>
                             </motion.div>
                         )}
@@ -691,28 +691,28 @@ export default function Settings() {
                                                     : 'border-slate-200 hover:border-slate-300'
                                                     }`}
                                             >
-                                                <div className="w-full h-20 bg-white rounded-lg mb-2 border border-slate-200"></div>
-                                                <p className="text-sm font-medium text-slate-800">Açık</p>
+                                                <div className="w-full h-20 bg-white dark:bg-slate-800 rounded-lg mb-2 border border-slate-200 dark:border-slate-700"></div>
+                                                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Açık</p>
                                             </button>
                                             <button
                                                 onClick={() => setAppearanceSettings({ ...appearanceSettings, theme: 'dark' })}
                                                 className={`p-4 border-2 rounded-xl transition-all ${appearanceSettings.theme === 'dark'
-                                                    ? 'border-blue-600 bg-blue-50'
-                                                    : 'border-slate-200 hover:border-slate-300'
+                                                    ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                                                     }`}
                                             >
                                                 <div className="w-full h-20 bg-slate-800 rounded-lg mb-2"></div>
-                                                <p className="text-sm font-medium text-slate-800">Koyu</p>
+                                                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Koyu</p>
                                             </button>
                                             <button
                                                 onClick={() => setAppearanceSettings({ ...appearanceSettings, theme: 'auto' })}
                                                 className={`p-4 border-2 rounded-xl transition-all ${appearanceSettings.theme === 'auto'
-                                                    ? 'border-blue-600 bg-blue-50'
-                                                    : 'border-slate-200 hover:border-slate-300'
+                                                    ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                                                     }`}
                                             >
                                                 <div className="w-full h-20 bg-gradient-to-r from-white to-slate-800 rounded-lg mb-2"></div>
-                                                <p className="text-sm font-medium text-slate-800">Otomatik</p>
+                                                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Otomatik</p>
                                             </button>
                                         </div>
                                     </div>
@@ -797,43 +797,43 @@ export default function Settings() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-6">
-                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
-                                        <Database className="w-8 h-8 text-slate-700 mb-3" />
-                                        <h4 className="font-semibold text-slate-800 mb-2">Veritabanı</h4>
-                                        <p className="text-sm text-slate-600">Durum bilgisi bulunmuyor.</p>
+                                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+                                        <Database className="w-8 h-8 text-slate-700 dark:text-slate-400 mb-3" />
+                                        <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">Veritabanı</h4>
+                                        <p className="text-sm text-slate-600 dark:text-slate-400">Durum bilgisi bulunmuyor.</p>
                                     </div>
 
-                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
-                                        <Globe className="w-8 h-8 text-slate-700 mb-3" />
-                                        <h4 className="font-semibold text-slate-800 mb-2">API Durumu</h4>
-                                        <p className="text-sm text-slate-600">Durum bilgisi bulunmuyor.</p>
+                                    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+                                        <Globe className="w-8 h-8 text-slate-700 dark:text-slate-400 mb-3" />
+                                        <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-2">API Durumu</h4>
+                                        <p className="text-sm text-slate-600 dark:text-slate-400">Durum bilgisi bulunmuyor.</p>
                                     </div>
                                 </div>
 
-                                    <div className="bg-slate-50 rounded-xl p-6">
-                                    <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-4">Sistem Bilgileri</h4>
+                                    <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-6">
+                                    <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Sistem Bilgileri</h4>
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Versiyon</span>
-                                                <span className="font-bold text-slate-800">-</span>
+                                            <span className="text-slate-600 dark:text-slate-400">Versiyon</span>
+                                                <span className="font-bold text-slate-800 dark:text-slate-100">-</span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Son Güncelleme</span>
-                                                <span className="font-bold text-slate-800">-</span>
+                                            <span className="text-slate-600 dark:text-slate-400">Son Güncelleme</span>
+                                                <span className="font-bold text-slate-800 dark:text-slate-100">-</span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Sunucu Durumu</span>
-                                                <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium">Bilinmiyor</span>
+                                            <span className="text-slate-600 dark:text-slate-400">Sunucu Durumu</span>
+                                                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium">Bilinmiyor</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Yönetici Logları (giriş kodu: 8466) */}
-                                <div className="bg-white rounded-xl border border-slate-200">
-                                    <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                                <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700">
+                                    <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                                         <div>
-                                            <h4 className="font-semibold text-slate-800 mb-1">Yönetici Logları</h4>
-                                            <p className="text-sm text-slate-500">Admin giriş denemeleri (salt okunur)</p>
+                                            <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Yönetici Logları</h4>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">Admin giriş denemeleri (salt okunur)</p>
                                         </div>
                                     </div>
                                     {!adminLogsAccess ? (
@@ -844,7 +844,7 @@ export default function Settings() {
                                                     type="password"
                                                     value={adminLogsCode}
                                                     onChange={(e)=> setAdminLogsCode(e.target.value)}
-                                                    className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    className="flex-1 px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300"
                                                     placeholder="••••"
                                                 />
                                                 <button
@@ -854,37 +854,37 @@ export default function Settings() {
                                                             loadAdminLogs()
                                                         }
                                                     }}
-                                                    className="px-4 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-900"
+                                                    className="px-4 py-3 bg-slate-800 dark:bg-slate-700 text-white rounded-lg hover:bg-slate-900 dark:hover:bg-slate-600"
                                                 >Giriş</button>
                                             </div>
                                             {adminLogsCode && adminLogsCode !== '8466' && (
-                                                <p className="text-sm text-red-600 mt-2">Geçersiz kod</p>
+                                                <p className="text-sm text-red-600 dark:text-red-400 mt-2">Geçersiz kod</p>
                                             )}
                                         </div>
                                     ) : (
                                         <div className="p-0">
-                                            <div className="p-4 border-b border-slate-200 flex items-center justify-between text-sm text-slate-600">
+                                            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
                                                 <div>
                                                     Son 30 gün · {adminLogsLoading ? 'Yükleniyor...' : `${adminLogs.length} kayıt`}
                                                 </div>
-                                                <button onClick={loadAdminLogs} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg">Yenile</button>
+                                                <button onClick={loadAdminLogs} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-slate-700 dark:text-slate-300">Yenile</button>
                                             </div>
                                             {adminLogsError && (
-                                                <div className="p-4 text-sm text-red-600">{adminLogsError}</div>
+                                                <div className="p-4 text-sm text-red-600 dark:text-red-400">{adminLogsError}</div>
                                             )}
                                             <div className="max-h-80 overflow-auto">
                                                 {adminLogs.length === 0 && !adminLogsLoading ? (
-                                                    <div className="p-6 text-sm text-slate-500">Kayıt bulunamadı.</div>
+                                                    <div className="p-6 text-sm text-slate-500 dark:text-slate-400">Kayıt bulunamadı.</div>
                                                 ) : (
-                                                    <ul className="divide-y divide-slate-200">
+                                                    <ul className="divide-y divide-slate-200 dark:divide-slate-700">
                                                         {adminLogs.map((l:any)=> (
                                                             <li key={l.id} className="p-4 text-sm">
                                                                 <div className="flex items-center justify-between">
-                                                                    <div className="font-medium text-slate-800">{l.username || '—'}</div>
-                                                                    <div className={`text-xs px-2 py-0.5 rounded ${l.severity==='high' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{l.eventType}</div>
+                                                                    <div className="font-medium text-slate-800 dark:text-slate-100">{l.username || '—'}</div>
+                                                                    <div className={`text-xs px-2 py-0.5 rounded ${l.severity==='high' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}`}>{l.eventType}</div>
                                                                 </div>
-                                                                <div className="mt-1 text-slate-600">IP: {l.ip || '—'}</div>
-                                                                <div className="mt-1 text-slate-500 text-xs">{l.timestamp}</div>
+                                                                <div className="mt-1 text-slate-600 dark:text-slate-400">IP: {l.ip || '—'}</div>
+                                                                <div className="mt-1 text-slate-500 dark:text-slate-400 text-xs">{l.timestamp}</div>
                                                             </li>
                                                         ))}
                                                     </ul>
@@ -894,11 +894,11 @@ export default function Settings() {
                                     )}
                                 </div>
 
-                                    <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-                                    <h4 className="font-semibold text-red-800 mb-2">Tehlikeli Bölge</h4>
-                                    <p className="text-sm text-red-700 mb-4">Bu işlemler geri alınamaz</p>
+                                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6">
+                                    <h4 className="font-semibold text-red-800 dark:text-red-400 mb-2">Tehlikeli Bölge</h4>
+                                    <p className="text-sm text-red-700 dark:text-red-400 mb-4">Bu işlemler geri alınamaz</p>
                                     <div className="space-y-3">
-                                            <div className="text-sm text-red-700">Aksiyonlar yapılandırılmadı.</div>
+                                            <div className="text-sm text-red-700 dark:text-red-400">Aksiyonlar yapılandırılmadı.</div>
                                     </div>
                                 </div>
                             </motion.div>

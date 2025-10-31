@@ -387,7 +387,7 @@ export default function Products() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <RefreshCw className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-slate-600">Ürünler yükleniyor...</p>
+          <p className="text-slate-600 dark:text-slate-400">Ürünler yükleniyor...</p>
         </div>
       </div>
     )
@@ -395,9 +395,9 @@ export default function Products() {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-        <p className="text-red-600 font-semibold mb-2">Hata</p>
-        <p className="text-red-500">{error}</p>
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 text-center">
+        <p className="text-red-600 dark:text-red-400 font-semibold mb-2">Hata</p>
+        <p className="text-red-500 dark:text-red-400">{error}</p>
         <button
           onClick={() => fetchProducts(currentPage)}
           className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
@@ -483,8 +483,8 @@ export default function Products() {
       <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${syncStatus?.running ? 'bg-green-100' : 'bg-slate-100'}`}>
-              <Activity className={`w-5 h-5 ${syncStatus?.running ? 'text-green-600 animate-pulse' : 'text-slate-600'}`} />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${syncStatus?.running ? 'bg-green-100 dark:bg-green-900/30' : 'bg-slate-100 dark:bg-slate-700'}`}>
+              <Activity className={`w-5 h-5 ${syncStatus?.running ? 'text-green-600 dark:text-green-400 animate-pulse' : 'text-slate-600 dark:text-slate-400'}`} />
             </div>
             <div>
             <p className="text-slate-700 dark:text-slate-200 font-semibold">XML Senkron Durumu</p>
@@ -501,7 +501,7 @@ export default function Products() {
               <span className="text-slate-600 dark:text-slate-300">
                 {syncProgress.current} / {syncProgress.total} ürün işlendi
               </span>
-              <span className="text-slate-500">
+              <span className="text-slate-500 dark:text-slate-400">
                 %{Math.round(syncProgress.percentage)}
               </span>
             </div>
@@ -513,13 +513,13 @@ export default function Products() {
               ></div>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <span>{syncProgress.status}</span>
               {syncProgress.currentItem && (
                 <span className="truncate max-w-xs">{syncProgress.currentItem}</span>
               )}
               {syncProgress.errors && syncProgress.errors > 0 && (
-                <span className="text-red-500">{syncProgress.errors} hata</span>
+                <span className="text-red-500 dark:text-red-400">{syncProgress.errors} hata</span>
               )}
             </div>
           </div>
@@ -530,8 +530,8 @@ export default function Products() {
         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Toplam Ürün</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{totalProducts}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Toplam Ürün</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{totalProducts}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Package className="w-6 h-6 text-blue-600" />
@@ -542,8 +542,8 @@ export default function Products() {
         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Aktif Ürün</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Aktif Ürün</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
                 {products.filter(p => getStockStatus(p.stock) === 'active').length}
               </p>
             </div>
@@ -556,8 +556,8 @@ export default function Products() {
         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Düşük Stok</p>
-              <p className="text-2xl font-bold text-orange-600 mt-1">
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Düşük Stok</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
                 {products.filter(p => getStockStatus(p.stock) === 'low-stock').length}
               </p>
             </div>
@@ -570,8 +570,8 @@ export default function Products() {
         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-4 card-hover">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-500 text-sm">Stok Yok</p>
-              <p className="text-2xl font-bold text-red-600 mt-1">
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Stok Yok</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
                 {products.filter(p => getStockStatus(p.stock) === 'out-of-stock').length}
               </p>
             </div>
@@ -585,36 +585,36 @@ export default function Products() {
       <AnimatePresence>
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAddModal(false)}>
-            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white rounded-2xl shadow-2xl w-full max-w-xl" onClick={(e)=>e.stopPropagation()}>
-              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-xl font-bold">Yeni Ürün</h3>
-                <button onClick={()=>setShowAddModal(false)} className="px-2 py-1 rounded hover:bg-slate-100">X</button>
+            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-xl" onClick={(e)=>e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Yeni Ürün</h3>
+                <button onClick={()=>setShowAddModal(false)} className="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400">X</button>
               </div>
               <div className="p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <input placeholder="Ad" className="px-3 py-2 border rounded" value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})} />
-                  <input placeholder="Fiyat" type="number" className="px-3 py-2 border rounded" value={form.price} onChange={(e)=>setForm({...form,price:e.target.value})} />
-                  <input placeholder="Kategori" className="px-3 py-2 border rounded" value={form.category} onChange={(e)=>setForm({...form,category:e.target.value})} />
-                  <input placeholder="Marka" className="px-3 py-2 border rounded" value={form.brand} onChange={(e)=>setForm({...form,brand:e.target.value})} />
-                  <input placeholder="Stok" type="number" className="px-3 py-2 border rounded" value={form.stock} onChange={(e)=>setForm({...form,stock:Number(e.target.value)||0})} />
-                  <input placeholder="Görsel URL" className="px-3 py-2 border rounded" value={form.image} onChange={(e)=>setForm({...form,image:e.target.value})} />
-                  <input placeholder="KDV Oranı (%)" type="number" className="px-3 py-2 border rounded" value={form.taxRate} onChange={(e)=>setForm({...form,taxRate:Number(e.target.value)||0})} />
+                  <input placeholder="Ad" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})} />
+                  <input placeholder="Fiyat" type="number" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form.price} onChange={(e)=>setForm({...form,price:e.target.value})} />
+                  <input placeholder="Kategori" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form.category} onChange={(e)=>setForm({...form,category:e.target.value})} />
+                  <input placeholder="Marka" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form.brand} onChange={(e)=>setForm({...form,brand:e.target.value})} />
+                  <input placeholder="Stok" type="number" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form.stock} onChange={(e)=>setForm({...form,stock:Number(e.target.value)||0})} />
+                  <input placeholder="Görsel URL" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form.image} onChange={(e)=>setForm({...form,image:e.target.value})} />
+                  <input placeholder="KDV Oranı (%)" type="number" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form.taxRate} onChange={(e)=>setForm({...form,taxRate:Number(e.target.value)||0})} />
                   <div className="flex items-center gap-2">
                     <input id="incl" type="checkbox" checked={form.priceIncludesTax} onChange={(e)=>setForm({...form,priceIncludesTax:e.target.checked})} />
-                    <label htmlFor="incl" className="text-sm text-slate-700">Fiyata KDV dahil</label>
+                    <label htmlFor="incl" className="text-sm text-slate-700 dark:text-slate-300">Fiyata KDV dahil</label>
                   </div>
                   <div className="flex items-center gap-2">
                     <input id="active" type="checkbox" checked={form.isActive} onChange={(e)=>setForm({...form,isActive:e.target.checked})} />
-                    <label htmlFor="active" className="text-sm text-slate-700">Aktif</label>
+                    <label htmlFor="active" className="text-sm text-slate-700 dark:text-slate-300">Aktif</label>
                   </div>
                   <div className="flex items-center gap-2">
                     <input id="xml" type="checkbox" checked={form.excludeFromXml} onChange={(e)=>setForm({...form,excludeFromXml:e.target.checked})} />
-                    <label htmlFor="xml" className="text-sm text-slate-700">XML güncellemesinden muaf</label>
+                    <label htmlFor="xml" className="text-sm text-slate-700 dark:text-slate-300">XML güncellemesinden muaf</label>
                   </div>
                 </div>
-                <textarea placeholder="Açıklama" className="w-full px-3 py-2 border rounded" value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})} />
+                <textarea placeholder="Açıklama" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})} />
                 <div className="flex justify-end gap-2">
-                  <button onClick={()=>setShowAddModal(false)} className="px-4 py-2 border rounded">Vazgeç</button>
+                  <button onClick={()=>setShowAddModal(false)} className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Vazgeç</button>
                   <button disabled={saving} onClick={async()=>{
                     try {
                       setSaving(true)
@@ -635,7 +635,7 @@ export default function Products() {
                     } catch { alert('Ürün eklenemedi') } finally { setSaving(false) }
                   }} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">Kaydet</button>
                 </div>
-                <p className="text-xs text-slate-500">Not: Pasife alma ve XML muafiyet bayrakları için backend alanları gereklidir. Şu an yalnızca UI hazırlanmıştır.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Not: Pasife alma ve XML muafiyet bayrakları için backend alanları gereklidir. Şu an yalnızca UI hazırlanmıştır.</p>
               </div>
             </motion.div>
           </div>
@@ -645,96 +645,96 @@ export default function Products() {
       <AnimatePresence>
         {showEditModal.open && showEditModal.product && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowEditModal({ open: false, product: null })}>
-            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl" onClick={(e)=>e.stopPropagation()}>
-              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-xl font-bold">Ürün Güncelle</h3>
-                <button onClick={()=>setShowEditModal({ open:false, product:null })} className="px-2 py-1 rounded hover:bg-slate-100">X</button>
+            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-3xl" onClick={(e)=>e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Ürün Güncelle</h3>
+                <button onClick={()=>setShowEditModal({ open:false, product:null })} className="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400">X</button>
               </div>
               <div className="p-5 space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-3">
-                    <label className="text-sm font-medium text-slate-700">Ad</label>
-                    <input placeholder="Ürün adı" className={`px-3 py-2 border rounded w-full ${formErrors.name?'border-red-300':''}`} value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})} />
-                    {formErrors.name && <span className="text-xs text-red-600">{formErrors.name}</span>}
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Ad</label>
+                    <input placeholder="Ürün adı" className={`px-3 py-2 border rounded w-full dark:bg-slate-800 dark:text-slate-300 ${formErrors.name?'border-red-300 dark:border-red-600': 'border-slate-300 dark:border-slate-700'}`} value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})} />
+                    {formErrors.name && <span className="text-xs text-red-600 dark:text-red-400">{formErrors.name}</span>}
 
-                    <label className="text-sm font-medium text-slate-700">Açıklama</label>
-                    <textarea placeholder="Kısa açıklama" className="w-full px-3 py-2 border rounded min-h-[90px]" value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})} />
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Açıklama</label>
+                    <textarea placeholder="Kısa açıklama" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded min-h-[90px] dark:bg-slate-800 dark:text-slate-300" value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})} />
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-sm font-medium text-slate-700">Fiyat</label>
-                        <input placeholder="0" type="number" className={`px-3 py-2 border rounded w-full ${formErrors.price?'border-red-300':''}`} value={form.price} onChange={(e)=>setForm({...form,price:e.target.value})} />
-                        {formErrors.price && <span className="text-xs text-red-600">{formErrors.price}</span>}
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Fiyat</label>
+                        <input placeholder="0" type="number" className={`px-3 py-2 border rounded w-full dark:bg-slate-800 dark:text-slate-300 ${formErrors.price?'border-red-300 dark:border-red-600': 'border-slate-300 dark:border-slate-700'}`} value={form.price} onChange={(e)=>setForm({...form,price:e.target.value})} />
+                        {formErrors.price && <span className="text-xs text-red-600 dark:text-red-400">{formErrors.price}</span>}
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-slate-700">KDV (%)</label>
-                        <input placeholder="0" type="number" className="px-3 py-2 border rounded w-full" value={form.taxRate} onChange={(e)=>setForm({...form,taxRate:Number(e.target.value)||0})} />
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">KDV (%)</label>
+                        <input placeholder="0" type="number" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded w-full dark:bg-slate-800 dark:text-slate-300" value={form.taxRate} onChange={(e)=>setForm({...form,taxRate:Number(e.target.value)||0})} />
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <input id="incl-edit" type="checkbox" checked={form.priceIncludesTax} onChange={(e)=>setForm({...form,priceIncludesTax:e.target.checked})} />
-                      <label htmlFor="incl-edit" className="text-sm text-slate-700">Fiyata KDV dahil</label>
+                      <label htmlFor="incl-edit" className="text-sm text-slate-700 dark:text-slate-300">Fiyata KDV dahil</label>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-sm font-medium text-slate-700">Kategori</label>
-                        <input placeholder="Kategori" className="px-3 py-2 border rounded w-full" value={form.category} onChange={(e)=>setForm({...form,category:e.target.value})} />
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Kategori</label>
+                        <input placeholder="Kategori" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded w-full dark:bg-slate-800 dark:text-slate-300" value={form.category} onChange={(e)=>setForm({...form,category:e.target.value})} />
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-slate-700">Marka</label>
-                        <input placeholder="Marka" className="px-3 py-2 border rounded w-full" value={form.brand} onChange={(e)=>setForm({...form,brand:e.target.value})} />
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Marka</label>
+                        <input placeholder="Marka" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded w-full dark:bg-slate-800 dark:text-slate-300" value={form.brand} onChange={(e)=>setForm({...form,brand:e.target.value})} />
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-sm font-medium text-slate-700">Stok</label>
-                      <input placeholder="0" type="number" className={`px-3 py-2 border rounded w-full ${formErrors.stock?'border-red-300':''}`} value={form.stock} onChange={(e)=>setForm({...form,stock:Number(e.target.value)||0})} />
-                      {formErrors.stock && <span className="text-xs text-red-600">{formErrors.stock}</span>}
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Stok</label>
+                      <input placeholder="0" type="number" className={`px-3 py-2 border rounded w-full dark:bg-slate-800 dark:text-slate-300 ${formErrors.stock?'border-red-300 dark:border-red-600': 'border-slate-300 dark:border-slate-700'}`} value={form.stock} onChange={(e)=>setForm({...form,stock:Number(e.target.value)||0})} />
+                      {formErrors.stock && <span className="text-xs text-red-600 dark:text-red-400">{formErrors.stock}</span>}
                     </div>
 
                     <div className="flex items-center gap-2">
                       <input id="hasVar" type="checkbox" checked={form.hasVariations} onChange={(e)=>setForm({...form,hasVariations:e.target.checked})} />
-                      <label htmlFor="hasVar" className="text-sm text-slate-700">Varyasyonlu ürün</label>
+                      <label htmlFor="hasVar" className="text-sm text-slate-700 dark:text-slate-300">Varyasyonlu ürün</label>
                     </div>
                   </div>
 
                   <div className="space-y-3">
-                    <label className="text-sm font-medium text-slate-700">Kapak Görseli</label>
-                    <input placeholder="Görsel URL" className="px-3 py-2 border rounded w-full" value={form.image} onChange={(e)=>setForm({...form,image:e.target.value})} />
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Kapak Görseli</label>
+                    <input placeholder="Görsel URL" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded w-full dark:bg-slate-800 dark:text-slate-300" value={form.image} onChange={(e)=>setForm({...form,image:e.target.value})} />
                     {form.image && (
-                      <div className="border rounded-lg p-2">
+                      <div className="border border-slate-300 dark:border-slate-700 rounded-lg p-2">
                         <img src={form.image} alt="preview" className="w-full h-40 object-cover rounded" />
                       </div>
                     )}
 
-                    <label className="text-sm font-medium text-slate-700">Ek Görseller</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Ek Görseller</label>
                     <div className="space-y-2">
                       <div className="flex gap-2">
-                        <input placeholder="Görsel URL ekle" className="flex-1 px-3 py-2 border rounded" value={form._newImage || ''} onChange={(e)=>setForm({...form,_newImage:e.target.value})} />
+                        <input placeholder="Görsel URL ekle" className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded dark:bg-slate-800 dark:text-slate-300" value={form._newImage || ''} onChange={(e)=>setForm({...form,_newImage:e.target.value})} />
                         <button onClick={()=>{ if (form._newImage && String(form._newImage).trim()) { setForm({...form, images:[...form.images, String(form._newImage).trim()], _newImage:''}) } }} className="px-3 py-2 bg-slate-800 text-white rounded">Ekle</button>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         {(form.images||[]).map((url:string,idx:number)=>(
-                          <div key={idx} className="relative border rounded overflow-hidden">
+                          <div key={idx} className="relative border border-slate-300 dark:border-slate-700 rounded overflow-hidden">
                             <img src={url} className="w-full h-24 object-cover" />
-                            <button onClick={()=>setForm({...form, images: form.images.filter((_:any,i:number)=>i!==idx)})} className="absolute top-1 right-1 bg-white/80 rounded px-1 text-xs">Sil</button>
+                            <button onClick={()=>setForm({...form, images: form.images.filter((_:any,i:number)=>i!==idx)})} className="absolute top-1 right-1 bg-white/80 dark:bg-slate-800/80 rounded px-1 text-xs text-slate-700 dark:text-slate-300">Sil</button>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
-                      <h4 className="text-sm font-semibold text-slate-800 mb-3">Ürün Durumu</h4>
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                      <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Ürün Durumu</h4>
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                        <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                           <div>
-                            <label className="text-sm font-medium text-slate-700">Ürün Durumu</label>
-                            <p className="text-xs text-slate-500">Ürünün aktif/pasif durumu</p>
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Ürün Durumu</label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Ürünün aktif/pasif durumu</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-sm font-medium ${form.isActive ? 'text-green-600' : 'text-orange-600'}`}>
+                            <span className={`text-sm font-medium ${form.isActive ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
                               {form.isActive ? 'Aktif' : 'Pasif'}
                             </span>
                             <button
@@ -753,13 +753,13 @@ export default function Products() {
                           </div>
                         </div>
                         
-                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                        <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                           <div>
-                            <label className="text-sm font-medium text-slate-700">XML Senkron Muafiyeti</label>
-                            <p className="text-xs text-slate-500">XML güncellemelerinden muaf tut</p>
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">XML Senkron Muafiyeti</label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">XML güncellemelerinden muaf tut</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-sm font-medium ${form.excludeFromXml ? 'text-red-600' : 'text-green-600'}`}>
+                            <span className={`text-sm font-medium ${form.excludeFromXml ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                               {form.excludeFromXml ? 'Muaf' : 'Senkron'}
                             </span>
                             <button
@@ -778,7 +778,7 @@ export default function Products() {
                           </div>
                         </div>
                       </div>
-                      <p className="text-xs text-slate-500 mt-3">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
                         Not: Bu ayarlar backend'de kalıcı olarak saklanır ve ürünün görünürlüğünü etkiler.
                       </p>
                     </div>
@@ -787,21 +787,21 @@ export default function Products() {
 
                 {/* Beden Bilgileri */}
                 {showEditModal.product && (
-                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                    <h4 className="text-lg font-semibold text-slate-800 mb-3">Beden Stokları</h4>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">Beden Stokları</h4>
                     <div className="grid grid-cols-4 gap-3">
                       {Object.entries(productSizes[showEditModal.product.id] || {}).map(([size, stock]) => (
-                        <div key={size} className="bg-white rounded-lg p-3 border border-slate-200">
+                        <div key={size} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
                           <div className="text-center">
-                            <div className="text-sm font-medium text-slate-600">{size}</div>
-                            <div className={`text-lg font-bold ${stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            <div className="text-sm font-medium text-slate-600 dark:text-slate-300">{size}</div>
+                            <div className={`text-lg font-bold ${stock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                               {stock} adet
                             </div>
                           </div>
                         </div>
                       ))}
                       {Object.keys(productSizes[showEditModal.product.id] || {}).length === 0 && (
-                        <div className="col-span-4 text-center text-slate-500 py-4">
+                        <div className="col-span-4 text-center text-slate-500 dark:text-slate-400 py-4">
                           Beden bilgisi bulunamadı
                         </div>
                       )}
@@ -809,8 +809,8 @@ export default function Products() {
                   </div>
                 )}
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-                  <button onClick={()=>setShowEditModal({ open:false, product:null })} className="px-4 py-2 border rounded">Vazgeç</button>
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <button onClick={()=>setShowEditModal({ open:false, product:null })} className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Vazgeç</button>
                   <button disabled={saving} onClick={async()=>{
                     try {
                       if (!validateForm()) return
@@ -828,17 +828,17 @@ export default function Products() {
         )}
       </AnimatePresence>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div className="flex-1 max-w-md">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
               <input
                 type="text"
                 placeholder="Ürün ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800 transition-all dark:text-slate-300 dark:placeholder-slate-400"
               />
             </div>
           </div>
@@ -847,7 +847,7 @@ export default function Products() {
             <select 
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-300"
             >
               {categories.map(cat => (
                 <option key={cat}>{cat}</option>
@@ -859,8 +859,8 @@ export default function Products() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">
+              <tr className="border-b border-slate-200 dark:border-slate-700">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -872,23 +872,23 @@ export default function Products() {
                           selectAllProducts()
                         }
                       }}
-                      className="rounded border-slate-300"
+                      className="rounded border-slate-300 dark:border-slate-600"
                     />
                     <span>Seç</span>
                   </div>
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Ürün</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Kategori</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Fiyat</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Stok</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Bedenler</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Marka</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Durum</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">SKU</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">İşlem</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Ürün</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Kategori</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Fiyat</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Stok</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Bedenler</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Marka</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Durum</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">SKU</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">İşlem</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filteredProducts.map((product, index) => {
                 const status = getStockStatus(product.stock)
                 return (

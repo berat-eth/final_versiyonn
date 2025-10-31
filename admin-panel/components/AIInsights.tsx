@@ -288,7 +288,7 @@ export default function AIInsights() {
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-slate-600">AI içgörüleri analiz ediliyor...</p>
+            <p className="text-slate-600 dark:text-slate-400">AI içgörüleri analiz ediliyor...</p>
           </div>
         </div>
       </div>
@@ -300,18 +300,18 @@ export default function AIInsights() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
             <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl">
               <Brain className="w-8 h-8 text-white" />
             </div>
             AI İçgörüleri
           </h2>
-          <p className="text-slate-500 mt-1">Yapay zeka destekli analiz ve öneriler</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Yapay zeka destekli analiz ve öneriler</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-card border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300"
           >
             <Filter className="w-4 h-4" />
             <span>Filtrele</span>
@@ -333,15 +333,15 @@ export default function AIInsights() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-white rounded-xl border border-slate-200 p-4"
+            className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-4"
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Kategori</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Kategori</label>
                 <select
                   value={filters.category}
                   onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300"
                 >
                   <option value="all">Tümü</option>
                   <option value="sales">Satış</option>
@@ -352,11 +352,11 @@ export default function AIInsights() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Etki</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Etki</label>
                 <select
                   value={filters.impact}
                   onChange={(e) => setFilters({ ...filters, impact: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300"
                 >
                   <option value="all">Tümü</option>
                   <option value="high">Yüksek</option>
@@ -365,11 +365,11 @@ export default function AIInsights() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Zaman Aralığı</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Zaman Aralığı</label>
                 <select
                   value={filters.timeframe}
                   onChange={(e) => setFilters({ ...filters, timeframe: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300"
                 >
                   <option value="all">Tümü</option>
                   <option value="7">7 gün</option>
@@ -383,7 +383,7 @@ export default function AIInsights() {
       </AnimatePresence>
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl border border-slate-200 p-2">
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-2">
         <div className="flex gap-2">
           {tabs.map((tab) => {
             const Icon = tab.icon
@@ -393,8 +393,8 @@ export default function AIInsights() {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    ? 'bg-blue-600 dark:bg-blue-700 text-white'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -455,24 +455,24 @@ export default function AIInsights() {
             </div>
 
             {/* Recent Insights */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h3 className="text-xl font-bold text-slate-800 mb-4">Son İçgörüler</h3>
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">Son İçgörüler</h3>
               <div className="space-y-4">
                 {insights.slice(0, 3).map((insight) => {
                   const Icon = getInsightIcon(insight.type)
                   return (
                     <div
                       key={insight.id}
-                      className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="flex items-start gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                       onClick={() => setSelectedInsight(insight)}
                     >
                       <div className={`p-2 rounded-lg ${getInsightColor(insight.type)}`}>
                         <Icon className="w-5 h-5" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-semibold text-slate-800 mb-1">{insight.title}</h4>
-                        <p className="text-slate-600 text-sm mb-2">{insight.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">{insight.title}</h4>
+                        <p className="text-slate-600 dark:text-slate-300 text-sm mb-2">{insight.description}</p>
+                        <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                           <span className={`px-2 py-1 rounded-full ${getImpactColor(insight.impact)}`}>
                             {insight.impact === 'high' ? 'Yüksek' : insight.impact === 'medium' ? 'Orta' : 'Düşük'} Etki
                           </span>
@@ -480,7 +480,7 @@ export default function AIInsights() {
                           <span>{insight.timeframe}</span>
                         </div>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-slate-400" />
+                      <ArrowRight className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                     </div>
                   )
                 })}
@@ -502,7 +502,7 @@ export default function AIInsights() {
               return (
                 <div
                   key={insight.id}
-                  className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-shadow"
+                  className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
                 >
                   <div className="flex items-start gap-4">
                     <div className={`p-3 rounded-xl ${getInsightColor(insight.type)}`}>
@@ -511,8 +511,8 @@ export default function AIInsights() {
                     <div className="flex-1">
                       <div className="flex items-start justify-between mb-3">
                         <div>
-                          <h3 className="text-xl font-bold text-slate-800 mb-2">{insight.title}</h3>
-                          <p className="text-slate-600 leading-relaxed">{insight.description}</p>
+                          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">{insight.title}</h3>
+                          <p className="text-slate-600 dark:text-slate-300 leading-relaxed">{insight.description}</p>
                         </div>
                         <div className="text-right">
                           <div className={`px-3 py-1 rounded-full text-sm font-medium ${getImpactColor(insight.impact)}`}>
@@ -521,7 +521,7 @@ export default function AIInsights() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-6 text-sm text-slate-500 mb-4">
+                      <div className="flex items-center gap-6 text-sm text-slate-500 dark:text-slate-400 mb-4">
                         <div className="flex items-center gap-2">
                           <Activity className="w-4 h-4" />
                           <span>{insight.confidence}% Güven</span>
@@ -543,7 +543,7 @@ export default function AIInsights() {
                           {insight.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs"
+                              className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs"
                             >
                               {tag}
                             </span>
@@ -575,50 +575,50 @@ export default function AIInsights() {
             {predictions.map((prediction) => (
               <div
                 key={prediction.metric}
-                className="bg-white rounded-xl border border-slate-200 p-6"
+                className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-slate-800">{prediction.metric}</h3>
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{prediction.metric}</h3>
                   <div className="flex items-center gap-2">
                     {prediction.trend === 'up' ? (
-                      <TrendingUp className="w-5 h-5 text-green-600" />
+                      <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
                     ) : prediction.trend === 'down' ? (
-                      <TrendingDown className="w-5 h-5 text-red-600" />
+                      <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-400" />
                     ) : (
-                      <Activity className="w-5 h-5 text-blue-600" />
+                      <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     )}
-                    <span className="text-sm text-slate-500">{prediction.timeframe}</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">{prediction.timeframe}</span>
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-slate-800">
+                    <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                       {prediction.currentValue.toLocaleString()}
                     </div>
-                    <div className="text-sm text-slate-500">Mevcut Değer</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Mevcut Değer</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                       {prediction.predictedValue.toLocaleString()}
                     </div>
-                    <div className="text-sm text-slate-500">Tahmin Edilen</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Tahmin Edilen</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                       {prediction.confidence}%
                     </div>
-                    <div className="text-sm text-slate-500">Güven Seviyesi</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Güven Seviyesi</div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="font-semibold text-slate-700 mb-2">Etkileyen Faktörler:</h4>
+                  <h4 className="font-semibold text-slate-700 dark:text-slate-300 mb-2">Etkileyen Faktörler:</h4>
                   <div className="flex flex-wrap gap-2">
                     {prediction.factors.map((factor) => (
                       <span
                         key={factor}
-                        className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm"
+                        className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm"
                       >
                         {factor}
                       </span>
@@ -641,12 +641,12 @@ export default function AIInsights() {
             {recommendations.map((rec) => (
               <div
                 key={rec.id}
-                className="bg-white rounded-xl border border-slate-200 p-6"
+                className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-2">{rec.title}</h3>
-                    <p className="text-slate-600">{rec.description}</p>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">{rec.title}</h3>
+                    <p className="text-slate-600 dark:text-slate-300">{rec.description}</p>
                   </div>
                   <div className="text-right">
                     <div className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -661,20 +661,20 @@ export default function AIInsights() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div className="text-center">
-                    <div className="text-lg font-semibold text-slate-800">{rec.category}</div>
-                    <div className="text-sm text-slate-500">Kategori</div>
+                    <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{rec.category}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Kategori</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-semibold text-slate-800">{rec.effort}</div>
-                    <div className="text-sm text-slate-500">Çaba</div>
+                    <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{rec.effort}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Çaba</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-semibold text-slate-800">{rec.impact}</div>
-                    <div className="text-sm text-slate-500">Etki</div>
+                    <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{rec.impact}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Etki</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-semibold text-slate-800">{rec.timeframe}</div>
-                    <div className="text-sm text-slate-500">Süre</div>
+                    <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{rec.timeframe}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Süre</div>
                   </div>
                 </div>
 
@@ -689,12 +689,12 @@ export default function AIInsights() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-500">Durum:</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">Durum:</span>
                     <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                      rec.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                      rec.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                      rec.status === 'completed' ? 'bg-green-100 text-green-700' :
-                      'bg-gray-100 text-gray-700'
+                      rec.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                      rec.status === 'in_progress' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                      rec.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                      'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
                     }`}>
                       {rec.status === 'pending' ? 'Beklemede' :
                        rec.status === 'in_progress' ? 'Devam Ediyor' :
@@ -726,7 +726,7 @@ export default function AIInsights() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+              className="bg-white dark:bg-dark-card rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-start justify-between mb-4">
@@ -735,28 +735,28 @@ export default function AIInsights() {
                     {(() => { const Icon = getInsightIcon(selectedInsight.type); return <Icon className="w-6 h-6" /> })()}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-slate-800">{selectedInsight.title}</h3>
-                    <p className="text-slate-500">{selectedInsight.category}</p>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{selectedInsight.title}</h3>
+                    <p className="text-slate-500 dark:text-slate-400">{selectedInsight.category}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedInsight(null)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
               <div className="space-y-4">
-                <p className="text-slate-600 leading-relaxed">{selectedInsight.description}</p>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">{selectedInsight.description}</p>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-sm text-slate-500">Güven Seviyesi</span>
-                    <div className="text-lg font-semibold text-slate-800">{selectedInsight.confidence}%</div>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">Güven Seviyesi</span>
+                    <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{selectedInsight.confidence}%</div>
                   </div>
                   <div>
-                    <span className="text-sm text-slate-500">Etki</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">Etki</span>
                     <div className={`text-lg font-semibold ${getImpactColor(selectedInsight.impact)}`}>
                       {selectedInsight.impact === 'high' ? 'Yüksek' : selectedInsight.impact === 'medium' ? 'Orta' : 'Düşük'}
                     </div>
@@ -765,18 +765,18 @@ export default function AIInsights() {
 
                 {selectedInsight.estimatedValue && (
                   <div>
-                    <span className="text-sm text-slate-500">Tahmini Değer</span>
-                    <div className="text-lg font-semibold text-green-600">₺{selectedInsight.estimatedValue.toLocaleString()}</div>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">Tahmini Değer</span>
+                    <div className="text-lg font-semibold text-green-600 dark:text-green-400">₺{selectedInsight.estimatedValue.toLocaleString()}</div>
                   </div>
                 )}
 
                 <div>
-                  <span className="text-sm text-slate-500">Etiketler</span>
+                  <span className="text-sm text-slate-500 dark:text-slate-400">Etiketler</span>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {selectedInsight.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs"
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs"
                       >
                         {tag}
                       </span>
@@ -785,10 +785,10 @@ export default function AIInsights() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
+              <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <button
                   onClick={() => setSelectedInsight(null)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   Kapat
                 </button>

@@ -589,7 +589,7 @@ export default function Campaigns() {
       </div>
 
       {/* Modern Tab Navigation */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-2">
         <div className="flex flex-wrap gap-2">
           {[
             { key:'all', label:'Tümü', icon: <Megaphone className="w-4 h-4" /> },
@@ -603,7 +603,7 @@ export default function Campaigns() {
               className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all ${
                 activeTab===t.key 
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-800 dark:hover:text-slate-100'
               }`}
             >
               {t.icon}
@@ -627,15 +627,15 @@ export default function Campaigns() {
             </div>
             <span className="text-2xl font-bold text-green-600">{campaigns.filter(c => c.status === 'active').length}</span>
           </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">Aktif Kampanyalar</h3>
-          <p className="text-sm text-slate-600">Şu anda çalışan kampanyalar</p>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Aktif Kampanyalar</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Şu anda çalışan kampanyalar</p>
         </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-200 hover:shadow-lg transition-shadow"
+          className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800 hover:shadow-lg transition-shadow"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -643,35 +643,35 @@ export default function Campaigns() {
             </div>
             <span className="text-2xl font-bold text-blue-600">{campaigns.reduce((sum, c) => sum + c.views, 0).toLocaleString()}</span>
           </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">Toplam Görüntülenme</h3>
-          <p className="text-sm text-slate-600">Tüm kampanyaların toplam görüntülenmesi</p>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Toplam Görüntülenme</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Tüm kampanyaların toplam görüntülenmesi</p>
         </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl p-6 border border-purple-200 hover:shadow-lg transition-shadow"
+          className="bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 rounded-2xl p-6 border border-purple-200 dark:border-purple-800 hover:shadow-lg transition-shadow"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
             <span className="text-2xl font-bold text-purple-600">{campaigns.reduce((sum, c) => sum + c.conversions, 0).toLocaleString()}</span>
           </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">Toplam Dönüşüm</h3>
-          <p className="text-sm text-slate-600">Kampanyalardan gelen dönüşümler</p>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Toplam Dönüşüm</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Kampanyalardan gelen dönüşümler</p>
         </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 border border-orange-200 hover:shadow-lg transition-shadow"
+          className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-2xl p-6 border border-orange-200 dark:border-orange-800 hover:shadow-lg transition-shadow"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-orange-600" />
+            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-orange-600 dark:text-orange-400" />
             </div>
             <span className="text-2xl font-bold text-orange-600">
               {(() => {
@@ -681,8 +681,8 @@ export default function Campaigns() {
               })()}%
             </span>
           </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">Dönüşüm Oranı</h3>
-          <p className="text-sm text-slate-600">Görüntülenme başına dönüşüm</p>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Dönüşüm Oranı</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Görüntülenme başına dönüşüm</p>
         </motion.div>
       </div>
 
@@ -691,8 +691,8 @@ export default function Campaigns() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-2xl font-bold text-slate-800">Flash İndirimler</h3>
-              <p className="text-slate-500 mt-1">Hızlı indirim kampanyalarını yönetin</p>
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Flash İndirimler</h3>
+              <p className="text-slate-500 dark:text-slate-400 mt-1">Hızlı indirim kampanyalarını yönetin</p>
             </div>
             <button
               onClick={() => { 
@@ -722,20 +722,20 @@ export default function Campaigns() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow-sm p-5">
-              <p className="text-slate-500 text-sm mb-2">Aktif Flash Deal</p>
+            <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Aktif Flash Deal</p>
               <p className="text-3xl font-bold text-orange-600">{flashDeals.filter(d => d.isActive && isActive(d.startDate, d.endDate)).length}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-5">
-              <p className="text-slate-500 text-sm mb-2">Süresi Dolmuş</p>
+            <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Süresi Dolmuş</p>
               <p className="text-3xl font-bold text-red-600">{flashDeals.filter(d => isExpired(d.endDate)).length}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-5">
-              <p className="text-slate-500 text-sm mb-2">Toplam Flash Deal</p>
+            <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Toplam Flash Deal</p>
               <p className="text-3xl font-bold text-blue-600">{flashDeals.length}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-5">
-              <p className="text-slate-500 text-sm mb-2">Ortalama İndirim</p>
+            <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Ortalama İndirim</p>
               <p className="text-3xl font-bold text-green-600">
                 {flashDeals.length > 0 
                   ? (flashDeals.reduce((sum, d) => sum + d.discountValue, 0) / flashDeals.length).toFixed(1)
@@ -752,29 +752,29 @@ export default function Campaigns() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.1 }}
-                className={`bg-white rounded-2xl shadow-sm overflow-hidden border-2 ${
+                className={`bg-white dark:bg-dark-card rounded-2xl shadow-sm overflow-hidden border-2 ${
                   isActive(deal.startDate, deal.endDate) 
-                    ? 'border-orange-200 bg-orange-50/30' 
+                    ? 'border-orange-200 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-900/20' 
                     : isExpired(deal.endDate)
-                    ? 'border-red-200 bg-red-50/30'
-                    : 'border-slate-200'
+                    ? 'border-red-200 dark:border-red-800 bg-red-50/30 dark:bg-red-900/20'
+                    : 'border-slate-200 dark:border-slate-700'
                 }`}
               >
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-slate-800 truncate">{deal.name}</h3>
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100 truncate">{deal.name}</h3>
                     <div className="flex items-center space-x-2">
                       <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
                         isActive(deal.startDate, deal.endDate)
-                          ? 'bg-orange-100 text-orange-700'
+                          ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
                           : isExpired(deal.endDate)
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-blue-100 text-blue-700'
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                       }`}>
                         {isActive(deal.startDate, deal.endDate) ? 'Aktif' : isExpired(deal.endDate) ? 'Süresi Dolmuş' : 'Beklemede'}
                       </span>
                       <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                        deal.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'
+                        deal.isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                       }`}>
                         {deal.isActive ? 'Etkin' : 'Pasif'}
                       </span>
@@ -782,12 +782,12 @@ export default function Campaigns() {
                   </div>
                   
                   {deal.description && (
-                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">{deal.description}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2">{deal.description}</p>
                   )}
 
                   <div className="space-y-3 mb-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-sm">İndirim</span>
+                      <span className="text-slate-500 dark:text-slate-400 text-sm">İndirim</span>
                       <span className="font-bold text-orange-600">
                         {deal.discountType === 'percentage' 
                           ? `%${deal.discountValue}` 
@@ -796,12 +796,12 @@ export default function Campaigns() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-sm">Hedef</span>
-                      <span className="font-semibold text-slate-800">{getTargetName(deal)}</span>
+                      <span className="text-slate-500 dark:text-slate-400 text-sm">Hedef</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">{getTargetName(deal)}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-sm">Bitiş</span>
-                      <span className="font-semibold text-slate-800">
+                      <span className="text-slate-500 dark:text-slate-400 text-sm">Bitiş</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">
                         {new Date(deal.endDate).toLocaleDateString('tr-TR')}
                       </span>
                     </div>
@@ -847,12 +847,12 @@ export default function Campaigns() {
       )}
 
       {/* Modern Campaign Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-200">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xl font-bold text-slate-800">Kampanyalar</h3>
-              <p className="text-slate-600 mt-1">Tüm kampanyalarınızı buradan yönetin</p>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Kampanyalar</h3>
+              <p className="text-slate-600 dark:text-slate-400 mt-1">Tüm kampanyalarınızı buradan yönetin</p>
             </div>
             <button onClick={async()=>{
               const presets = [
@@ -900,25 +900,25 @@ export default function Campaigns() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 dark:bg-slate-800">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Kampanya</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Tür</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">İndirim</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Görüntülenme</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Dönüşüm</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Durum</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">İşlem</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Kampanya</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Tür</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">İndirim</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Görüntülenme</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Dönüşüm</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Durum</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">İşlem</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {filtered.map((campaign, index) => (
                 <motion.tr
                   key={campaign.id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="hover:bg-slate-50 transition-colors"
+                  className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
@@ -926,9 +926,9 @@ export default function Campaigns() {
                         {getCampaignTypeIcon(campaign.type)}
                       </div>
                       <div>
-                        <div className="font-semibold text-slate-800">{campaign.name}</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">{campaign.name}</div>
                         {campaign.description && (
-                          <div className="text-sm text-slate-500 truncate max-w-xs">{campaign.description}</div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400 truncate max-w-xs">{campaign.description}</div>
                         )}
                       </div>
                     </div>
@@ -942,7 +942,7 @@ export default function Campaigns() {
                   <td className="px-6 py-4">
                     <div className="font-bold text-green-600">{formatCampaignDiscount(campaign)}</div>
                     {campaign.type === 'bogo' && campaign.discountPercentage && campaign.discountPercentage > 0 && (
-                      <div className="text-xs text-slate-500">+ %{campaign.discountPercentage} ek indirim</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">+ %{campaign.discountPercentage} ek indirim</div>
                     )}
                   </td>
                   <td className="px-6 py-4">
@@ -1026,25 +1026,25 @@ export default function Campaigns() {
               <form onSubmit={handleSubmit} className="p-8 space-y-6">
                 {/* Temel Bilgiler */}
                 <div className="space-y-4">
-                  <h4 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">Temel Bilgiler</h4>
+                  <h4 className="text-xl font-semibold text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">Temel Bilgiler</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-slate-700">Kampanya Adı *</label>
+                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Kampanya Adı *</label>
                       <input 
                         type="text" 
                         required 
                         value={formData.name} 
                         onChange={(e)=>setFormData({...formData,name:e.target.value})} 
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                         placeholder="Kampanya adını girin"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-slate-700">Kampanya Türü *</label>
+                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Kampanya Türü *</label>
                       <select 
                         value={formData.type} 
                         onChange={(e)=>setFormData({...formData,type:e.target.value as any})} 
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                       >
                         <option value="discount">İndirim Kampanyası</option>
                         <option value="shipping">Kargo Kampanyası</option>
@@ -1054,11 +1054,11 @@ export default function Campaigns() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2 text-slate-700">Açıklama</label>
+                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Açıklama</label>
                     <textarea 
                       value={formData.description} 
                       onChange={(e)=>setFormData({...formData,description:e.target.value})} 
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                       rows={3} 
                       placeholder="Kampanya açıklaması"
                     />
@@ -1067,51 +1067,51 @@ export default function Campaigns() {
 
                 {/* İndirim Ayarları */}
                 <div className="space-y-4">
-                  <h4 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">İndirim Ayarları</h4>
+                  <h4 className="text-xl font-semibold text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">İndirim Ayarları</h4>
                   
                   {formData.type === 'bogo' ? (
-                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-200">
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl p-6 border border-purple-200 dark:border-purple-800">
                       <div className="flex items-center mb-4">
-                        <TrendingUp className="w-6 h-6 text-purple-600 mr-2" />
-                        <h5 className="text-lg font-semibold text-purple-800">X Al Y Öde Ayarları</h5>
+                        <TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400 mr-2" />
+                        <h5 className="text-lg font-semibold text-purple-800 dark:text-purple-300">X Al Y Öde Ayarları</h5>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-medium mb-2 text-slate-700">Alınacak Adet *</label>
+                          <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Alınacak Adet *</label>
                           <input 
                             type="number" 
                             min="1" 
                             value={formData.buyQuantity} 
                             onChange={(e)=>setFormData({...formData,buyQuantity:parseInt(e.target.value) || 2})} 
-                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
+                            className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-2 text-slate-700">Ödenecek Adet *</label>
+                          <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Ödenecek Adet *</label>
                           <input 
                             type="number" 
                             min="1" 
                             value={formData.getQuantity} 
                             onChange={(e)=>setFormData({...formData,getQuantity:parseInt(e.target.value) || 1})} 
-                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
+                            className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-2 text-slate-700">Ek İndirim (%)</label>
+                          <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Ek İndirim (%)</label>
                           <input 
                             type="number" 
                             min="0" 
                             max="100" 
                             value={formData.discountPercentage} 
                             onChange={(e)=>setFormData({...formData,discountPercentage:parseInt(e.target.value) || 0})} 
-                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
+                            className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                             placeholder="Ek indirim yüzdesi"
                           />
                         </div>
                       </div>
-                      <div className="mt-4 p-4 bg-white rounded-xl border border-purple-200">
-                        <div className="text-sm text-slate-600 mb-2">Önizleme:</div>
-                        <div className="text-lg font-semibold text-purple-700">
+                      <div className="mt-4 p-4 bg-white dark:bg-dark-card rounded-xl border border-purple-200 dark:border-purple-800">
+                        <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">Önizleme:</div>
+                        <div className="text-lg font-semibold text-purple-700 dark:text-purple-400">
                           {formData.buyQuantity} Al {formData.getQuantity} Öde
                           {formData.discountPercentage > 0 && ` + %${formData.discountPercentage} ek indirim`}
                         </div>
@@ -1131,22 +1131,22 @@ export default function Campaigns() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2 text-slate-700">İndirim Değeri</label>
+                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">İndirim Değeri</label>
                         <input 
                           type="number" 
                           value={formData.discountValue} 
                           onChange={(e)=>setFormData({...formData,discountValue:e.target.value})} 
-                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                          className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                           placeholder="İndirim değeri"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2 text-slate-700">Min. Sepet Tutarı</label>
+                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Min. Sepet Tutarı</label>
                         <input 
                           type="number" 
                           value={formData.minOrderAmount} 
                           onChange={(e)=>setFormData({...formData,minOrderAmount:e.target.value})} 
-                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                          className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                           placeholder="Minimum sepet tutarı"
                         />
                       </div>
@@ -1156,35 +1156,35 @@ export default function Campaigns() {
 
                 {/* Hedefleme */}
                 <div className="space-y-4">
-                  <h4 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">Hedefleme</h4>
+                  <h4 className="text-xl font-semibold text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">Hedefleme</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-slate-700">Max. İndirim Tutarı</label>
+                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Max. İndirim Tutarı</label>
                       <input 
                         type="number" 
                         value={formData.maxDiscountAmount} 
                         onChange={(e)=>setFormData({...formData,maxDiscountAmount:e.target.value})} 
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                         placeholder="Maksimum indirim"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-slate-700">Segment ID</label>
+                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Segment ID</label>
                       <input 
                         type="text" 
                         value={formData.targetSegmentId} 
                         onChange={(e)=>setFormData({...formData,targetSegmentId:e.target.value})} 
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                         placeholder="Hedef segment"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-slate-700">Kullanım Limiti</label>
+                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Kullanım Limiti</label>
                       <input 
                         type="number" 
                         value={formData.usageLimit} 
                         onChange={(e)=>setFormData({...formData,usageLimit:e.target.value})} 
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                         placeholder="Kullanım limiti"
                       />
                     </div>
@@ -1193,24 +1193,24 @@ export default function Campaigns() {
 
                 {/* Tarih Aralığı */}
                 <div className="space-y-4">
-                  <h4 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">Tarih Aralığı</h4>
+                  <h4 className="text-xl font-semibold text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">Tarih Aralığı</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-slate-700">Başlangıç Tarihi</label>
+                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Başlangıç Tarihi</label>
                       <input 
                         type="datetime-local" 
                         value={formData.startDate} 
                         onChange={(e)=>setFormData({...formData,startDate:e.target.value})} 
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-slate-700">Bitiş Tarihi</label>
+                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Bitiş Tarihi</label>
                       <input 
                         type="datetime-local" 
                         value={formData.endDate} 
                         onChange={(e)=>setFormData({...formData,endDate:e.target.value})} 
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                       />
                     </div>
                   </div>
@@ -1218,7 +1218,7 @@ export default function Campaigns() {
 
                 {/* Ürün/Kategori Seçimi */}
                 <div className="space-y-4">
-                  <h4 className="text-xl font-semibold text-slate-800 border-b border-slate-200 pb-2">Hedef Ürünler ve Kategoriler</h4>
+                  <h4 className="text-xl font-semibold text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">Hedef Ürünler ve Kategoriler</h4>
                   <div className="space-y-6">
                     <div>
                       <label className="block text-sm font-medium mb-2 text-slate-700">Hedef Ürünler</label>
@@ -1358,59 +1358,59 @@ export default function Campaigns() {
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
               onBlur={() => {
                 setTimeout(() => setShowSearchResults(false), 200)
               }}
             >
-              <div className="p-6 border-b flex items-center justify-between">
-                <h3 className="text-2xl font-bold">{editingFlashDeal ? 'Flash Deal Düzenle' : 'Yeni Flash Deal'}</h3>
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{editingFlashDeal ? 'Flash Deal Düzenle' : 'Yeni Flash Deal'}</h3>
                 <button onClick={() => setIsFlashModalOpen(false)}>
                   <X className="w-6 h-6" />
                 </button>
               </div>
               <form onSubmit={handleFlashSubmit} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Ad *</label>
+                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Ad *</label>
                   <input
                     type="text"
                     required
                     value={flashFormData.name}
                     onChange={(e) => setFlashFormData({ ...flashFormData, name: e.target.value })}
-                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                     placeholder="Flash deal adı"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Açıklama</label>
+                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Açıklama</label>
                   <textarea
                     value={flashFormData.description}
                     onChange={(e) => setFlashFormData({ ...flashFormData, description: e.target.value })}
-                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                     rows={3}
                     placeholder="Flash deal açıklaması"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">İndirim Türü *</label>
+                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">İndirim Türü *</label>
                     <select
                       value={flashFormData.discountType}
                       onChange={(e) => setFlashFormData({ ...flashFormData, discountType: e.target.value as 'percentage' | 'fixed' })}
-                      className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                     >
                       <option value="percentage">Yüzde (%)</option>
                       <option value="fixed">Sabit Tutar (₺)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">İndirim Değeri *</label>
+                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">İndirim Değeri *</label>
                     <input
                       type="number"
                       required
                       value={flashFormData.discountValue}
                       onChange={(e) => setFlashFormData({ ...flashFormData, discountValue: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                       min="0"
                       step="0.01"
                     />
@@ -1418,7 +1418,7 @@ export default function Campaigns() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Hedef Türü *</label>
+                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Hedef Türü *</label>
                     <select
                       value={flashFormData.targetType}
                       onChange={(e) => {
@@ -1426,7 +1426,7 @@ export default function Campaigns() {
                         setSearchTerm('')
                         setShowSearchResults(false)
                       }}
-                      className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                     >
                       <option value="category">Kategori</option>
                       <option value="product">Ürün</option>
@@ -1434,9 +1434,9 @@ export default function Campaigns() {
                   </div>
                   <div className="space-y-4">
                     <div className="relative">
-                      <label className="block text-sm font-medium mb-2">
+                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
                         Hedef Seç (Maksimum 5)
-                        <span className="text-xs text-gray-500 ml-2">
+                        <span className="text-xs text-gray-500 dark:text-slate-400 ml-2">
                           {flashFormData.targetType === 'product' 
                             ? `${selectedProducts.length}/5 ürün seçildi`
                             : `${selectedCategories.length}/5 kategori seçildi`
@@ -1449,7 +1449,7 @@ export default function Campaigns() {
                           value={searchTerm}
                           onChange={(e) => handleSearch(e.target.value)}
                           onFocus={() => setShowSearchResults(true)}
-                          className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
+                          className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                           placeholder={`${flashFormData.targetType === 'category' ? 'Kategori' : 'Ürün'} ara...`}
                         />
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -1461,7 +1461,7 @@ export default function Campaigns() {
                       
                       {/* Arama Sonuçları */}
                       {showSearchResults && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-dark-card border border-gray-300 dark:border-slate-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                           {getFilteredItems().map(item => {
                             const isSelected = flashFormData.targetType === 'product' 
                               ? selectedProducts.find(p => p.id === item.id) !== undefined
@@ -1474,8 +1474,8 @@ export default function Campaigns() {
                                   disabled={isSelected}
                                   className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${
                                     isSelected 
-                                      ? 'bg-green-100 text-green-700 cursor-not-allowed' 
-                                      : 'hover:bg-gray-100'
+                                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 cursor-not-allowed' 
+                                      : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100'
                                   }`}
                                 >
                                   <div className="font-medium flex items-center justify-between">
@@ -1483,14 +1483,14 @@ export default function Campaigns() {
                                     {isSelected && <span className="text-xs">✓ Seçildi</span>}
                                   </div>
                                   {flashFormData.targetType === 'product' && (
-                                    <div className="text-xs text-gray-500">{(item as Product).category}</div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400">{(item as Product).category}</div>
                                   )}
                                 </button>
                               </div>
                             )
                           })}
                           {getFilteredItems().length === 0 && (
-                            <div className="p-3 text-sm text-gray-500 text-center">
+                            <div className="p-3 text-sm text-gray-500 dark:text-slate-400 text-center">
                               {flashFormData.targetType === 'category' ? 'Kategori' : 'Ürün'} bulunamadı
                             </div>
                           )}
@@ -1500,26 +1500,26 @@ export default function Campaigns() {
 
                     {/* Seçilen Öğeler */}
                     {(selectedProducts.length > 0 || selectedCategories.length > 0) && (
-                      <div className="bg-gray-50 rounded-xl p-4">
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium text-gray-800">
+                          <h4 className="font-medium text-gray-800 dark:text-slate-100">
                             Seçilen {flashFormData.targetType === 'product' ? 'Ürünler' : 'Kategoriler'}
                           </h4>
                           <button
                             type="button"
                             onClick={clearAllSelections}
-                            className="text-xs text-red-600 hover:text-red-800"
+                            className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                           >
                             Tümünü Temizle
                           </button>
                         </div>
                         <div className="space-y-2">
                           {(flashFormData.targetType === 'product' ? selectedProducts : selectedCategories).map(item => (
-                            <div key={item.id} className="flex items-center justify-between bg-white rounded-lg p-3 border">
+                            <div key={item.id} className="flex items-center justify-between bg-white dark:bg-dark-card rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                               <div className="flex-1">
-                                <div className="font-medium text-sm">{item.name}</div>
+                                <div className="font-medium text-sm text-slate-800 dark:text-slate-100">{item.name}</div>
                                 {flashFormData.targetType === 'product' && (
-                                  <div className="text-xs text-gray-500">{(item as Product).category}</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">{(item as Product).category}</div>
                                 )}
                               </div>
                               <button
@@ -1538,23 +1538,23 @@ export default function Campaigns() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Başlangıç Tarihi *</label>
+                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Başlangıç Tarihi *</label>
                     <input
                       type="datetime-local"
                       required
                       value={flashFormData.startDate}
                       onChange={(e) => setFlashFormData({ ...flashFormData, startDate: e.target.value })}
-                      className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Bitiş Tarihi *</label>
+                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Bitiş Tarihi *</label>
                     <input
                       type="datetime-local"
                       required
                       value={flashFormData.endDate}
                       onChange={(e) => setFlashFormData({ ...flashFormData, endDate: e.target.value })}
-                      className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                     />
                   </div>
                 </div>
@@ -1564,9 +1564,9 @@ export default function Campaigns() {
                     id="isActive"
                     checked={flashFormData.isActive}
                     onChange={(e) => setFlashFormData({ ...flashFormData, isActive: e.target.checked })}
-                    className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                    className="w-4 h-4 text-orange-600 border-gray-300 dark:border-slate-600 rounded focus:ring-orange-500"
                   />
-                  <label htmlFor="isActive" className="text-sm font-medium">
+                  <label htmlFor="isActive" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Aktif
                   </label>
                 </div>
@@ -1575,7 +1575,7 @@ export default function Campaigns() {
                     <Save className="w-5 h-5 mr-2" />
                     {editingFlashDeal ? 'Güncelle' : 'Kaydet'}
                   </button>
-                  <button type="button" onClick={() => setIsFlashModalOpen(false)} className="px-6 py-3 border rounded-xl">
+                  <button type="button" onClick={() => setIsFlashModalOpen(false)} className="px-6 py-3 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                     İptal
                   </button>
                 </div>

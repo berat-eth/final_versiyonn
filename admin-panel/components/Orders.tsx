@@ -468,37 +468,37 @@ export default function Orders() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-[min(40rem,calc(100vw-2rem))] max-h-[calc(100vh-4rem)] overflow-y-auto"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-[min(40rem,calc(100vw-2rem))] max-h-[calc(100vh-4rem)] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
                     <Truck className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800">Kargo Takip</h3>
-                    <p className="text-sm text-slate-500">Sipariş #{selectedOrderForAction.id}</p>
+                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Kargo Takip</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Sipariş #{selectedOrderForAction.id}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowCargoModal(false)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
               <div className="p-6 space-y-6">
                 {/* Kargo Bilgileri */}
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-slate-500 mb-1">Kargo Firması</p>
-                      <input value={cargoCompany} onChange={(e)=>setCargoCompany(e.target.value)} placeholder={selectedOrderForAction.cargoCompany || 'Kargo Firması'} className="w-full px-3 py-2 border border-purple-200 rounded-lg" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Kargo Firması</p>
+                      <input value={cargoCompany} onChange={(e)=>setCargoCompany(e.target.value)} placeholder={selectedOrderForAction.cargoCompany || 'Kargo Firması'} className="w-full px-3 py-2 border border-purple-200 dark:border-purple-800 rounded-lg dark:bg-slate-800 dark:text-slate-300" />
                     </div>
                     <div>
-                      <p className="text-sm text-slate-500 mb-1">Takip Numarası</p>
-                      <input value={trackingNumber} onChange={(e)=>setTrackingNumber(e.target.value)} placeholder={selectedOrderForAction.trackingNumber || 'Takip No'} className="w-full px-3 py-2 border border-purple-200 rounded-lg font-mono" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Takip Numarası</p>
+                      <input value={trackingNumber} onChange={(e)=>setTrackingNumber(e.target.value)} placeholder={selectedOrderForAction.trackingNumber || 'Takip No'} className="w-full px-3 py-2 border border-purple-200 dark:border-purple-800 rounded-lg font-mono dark:bg-slate-800 dark:text-slate-300" />
                     </div>
                   </div>
                   <div className="mt-4 flex items-center space-x-2">
@@ -508,21 +508,21 @@ export default function Orders() {
 
                 {/* Kargo Durumu */}
                 {selectedOrderForAction.cargoStatus && (
-                  <div className="bg-slate-50 rounded-xl p-6">
-                    <h4 className="font-semibold text-slate-800 mb-4">Kargo Durumu</h4>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-6">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Kargo Durumu</h4>
                     <div className="space-y-4">
                       <div className="flex items-start space-x-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedOrderForAction.cargoStatus === 'preparing' ||
                             selectedOrderForAction.cargoStatus === 'shipped' ||
                             selectedOrderForAction.cargoStatus === 'in-transit' ||
                             selectedOrderForAction.cargoStatus === 'delivered'
-                            ? 'bg-green-500' : 'bg-slate-300'
+                            ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
                           }`}>
                           <Package className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800">Kargo Hazırlanıyor</p>
-                          <p className="text-sm text-slate-500">Paketiniz kargoya hazırlanıyor</p>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">Kargo Hazırlanıyor</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Paketiniz kargoya hazırlanıyor</p>
                         </div>
                       </div>
 
@@ -530,38 +530,38 @@ export default function Orders() {
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedOrderForAction.cargoStatus === 'shipped' ||
                             selectedOrderForAction.cargoStatus === 'in-transit' ||
                             selectedOrderForAction.cargoStatus === 'delivered'
-                            ? 'bg-green-500' : 'bg-slate-300'
+                            ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
                           }`}>
                           <Truck className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800">Kargoya Verildi</p>
-                          <p className="text-sm text-slate-500">Paketiniz kargo şubesine teslim edildi</p>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">Kargoya Verildi</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Paketiniz kargo şubesine teslim edildi</p>
                         </div>
                       </div>
 
                       <div className="flex items-start space-x-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedOrderForAction.cargoStatus === 'in-transit' ||
                             selectedOrderForAction.cargoStatus === 'delivered'
-                            ? 'bg-green-500' : 'bg-slate-300'
+                            ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
                           }`}>
                           <Package className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800">Dağıtımda</p>
-                          <p className="text-sm text-slate-500">Paketiniz size ulaştırılıyor</p>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">Dağıtımda</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Paketiniz size ulaştırılıyor</p>
                         </div>
                       </div>
 
                       <div className="flex items-start space-x-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedOrderForAction.cargoStatus === 'delivered'
-                            ? 'bg-green-500' : 'bg-slate-300'
+                            ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
                           }`}>
                           <CheckCircle className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-slate-800">Teslim Edildi</p>
-                          <p className="text-sm text-slate-500">Paketiniz teslim edildi</p>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">Teslim Edildi</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Paketiniz teslim edildi</p>
                         </div>
                       </div>
                     </div>
@@ -569,12 +569,12 @@ export default function Orders() {
                 )}
 
                 {/* Teslimat Adresi */}
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                   <div className="flex items-center space-x-2 mb-2">
-                    <MapPin className="w-4 h-4 text-blue-600" />
-                    <p className="text-sm font-semibold text-slate-700">Teslimat Adresi</p>
+                    <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Teslimat Adresi</p>
                   </div>
-                  <p className="text-sm text-slate-600">{selectedOrderForAction.shippingAddress}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">{selectedOrderForAction.shippingAddress}</p>
                 </div>
 
                 <div className="flex space-x-3">
@@ -588,7 +588,7 @@ export default function Orders() {
                   </button>
                   <button
                     onClick={() => setShowCargoModal(false)}
-                    className="px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium"
+                    className="px-6 py-3 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
                   >
                     Kapat
                   </button>
@@ -614,58 +614,58 @@ export default function Orders() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-3xl w-full"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
                     <FileText className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800">Fatura Detayları</h3>
-                    <p className="text-sm text-slate-500">Sipariş #{selectedOrderForAction.id}</p>
+                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Fatura Detayları</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Sipariş #{selectedOrderForAction.id}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowInvoiceModal(false)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
               <div className="p-6 space-y-6">
                 {/* Fatura Başlık */}
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-6 border border-green-200 dark:border-green-800">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <p className="text-sm text-slate-500 mb-1">Fatura No</p>
-                      <p className="text-2xl font-bold text-slate-800">{selectedOrderForAction.invoiceNumber}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Fatura No</p>
+                      <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{selectedOrderForAction.invoiceNumber}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-slate-500 mb-1">Fatura Tarihi</p>
-                      <p className="text-lg font-semibold text-slate-800">{selectedOrderForAction.invoiceDate}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Fatura Tarihi</p>
+                      <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">{selectedOrderForAction.invoiceDate}</p>
                     </div>
                   </div>
                   {selectedOrderForAction.taxNumber && (
-                    <div className="pt-4 border-t border-green-200">
-                      <p className="text-sm text-slate-500 mb-1">Vergi Numarası</p>
-                      <p className="font-semibold text-slate-800">{selectedOrderForAction.taxNumber}</p>
+                    <div className="pt-4 border-t border-green-200 dark:border-green-800">
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Vergi Numarası</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-100">{selectedOrderForAction.taxNumber}</p>
                     </div>
                   )}
                 </div>
 
                 {/* Müşteri Bilgileri */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-sm font-semibold text-slate-700 mb-3">Müşteri Bilgileri</p>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Müşteri Bilgileri</p>
                     <div className="space-y-2">
-                      <p className="text-sm text-slate-800 font-medium">{selectedOrderForAction.customer}</p>
-                      <div className="flex items-center space-x-2 text-sm text-slate-600">
+                      <p className="text-sm text-slate-800 dark:text-slate-100 font-medium">{selectedOrderForAction.customer}</p>
+                      <div className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-400">
                         <Mail className="w-3.5 h-3.5" />
                         <span>{selectedOrderForAction.customerEmail}</span>
                       </div>
-                      <div className="flex items-center space-x-2 text-sm text-slate-600">
+                      <div className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-400">
                         <Phone className="w-3.5 h-3.5" />
                         <span>{selectedOrderForAction.customerPhone}</span>
                       </div>
@@ -773,29 +773,29 @@ export default function Orders() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-4 md:p-6 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800">Sipariş Detayları</h3>
+              <div className="p-4 md:p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">Sipariş Detayları</h3>
                 <button
                   onClick={() => setViewingOrder(null)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 md:w-6 md:h-6" />
+                  <X className="w-5 h-5 md:w-6 md:h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
               <div className="p-4 md:p-6 space-y-4 md:space-y-6">
                 {detailLoading && (
-                  <div className="text-sm text-slate-500">Detaylar yükleniyor...</div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">Detaylar yükleniyor...</div>
                 )}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <p className="text-sm text-slate-500">Sipariş No</p>
-                    <p className="text-xl md:text-2xl font-bold text-slate-800">#{viewingOrder.id}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Sipariş No</p>
+                    <p className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">#{viewingOrder.id}</p>
                   </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <select value={newStatus} onChange={(e)=>setNewStatus(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1">
+                    <select value={newStatus} onChange={(e)=>setNewStatus(e.target.value)} className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm flex-1 dark:bg-slate-800 dark:text-slate-300">
                       <option value="pending">Ödeme Bekleniyor</option>
                       <option value="processing">Paketleniyor</option>
                       <option value="shipped">Kargoya Verildi</option>
@@ -820,71 +820,71 @@ export default function Orders() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-sm text-slate-500 mb-1">Müşteri</p>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Müşteri</p>
                     <div className="flex items-center space-x-2">
                       <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
                         {((viewingOrder as any).userName || (viewingOrder as any).customer || 'U').charAt(0)}
                       </div>
-                      <p className="font-bold text-slate-800">{(viewingOrder as any).userName || (viewingOrder as any).customer || '—'}</p>
+                      <p className="font-bold text-slate-800 dark:text-slate-100">{(viewingOrder as any).userName || (viewingOrder as any).customer || '—'}</p>
                     </div>
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-sm text-slate-500 mb-1">Tarih</p>
-                    <p className="font-bold text-slate-800">{(() => {
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Tarih</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{(() => {
                       const raw = (viewingOrder as any).createdAt || (viewingOrder as any).date
                       if (!raw) return '-'
                       const d = new Date(raw)
                       return isNaN(d.getTime()) ? String(raw) : `${formatDDMMYYYY(d)} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`
                     })()}</p>
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-sm text-slate-500 mb-1">Ödeme Yöntemi</p>
-                    <p className="font-bold text-slate-800">{(viewingOrder as any).paymentMethod || (viewingOrder as any).payment || '-'}</p>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Ödeme Yöntemi</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{(viewingOrder as any).paymentMethod || (viewingOrder as any).payment || '-'}</p>
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-sm text-slate-500 mb-1">Ürün Sayısı</p>
-                    <p className="font-bold text-slate-800">{Array.isArray((viewingOrder as any).items) ? (viewingOrder as any).items.length : ((viewingOrder as any).items as any)} ürün</p>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Ürün Sayısı</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{Array.isArray((viewingOrder as any).items) ? (viewingOrder as any).items.length : ((viewingOrder as any).items as any)} ürün</p>
                   </div>
                 </div>
 
                 {/* Ürünler */}
                 {Array.isArray(viewingOrder.items) && viewingOrder.items.length > 0 && (
-                  <div className="bg-white rounded-xl border border-slate-200">
-                    <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-700">Ürünler</p>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Ürünler</p>
                       <div className="flex items-center space-x-3">
                         <button
                           onClick={() => {
                             const lines = viewingOrder.items.map(it => `${it.productName} x${it.quantity} - ₺${(it.price * it.quantity).toLocaleString()}`)
                             copyToClipboard(lines.join('\n'))
                           }}
-                          className="p-1.5 border border-slate-300 rounded-lg hover:bg-slate-100"
+                          className="p-1.5 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
                           title="Ürünleri kopyala"
                           aria-label="Ürünleri kopyala"
                         >
-                          <Copy className="w-4 h-4 text-slate-600" />
+                          <Copy className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         </button>
-                        <span className="text-xs text-slate-500">{viewingOrder.items.length} kalem</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{viewingOrder.items.length} kalem</span>
                       </div>
                     </div>
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700">
                       {viewingOrder.items.map((it, idx) => (
                         <div key={idx} className="p-4 flex items-center justify-between">
                           <div className="flex items-center space-x-3">
                             {it.productImage ? (
-                              <img src={it.productImage} alt={it.productName} className="w-12 h-12 rounded object-cover border border-slate-200" />
+                              <img src={it.productImage} alt={it.productName} className="w-12 h-12 rounded object-cover border border-slate-200 dark:border-slate-700" />
                             ) : (
-                              <div className="w-12 h-12 rounded bg-slate-100 border border-slate-200" />
+                              <div className="w-12 h-12 rounded bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600" />
                             )}
                             <div>
-                              <p className="font-medium text-slate-800">{it.productName}</p>
-                              <p className="text-xs text-slate-500">Adet: {it.quantity}</p>
+                              <p className="font-medium text-slate-800 dark:text-slate-100">{it.productName}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">Adet: {it.quantity}</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-semibold text-slate-800">₺{(it.price * it.quantity).toLocaleString()}</p>
-                            <p className="text-xs text-slate-500">Birim: ₺{it.price.toLocaleString()}</p>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">₺{(it.price * it.quantity).toLocaleString()}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Birim: ₺{it.price.toLocaleString()}</p>
                           </div>
                         </div>
                       ))}
@@ -893,27 +893,27 @@ export default function Orders() {
                 )}
 
                 {/* İletişim Bilgileri */}
-                <div className="bg-slate-50 rounded-xl p-4">
-                  <p className="text-sm font-semibold text-slate-700 mb-3">İletişim Bilgileri</p>
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">İletişim Bilgileri</p>
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2 text-sm">
-                      <Mail className="w-4 h-4 text-slate-500" />
-                      <span className="text-slate-700">{(viewingOrder as any).userEmail || (viewingOrder as any).customerEmail || '-'}</span>
+                      <Mail className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                      <span className="text-slate-700 dark:text-slate-300">{(viewingOrder as any).userEmail || (viewingOrder as any).customerEmail || '-'}</span>
                       <button
                         onClick={() => copyToClipboard(String((viewingOrder as any).userEmail || (viewingOrder as any).customerEmail || ''))}
-                        className="ml-auto p-1.5 border border-slate-300 rounded-lg hover:bg-slate-100"
+                        className="ml-auto p-1.5 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
                         title="E-posta kopyala"
                         aria-label="E-posta kopyala"
                       >
-                        <Copy className="w-4 h-4 text-slate-600" />
+                        <Copy className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                       </button>
                     </div>
                     <div className="flex items-center space-x-2 text-sm">
-                      <Phone className="w-4 h-4 text-slate-500" />
-                      <span className="text-slate-700">{(viewingOrder as any).customerPhone || '-'}</span>
+                      <Phone className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                      <span className="text-slate-700 dark:text-slate-300">{(viewingOrder as any).customerPhone || '-'}</span>
                       <button
                         onClick={() => copyToClipboard(String((viewingOrder as any).customerPhone || ''))}
-                        className="ml-auto p-1.5 border border-slate-300 rounded-lg hover:bg-slate-100"
+                        className="ml-auto p-1.5 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
                         title="Telefon kopyala"
                         aria-label="Telefon kopyala"
                       >

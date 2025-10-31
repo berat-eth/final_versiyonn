@@ -1549,15 +1549,15 @@ export default function Dashboard() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
-                <h3 className="text-2xl font-bold text-slate-800">Kategori Performans Detayları</h3>
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-dark-card z-10">
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Kategori Performans Detayları</h3>
                 <button
                   onClick={() => setShowCategoryDetails(false)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
@@ -1568,30 +1568,30 @@ export default function Dashboard() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="bg-gradient-to-r from-slate-50 to-white border border-slate-200 rounded-xl p-6"
+                    className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6"
                   >
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-xl font-bold text-slate-800">{cat.name}</h4>
-                      <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
+                      <h4 className="text-xl font-bold text-slate-800 dark:text-slate-100">{cat.name}</h4>
+                      <span className="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium">
                         {cat.siparisler} sipariş
                       </span>
                     </div>
                     <div className="grid grid-cols-4 gap-4 mb-4">
-                      <div className="bg-white rounded-lg p-4 border border-slate-200">
-                        <p className="text-sm text-slate-500 mb-1">Satış</p>
-                        <p className="text-2xl font-bold text-green-600">₺{(cat.satis / 1000).toFixed(0)}K</p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Satış</p>
+                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">₺{(cat.satis / 1000).toFixed(0)}K</p>
                       </div>
-                      <div className="bg-white rounded-lg p-4 border border-slate-200">
-                        <p className="text-sm text-slate-500 mb-1">Kar</p>
-                        <p className="text-2xl font-bold text-blue-600">₺{(cat.kar / 1000).toFixed(0)}K</p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Kar</p>
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">₺{(cat.kar / 1000).toFixed(0)}K</p>
                       </div>
-                      <div className="bg-white rounded-lg p-4 border border-slate-200">
-                        <p className="text-sm text-slate-500 mb-1">Stok</p>
-                        <p className="text-2xl font-bold text-purple-600">{cat.stok}</p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Stok</p>
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{cat.stok}</p>
                       </div>
-                      <div className="bg-white rounded-lg p-4 border border-slate-200">
-                        <p className="text-sm text-slate-500 mb-1">Kar Marjı</p>
-                        <p className="text-2xl font-bold text-orange-600">{((cat.kar / cat.satis) * 100).toFixed(1)}%</p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Kar Marjı</p>
+                        <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{((cat.kar / cat.satis) * 100).toFixed(1)}%</p>
                       </div>
                     </div>
                     <div className="bg-slate-200 rounded-full h-3 overflow-hidden">
@@ -1604,7 +1604,7 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              <div className="p-6 border-t border-slate-200 bg-slate-50">
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                 <button
                   onClick={() => setShowCategoryDetails(false)}
                   className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium"
@@ -1632,27 +1632,27 @@ export default function Dashboard() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-slate-800">Sipariş Detayları</h3>
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Sipariş Detayları</h3>
                 <button
                   onClick={() => setSelectedOrder(null)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
               <div className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Sipariş No</p>
-                    <p className="text-2xl font-bold text-slate-800">{selectedOrder.id}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Sipariş No</p>
+                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{selectedOrder.id}</p>
                   </div>
-                  <span className={`px-4 py-2 rounded-lg text-sm font-medium ${selectedOrder.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    selectedOrder.status === 'processing' ? 'bg-blue-100 text-blue-700' :
-                      'bg-yellow-100 text-yellow-700'
+                  <span className={`px-4 py-2 rounded-lg text-sm font-medium ${selectedOrder.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                    selectedOrder.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                      'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                     }`}>
                     {selectedOrder.status === 'completed' ? 'Tamamlandı' :
                       selectedOrder.status === 'processing' ? 'İşleniyor' : 'Beklemede'}
@@ -1660,19 +1660,19 @@ export default function Dashboard() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-sm text-slate-500 mb-1">Müşteri</p>
-                    <p className="font-bold text-slate-800">{selectedOrder.customer}</p>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Müşteri</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{selectedOrder.customer}</p>
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-4">
-                    <p className="text-sm text-slate-500 mb-1">Ürün</p>
-                    <p className="font-bold text-slate-800">{selectedOrder.product}</p>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Ürün</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{selectedOrder.product}</p>
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-                  <p className="text-sm text-slate-500 mb-2">Toplam Tutar</p>
-                  <p className="text-3xl font-bold text-green-600">₺{selectedOrder.amount.toLocaleString()}</p>
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-6 border border-green-200 dark:border-green-800">
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Toplam Tutar</p>
+                  <p className="text-3xl font-bold text-green-600 dark:text-green-400">₺{selectedOrder.amount.toLocaleString()}</p>
                 </div>
 
                 <button
@@ -1702,25 +1702,25 @@ export default function Dashboard() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div className="flex items-center">
-                  <Filter className="w-6 h-6 text-blue-600 mr-3" />
-                  <h3 className="text-2xl font-bold text-slate-800">Filtreler</h3>
+                  <Filter className="w-6 h-6 text-blue-600 dark:text-blue-400 mr-3" />
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Filtreler</h3>
                 </div>
                 <button
                   onClick={() => setShowFilterModal(false)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
               <div className="p-6 space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Tarih Aralığı</label>
-                  <select className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Tarih Aralığı</label>
+                  <select className="w-full px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300">
                     <option>Son 7 Gün</option>
                     <option>Son 30 Gün</option>
                     <option>Son 3 Ay</option>
@@ -1730,53 +1730,53 @@ export default function Dashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Kategori</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Kategori</label>
                   <div className="grid grid-cols-2 gap-3">
                     {categoryData.map((cat) => (
-                      <label key={cat.name} className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
+                      <label key={cat.name} className="flex items-center space-x-2 p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                         <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" defaultChecked />
-                        <span className="text-sm text-slate-700">{cat.name}</span>
+                        <span className="text-sm text-slate-700 dark:text-slate-300">{cat.name}</span>
                       </label>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Sipariş Durumu</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Sipariş Durumu</label>
                   <div className="grid grid-cols-3 gap-3">
-                    <label className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <label className="flex items-center space-x-2 p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                       <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" defaultChecked />
-                      <span className="text-sm text-slate-700">Tamamlandı</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300">Tamamlandı</span>
                     </label>
-                    <label className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <label className="flex items-center space-x-2 p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                       <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" defaultChecked />
-                      <span className="text-sm text-slate-700">İşleniyor</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300">İşleniyor</span>
                     </label>
-                    <label className="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer">
+                    <label className="flex items-center space-x-2 p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                       <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" defaultChecked />
-                      <span className="text-sm text-slate-700">Beklemede</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300">Beklemede</span>
                     </label>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Tutar Aralığı</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Tutar Aralığı</label>
                   <div className="grid grid-cols-2 gap-4">
                     <input
                       type="number"
                       placeholder="Min ₺"
-                      className="px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300"
                     />
                     <input
                       type="number"
                       placeholder="Max ₺"
-                      className="px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-4 py-3 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-200 flex space-x-3">
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex space-x-3">
                 <button
                   onClick={() => {
                     alert('✅ Filtreler uygulandı!')
@@ -1790,7 +1790,7 @@ export default function Dashboard() {
                   onClick={() => {
                     alert('🔄 Filtreler sıfırlandı!')
                   }}
-                  className="px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium"
+                  className="px-6 py-3 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
                 >
                   Sıfırla
                 </button>
@@ -1815,33 +1815,33 @@ export default function Dashboard() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div className="flex items-center">
-                  <ShoppingCart className="w-6 h-6 text-blue-600 mr-3" />
-                  <h3 className="text-2xl font-bold text-slate-800">Sipariş Detayı</h3>
+                  <ShoppingCart className="w-6 h-6 text-blue-600 dark:text-blue-400 mr-3" />
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Sipariş Detayı</h3>
                 </div>
                 <button
                   onClick={() => setSelectedOrder(null)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
               <div className="p-6 space-y-6">
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6">
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-6">
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <p className="text-sm text-slate-500 mb-1">Sipariş No</p>
-                      <p className="text-xl font-bold text-slate-800">{selectedOrder.id}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Sipariş No</p>
+                      <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{selectedOrder.id}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-slate-500 mb-1">Durum</p>
-                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${selectedOrder.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        selectedOrder.status === 'processing' ? 'bg-blue-100 text-blue-700' :
-                          'bg-yellow-100 text-yellow-700'
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Durum</p>
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${selectedOrder.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                        selectedOrder.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                          'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                         }`}>
                         {selectedOrder.status === 'completed' ? 'Tamamlandı' :
                           selectedOrder.status === 'processing' ? 'İşleniyor' : 'Beklemede'}
@@ -1851,63 +1851,63 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                     <div>
-                      <p className="text-sm text-slate-500 mb-1">Müşteri</p>
-                      <p className="font-semibold text-slate-800">{selectedOrder.customer}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Müşteri</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-100">{selectedOrder.customer}</p>
                     </div>
-                    <Users className="w-5 h-5 text-slate-400" />
+                    <Users className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                     <div>
-                      <p className="text-sm text-slate-500 mb-1">Ürün</p>
-                      <p className="font-semibold text-slate-800">{selectedOrder.product}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Ürün</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-100">{selectedOrder.product}</p>
                     </div>
-                    <Package className="w-5 h-5 text-slate-400" />
+                    <Package className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 rounded-xl">
                     <div>
-                      <p className="text-sm text-slate-500 mb-1">Tutar</p>
-                      <p className="text-2xl font-bold text-green-600">₺{selectedOrder.amount.toLocaleString()}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Tutar</p>
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-400">₺{selectedOrder.amount.toLocaleString()}</p>
                     </div>
-                    <DollarSign className="w-5 h-5 text-green-600" />
+                    <DollarSign className="w-5 h-5 text-green-600 dark:text-green-400" />
                   </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-xl p-4">
-                  <h4 className="font-semibold text-slate-800 mb-3">Sipariş Durumu</h4>
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                  <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-3">Sipariş Durumu</h4>
                   <div className="space-y-3">
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
                         <CheckCircle className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-800">Sipariş Alındı</p>
-                        <p className="text-xs text-slate-500">15 Ocak 2024, 14:30</p>
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Sipariş Alındı</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">15 Ocak 2024, 14:30</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedOrder.status !== 'pending' ? 'bg-green-500' : 'bg-slate-300'
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedOrder.status !== 'pending' ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
                         }`}>
                         <Truck className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-800">Kargoya Verildi</p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Kargoya Verildi</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {selectedOrder.status !== 'pending' ? '15 Ocak 2024, 16:45' : 'Bekleniyor...'}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedOrder.status === 'completed' ? 'bg-green-500' : 'bg-slate-300'
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedOrder.status === 'completed' ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
                         }`}>
                         <CheckCircle className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-800">Teslim Edildi</p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Teslim Edildi</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {selectedOrder.status === 'completed' ? '16 Ocak 2024, 10:20' : 'Bekleniyor...'}
                         </p>
                       </div>
@@ -1950,18 +1950,18 @@ export default function Dashboard() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-dark-card z-10">
                 <div className="flex items-center">
-                  <AlertTriangle className="w-6 h-6 text-orange-600 mr-3" />
-                  <h3 className="text-2xl font-bold text-slate-800">Tüm Stok Uyarıları</h3>
+                  <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400 mr-3" />
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Tüm Stok Uyarıları</h3>
                 </div>
                 <button
                   onClick={() => setShowStockAlerts(false)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
@@ -1973,42 +1973,42 @@ export default function Dashboard() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
                     className={`p-6 rounded-xl border-l-4 ${alert.status === 'critical'
-                      ? 'bg-red-50 border-red-500'
-                      : 'bg-orange-50 border-orange-500'
+                      ? 'bg-red-50 dark:bg-red-900/20 border-red-500 dark:border-red-600'
+                      : 'bg-orange-50 dark:bg-orange-900/20 border-orange-500 dark:border-orange-600'
                       }`}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div>
-                        <p className="text-lg font-bold text-slate-800">{alert.product}</p>
-                        <p className="text-sm text-slate-500">{alert.category}</p>
+                        <p className="text-lg font-bold text-slate-800 dark:text-slate-100">{alert.product}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{alert.category}</p>
                       </div>
                       <span className={`px-3 py-1.5 rounded-lg text-sm font-medium ${alert.status === 'critical'
-                        ? 'bg-red-200 text-red-800'
-                        : 'bg-orange-200 text-orange-800'
+                        ? 'bg-red-200 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                        : 'bg-orange-200 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300'
                         }`}>
                         {alert.status === 'critical' ? 'Kritik Seviye' : 'Uyarı'}
                       </span>
                     </div>
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div>
-                        <p className="text-sm text-slate-500 mb-1">Mevcut Stok</p>
-                        <p className={`text-2xl font-bold ${alert.status === 'critical' ? 'text-red-600' : 'text-orange-600'
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Mevcut Stok</p>
+                        <p className={`text-2xl font-bold ${alert.status === 'critical' ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'
                           }`}>
                           {alert.stock}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500 mb-1">Minimum Stok</p>
-                        <p className="text-2xl font-bold text-slate-800">{alert.minStock}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Minimum Stok</p>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{alert.minStock}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500 mb-1">Eksik</p>
-                        <p className="text-2xl font-bold text-blue-600">{alert.minStock - alert.stock}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Eksik</p>
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{alert.minStock - alert.stock}</p>
                       </div>
                     </div>
-                    <div className="bg-white rounded-full h-3 overflow-hidden mb-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-full h-3 overflow-hidden mb-4">
                       <div
-                        className={`h-full rounded-full ${alert.status === 'critical' ? 'bg-red-500' : 'bg-orange-500'
+                        className={`h-full rounded-full ${alert.status === 'critical' ? 'bg-red-500 dark:bg-red-600' : 'bg-orange-500 dark:bg-orange-600'
                           }`}
                         style={{ width: `${(alert.stock / alert.minStock) * 100}%` }}
                       ></div>
@@ -2020,7 +2020,7 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              <div className="p-6 border-t border-slate-200 bg-slate-50">
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                 <button
                   onClick={() => setShowStockAlerts(false)}
                   className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium"

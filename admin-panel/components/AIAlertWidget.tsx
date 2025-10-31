@@ -180,7 +180,7 @@ export default function AIAlertWidget() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6">
+    <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
@@ -233,28 +233,28 @@ export default function AIAlertWidget() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
-                      <h4 className="font-medium text-sm mb-1 dark:text-slate-200">{alert.title}</h4>
+                      <h4 className="font-medium text-sm mb-1 text-slate-800 dark:text-slate-200">{alert.title}</h4>
                       <button
                         onClick={() => dismissAlert(alert.id)}
-                        className="flex-shrink-0 p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+                        className="flex-shrink-0 p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded text-slate-600 dark:text-slate-300"
                       >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
-                    <p className="text-xs opacity-80 mb-2 line-clamp-2 dark:text-slate-300">{alert.description}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mb-2 line-clamp-2">{alert.description}</p>
                     <div className="flex items-center gap-3 text-xs">
                       <span className={`px-2 py-0.5 rounded-full ${getImpactColor(alert.impact)}`}>
                         {alert.impact === 'high' ? 'Yüksek' : alert.impact === 'medium' ? 'Orta' : 'Düşük'}
                       </span>
-                      <span className="opacity-70 dark:text-slate-300">{alert.confidence}% güven</span>
+                      <span className="text-slate-600 dark:text-slate-300">{alert.confidence}% güven</span>
                       {alert.estimatedValue && (
-                        <span className="opacity-70 dark:text-slate-300 flex items-center gap-1">
+                        <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
                           <DollarSign className="w-3 h-3" />
                           ₺{alert.estimatedValue.toLocaleString()}
                         </span>
                       )}
                       {alert.timeframe && (
-                        <span className="opacity-70 dark:text-slate-300 flex items-center gap-1">
+                        <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {alert.timeframe}
                         </span>

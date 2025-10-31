@@ -311,11 +311,11 @@ export default function ServerStats() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'online': return 'bg-green-100 text-green-700 border-green-200'
-      case 'warning': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
-      case 'offline': return 'bg-red-100 text-red-700 border-red-200'
-      case 'crashed': return 'bg-red-100 text-red-700 border-red-200'
-      default: return 'bg-slate-100 text-slate-700 border-slate-200'
+      case 'online': return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
+      case 'warning': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800'
+      case 'offline': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
+      case 'crashed': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
+      default: return 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600'
     }
   }
 
@@ -333,40 +333,40 @@ export default function ServerStats() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Sunucu İstatistikleri</h2>
-          <p className="text-slate-500 mt-1">Gerçek zamanlı sunucu performans takibi</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Sunucu İstatistikleri</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Gerçek zamanlı sunucu performans takibi</p>
         </div>
         {!alertActive ? (
-          <div className="flex items-center space-x-2 px-4 py-2 bg-green-100 border border-green-200 rounded-xl">
-            <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-green-700">Tüm Sistemler Çalışıyor</span>
+          <div className="flex items-center space-x-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl">
+            <div className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-green-700 dark:text-green-400">Tüm Sistemler Çalışıyor</span>
           </div>
         ) : (
-          <div className="flex items-center space-x-2 px-4 py-2 bg-red-100 border border-red-200 rounded-xl animate-pulse">
-            <AlertCircle className="w-4 h-4 text-red-600" />
-            <span className="text-sm font-medium text-red-700">Yüksek kullanım uyarısı</span>
+          <div className="flex items-center space-x-2 px-4 py-2 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl animate-pulse">
+            <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+            <span className="text-sm font-medium text-red-700 dark:text-red-400">Yüksek kullanım uyarısı</span>
           </div>
         )}
       </div>
 
       {/* Real-time Stats */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600">{error}</div>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-600 dark:text-red-400">{error}</div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div
-          className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500"
+          className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border-l-4 border-blue-500 dark:border-blue-600"
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Cpu className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+              <Cpu className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-slate-800">{cpuUsage.toFixed(1)}%</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{cpuUsage.toFixed(1)}%</p>
             </div>
           </div>
-          <p className="text-sm text-slate-600 mb-2">CPU Kullanımı</p>
-          <div className="w-full bg-slate-200 rounded-full h-2">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">CPU Kullanımı</p>
+          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
             <div
               className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500"
               style={{ width: `${cpuUsage}%` }}
@@ -375,18 +375,18 @@ export default function ServerStats() {
         </div>
 
         <div
-          className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500"
+          className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border-l-4 border-purple-500 dark:border-purple-600"
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Activity className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+              <Activity className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-slate-800">{ramUsage.toFixed(1)}%</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{ramUsage.toFixed(1)}%</p>
             </div>
           </div>
-          <p className="text-sm text-slate-600 mb-2">RAM Kullanımı</p>
-          <div className="w-full bg-slate-200 rounded-full h-2">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">RAM Kullanımı</p>
+          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
             <div
               className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-500"
               style={{ width: `${ramUsage}%` }}
@@ -395,18 +395,18 @@ export default function ServerStats() {
         </div>
 
         <div
-          className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500"
+          className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border-l-4 border-green-500 dark:border-green-600"
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <HardDrive className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+              <HardDrive className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-slate-800">{(typeof diskUsage === 'number' && diskUsage > 0) ? `${diskUsage}%` : 'N/A'}</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{(typeof diskUsage === 'number' && diskUsage > 0) ? `${diskUsage}%` : 'N/A'}</p>
             </div>
           </div>
-          <p className="text-sm text-slate-600 mb-2">Disk Kullanımı</p>
-          <div className="w-full bg-slate-200 rounded-full h-2">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">Disk Kullanımı</p>
+          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
             <div
               className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full"
               style={{ width: `${Math.max(0, Math.min(100, Number(diskUsage)||0))}%` }}
@@ -414,35 +414,35 @@ export default function ServerStats() {
           </div>
         </div>
         <div
-          className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-orange-500"
+          className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border-l-4 border-orange-500 dark:border-orange-600"
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-              <Wifi className="w-6 h-6 text-orange-600" />
+            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
+              <Wifi className="w-6 h-6 text-orange-600 dark:text-orange-400" />
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-slate-800">{Number(networkSpeed||0) > 0 ? networkSpeed.toFixed(0) : 'N/A'}</p>
-              <p className="text-xs text-slate-500">Mbps</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{Number(networkSpeed||0) > 0 ? networkSpeed.toFixed(0) : 'N/A'}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Mbps</p>
             </div>
           </div>
-          <p className="text-sm text-slate-600 mb-2">Ağ Hızı</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">Ağ Hızı</p>
           <div className="flex items-center space-x-2 text-xs">
-            <TrendingUp className="w-3 h-3 text-green-600" />
-            <span className="text-slate-600">Download: {Number(networkSpeed||0) > 0 ? networkSpeed.toFixed(0) : 0} Mbps</span>
+            <TrendingUp className="w-3 h-3 text-green-600 dark:text-green-400" />
+            <span className="text-slate-600 dark:text-slate-300">Download: {Number(networkSpeed||0) > 0 ? networkSpeed.toFixed(0) : 0} Mbps</span>
           </div>
         </div>
       </div>
 
       {/* Akan Canlı Grafik (CPU/RAM/Disk) */}
-      <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
-        <h3 className="text-xl font-bold text-slate-800 mb-2">Canlı CPU, RAM ve Disk</h3>
-        <p className="text-slate-500 text-sm mb-4">Son ölçümler • 10sn aralık</p>
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-100 dark:border-slate-700">
+        <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Canlı CPU, RAM ve Disk</h3>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Son ölçümler • 10sn aralık</p>
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={liveSeries}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-            <XAxis dataKey="t" stroke="#94a3b8" interval={4} />
-            <YAxis stroke="#94a3b8" domain={[0, 100]} />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" className="dark:stroke-slate-700" />
+            <XAxis dataKey="t" stroke="#94a3b8" className="dark:stroke-slate-400" interval={4} />
+            <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" domain={[0, 100]} />
+            <Tooltip contentStyle={{ backgroundColor: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} className="dark:bg-slate-800 dark:text-slate-100" />
             <Legend />
             <Area type="monotone" dataKey="cpu" stroke="#ef4444" fill="#ef444433" strokeWidth={2} isAnimationActive />
             <Line type="monotone" dataKey="ram" stroke="#8b5cf6" strokeWidth={2} dot={false} isAnimationActive />
@@ -453,43 +453,43 @@ export default function ServerStats() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-2">CPU Kullanımı</h3>
-          <p className="text-slate-500 text-sm mb-4">1, 5 ve 15 dk ortalamaları</p>
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">CPU Kullanımı</h3>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">1, 5 ve 15 dk ortalamaları</p>
           <ResponsiveContainer width="100%" height={260}>
             {cpuData && cpuData.length > 0 ? (
             <ComposedChart data={cpuData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-              <XAxis dataKey="time" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" className="dark:stroke-slate-700" />
+              <XAxis dataKey="time" stroke="#94a3b8" className="dark:stroke-slate-400" />
+              <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
+              <Tooltip contentStyle={{ backgroundColor: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} className="dark:bg-slate-800 dark:text-slate-100" />
               <Legend />
               <Bar dataKey="load1" barSize={18} fill="#3b82f6" radius={[4,4,0,0]} />
               <Bar dataKey="load5" barSize={18} fill="#8b5cf6" radius={[4,4,0,0]} />
               <Line type="monotone" dataKey="load15" stroke="#ef4444" strokeWidth={2} dot={false} />
             </ComposedChart>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">Veri yok</div>
             )}
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-2">Ağ Trafiği</h3>
-          <p className="text-slate-500 text-sm mb-4">Download/Upload (Mbps)</p>
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Ağ Trafiği</h3>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Download/Upload (Mbps)</p>
           <ResponsiveContainer width="100%" height={260}>
             {networkData && networkData.length > 0 ? (
             <ComposedChart data={networkData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-              <XAxis dataKey="time" stroke="#94a3b8" />
-              <YAxis stroke="#94a3b8" />
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" className="dark:stroke-slate-700" />
+              <XAxis dataKey="time" stroke="#94a3b8" className="dark:stroke-slate-400" />
+              <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
+              <Tooltip contentStyle={{ backgroundColor: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} className="dark:bg-slate-800 dark:text-slate-100" />
               <Legend />
               <Area type="monotone" dataKey="download" stroke="#10b981" fill="#10b98133" strokeWidth={2} />
               <Line type="monotone" dataKey="upload" stroke="#f59e0b" strokeWidth={2} dot={false} />
             </ComposedChart>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">Veri yok</div>
             )}
           </ResponsiveContainer>
         </div>
@@ -498,39 +498,39 @@ export default function ServerStats() {
       {/* Altyapı kartları, aşağıdaki Sunucu Durumu ile tek grid altında birleşecek */}
 
       {/* Server List */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-slate-800">Altyapı ve Sunucu Durumu</h3>
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Altyapı ve Sunucu Durumu</h3>
           <div className="flex items-center gap-2">
             {/* Ortalama Load */}
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Ortalama Load:</span>
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold text-slate-900 dark:text-slate-100">
                 {servers && servers.length > 0
                   ? Math.round(servers.reduce((acc: number, s: any) => acc + (Number(s.load) || 0), 0) / servers.length)
                   : 0}%
               </span>
             </span>
             {/* Uptime (ilk sunucudan) */}
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-              <Clock className="w-3.5 h-3.5 text-blue-600" />
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+              <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span>Uptime:</span>
-              <span className="font-semibold text-slate-900">{servers && servers[0]?.uptime ? servers[0].uptime : 'N/A'}</span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{servers && servers[0]?.uptime ? servers[0].uptime : 'N/A'}</span>
             </span>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Veritabanı */}
-          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+          <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:shadow-md dark:hover:shadow-lg transition-shadow bg-white dark:bg-slate-800">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
-                  <Database className="w-5 h-5 text-sky-600" />
+                <div className="w-10 h-10 bg-sky-100 dark:bg-sky-900/30 rounded-lg flex items-center justify-center">
+                  <Database className="w-5 h-5 text-sky-600 dark:text-sky-400" />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-800">Veritabanı</p>
-                  <p className="text-xs text-slate-500">PostgreSQL/MySQL</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Veritabanı</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">PostgreSQL/MySQL</p>
                 </div>
               </div>
               <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(dbStats.status)}`}>
@@ -540,37 +540,37 @@ export default function ServerStats() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Uptime</span>
-                <span className="font-semibold text-slate-800">{dbStats.uptime}</span>
+                <span className="text-slate-500 dark:text-slate-400">Uptime</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{dbStats.uptime}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Load</span>
-                <span className="font-semibold text-slate-800">{dbStats.load}%</span>
+                <span className="text-slate-500 dark:text-slate-400">Load</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{dbStats.load}%</span>
               </div>
-              <div className="w-full bg-slate-200 rounded-full h-1.5">
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                 <div
                   className={`h-1.5 rounded-full ${dbStats.load > 70 ? 'bg-red-500' : dbStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
                   style={{ width: `${dbStats.load}%` }}
                 ></div>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
-                <div className="flex items-center justify-between"><span className="text-slate-500">Conn</span><span className="font-semibold text-slate-800">{dbStats.connections}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">QPS</span><span className="font-semibold text-slate-800">{dbStats.qps}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Repl Lag</span><span className="font-semibold text-slate-800">{dbStats.replicationLagMs} ms</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Conn</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dbStats.connections}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">QPS</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dbStats.qps}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Repl Lag</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dbStats.replicationLagMs} ms</span></div>
               </div>
             </div>
           </div>
 
           {/* Mail */}
-          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+          <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:shadow-md dark:hover:shadow-lg transition-shadow bg-white dark:bg-slate-800">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-amber-600" />
+                <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+                  <Mail className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-800">Mail Sunucusu</p>
-                  <p className="text-xs text-slate-500">SMTP</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Mail Sunucusu</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">SMTP</p>
                 </div>
               </div>
               <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(mailStats.status)}`}>
@@ -605,12 +605,12 @@ export default function ServerStats() {
           <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
-                  <Server className="w-5 h-5 text-rose-600" />
+                <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-lg flex items-center justify-center">
+                  <Server className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-800">Redis</p>
-                  <p className="text-xs text-slate-500">Cache</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Redis</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Cache</p>
                 </div>
               </div>
               <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(redisStats.status)}`}>
@@ -645,12 +645,12 @@ export default function ServerStats() {
           <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                  <AlertCircle className="w-5 h-5 text-red-600" />
+                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-800">Snort IDS</p>
-                  <p className="text-xs text-slate-500">Güvenlik</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Snort IDS</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Güvenlik</p>
                 </div>
               </div>
               <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(snortStats.status)}`}>
@@ -685,12 +685,12 @@ export default function ServerStats() {
           <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Container className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                  <Container className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-800">Docker</p>
-                  <p className="text-xs text-slate-500">Container</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Docker</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Container</p>
                 </div>
               </div>
               <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(dockerStats.status)}`}>
@@ -726,16 +726,16 @@ export default function ServerStats() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow"
+              className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:shadow-md dark:hover:shadow-lg transition-shadow bg-white dark:bg-slate-800"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <Server className="w-5 h-5 text-slate-600" />
+                  <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center">
+                    <Server className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">{server.name}</p>
-                    <p className="text-xs text-slate-500">{server.ip}</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">{server.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{server.ip}</p>
                   </div>
                 </div>
                 <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(server.status)}`}>

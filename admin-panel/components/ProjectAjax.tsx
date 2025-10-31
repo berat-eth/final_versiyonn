@@ -1083,10 +1083,10 @@ export default function ProjectAjax() {
 
         {/* AI Settings Inline Panel - Sadeleştirilmiş */}
         {showAiSettings && (
-            <div className="bg-white border-b border-gray-200 p-3">
+            <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-3">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label className="text-xs text-gray-500 block mb-1">Sağlayıcı</label>
+                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Sağlayıcı</label>
                         <select
                             value={aiProvider}
                             onChange={async (e)=>{
@@ -1103,7 +1103,7 @@ export default function ProjectAjax() {
                                     }
                                 } catch { setAvailableModels([]) }
                             }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100"
                         >
                             <option value="ollama">Ollama</option>
                             <option value="openai">ChatGPT</option>
@@ -1112,11 +1112,11 @@ export default function ProjectAjax() {
                         </select>
                     </div>
                     <div>
-                        <label className="text-xs text-gray-500 block mb-1">Model</label>
+                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Model</label>
                         {aiProvider === 'ollama' ? (
-                            <input value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="ollama model (örn: gemma3:4b)" />
+                            <input value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-400" placeholder="ollama model (örn: gemma3:4b)" />
                         ) : (
-                            <select value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                            <select value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100">
                                 {(availableModels.length ? availableModels : (aiProvider === 'openai' ? ['gpt-4o-mini','gpt-4o'] : aiProvider === 'anthropic' ? ['claude-3-5-sonnet'] : ['gemini-1.5-flash'])).map(m => (
                                     <option key={m} value={m}>{m}</option>
                                 ))}
@@ -1124,9 +1124,9 @@ export default function ProjectAjax() {
                         )}
                     </div>
                     <div>
-                        <label className="text-xs text-gray-500 block mb-1">API Anahtarı</label>
+                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">API Anahtarı</label>
                         <div className="flex gap-2">
-                            <input type="password" value={aiApiKeyLocal} onChange={(e)=> setAiApiKeyLocal(e.target.value)} className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm" placeholder="••••••••" />
+                            <input type="password" value={aiApiKeyLocal} onChange={(e)=> setAiApiKeyLocal(e.target.value)} className="flex-1 px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-400" placeholder="••••••••" />
                             <button
                                 disabled={aiSaving}
                                 onClick={async ()=>{
@@ -1143,7 +1143,7 @@ export default function ProjectAjax() {
                                 {aiSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Kaydet'}
                             </button>
                         </div>
-                        {aiTestMessage && <div className="text-xs mt-1 text-blue-600">{aiTestMessage}</div>}
+                        {aiTestMessage && <div className="text-xs mt-1 text-blue-600 dark:text-blue-400">{aiTestMessage}</div>}
                     </div>
                 </div>
             </div>
@@ -1151,12 +1151,12 @@ export default function ProjectAjax() {
 
             {/* Session Management Interface - Sadeleştirilmiş */}
             {showSessions && (
-                <div className="bg-white border-b border-gray-200 p-3">
+                <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-3">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 h-80">
                         {/* Left Panel - Session List */}
-                        <div className="border border-gray-200 rounded p-3">
+                        <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
                             <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-medium flex items-center gap-1">
+                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
                                     <Database className="w-3.5 h-3.5" />
                                     <span>Oturumlar</span>
                                 </h3>
@@ -1171,14 +1171,14 @@ export default function ProjectAjax() {
                             
                             <div className="space-y-1.5 max-h-64 overflow-y-auto">
                                 {isLoadingSessions ? (
-                                    <div className="text-center py-4 border border-gray-100 rounded">
+                                    <div className="text-center py-4 border border-gray-100 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-700">
                                         <Loader2 className="w-5 h-5 mx-auto mb-2 animate-spin text-blue-500" />
-                                        <p className="text-gray-600 text-xs">Yükleniyor...</p>
+                                        <p className="text-gray-600 dark:text-slate-300 text-xs">Yükleniyor...</p>
                                     </div>
                                 ) : sessions.length === 0 ? (
-                                    <div className="text-center py-4 border border-gray-100 rounded">
-                                        <Database className="w-5 h-5 mx-auto mb-2 text-gray-400" />
-                                        <p className="text-xs text-gray-600">Henüz oturum yok</p>
+                                    <div className="text-center py-4 border border-gray-100 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-700">
+                                        <Database className="w-5 h-5 mx-auto mb-2 text-gray-400 dark:text-slate-500" />
+                                        <p className="text-xs text-gray-600 dark:text-slate-300">Henüz oturum yok</p>
                                     </div>
                                 ) : (
                                     sessions.map((session) => (
@@ -1186,13 +1186,13 @@ export default function ProjectAjax() {
                                             key={session.id}
                                             className={`p-2 border rounded cursor-pointer ${
                                                 currentSessionId === session.id
-                                                    ? 'border-blue-400 bg-blue-50'
-                                                    : 'border-gray-200 hover:border-blue-200'
+                                                    ? 'border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                                                    : 'border-gray-200 dark:border-slate-600 hover:border-blue-200 dark:hover:border-blue-700 bg-white dark:bg-slate-700'
                                             }`}
                                             onClick={() => setCurrentSessionId(session.id)}
                                         >
                                             <div className="flex items-center justify-between">
-                                                <h4 className="text-sm truncate">
+                                                <h4 className="text-sm truncate text-gray-900 dark:text-slate-100">
                                                     {session.name}
                                                 </h4>
                                                 <button
@@ -1200,13 +1200,13 @@ export default function ProjectAjax() {
                                                         e.stopPropagation()
                                                         deleteSession(session.id)
                                                     }}
-                                                    className="p-1 text-gray-500 hover:text-red-500"
+                                                    className="p-1 text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400"
                                                     title="Sil"
                                                 >
                                                     <Settings className="w-3 h-3" />
                                                 </button>
                                             </div>
-                                            <div className="text-xs text-gray-500">
+                                            <div className="text-xs text-gray-500 dark:text-slate-400">
                                                 {session.messageCount} mesaj • {session.createdAt.toLocaleDateString('tr-TR')}
                                             </div>
                                         </div>
@@ -1216,22 +1216,22 @@ export default function ProjectAjax() {
                         </div>
 
                         {/* Right Panel - Session Details - Sadeleştirilmiş */}
-                        <div className="lg:col-span-2 border border-gray-200 rounded p-3">
+                        <div className="lg:col-span-2 border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
                             <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-medium flex items-center gap-1">
+                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
                                     <Settings className="w-3.5 h-3.5" />
                                     <span>Oturum Bilgileri</span>
                                 </h3>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 dark:text-slate-400">
                                     {currentSessionId ? `ID: ${currentSessionId?.slice(0, 8)}...` : 'Oturum seçilmedi'}
                                 </div>
                             </div>
                             
                             {currentSessionId ? (
                                 <div className="space-y-3">
-                                    <div className="border border-gray-200 rounded p-3">
-                                        <h4 className="text-sm font-medium mb-2">Aktif Oturum</h4>
-                                        <div className="space-y-1 text-xs text-gray-600">
+                                    <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-gray-50 dark:bg-slate-700">
+                                        <h4 className="text-sm font-medium mb-2 text-gray-900 dark:text-slate-100">Aktif Oturum</h4>
+                                        <div className="space-y-1 text-xs text-gray-600 dark:text-slate-300">
                                             <div className="flex items-center justify-between">
                                                 <span>Mesaj Sayısı:</span>
                                                 <span className="font-medium">{messages.length}</span>
@@ -1247,16 +1247,16 @@ export default function ProjectAjax() {
                                         </div>
                                     </div>
                                     
-                                    <div className="border border-gray-200 rounded p-3">
-                                        <h4 className="text-sm font-medium mb-2">Son Mesajlar</h4>
+                                    <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-gray-50 dark:bg-slate-700">
+                                        <h4 className="text-sm font-medium mb-2 text-gray-900 dark:text-slate-100">Son Mesajlar</h4>
                                         <div className="space-y-2 max-h-36 overflow-y-auto">
                                             {messages.slice(-3).map((msg, index) => (
-                                                <div key={index} className="text-xs border border-gray-200 rounded overflow-hidden">
-                                                    <div className="px-2 py-1 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                                                        <span>{msg.role === 'user' ? 'Kullanıcı' : 'AI'}</span>
-                                                        <span className="text-gray-500">{msg.timestamp.toLocaleTimeString('tr-TR')}</span>
+                                                <div key={index} className="text-xs border border-gray-200 dark:border-slate-600 rounded overflow-hidden bg-white dark:bg-slate-800">
+                                                    <div className="px-2 py-1 bg-gray-50 dark:bg-slate-700 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
+                                                        <span className="text-gray-700 dark:text-slate-300">{msg.role === 'user' ? 'Kullanıcı' : 'AI'}</span>
+                                                        <span className="text-gray-500 dark:text-slate-400">{msg.timestamp.toLocaleTimeString('tr-TR')}</span>
                                                     </div>
-                                                    <div className="p-2 text-gray-700">
+                                                    <div className="p-2 text-gray-700 dark:text-slate-300">
                                                         <div className="truncate">{msg.content.substring(0, 50)}...</div>
                                                     </div>
                                                 </div>
@@ -1265,9 +1265,9 @@ export default function ProjectAjax() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="text-center py-8 border border-gray-200 rounded">
-                                    <Database className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                                    <p className="text-sm text-gray-600">Lütfen bir oturum seçin</p>
+                                <div className="text-center py-8 border border-gray-200 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-700">
+                                    <Database className="w-6 h-6 mx-auto mb-2 text-gray-400 dark:text-slate-500" />
+                                    <p className="text-sm text-gray-600 dark:text-slate-300">Lütfen bir oturum seçin</p>
                                 </div>
                             )}
                         </div>
@@ -1277,12 +1277,12 @@ export default function ProjectAjax() {
 
             {/* API Analysis Interface - Sadeleştirilmiş */}
             {showApiAnalysis && (
-                <div className="bg-white border-b border-gray-200 p-3">
+                <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-3">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-80">
                         {/* Left Panel - API Controls */}
-                        <div className="border border-gray-200 rounded p-3">
+                        <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
                             <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-medium flex items-center gap-1">
+                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
                                     <BarChart3 className="w-3.5 h-3.5" />
                                     <span>API Testleri</span>
                                 </h3>
@@ -1307,75 +1307,75 @@ export default function ProjectAjax() {
                             </div>
                             
                             <div className="space-y-3">
-                                <div className="border border-gray-200 rounded p-3">
-                                    <h4 className="text-sm font-medium mb-2">Endpoint'ler</h4>
+                                <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-gray-50 dark:bg-slate-700">
+                                    <h4 className="text-sm font-medium mb-2 text-gray-900 dark:text-slate-100">Endpoint'ler</h4>
                                     <div className="grid grid-cols-2 gap-1 text-xs">
-                                        <div className="text-gray-600">/admin/orders</div>
-                                        <div className="text-gray-600">/admin/users</div>
-                                        <div className="text-gray-600">/products</div>
-                                        <div className="text-gray-600">/categories</div>
-                                        <div className="text-gray-600">/analytics/monthly</div>
-                                        <div className="text-gray-600">/admin/visitor-ips</div>
+                                        <div className="text-gray-600 dark:text-slate-300">/admin/orders</div>
+                                        <div className="text-gray-600 dark:text-slate-300">/admin/users</div>
+                                        <div className="text-gray-600 dark:text-slate-300">/products</div>
+                                        <div className="text-gray-600 dark:text-slate-300">/categories</div>
+                                        <div className="text-gray-600 dark:text-slate-300">/analytics/monthly</div>
+                                        <div className="text-gray-600 dark:text-slate-300">/admin/visitor-ips</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Right Panel - Results */}
-                        <div className="border border-gray-200 rounded p-3">
+                        <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
                             <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-medium flex items-center gap-1">
+                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
                                     <Activity className="w-3.5 h-3.5" />
                                     <span>Sonuçlar</span>
                                 </h3>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 dark:text-slate-400">
                                     {apiResults.length} endpoint test edildi
                                 </div>
                             </div>
                             
                             <div className="space-y-2 max-h-64 overflow-y-auto">
                                 {apiResults.length === 0 && !isAnalyzing && (
-                                    <div className="text-center py-8 border border-gray-100 rounded">
-                                        <BarChart3 className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                                        <p className="text-sm text-gray-600">Henüz test yapılmadı</p>
+                                    <div className="text-center py-8 border border-gray-100 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-700">
+                                        <BarChart3 className="w-6 h-6 mx-auto mb-2 text-gray-400 dark:text-slate-500" />
+                                        <p className="text-sm text-gray-600 dark:text-slate-300">Henüz test yapılmadı</p>
                                     </div>
                                 )}
                                 
                                 {isAnalyzing && (
-                                    <div className="text-center py-8 border border-gray-100 rounded">
+                                    <div className="text-center py-8 border border-gray-100 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-700">
                                         <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-500" />
-                                        <p className="text-sm text-gray-600">Test ediliyor...</p>
+                                        <p className="text-sm text-gray-600 dark:text-slate-300">Test ediliyor...</p>
                                     </div>
                                 )}
                                 
                                 {apiResults.map((result, index) => (
                                     <div
                                         key={index}
-                                        className={`p-2 border rounded ${result.status === 'success' ? 'border-green-200 bg-green-50' : result.status === 'error' ? 'border-red-200 bg-red-50' : 'border-yellow-200 bg-yellow-50'}`}
+                                        className={`p-2 border rounded ${result.status === 'success' ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30' : result.status === 'error' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30' : 'border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/30'}`}
                                     >
                                         <div className="flex items-center justify-between mb-1">
-                                            <div className="text-sm truncate">{result.endpoint}</div>
-                                            <div className={`px-2 py-0.5 rounded text-xs ${result.status === 'success' ? 'bg-green-100 text-green-700' : result.status === 'error' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                            <div className="text-sm truncate text-gray-900 dark:text-slate-100">{result.endpoint}</div>
+                                            <div className={`px-2 py-0.5 rounded text-xs ${result.status === 'success' ? 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-400' : result.status === 'error' ? 'bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-400' : 'bg-yellow-100 dark:bg-yellow-800 text-yellow-700 dark:text-yellow-400'}`}>
                                                 {result.status === 'success' ? 'Başarılı' : result.status === 'error' ? 'Hata' : 'Yükleniyor'}
                                             </div>
                                         </div>
                                         
                                         {result.responseTime && (
-                                            <div className="text-xs text-gray-600 flex justify-between">
+                                            <div className="text-xs text-gray-600 dark:text-slate-300 flex justify-between">
                                                 <span>Yanıt Süresi:</span>
                                                 <span>{result.responseTime}ms</span>
                                             </div>
                                         )}
                                         
                                         {result.data && typeof result.data === 'object' && result.data.averageResponseTime && (
-                                            <div className="text-xs text-gray-600 flex justify-between">
+                                            <div className="text-xs text-gray-600 dark:text-slate-300 flex justify-between">
                                                 <span>Ort/Min/Max:</span>
                                                 <span>{result.data.averageResponseTime}/{result.data.minResponseTime}/{result.data.maxResponseTime}ms</span>
                                             </div>
                                         )}
                                         
                                         {result.error && (
-                                            <div className="text-xs text-red-600 mt-1">
+                                            <div className="text-xs text-red-600 dark:text-red-400 mt-1">
                                                 Hata: {result.error}
                                             </div>
                                         )}
@@ -1389,41 +1389,41 @@ export default function ProjectAjax() {
 
             {/* Prompt Modal - Sadeleştirilmiş */}
             {showPromptModal && (
-                <div className="bg-white border-b border-gray-200 p-3">
+                <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-3">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-80">
                         {/* Left Panel - System Prompt */}
-                        <div className="border border-gray-200 rounded p-3">
+                        <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
                             <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-medium flex items-center gap-1">
+                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
                                     <FileText className="w-3.5 h-3.5" />
                                     <span>Sistem Prompt</span>
                                 </h3>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 dark:text-slate-400">
                                     {currentPrompt.length} karakter
                                 </div>
                             </div>
                             
-                            <div className="border border-gray-200 rounded p-2 h-64 overflow-y-auto bg-gray-50">
-                                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">
+                            <div className="border border-gray-200 dark:border-slate-700 rounded p-2 h-64 overflow-y-auto bg-gray-50 dark:bg-slate-700">
+                                <pre className="text-xs text-gray-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
                                     {currentPrompt}
                                 </pre>
                             </div>
                         </div>
 
                         {/* Right Panel - Enhanced Prompt */}
-                        <div className="border border-gray-200 rounded p-3">
+                        <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
                             <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-medium flex items-center gap-1">
+                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
                                     <Code className="w-3.5 h-3.5" />
                                     <span>Geliştirilmiş Prompt</span>
                                 </h3>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 dark:text-slate-400">
                                     {enhancedPrompt.length} karakter
                                 </div>
                             </div>
                             
-                            <div className="border border-gray-200 rounded p-2 h-64 overflow-y-auto bg-gray-50">
-                                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">
+                            <div className="border border-gray-200 dark:border-slate-700 rounded p-2 h-64 overflow-y-auto bg-gray-50 dark:bg-slate-700">
+                                <pre className="text-xs text-gray-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
                                     {enhancedPrompt}
                                 </pre>
                             </div>
@@ -1432,19 +1432,19 @@ export default function ProjectAjax() {
 
                     {/* API Data Section */}
                     {apiData && (
-                        <div className="mt-3 border border-gray-200 rounded p-3">
+                        <div className="mt-3 border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
                             <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-medium flex items-center gap-1">
+                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
                                     <Database className="w-3.5 h-3.5" />
                                     <span>API Verisi</span>
                                 </h3>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 dark:text-slate-400">
                                     {apiData.type}
                                 </div>
                             </div>
                             
-                            <div className="border border-gray-200 rounded p-2 max-h-32 overflow-y-auto bg-gray-50">
-                                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">
+                            <div className="border border-gray-200 dark:border-slate-700 rounded p-2 max-h-32 overflow-y-auto bg-gray-50 dark:bg-slate-700">
+                                <pre className="text-xs text-gray-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
                                     {JSON.stringify(apiData.data, null, 2)}
                                 </pre>
                             </div>
@@ -1455,7 +1455,7 @@ export default function ProjectAjax() {
                     <div className="mt-3 flex justify-end">
                         <button
                             onClick={() => setShowPromptModal(false)}
-                            className="px-3 py-1 bg-gray-600 text-white rounded text-xs flex items-center gap-1"
+                            className="px-3 py-1 bg-gray-600 dark:bg-slate-700 text-white dark:text-slate-100 rounded text-xs flex items-center gap-1 hover:bg-gray-700 dark:hover:bg-slate-600"
                         >
                             <Settings className="w-3 h-3" />
                             <span>Kapat</span>

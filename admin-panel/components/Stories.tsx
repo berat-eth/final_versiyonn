@@ -185,8 +185,8 @@ export default function Stories() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold text-slate-800">Story Yönetimi</h2>
-                    <p className="text-slate-500 mt-1">Hikayelerinizi oluşturun ve yönetin</p>
+                    <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Story Yönetimi</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">Hikayelerinizi oluşturun ve yönetin</p>
                 </div>
                 <button
                     onClick={() => { 
@@ -212,21 +212,21 @@ export default function Stories() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl shadow-sm p-5">
-                    <p className="text-slate-500 text-sm mb-2">Aktif Story</p>
-                    <p className="text-3xl font-bold text-blue-600">{stories.filter(s => s.isActive).length}</p>
+                <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Aktif Story</p>
+                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stories.filter(s => s.isActive).length}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm p-5">
-                    <p className="text-slate-500 text-sm mb-2">Toplam Görüntülenme</p>
-                    <p className="text-3xl font-bold text-green-600">{stories.reduce((sum, s) => sum + (s.views || 0), 0).toLocaleString()}</p>
+                <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Toplam Görüntülenme</p>
+                    <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stories.reduce((sum, s) => sum + (s.views || 0), 0).toLocaleString()}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm p-5">
-                    <p className="text-slate-500 text-sm mb-2">Tıklama</p>
-                    <p className="text-3xl font-bold text-purple-600">{stories.reduce((sum, s) => sum + (s.clicks || 0), 0).toLocaleString()}</p>
+                <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Tıklama</p>
+                    <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{stories.reduce((sum, s) => sum + (s.clicks || 0), 0).toLocaleString()}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm p-5">
-                    <p className="text-slate-500 text-sm mb-2">Tıklama Oranı</p>
-                    <p className="text-3xl font-bold text-orange-600">
+                <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Tıklama Oranı</p>
+                    <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">
                         {stories.reduce((sum, s) => sum + (s.views || 0), 0) > 0 
                             ? ((stories.reduce((sum, s) => sum + (s.clicks || 0), 0) / stories.reduce((sum, s) => sum + (s.views || 0), 0)) * 100).toFixed(1)
                             : '0.0'
@@ -242,7 +242,7 @@ export default function Stories() {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: index * 0.1 }}
-                        className="bg-white rounded-2xl shadow-sm overflow-hidden card-hover"
+                        className="bg-white dark:bg-dark-card rounded-2xl shadow-sm overflow-hidden card-hover border border-slate-200 dark:border-slate-700"
                     >
                         <div className="h-48 relative overflow-hidden">
                             {story.imageUrl ? (
@@ -266,14 +266,14 @@ export default function Stories() {
                             <div className="absolute top-2 right-2 flex space-x-1">
                                 <button
                                     onClick={() => moveUp(story.id)}
-                                    className="bg-white/80 hover:bg-white text-slate-600 p-1 rounded"
+                                    className="bg-white/80 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 p-1 rounded"
                                     disabled={index === 0}
                                 >
                                     <ArrowUp className="w-3 h-3" />
                                 </button>
                                 <button
                                     onClick={() => moveDown(story.id)}
-                                    className="bg-white/80 hover:bg-white text-slate-600 p-1 rounded"
+                                    className="bg-white/80 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 p-1 rounded"
                                     disabled={index === stories.length - 1}
                                 >
                                     <ArrowDown className="w-3 h-3" />
@@ -282,39 +282,39 @@ export default function Stories() {
                         </div>
                         <div className="p-5">
                             <div className="flex items-center justify-between mb-3">
-                                <h3 className="font-bold text-slate-800 truncate">{story.title}</h3>
-                                <span className={`px-2 py-1 rounded-lg text-xs font-medium ${story.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 truncate">{story.title}</h3>
+                                <span className={`px-2 py-1 rounded-lg text-xs font-medium ${story.isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                                     {story.isActive ? 'Aktif' : 'Pasif'}
                                 </span>
                             </div>
                             {story.description && (
-                                <p className="text-sm text-slate-600 mb-3 line-clamp-2">{story.description}</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-300 mb-3 line-clamp-2">{story.description}</p>
                             )}
                             <div className="space-y-2 mb-4">
                                 <div className="flex items-center justify-between text-sm">
-                                    <span className="text-slate-500">Görüntülenme</span>
-                                    <span className="font-semibold">{(story.views || 0).toLocaleString()}</span>
+                                    <span className="text-slate-500 dark:text-slate-400">Görüntülenme</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">{(story.views || 0).toLocaleString()}</span>
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
-                                    <span className="text-slate-500">Tıklama</span>
-                                    <span className="font-semibold text-blue-600">{story.clicks || 0}</span>
+                                    <span className="text-slate-500 dark:text-slate-400">Tıklama</span>
+                                    <span className="font-semibold text-blue-600 dark:text-blue-400">{story.clicks || 0}</span>
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
-                                    <span className="text-slate-500">Sıra</span>
-                                    <span className="font-semibold">{story.order}</span>
+                                    <span className="text-slate-500 dark:text-slate-400">Sıra</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">{story.order}</span>
                                 </div>
                             </div>
                             <div className="flex space-x-2">
                                 <button
                                     onClick={() => setViewingStory(story)}
-                                    className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+                                    className="flex-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                                 >
                                     <Eye className="w-4 h-4 inline mr-1" />
                                     Görüntüle
                                 </button>
                                 <button
                                     onClick={() => handleEdit(story)}
-                                    className="flex-1 bg-green-50 text-green-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors"
+                                    className="flex-1 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
                                 >
                                     <Edit className="w-4 h-4 inline mr-1" />
                                     Düzenle
@@ -323,15 +323,15 @@ export default function Stories() {
                                     onClick={() => toggleActive(story.id)}
                                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                         story.isActive 
-                                            ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' 
-                                            : 'bg-green-50 text-green-600 hover:bg-green-100'
+                                            ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/50' 
+                                            : 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50'
                                     }`}
                                 >
                                     {story.isActive ? 'Pasif' : 'Aktif'}
                                 </button>
                                 <button
                                     onClick={() => handleDelete(story.id)}
-                                    className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+                                    className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -356,90 +356,90 @@ export default function Stories() {
                             animate={{ scale: 1 }}
                             exit={{ scale: 0.9 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full"
+                            className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-lg w-full"
                         >
-                            <div className="p-6 border-b flex items-center justify-between">
-                                <h3 className="text-2xl font-bold">{editingStory ? 'Story Düzenle' : 'Yeni Story'}</h3>
+                            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{editingStory ? 'Story Düzenle' : 'Yeni Story'}</h3>
                                 <button onClick={() => setIsModalOpen(false)}>
-                                    <X className="w-6 h-6" />
+                                    <X className="w-6 h-6 text-slate-800 dark:text-slate-100" />
                                 </button>
                             </div>
                             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Başlık *</label>
+                                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Başlık *</label>
                                     <input
                                         type="text"
                                         required
                                         value={formData.title}
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                         placeholder="Story başlığı"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Açıklama</label>
+                                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Açıklama</label>
                                     <textarea
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                         rows={3}
                                         placeholder="Story açıklaması"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Resim URL *</label>
+                                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Resim URL *</label>
                                     <input
                                         type="url"
                                         required
                                         value={formData.imageUrl}
                                         onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                         placeholder="https://example.com/image.jpg"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Thumbnail URL</label>
+                                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Thumbnail URL</label>
                                     <input
                                         type="url"
                                         value={formData.thumbnailUrl}
                                         onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-                                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                         placeholder="https://example.com/thumb.jpg"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Video URL</label>
+                                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Video URL</label>
                                     <input
                                         type="url"
                                         value={formData.videoUrl}
                                         onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
-                                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                         placeholder="https://example.com/video.mp4"
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Sıra</label>
+                                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Sıra</label>
                                         <input
                                             type="number"
                                             value={formData.order}
                                             onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 1 })}
-                                            className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                             min="1"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Bitiş Tarihi</label>
+                                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Bitiş Tarihi</label>
                                         <input
                                             type="datetime-local"
                                             value={formData.expiresAt}
                                             onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
-                                            className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Tıklama Aksiyonu</label>
+                                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Tıklama Aksiyonu</label>
                                     <div className="grid grid-cols-2 gap-4">
                                         <select
                                             value={formData.clickAction.type}
@@ -450,7 +450,7 @@ export default function Stories() {
                                                     type: e.target.value as any 
                                                 } 
                                             })}
-                                            className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                         >
                                             <option value="none">Aksiyon Yok</option>
                                             <option value="product">Ürün</option>
@@ -468,7 +468,7 @@ export default function Stories() {
                                                         value: e.target.value 
                                                     } 
                                                 })}
-                                                className="px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                                                className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                                                 placeholder={formData.clickAction.type === 'url' ? 'https://...' : 'Değer'}
                                             />
                                         )}
@@ -480,9 +480,9 @@ export default function Stories() {
                                         id="isActive"
                                         checked={formData.isActive}
                                         onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                        className="w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-600 rounded focus:ring-blue-500 dark:bg-slate-700"
                                     />
-                                    <label htmlFor="isActive" className="text-sm font-medium">
+                                    <label htmlFor="isActive" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                         Aktif
                                     </label>
                                 </div>
@@ -491,7 +491,7 @@ export default function Stories() {
                                         <Save className="w-5 h-5 mr-2" />
                                         {editingStory ? 'Güncelle' : 'Kaydet'}
                                     </button>
-                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 border rounded-xl">
+                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                                         İptal
                                     </button>
                                 </div>
@@ -516,15 +516,15 @@ export default function Stories() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+                            className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full"
                         >
-                            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                                <h3 className="text-2xl font-bold text-slate-800">Story Detayları</h3>
+                            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Story Detayları</h3>
                                 <button
                                     onClick={() => setViewingStory(null)}
-                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                                 >
-                                    <X className="w-6 h-6" />
+                                    <X className="w-6 h-6 text-slate-800 dark:text-slate-100" />
                                 </button>
                             </div>
 
@@ -551,9 +551,9 @@ export default function Stories() {
                                         </div>
                                     </div>
                                     <div>
-                                        <h4 className="text-2xl font-bold text-slate-800">{viewingStory.title}</h4>
+                                        <h4 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{viewingStory.title}</h4>
                                         <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium mt-2 ${
-                                            viewingStory.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'
+                                            viewingStory.isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                                         }`}>
                                             {viewingStory.isActive ? 'Aktif' : 'Pasif'}
                                         </span>
@@ -561,32 +561,32 @@ export default function Stories() {
                                 </div>
                                 {viewingStory.description && (
                                     <div>
-                                        <h5 className="text-lg font-semibold text-slate-800 mb-2">Açıklama</h5>
-                                        <p className="text-slate-600">{viewingStory.description}</p>
+                                        <h5 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">Açıklama</h5>
+                                        <p className="text-slate-600 dark:text-slate-300">{viewingStory.description}</p>
                                     </div>
                                 )}
 
                                 <div className="grid grid-cols-3 gap-4">
-                                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-                                        <div className="flex items-center text-blue-600 mb-2">
+                                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/30 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                                        <div className="flex items-center text-blue-600 dark:text-blue-400 mb-2">
                                             <Eye className="w-5 h-5 mr-2" />
                                             <p className="text-sm font-medium">Görüntülenme</p>
                                         </div>
-                                        <p className="text-3xl font-bold text-blue-700">{(viewingStory.views || 0).toLocaleString()}</p>
+                                        <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">{(viewingStory.views || 0).toLocaleString()}</p>
                                     </div>
-                                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
-                                        <div className="flex items-center text-purple-600 mb-2">
+                                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/30 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
+                                        <div className="flex items-center text-purple-600 dark:text-purple-400 mb-2">
                                             <span className="text-lg mr-2">👆</span>
                                             <p className="text-sm font-medium">Tıklama</p>
                                         </div>
-                                        <p className="text-3xl font-bold text-purple-700">{(viewingStory.clicks || 0).toLocaleString()}</p>
+                                        <p className="text-3xl font-bold text-purple-700 dark:text-purple-300">{(viewingStory.clicks || 0).toLocaleString()}</p>
                                     </div>
-                                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-                                        <div className="flex items-center text-green-600 mb-2">
+                                    <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/30 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                                        <div className="flex items-center text-green-600 dark:text-green-400 mb-2">
                                             <span className="text-lg mr-2">📊</span>
                                             <p className="text-sm font-medium">Oran</p>
                                         </div>
-                                        <p className="text-3xl font-bold text-green-700">
+                                        <p className="text-3xl font-bold text-green-700 dark:text-green-300">
                                             {(viewingStory.views || 0) > 0 
                                                 ? (((viewingStory.clicks || 0) / (viewingStory.views || 0)) * 100).toFixed(1)
                                                 : '0.0'
@@ -595,12 +595,12 @@ export default function Stories() {
                                     </div>
                                 </div>
 
-                                <div className="bg-slate-50 rounded-xl p-6">
-                                    <h5 className="font-semibold text-slate-800 mb-4">Performans Metrikleri</h5>
+                                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
+                                    <h5 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Performans Metrikleri</h5>
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Etkileşim Oranı</span>
-                                            <span className="font-bold text-blue-600">
+                                            <span className="text-slate-600 dark:text-slate-300">Etkileşim Oranı</span>
+                                            <span className="font-bold text-blue-600 dark:text-blue-400">
                                                 {(viewingStory.views || 0) > 0 
                                                     ? (((viewingStory.clicks || 0) / (viewingStory.views || 0)) * 100).toFixed(2)
                                                     : '0.00'
@@ -608,23 +608,23 @@ export default function Stories() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Ortalama İzlenme Süresi</span>
-                                            <span className="font-bold text-slate-800">4.2 saniye</span>
+                                            <span className="text-slate-600 dark:text-slate-300">Ortalama İzlenme Süresi</span>
+                                            <span className="font-bold text-slate-800 dark:text-slate-100">4.2 saniye</span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Tamamlanma Oranı</span>
-                                            <span className="font-bold text-green-600">78%</span>
+                                            <span className="text-slate-600 dark:text-slate-300">Tamamlanma Oranı</span>
+                                            <span className="font-bold text-green-600 dark:text-green-400">78%</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-200">
-                                    <p className="text-sm text-slate-600 mb-2">Story Durumu</p>
+                                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">Story Durumu</p>
                                     <div className="flex items-center justify-between">
-                                        <span className="font-bold text-slate-800">
+                                        <span className="font-bold text-slate-800 dark:text-slate-100">
                                             {viewingStory.isActive ? 'Aktif olarak yayında' : 'Pasif'}
                                         </span>
-                                        <span className="text-sm text-slate-500">
+                                        <span className="text-sm text-slate-500 dark:text-slate-400">
                                             {viewingStory.isActive ? '12 saat kaldı' : '2 gün önce sona erdi'}
                                         </span>
                                     </div>

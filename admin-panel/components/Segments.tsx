@@ -294,23 +294,23 @@ export default function Segments() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-dark-card z-10">
                 <div className="flex items-center space-x-3">
                   <div className={`w-12 h-12 bg-gradient-to-br ${viewingSegment.color} rounded-xl flex items-center justify-center`}>
                     <UsersRound className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800">{viewingSegment.name}</h3>
-                    <p className="text-sm text-slate-500">{segmentUsers.length} kullanıcı</p>
+                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{viewingSegment.name}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{segmentUsers.length} kullanıcı</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowUsers(false)}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6 dark:text-slate-400" />
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
 
@@ -318,24 +318,24 @@ export default function Segments() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Kullanıcı</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">İletişim</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Şehir</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Üyelik</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Sipariş</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Harcama</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Son Sipariş</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">İşlem</th>
+                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Kullanıcı</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">İletişim</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Şehir</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Üyelik</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Sipariş</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Harcama</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Son Sipariş</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">İşlem</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                       {loadingUsers ? (
                         <tr>
                           <td colSpan={8} className="px-6 py-12 text-center">
                             <div className="flex items-center justify-center space-x-3">
-                              <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
-                              <span className="text-slate-600">Kullanıcılar yükleniyor...</span>
+                              <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-blue-400" />
+                              <span className="text-slate-600 dark:text-slate-400">Kullanıcılar yükleniyor...</span>
                             </div>
                           </td>
                         </tr>
