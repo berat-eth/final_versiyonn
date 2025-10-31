@@ -4306,7 +4306,7 @@ app.get('/api/admin/custom-production-requests', authenticateAdmin, async (req, 
     `);
     const names = new Set(cols.map(c => c.COLUMN_NAME));
     const baseCols = [
-      'id', 'userId', 'tenantId', 'status', 'totalQuantity', 'totalAmount', 'customerName', 'customerEmail', 'customerPhone', 'notes', 'createdAt'
+      'id', 'userId', 'tenantId', 'status', 'totalQuantity', 'totalAmount', 'customerName', 'customerEmail', 'customerPhone', 'companyName', 'taxNumber', 'taxAddress', 'companyAddress', 'notes', 'createdAt'
     ];
     const optionalCols = [
       'quoteAmount', 'quoteCurrency', 'quoteNotes', 'quoteStatus', 'quotedAt', 'quoteValidUntil'
@@ -8891,6 +8891,10 @@ async function startServer() {
         customerName,
         customerEmail,
         customerPhone,
+        companyName,
+        taxNumber,
+        taxAddress,
+        companyAddress,
         notes
       } = req.body;
 
@@ -8928,14 +8932,32 @@ async function startServer() {
       await connection.beginTransaction();
 
       try {
+        // Ensure invoice columns exist (idempotent)
+        const [cols] = await connection.execute(`
+          SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_requests'
+        `);
+        const names = cols.map(c => c.COLUMN_NAME);
+        const alters = [];
+        if (!names.includes('companyName')) alters.push("ADD COLUMN companyName VARCHAR(255) NULL AFTER customerPhone");
+        if (!names.includes('taxNumber')) alters.push("ADD COLUMN taxNumber VARCHAR(50) NULL AFTER companyName");
+        if (!names.includes('taxAddress')) alters.push("ADD COLUMN taxAddress TEXT NULL AFTER taxNumber");
+        if (!names.includes('companyAddress')) alters.push("ADD COLUMN companyAddress TEXT NULL AFTER taxAddress");
+        if (alters.length > 0) {
+          await connection.execute(`ALTER TABLE custom_production_requests ${alters.join(', ')}`);
+        }
+
         // Create custom production request
+        const { companyName, taxNumber, taxAddress, companyAddress } = req.body;
         const [requestResult] = await connection.execute(
           `INSERT INTO custom_production_requests 
          (tenantId, userId, requestNumber, status, totalQuantity, totalAmount, 
-          customerName, customerEmail, customerPhone, notes) 
-         VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`,
+          customerName, customerEmail, customerPhone, companyName, taxNumber, taxAddress, companyAddress, notes) 
+         VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [tenantId, userId, requestNumber, totalQuantity, totalAmount,
-            customerName, customerEmail, customerPhone || null, notes || null]
+            customerName, customerEmail, customerPhone || null, 
+            companyName || null, taxNumber || null, taxAddress || null, companyAddress || null,
+            notes || null]
         );
 
         const requestId = requestResult.insertId;

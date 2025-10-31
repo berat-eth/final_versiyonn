@@ -307,6 +307,30 @@ export const supportApi = {
   },
 };
 
+// Custom Production API methods
+export const customProductionApi = {
+  createRequest: async (requestData: {
+    userId: number;
+    items: Array<{
+      productId: number;
+      quantity: number;
+      customizations: any;
+      productPrice?: number;
+    }>;
+    customerName: string;
+    customerEmail: string;
+    customerPhone?: string;
+    companyName?: string;
+    taxNumber?: string;
+    taxAddress?: string;
+    companyAddress?: string;
+    notes?: string;
+  }): Promise<ApiResponse<{ id: number; requestNumber: string; status: string; totalQuantity: number; totalAmount: number }>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.post<ApiResponse<{ id: number; requestNumber: string; status: string; totalQuantity: number; totalAmount: number }>>('/custom-production-requests', requestData, { requiresAuth: true });
+  },
+};
+
 // Products API methods
 export const productsApi = {
   getProducts: async (page = 1, limit = 20, category?: string): Promise<ApiResponse<{ products: any[]; total: number; hasMore: boolean }>> => {
