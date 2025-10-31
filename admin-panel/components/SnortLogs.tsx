@@ -41,15 +41,15 @@ export default function SnortLogs() {
     })
 
     const priorityColors = {
-        high: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500' },
-        medium: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200', dot: 'bg-orange-500' },
-        low: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' }
+        high: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', border: 'border-red-200 dark:border-red-800', dot: 'bg-red-500' },
+        medium: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-800', dot: 'bg-orange-500' },
+        low: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800', dot: 'bg-blue-500' }
     }
 
     const actionColors = {
-        alert: { bg: 'bg-yellow-100', text: 'text-yellow-700' },
-        drop: { bg: 'bg-red-100', text: 'text-red-700' },
-        pass: { bg: 'bg-green-100', text: 'text-green-700' }
+        alert: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400' },
+        drop: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400' },
+        pass: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400' }
     }
 
     const filteredLogs = logs.filter(log => {
@@ -101,16 +101,16 @@ export default function SnortLogs() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold text-slate-800 flex items-center">
-                        <Shield className="w-8 h-8 text-blue-600 mr-3" />
+                    <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 flex items-center">
+                        <Shield className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-3" />
                         Snort IDS Logları
                     </h2>
-                    <p className="text-slate-500 mt-1">Ağ güvenlik olaylarını izleyin ve analiz edin</p>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">Ağ güvenlik olaylarını izleyin ve analiz edin</p>
                 </div>
                 <div className="flex items-center space-x-3">
                     <button
                         onClick={refreshLogs}
-                        className="flex items-center space-x-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                        className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300"
                     >
                         <RefreshCw className="w-4 h-4" />
                         <span>Yenile</span>
@@ -130,55 +130,55 @@ export default function SnortLogs() {
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-xl shadow-sm p-5"
+                    className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700"
                 >
-                    <p className="text-slate-500 text-sm mb-2">Toplam Log</p>
-                    <p className="text-3xl font-bold text-slate-800">{stats.total}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Toplam Log</p>
+                    <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{stats.total}</p>
                 </motion.div>
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="bg-white rounded-xl shadow-sm p-5"
+                    className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700"
                 >
-                    <p className="text-slate-500 text-sm mb-2">Yüksek</p>
-                    <p className="text-3xl font-bold text-red-600">{stats.high}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Yüksek</p>
+                    <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.high}</p>
                 </motion.div>
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="bg-white rounded-xl shadow-sm p-5"
+                    className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700"
                 >
-                    <p className="text-slate-500 text-sm mb-2">Orta</p>
-                    <p className="text-3xl font-bold text-orange-600">{stats.medium}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Orta</p>
+                    <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.medium}</p>
                 </motion.div>
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="bg-white rounded-xl shadow-sm p-5"
+                    className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700"
                 >
-                    <p className="text-slate-500 text-sm mb-2">Düşük</p>
-                    <p className="text-3xl font-bold text-blue-600">{stats.low}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Düşük</p>
+                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.low}</p>
                 </motion.div>
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="bg-white rounded-xl shadow-sm p-5"
+                    className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700"
                 >
-                    <p className="text-slate-500 text-sm mb-2">Engellendi</p>
-                    <p className="text-3xl font-bold text-red-600">{stats.dropped}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Engellendi</p>
+                    <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.dropped}</p>
                 </motion.div>
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 }}
-                    className="bg-white rounded-xl shadow-sm p-5"
+                    className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700"
                 >
-                    <p className="text-slate-500 text-sm mb-2">Uyarılar</p>
-                    <p className="text-3xl font-bold text-yellow-600">{stats.alerts}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Uyarılar</p>
+                    <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{stats.alerts}</p>
                 </motion.div>
             </div>
 
@@ -261,28 +261,28 @@ export default function SnortLogs() {
             </div>
 
             {/* Filtreler */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
+            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex-1 max-w-md">
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
                             <input
                                 type="text"
                                 placeholder="IP, mesaj veya signature ara..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 transition-all text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             />
                         </div>
                     </div>
 
                     <div className="flex items-center space-x-3">
                         <div className="flex items-center space-x-2">
-                            <Filter className="w-4 h-4 text-slate-400" />
+                            <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                             <select
                                 value={filterPriority}
                                 onChange={(e) => setFilterPriority(e.target.value)}
-                                className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100"
                             >
                                 <option value="all">Tüm Öncelikler</option>
                                 <option value="high">Yüksek</option>
@@ -293,7 +293,7 @@ export default function SnortLogs() {
                         <select
                             value={filterAction}
                             onChange={(e) => setFilterAction(e.target.value)}
-                            className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100"
                         >
                             <option value="all">Tüm Aksiyonlar</option>
                             <option value="alert">Alert</option>
@@ -305,12 +305,12 @@ export default function SnortLogs() {
             </div>
 
             {/* Log Listesi */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-                <h3 className="text-xl font-bold text-slate-800 mb-6">
+            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">
                     Güvenlik Olayları ({filteredLogs.length})
                 </h3>
-                {loading && <p className="text-slate-500 text-sm mb-3">Yükleniyor...</p>}
-                {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+                {loading && <p className="text-slate-500 dark:text-slate-400 text-sm mb-3">Yükleniyor...</p>}
+                {error && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{error}</p>}
                 <div className="space-y-3">
                     {filteredLogs.map((log, index) => (
                         <motion.div
@@ -318,7 +318,7 @@ export default function SnortLogs() {
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className={`p-4 rounded-xl border-l-4 ${priorityColors[log.priority].border} bg-slate-50 hover:shadow-md transition-shadow cursor-pointer`}
+                            className={`p-4 rounded-xl border-l-4 ${priorityColors[log.priority].border} bg-slate-50 dark:bg-slate-800 hover:shadow-md dark:hover:shadow-lg transition-shadow cursor-pointer`}
                             onClick={() => setViewingLog(log)}
                         >
                             <div className="flex items-start justify-between mb-3">
@@ -331,15 +331,15 @@ export default function SnortLogs() {
                                         <span className={`px-3 py-1 rounded-lg text-xs font-medium ${actionColors[log.action].bg} ${actionColors[log.action].text}`}>
                                             {log.action.toUpperCase()}
                                         </span>
-                                        <span className="text-xs text-slate-500">{log.timestamp}</span>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">{log.timestamp}</span>
                                     </div>
-                                    <p className="font-semibold text-slate-800 mb-1">{log.message}</p>
-                                    <p className="text-sm text-slate-600 mb-2">{log.signature}</p>
-                                    <div className="flex items-center space-x-4 text-sm text-slate-500">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-100 mb-1">{log.message}</p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">{log.signature}</p>
+                                    <div className="flex items-center space-x-4 text-sm text-slate-500 dark:text-slate-400">
                                         <span>🔴 {log.sourceIp}:{log.sourcePort}</span>
                                         <span>→</span>
                                         <span>🟢 {log.destIp}:{log.destPort}</span>
-                                        <span className="px-2 py-1 bg-slate-200 rounded text-xs">{log.protocol}</span>
+                                        <span className="px-2 py-1 bg-slate-200 dark:bg-slate-700 rounded text-xs text-slate-700 dark:text-slate-300">{log.protocol}</span>
                                     </div>
                                 </div>
                                 <button
@@ -347,12 +347,12 @@ export default function SnortLogs() {
                                         e.stopPropagation()
                                         setViewingLog(log)
                                     }}
-                                    className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                    className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                                 >
-                                    <Eye className="w-5 h-5 text-blue-600" />
+                                    <Eye className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                 </button>
                             </div>
-                            <div className="bg-slate-100 rounded-lg p-2 text-xs text-slate-600">
+                            <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-2 text-xs text-slate-600 dark:text-slate-300">
                                 <span className="font-medium">Sınıflandırma:</span> {log.classification}
                             </div>
                         </motion.div>
@@ -361,8 +361,8 @@ export default function SnortLogs() {
 
                 {filteredLogs.length === 0 && (
                     <div className="text-center py-12">
-                        <AlertTriangle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                        <p className="text-slate-500">Filtrelere uygun log bulunamadı</p>
+                        <AlertTriangle className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                        <p className="text-slate-500 dark:text-slate-400">Filtrelere uygun log bulunamadı</p>
                     </div>
                 )}
             </div>
@@ -382,15 +382,15 @@ export default function SnortLogs() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+                            className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-700"
                         >
-                            <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
-                                <h3 className="text-2xl font-bold text-slate-800">Log Detayları</h3>
+                            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-dark-card z-10">
+                                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Log Detayları</h3>
                                 <button
                                     onClick={() => setViewingLog(null)}
-                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                                 >
-                                    <X className="w-6 h-6" />
+                                    <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                                 </button>
                             </div>
 
@@ -407,69 +407,69 @@ export default function SnortLogs() {
                                 </div>
 
                                 {/* Temel Bilgiler */}
-                                <div className="bg-slate-50 rounded-xl p-6">
-                                    <h4 className="font-semibold text-slate-800 mb-4">Olay Bilgileri</h4>
+                                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
+                                    <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">Olay Bilgileri</h4>
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Zaman Damgası</span>
-                                            <span className="font-bold text-slate-800">{viewingLog.timestamp}</span>
+                                            <span className="text-slate-600 dark:text-slate-400">Zaman Damgası</span>
+                                            <span className="font-bold text-slate-800 dark:text-slate-100">{viewingLog.timestamp}</span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Mesaj</span>
-                                            <span className="font-bold text-slate-800">{viewingLog.message}</span>
+                                            <span className="text-slate-600 dark:text-slate-400">Mesaj</span>
+                                            <span className="font-bold text-slate-800 dark:text-slate-100">{viewingLog.message}</span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Signature</span>
-                                            <span className="font-bold text-blue-600">{viewingLog.signature}</span>
+                                            <span className="text-slate-600 dark:text-slate-400">Signature</span>
+                                            <span className="font-bold text-blue-600 dark:text-blue-400">{viewingLog.signature}</span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-600">Sınıflandırma</span>
-                                            <span className="font-bold text-purple-600">{viewingLog.classification}</span>
+                                            <span className="text-slate-600 dark:text-slate-400">Sınıflandırma</span>
+                                            <span className="font-bold text-purple-600 dark:text-purple-400">{viewingLog.classification}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Ağ Bilgileri */}
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-red-50 rounded-xl p-6 border border-red-200">
-                                        <h4 className="font-semibold text-red-800 mb-4 flex items-center">
+                                    <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-6 border border-red-200 dark:border-red-800">
+                                        <h4 className="font-semibold text-red-800 dark:text-red-300 mb-4 flex items-center">
                                             <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
                                             Kaynak (Source)
                                         </h4>
                                         <div className="space-y-2">
                                             <div>
-                                                <p className="text-xs text-red-600 mb-1">IP Adresi</p>
-                                                <p className="font-bold text-red-800">{viewingLog.sourceIp}</p>
+                                                <p className="text-xs text-red-600 dark:text-red-400 mb-1">IP Adresi</p>
+                                                <p className="font-bold text-red-800 dark:text-red-300">{viewingLog.sourceIp}</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs text-red-600 mb-1">Port</p>
-                                                <p className="font-bold text-red-800">{viewingLog.sourcePort}</p>
+                                                <p className="text-xs text-red-600 dark:text-red-400 mb-1">Port</p>
+                                                <p className="font-bold text-red-800 dark:text-red-300">{viewingLog.sourcePort}</p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="bg-green-50 rounded-xl p-6 border border-green-200">
-                                        <h4 className="font-semibold text-green-800 mb-4 flex items-center">
+                                    <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-6 border border-green-200 dark:border-green-800">
+                                        <h4 className="font-semibold text-green-800 dark:text-green-300 mb-4 flex items-center">
                                             <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
                                             Hedef (Destination)
                                         </h4>
                                         <div className="space-y-2">
                                             <div>
-                                                <p className="text-xs text-green-600 mb-1">IP Adresi</p>
-                                                <p className="font-bold text-green-800">{viewingLog.destIp}</p>
+                                                <p className="text-xs text-green-600 dark:text-green-400 mb-1">IP Adresi</p>
+                                                <p className="font-bold text-green-800 dark:text-green-300">{viewingLog.destIp}</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs text-green-600 mb-1">Port</p>
-                                                <p className="font-bold text-green-800">{viewingLog.destPort}</p>
+                                                <p className="text-xs text-green-600 dark:text-green-400 mb-1">Port</p>
+                                                <p className="font-bold text-green-800 dark:text-green-300">{viewingLog.destPort}</p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Protokol */}
-                                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-blue-600 font-medium">Protokol</span>
+                                        <span className="text-blue-600 dark:text-blue-400 font-medium">Protokol</span>
                                         <span className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold">
                                             {viewingLog.protocol}
                                         </span>
@@ -477,22 +477,22 @@ export default function SnortLogs() {
                                 </div>
 
                                 {/* Önerilen Aksiyonlar */}
-                                <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-6 border border-orange-200">
-                                    <h4 className="font-semibold text-orange-800 mb-3 flex items-center">
+                                <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-xl p-6 border border-orange-200 dark:border-orange-800">
+                                    <h4 className="font-semibold text-orange-800 dark:text-orange-300 mb-3 flex items-center">
                                         <AlertTriangle className="w-5 h-5 mr-2" />
                                         Önerilen Aksiyonlar
                                     </h4>
-                                    <ul className="space-y-2 text-sm text-slate-700">
+                                    <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
                                         <li className="flex items-start">
-                                            <span className="text-orange-600 mr-2">•</span>
+                                            <span className="text-orange-600 dark:text-orange-400 mr-2">•</span>
                                             <span>Kaynak IP adresini güvenlik duvarında engelleyin</span>
                                         </li>
                                         <li className="flex items-start">
-                                            <span className="text-orange-600 mr-2">•</span>
+                                            <span className="text-orange-600 dark:text-orange-400 mr-2">•</span>
                                             <span>Hedef sistemde güvenlik açığı taraması yapın</span>
                                         </li>
                                         <li className="flex items-start">
-                                            <span className="text-orange-600 mr-2">•</span>
+                                            <span className="text-orange-600 dark:text-orange-400 mr-2">•</span>
                                             <span>Olay raporunu güvenlik ekibine iletin</span>
                                         </li>
                                     </ul>
@@ -507,7 +507,7 @@ export default function SnortLogs() {
                                     </button>
                                     <button
                                         onClick={() => setViewingLog(null)}
-                                        className="px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium"
+                                        className="px-6 py-3 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium"
                                     >
                                         Kapat
                                     </button>
@@ -533,29 +533,29 @@ export default function SnortLogs() {
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+                            className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-700"
                         >
-                            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                                <h3 className="text-2xl font-bold text-slate-800 flex items-center">
-                                    <Shield className="w-6 h-6 text-red-600 mr-3" />
+                            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center">
+                                    <Shield className="w-6 h-6 text-red-600 dark:text-red-400 mr-3" />
                                     IPS Ayarları
                                 </h3>
                                 <button
                                     onClick={() => setShowIpsSettings(false)}
-                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                                 >
-                                    <X className="w-6 h-6" />
+                                    <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                                 </button>
                             </div>
 
                             <div className="p-6 space-y-6">
                                 {/* Otomatik Engelleme */}
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                                     <div className="flex items-center space-x-3">
-                                        <Shield className="w-5 h-5 text-red-600" />
+                                        <Shield className="w-5 h-5 text-red-600 dark:text-red-400" />
                                         <div>
-                                            <p className="font-medium text-slate-800">Otomatik Engelleme</p>
-                                            <p className="text-xs text-slate-500">Tehdit tespit edildiğinde otomatik engelle</p>
+                                            <p className="font-medium text-slate-800 dark:text-slate-100">Otomatik Engelleme</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">Tehdit tespit edildiğinde otomatik engelle</p>
                                         </div>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -565,19 +565,19 @@ export default function SnortLogs() {
                                             onChange={(e) => setIpsSettings({ ...ipsSettings, autoBlock: e.target.checked })}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                                        <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 dark:after:border-slate-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                                     </label>
                                 </div>
 
                                 {/* Engelleme Süresi */}
-                                <div className="p-4 bg-slate-50 rounded-xl">
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                                         Engelleme Süresi (saat)
                                     </label>
                                     <select
                                         value={ipsSettings.blockDuration}
                                         onChange={(e) => setIpsSettings({ ...ipsSettings, blockDuration: e.target.value })}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-slate-800 dark:text-slate-100"
                                     >
                                         <option value="1">1 saat</option>
                                         <option value="6">6 saat</option>
@@ -590,14 +590,14 @@ export default function SnortLogs() {
                                 </div>
 
                                 {/* Uyarı Eşiği */}
-                                <div className="p-4 bg-slate-50 rounded-xl">
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                                         Uyarı Eşiği (kaç deneme sonra engelle)
                                     </label>
                                     <select
                                         value={ipsSettings.alertThreshold}
                                         onChange={(e) => setIpsSettings({ ...ipsSettings, alertThreshold: e.target.value })}
-                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-slate-800 dark:text-slate-100"
                                     >
                                         <option value="1">1 deneme</option>
                                         <option value="3">3 deneme</option>
@@ -607,12 +607,12 @@ export default function SnortLogs() {
                                 </div>
 
                                 {/* Whitelist */}
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                                     <div className="flex items-center space-x-3">
                                         <div className="w-5 h-5 bg-green-500 rounded-full"></div>
                                         <div>
-                                            <p className="font-medium text-slate-800">Whitelist Koruması</p>
-                                            <p className="text-xs text-slate-500">Güvenli IP listesini koru</p>
+                                            <p className="font-medium text-slate-800 dark:text-slate-100">Whitelist Koruması</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">Güvenli IP listesini koru</p>
                                         </div>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -622,17 +622,17 @@ export default function SnortLogs() {
                                             onChange={(e) => setIpsSettings({ ...ipsSettings, whitelistEnabled: e.target.checked })}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                        <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 dark:after:border-slate-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                                     </label>
                                 </div>
 
                                 {/* Blacklist */}
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                                     <div className="flex items-center space-x-3">
                                         <div className="w-5 h-5 bg-red-500 rounded-full"></div>
                                         <div>
-                                            <p className="font-medium text-slate-800">Blacklist Aktif</p>
-                                            <p className="text-xs text-slate-500">Kara listedeki IP'leri engelle</p>
+                                            <p className="font-medium text-slate-800 dark:text-slate-100">Blacklist Aktif</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">Kara listedeki IP'leri engelle</p>
                                         </div>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -642,16 +642,16 @@ export default function SnortLogs() {
                                             onChange={(e) => setIpsSettings({ ...ipsSettings, blacklistEnabled: e.target.checked })}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                                        <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 dark:after:border-slate-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                                     </label>
                                 </div>
 
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                                    <h4 className="font-semibold text-yellow-800 mb-2 flex items-center">
+                                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
+                                    <h4 className="font-semibold text-yellow-800 dark:text-yellow-300 mb-2 flex items-center">
                                         <AlertTriangle className="w-4 h-4 mr-2" />
                                         Önemli Notlar
                                     </h4>
-                                    <ul className="text-sm text-yellow-700 space-y-1">
+                                    <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
                                         <li>• IPS modu aktif olduğunda tehditler otomatik engellenir</li>
                                         <li>• Whitelist'teki IP'ler asla engellenmez</li>
                                         <li>• Yüksek öncelikli tehditler anında engellenir</li>
@@ -671,7 +671,7 @@ export default function SnortLogs() {
                                     </button>
                                     <button
                                         onClick={() => setShowIpsSettings(false)}
-                                        className="px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium"
+                                        className="px-6 py-3 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium"
                                     >
                                         İptal
                                     </button>

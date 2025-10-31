@@ -247,7 +247,7 @@ export default function Chatbot() {
       {/* Chat Interface */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Conversations List */}
-        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm overflow-hidden border border-slate-200 dark:border-slate-700">
           <div className="p-4 border-b border-slate-200 dark:border-slate-700">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
@@ -256,7 +256,7 @@ export default function Chatbot() {
                 placeholder="Müşteri ara..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white dark:placeholder-slate-400"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -310,7 +310,7 @@ export default function Chatbot() {
         </div>
 
         {/* Chat Window */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ height: '700px' }}>
+        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl shadow-sm overflow-hidden flex flex-col border border-slate-200 dark:border-slate-700" style={{ height: '700px' }}>
           {selectedConversation ? (
             <>
               {/* Chat Header */}
@@ -320,7 +320,7 @@ export default function Chatbot() {
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
                       {selectedConversation.avatar}
                     </div>
-                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${selectedConversation.status === 'online' ? 'bg-green-500' :
+                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ${selectedConversation.status === 'online' ? 'bg-green-500' :
                       selectedConversation.status === 'away' ? 'bg-yellow-500' : 'bg-slate-400'
                       }`}></div>
                   </div>
@@ -362,11 +362,11 @@ export default function Chatbot() {
                         }`}>
                         <p className="text-sm">{message.text}</p>
                       </div>
-                      <div className={`flex items-center space-x-1 mt-1 text-xs text-slate-400 ${message.sender === 'agent' ? 'justify-end' : 'justify-start'
+                      <div className={`flex items-center space-x-1 mt-1 text-xs text-slate-400 dark:text-slate-500 ${message.sender === 'agent' ? 'justify-end' : 'justify-start'
                         }`}>
                         <span>{message.time}</span>
                         {message.sender === 'agent' && (
-                          <CheckCheck className={`w-4 h-4 ${message.read ? 'text-blue-500' : 'text-slate-400'}`} />
+                          <CheckCheck className={`w-4 h-4 ${message.read ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`} />
                         )}
                       </div>
                     </div>
@@ -390,7 +390,7 @@ export default function Chatbot() {
                     onChange={(e) => setMessageText(e.target.value)}
                     onKeyDown={handleKeyPress}
                     placeholder="Mesajınızı yazın..."
-                    className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white dark:placeholder-slate-400"
+                    className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                   <button
                     onClick={() => sendMessage()}
@@ -403,7 +403,7 @@ export default function Chatbot() {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center bg-white dark:bg-dark-card">
               <div className="text-center">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                   <MessageSquare className="w-10 h-10 text-blue-600 dark:text-blue-400" />

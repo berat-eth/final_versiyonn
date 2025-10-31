@@ -1,9 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+
+// Leaflet default icon sorununu çöz
+if (typeof window !== 'undefined') {
+  delete (L.Icon.Default.prototype as any)._getIconUrl
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  })
+}
 
 // Minimalist icon oluştur
 const createMinimalistIcon = (isSelected: boolean) => {
@@ -128,32 +138,78 @@ const cities = [
 ]
 
 // Harita sınırlarını ayarlayan komponent
-function MapBounds() {
+function MapBounds({ onMapReady }: { onMapReady: () => void }) {
   const map = useMap()
+  const boundsSet = useRef(false)
   
   useEffect(() => {
-    map.fitBounds([
-      [35.0, 25.0], // Güneybatı köşe
-      [42.0, 45.0]  // Kuzeydoğu köşe
-    ])
-  }, [map])
+    // Haritanın tamamen yüklendiğinden emin ol
+    if (map && map.getContainer() && !boundsSet.current) {
+      const container = map.getContainer()
+      if (!container) return
+      
+      try {
+        // Harita tamamen hazır olduğunda
+        map.whenReady(() => {
+          setTimeout(() => {
+            try {
+              // Container'ın boyutlarını kontrol et
+              const containerRect = container.getBoundingClientRect()
+              if (containerRect.width > 0 && containerRect.height > 0) {
+                map.invalidateSize()
+                
+                setTimeout(() => {
+                  try {
+                    map.fitBounds([
+                      [35.0, 25.0], // Güneybatı köşe
+                      [42.0, 45.0]  // Kuzeydoğu köşe
+                    ], { padding: [20, 20] })
+                    
+                    boundsSet.current = true
+                    onMapReady()
+                  } catch (error) {
+                    console.warn('Map fitBounds hatası:', error)
+                    onMapReady()
+                  }
+                }, 150)
+              } else {
+                onMapReady()
+              }
+            } catch (error) {
+              console.warn('Map size kontrolü hatası:', error)
+              onMapReady()
+            }
+          }, 100)
+        })
+      } catch (error) {
+        console.warn('Map whenReady hatası:', error)
+        onMapReady()
+      }
+    }
+  }, [map, onMapReady])
   
   return null
 }
 
 export default function TurkeyMapLeaflet({ onCitySelect, selectedCity, className = '' }: TurkeyMapLeafletProps) {
   const [mounted, setMounted] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
+  const handleMapReady = useCallback(() => {
+    // Harita tamamen yüklendiğinde marker'ları göster
+    setTimeout(() => setMapReady(true), 100)
+  }, [])
+
   if (!mounted) {
     return (
-      <div className={`${className} flex items-center justify-center bg-slate-100 rounded-xl`}>
+      <div className={`${className} flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-xl`}>
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-slate-600">Harita yükleniyor...</p>
+          <p className="text-slate-600 dark:text-slate-400">Harita yükleniyor...</p>
         </div>
       </div>
     )
@@ -164,10 +220,12 @@ export default function TurkeyMapLeaflet({ onCitySelect, selectedCity, className
       <MapContainer
         center={[39.0, 35.0]}
         zoom={6}
-        className="h-full w-full rounded-lg border border-slate-200"
-        style={{ height: '400px', width: '100%' }}
+        className="h-full w-full rounded-lg border border-slate-200 dark:border-slate-700"
+        style={{ height: '400px', width: '100%', zIndex: 0 }}
+        scrollWheelZoom={true}
+        zoomControl={true}
       >
-        <MapBounds />
+        <MapBounds onMapReady={handleMapReady} />
         
         {/* Tile Layer - Minimalist OpenStreetMap */}
         <TileLayer
@@ -177,20 +235,22 @@ export default function TurkeyMapLeaflet({ onCitySelect, selectedCity, className
         />
         
         {/* Türkiye sınırları - Minimalist */}
-        <GeoJSON
-          data={turkeyGeoJSON as any}
-          style={{
-            fillColor: '#ffffff',
-            weight: 1,
-            opacity: 0.8,
-            color: '#d1d5db',
-            dashArray: '2',
-            fillOpacity: 0.05
-          }}
-        />
+        {mapReady && (
+          <GeoJSON
+            data={turkeyGeoJSON as any}
+            style={{
+              fillColor: '#ffffff',
+              weight: 1,
+              opacity: 0.8,
+              color: '#d1d5db',
+              dashArray: '2',
+              fillOpacity: 0.05
+            }}
+          />
+        )}
         
-        {/* Şehir markerları - Minimalist */}
-        {cities.map((city) => (
+        {/* Şehir markerları - Minimalist - Sadece harita hazır olduğunda render et */}
+        {mapReady && cities.map((city) => (
           <Marker
             key={city.id}
             position={[city.lat, city.lng]}
@@ -205,14 +265,14 @@ export default function TurkeyMapLeaflet({ onCitySelect, selectedCity, className
           >
             <Popup className="minimalist-popup">
               <div className="text-center p-2">
-                <h3 className="font-medium text-slate-700 text-sm mb-2">{city.name}</h3>
+                <h3 className="font-medium text-slate-700 dark:text-slate-300 text-sm mb-2">{city.name}</h3>
                 <button
                   onClick={() => {
                     if (onCitySelect) {
                       onCitySelect(city.name)
                     }
                   }}
-                  className="px-3 py-1 bg-slate-100 text-slate-700 text-xs rounded-md hover:bg-slate-200 transition-colors"
+                  className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Seç
                 </button>
@@ -224,9 +284,9 @@ export default function TurkeyMapLeaflet({ onCitySelect, selectedCity, className
       
       {/* Seçilen şehir bilgisi - Minimalist */}
       {selectedCity && (
-        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-md shadow-sm p-2 border border-slate-200">
-          <p className="text-xs font-medium text-slate-600">
-            Seçilen: <span className="text-slate-800">{selectedCity}</span>
+        <div className="absolute bottom-4 left-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-md shadow-sm p-2 border border-slate-200 dark:border-slate-700">
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+            Seçilen: <span className="text-slate-800 dark:text-slate-200">{selectedCity}</span>
           </p>
         </div>
       )}

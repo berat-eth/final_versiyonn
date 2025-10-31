@@ -580,29 +580,29 @@ export default function ServerStats() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Uptime</span>
-                <span className="font-semibold text-slate-800">{mailStats.uptime}</span>
+                <span className="text-slate-500 dark:text-slate-400">Uptime</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{mailStats.uptime}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Load</span>
-                <span className="font-semibold text-slate-800">{mailStats.load}%</span>
+                <span className="text-slate-500 dark:text-slate-400">Load</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{mailStats.load}%</span>
               </div>
-              <div className="w-full bg-slate-200 rounded-full h-1.5">
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                 <div
                   className={`h-1.5 rounded-full ${mailStats.load > 70 ? 'bg-red-500' : mailStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
                   style={{ width: `${mailStats.load}%` }}
                 ></div>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
-                <div className="flex items-center justify-between"><span className="text-slate-500">Dk Gönderim</span><span className="font-semibold text-slate-800">{mailStats.sentPerMin}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Kuyruk</span><span className="font-semibold text-slate-800">{mailStats.queue}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Bounce</span><span className="font-semibold text-slate-800">{mailStats.bounceRate}%</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Dk Gönderim</span><span className="font-semibold text-slate-800 dark:text-slate-100">{mailStats.sentPerMin}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Kuyruk</span><span className="font-semibold text-slate-800 dark:text-slate-100">{mailStats.queue}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Bounce</span><span className="font-semibold text-slate-800 dark:text-slate-100">{mailStats.bounceRate}%</span></div>
               </div>
             </div>
           </div>
 
           {/* Redis */}
-          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+          <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:shadow-md dark:hover:shadow-lg transition-shadow bg-white dark:bg-slate-800">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-lg flex items-center justify-center">
@@ -620,29 +620,29 @@ export default function ServerStats() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Uptime</span>
-                <span className="font-semibold text-slate-800">{redisStats.uptime}</span>
+                <span className="text-slate-500 dark:text-slate-400">Uptime</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{redisStats.uptime}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Load</span>
-                <span className="font-semibold text-slate-800">{redisStats.load}%</span>
+                <span className="text-slate-500 dark:text-slate-400">Load</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{redisStats.load}%</span>
               </div>
-              <div className="w-full bg-slate-200 rounded-full h-1.5">
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                 <div
                   className={`h-1.5 rounded-full ${redisStats.load > 70 ? 'bg-red-500' : redisStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
                   style={{ width: `${redisStats.load}%` }}
                 ></div>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
-                <div className="flex items-center justify-between"><span className="text-slate-500">Bellek</span><span className="font-semibold text-slate-800">{redisStats.memoryMb} MB</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Ops/sn</span><span className="font-semibold text-slate-800">{redisStats.opsPerSec}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Hit</span><span className="font-semibold text-slate-800">{redisStats.hitRate}%</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Bellek</span><span className="font-semibold text-slate-800 dark:text-slate-100">{redisStats.memoryMb} MB</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Ops/sn</span><span className="font-semibold text-slate-800 dark:text-slate-100">{redisStats.opsPerSec}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Hit</span><span className="font-semibold text-slate-800 dark:text-slate-100">{redisStats.hitRate}%</span></div>
               </div>
             </div>
           </div>
 
           {/* Snort IDS */}
-          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+          <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:shadow-md dark:hover:shadow-lg transition-shadow bg-white dark:bg-slate-800">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
@@ -660,29 +660,29 @@ export default function ServerStats() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Uptime</span>
-                <span className="font-semibold text-slate-800">{snortStats.uptime}</span>
+                <span className="text-slate-500 dark:text-slate-400">Uptime</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{snortStats.uptime}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Load</span>
-                <span className="font-semibold text-slate-800">{snortStats.load}%</span>
+                <span className="text-slate-500 dark:text-slate-400">Load</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{snortStats.load}%</span>
               </div>
-              <div className="w-full bg-slate-200 rounded-full h-1.5">
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                 <div
                   className={`h-1.5 rounded-full ${snortStats.load > 70 ? 'bg-red-500' : snortStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
                   style={{ width: `${snortStats.load}%` }}
                 ></div>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
-                <div className="flex items-center justify-between"><span className="text-slate-500">Loglar</span><span className="font-semibold text-slate-800">{snortStats.totalLogs}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Uyarı</span><span className="font-semibold text-slate-800">{snortStats.alerts}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Engellenen</span><span className="font-semibold text-slate-800">{snortStats.blocked}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Loglar</span><span className="font-semibold text-slate-800 dark:text-slate-100">{snortStats.totalLogs}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Uyarı</span><span className="font-semibold text-slate-800 dark:text-slate-100">{snortStats.alerts}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Engellenen</span><span className="font-semibold text-slate-800 dark:text-slate-100">{snortStats.blocked}</span></div>
               </div>
             </div>
           </div>
 
           {/* Docker */}
-          <div className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+          <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:shadow-md dark:hover:shadow-lg transition-shadow bg-white dark:bg-slate-800">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
@@ -700,23 +700,23 @@ export default function ServerStats() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Uptime</span>
-                <span className="font-semibold text-slate-800">{dockerStats.uptime}</span>
+                <span className="text-slate-500 dark:text-slate-400">Uptime</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.uptime}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Load</span>
-                <span className="font-semibold text-slate-800">{dockerStats.load}%</span>
+                <span className="text-slate-500 dark:text-slate-400">Load</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.load}%</span>
               </div>
-              <div className="w-full bg-slate-200 rounded-full h-1.5">
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                 <div
                   className={`h-1.5 rounded-full ${dockerStats.load > 70 ? 'bg-red-500' : dockerStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
                   style={{ width: `${dockerStats.load}%` }}
                 ></div>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
-                <div className="flex items-center justify-between"><span className="text-slate-500">Çalışan</span><span className="font-semibold text-slate-800">{dockerStats.runningContainers}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Toplam</span><span className="font-semibold text-slate-800">{dockerStats.totalContainers}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500">Disk</span><span className="font-semibold text-slate-800">{dockerStats.diskUsage}GB</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Çalışan</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.runningContainers}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Toplam</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.totalContainers}</span></div>
+                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Disk</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.diskUsage}GB</span></div>
               </div>
             </div>
           </div>
@@ -745,14 +745,14 @@ export default function ServerStats() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Uptime</span>
-                  <span className="font-semibold text-slate-800">{server.uptime}</span>
+                  <span className="text-slate-500 dark:text-slate-400">Uptime</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">{server.uptime}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Load</span>
-                  <span className="font-semibold text-slate-800">{server.load}%</span>
+                  <span className="text-slate-500 dark:text-slate-400">Load</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">{server.load}%</span>
                 </div>
-                <div className="w-full bg-slate-200 rounded-full h-1.5">
+                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                   <div
                     className={`h-1.5 rounded-full ${
                       server.load > 70 ? 'bg-red-500' : server.load > 50 ? 'bg-yellow-500' : 'bg-green-500'
@@ -767,48 +767,48 @@ export default function ServerStats() {
       </div>
 
       {/* Process List */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        <h3 className="text-xl font-bold text-slate-800 mb-6">Çalışan Süreçler</h3>
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+        <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6">Çalışan Süreçler</h3>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Süreç</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">CPU %</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Bellek (MB)</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Durum</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">İşlem</th>
+              <tr className="border-b border-slate-200 dark:border-slate-700">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Süreç</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">CPU %</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Bellek (MB)</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Durum</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">İşlem</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {processes.map((process, index) => (
                 <motion.tr
                   key={process.name}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="hover:bg-slate-50"
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
-                      <Zap className="w-4 h-4 text-blue-600" />
-                      <span className="font-semibold text-slate-800">{process.name}</span>
+                      <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">{process.name}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="font-semibold text-slate-800">{process.cpu}%</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">{process.cpu}%</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="font-semibold text-slate-800">{process.memory} MB</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">{process.memory} MB</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center space-x-1 px-3 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium">
+                    <span className="inline-flex items-center space-x-1 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-xs font-medium">
                       <CheckCircle className="w-3 h-3" />
                       <span>Çalışıyor</span>
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <button className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <button className="px-3 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
                       Durdur
                     </button>
                   </td>
@@ -820,55 +820,55 @@ export default function ServerStats() {
       </div>
 
       {/* Visitor IPs and Locations */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-slate-800">Ziyaretçi IP'leri ve Konumları</h3>
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Ziyaretçi IP'leri ve Konumları</h3>
           {loadingVisitors && (
-            <span className="text-xs text-slate-500">Yükleniyor...</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Yükleniyor...</span>
           )}
         </div>
         {visitorIps && visitorIps.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">IP Adresi</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Konum</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Son Görülme</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Hit</th>
+                <tr className="border-b border-slate-200 dark:border-slate-700">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">IP Adresi</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Konum</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Son Görülme</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Hit</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {visitorIps.slice(0, 50).map((v: any, i: number) => (
-                  <tr key={(v.ip || 'unknown') + '_' + i} className="hover:bg-slate-50">
+                  <tr key={(v.ip || 'unknown') + '_' + i} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                     <td className="px-6 py-3">
-                      <div className="font-semibold text-slate-800">{v.ip || '-'}</div>
+                      <div className="font-semibold text-slate-800 dark:text-slate-100">{v.ip || '-'}</div>
                       {v.userId ? (
-                        <div className="text-xs text-slate-500">User #{v.userId}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">User #{v.userId}</div>
                       ) : null}
                     </td>
                     <td className="px-6 py-3">
-                      <div className="flex items-center space-x-2 text-slate-700">
-                        <MapPin className="w-4 h-4 text-rose-600" />
+                      <div className="flex items-center space-x-2 text-slate-700 dark:text-slate-300">
+                        <MapPin className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                         <span className="text-sm font-medium">
                           {(
                             (v.location && (v.location.city || v.location.town || v.location.state)) || '-' 
                           )}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                           {v.location && v.location.country ? `• ${v.location.country}` : ''}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm text-slate-700">{v.lastSeen ? new Date(v.lastSeen).toLocaleString('tr-TR') : '-'}</td>
-                    <td className="px-6 py-3 text-sm font-semibold text-slate-800">{v.hits || 1}</td>
+                    <td className="px-6 py-3 text-sm text-slate-700 dark:text-slate-300">{v.lastSeen ? new Date(v.lastSeen).toLocaleString('tr-TR') : '-'}</td>
+                    <td className="px-6 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100">{v.hits || 1}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <div className="text-sm text-slate-500">Kayıt bulunamadı</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Kayıt bulunamadı</div>
         )}
       </div>
 

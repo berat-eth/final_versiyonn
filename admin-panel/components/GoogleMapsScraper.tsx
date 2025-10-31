@@ -9,10 +9,10 @@ import dynamic from 'next/dynamic'
 const TurkeyMapLeaflet = dynamic(() => import('./TurkeyMapLeaflet'), {
   ssr: false,
   loading: () => (
-    <div className="h-96 flex items-center justify-center bg-slate-100 rounded-xl">
+    <div className="h-96 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-xl">
       <div className="text-center">
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-        <p className="text-slate-600">Harita yükleniyor...</p>
+        <p className="text-slate-600 dark:text-slate-400">Harita yükleniyor...</p>
       </div>
     </div>
   )
@@ -128,26 +128,26 @@ export default function GoogleMapsScraper() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Google Maps Data Scrapper</h2>
-          <p className="text-slate-500 mt-1">Google Haritalar'dan işletme verilerini toplayın</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Google Maps Data Scrapper</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Google Haritalar'dan işletme verilerini toplayın</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={query} onChange={(e)=> setQuery(e.target.value)} placeholder="Arama sorgusu (örn: av bayii)" className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg" />
+            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+            <input value={query} onChange={(e)=> setQuery(e.target.value)} placeholder="Arama sorgusu (örn: av bayii)" className="w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500" />
           </div>
           <div className="relative">
-            <MapPin className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={city} onChange={(e)=> setCity(e.target.value)} placeholder="Şehir" className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg" />
+            <MapPin className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+            <input value={city} onChange={(e)=> setCity(e.target.value)} placeholder="Şehir" className="w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500" />
           </div>
           <div className="flex items-center gap-2">
-            <button disabled={loading} onClick={runScrape} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            <button disabled={loading} onClick={runScrape} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
               {loading ? <span className="inline-flex items-center"><Loader2 className="w-4 h-4 mr-2 animate-spin"/>Çalışıyor...</span> : 'Verileri Topla'}
             </button>
-            <button onClick={exportCsv} disabled={!results.length} className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:opacity-90 disabled:opacity-50 inline-flex items-center">
+            <button onClick={exportCsv} disabled={!results.length} className="px-4 py-2 bg-slate-900 dark:bg-slate-700 text-white rounded-lg hover:opacity-90 disabled:opacity-50 inline-flex items-center transition-opacity">
               <Download className="w-4 h-4 mr-2"/>Dışa Aktar
             </button>
             <button
@@ -193,7 +193,7 @@ export default function GoogleMapsScraper() {
                 ])
                 setError(null)
               }}
-              className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 text-sm"
+              className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm transition-colors"
             >
               Demo Verisi
             </button>
@@ -201,22 +201,22 @@ export default function GoogleMapsScraper() {
         </div>
         {(status || jobId) && (
           <div className="mt-4 flex items-center justify-between text-sm">
-            <div className="text-slate-600">Durum: <span className="font-medium text-slate-800">{status?.state || 'oluşturuluyor'}</span> {status ? `• ${status.processed}/${status.total}` : ''}</div>
-            {jobId && <div className="text-slate-400">İş No: {jobId.slice(0,8)}</div>}
+            <div className="text-slate-600 dark:text-slate-400">Durum: <span className="font-medium text-slate-800 dark:text-slate-200">{status?.state || 'oluşturuluyor'}</span> {status ? `• ${status.processed}/${status.total}` : ''}</div>
+            {jobId && <div className="text-slate-400 dark:text-slate-500">İş No: {jobId.slice(0,8)}</div>}
           </div>
         )}
         {error && (
-          <div className="mt-4 p-3 border border-yellow-200 bg-yellow-50 rounded-lg text-sm text-yellow-800">
-            {error} • Lütfen backend’e `/api/admin/scrapers/google-maps` uç noktasını ekleyin veya Demo Verisi ile arayüzü test edin.
+          <div className="mt-4 p-3 border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-sm text-yellow-800 dark:text-yellow-300">
+            {error} • Lütfen backend'e `/api/admin/scrapers/google-maps` uç noktasını ekleyin veya Demo Verisi ile arayüzü test edin.
           </div>
         )}
       </div>
 
       {/* Türkiye Haritası - Minimalist */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <div className="mb-4">
-          <h3 className="text-lg font-medium text-slate-700 mb-1">Türkiye Haritası</h3>
-          <p className="text-slate-500 text-xs">Haritadan şehir seçerek arama yapabilirsiniz</p>
+          <h3 className="text-lg font-medium text-slate-700 dark:text-slate-200 mb-1">Türkiye Haritası</h3>
+          <p className="text-slate-500 dark:text-slate-400 text-xs">Haritadan şehir seçerek arama yapabilirsiniz</p>
         </div>
         <TurkeyMapLeaflet
           onCitySelect={handleCitySelect}
@@ -225,9 +225,9 @@ export default function GoogleMapsScraper() {
         />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
         {results.length === 0 ? (
-          <p className="text-slate-500">Sonuç yok</p>
+          <p className="text-slate-500 dark:text-slate-400">Sonuç yok</p>
         ) : (
         <div className="space-y-3">
           {results.map((r, i) => {
@@ -235,12 +235,12 @@ export default function GoogleMapsScraper() {
             const email = r.email || ''
             const emailHref = email ? `mailto:${email}` : ''
             return (
-              <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.01 }} className="p-4 border border-slate-200 rounded-xl">
+              <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.01 }} className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800">
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="font-semibold text-slate-800 truncate">{r.name}</p>
-                    <p className="text-sm text-slate-600 truncate">{r.address} {r.city ? `• ${r.city}` : ''}</p>
-                    <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                    <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">{r.name}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 truncate">{r.address} {r.city ? `• ${r.city}` : ''}</p>
+                    <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
                       <span>{r.phone || 'Telefon yok'}</span>
                       {email && <span>• {email}</span>}
                       {r.website && <span>• {r.website}</span>}
@@ -249,7 +249,7 @@ export default function GoogleMapsScraper() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => openDetailModal(r)}
-                      className="px-2 py-1 rounded border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs inline-flex items-center gap-1"
+                      className="px-2 py-1 rounded border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs inline-flex items-center gap-1 transition-colors"
                       title="Detayları görüntüle"
                     >
                       <Eye className="w-3.5 h-3.5"/> Detay
@@ -258,7 +258,7 @@ export default function GoogleMapsScraper() {
                       href={phoneHref || undefined}
                       target={phoneHref ? '_blank' : undefined}
                       rel={phoneHref ? 'noopener noreferrer' : undefined}
-                      className={`px-2 py-1 rounded border text-xs inline-flex items-center gap-1 ${phoneHref ? 'border-slate-300 hover:bg-slate-50 text-slate-700' : 'border-slate-200 text-slate-300 cursor-not-allowed'}`}
+                      className={`px-2 py-1 rounded border text-xs inline-flex items-center gap-1 transition-colors ${phoneHref ? 'border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300' : 'border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-500 cursor-not-allowed'}`}
                       onClick={(e)=>{ if(!phoneHref) e.preventDefault() }}
                       aria-disabled={!phoneHref}
                       title={phoneHref ? 'Ara' : 'Telefon yok'}
@@ -267,7 +267,7 @@ export default function GoogleMapsScraper() {
                     </a>
                     <a
                       href={emailHref || undefined}
-                      className={`px-2 py-1 rounded border text-xs inline-flex items-center gap-1 ${emailHref ? 'border-slate-300 hover:bg-slate-50 text-slate-700' : 'border-slate-200 text-slate-300 cursor-not-allowed'}`}
+                      className={`px-2 py-1 rounded border text-xs inline-flex items-center gap-1 transition-colors ${emailHref ? 'border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300' : 'border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-500 cursor-not-allowed'}`}
                       onClick={(e)=>{ if(!emailHref) e.preventDefault() }}
                       title={emailHref ? 'E-posta gönder' : 'E-posta yok'}
                     >
@@ -277,7 +277,7 @@ export default function GoogleMapsScraper() {
                       href={r.website || undefined}
                       target={r.website ? '_blank' : undefined}
                       rel={r.website ? 'noopener noreferrer' : undefined}
-                      className={`px-2 py-1 rounded border text-xs inline-flex items-center gap-1 ${r.website ? 'border-slate-300 hover:bg-slate-50 text-slate-700' : 'border-slate-200 text-slate-300 cursor-not-allowed'}`}
+                      className={`px-2 py-1 rounded border text-xs inline-flex items-center gap-1 transition-colors ${r.website ? 'border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300' : 'border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-500 cursor-not-allowed'}`}
                       onClick={(e)=>{ if(!r.website) e.preventDefault() }}
                       title={r.website ? 'Web sitesini aç' : 'Web sitesi yok'}
                     >
@@ -287,7 +287,7 @@ export default function GoogleMapsScraper() {
                       href={r.locationUrl || undefined}
                       target={r.locationUrl ? '_blank' : undefined}
                       rel={r.locationUrl ? 'noopener noreferrer' : undefined}
-                      className={`px-2 py-1 rounded border text-xs inline-flex items-center gap-1 ${r.locationUrl ? 'border-slate-300 hover:bg-slate-50 text-slate-700' : 'border-slate-200 text-slate-300 cursor-not-allowed'}`}
+                      className={`px-2 py-1 rounded border text-xs inline-flex items-center gap-1 transition-colors ${r.locationUrl ? 'border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300' : 'border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-500 cursor-not-allowed'}`}
                       onClick={(e)=>{ if(!r.locationUrl) e.preventDefault() }}
                       title={r.locationUrl ? 'Haritada aç' : 'Harita bağlantısı yok'}
                     >
@@ -309,48 +309,48 @@ export default function GoogleMapsScraper() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden relative z-[10000]"
+            className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden relative z-[10000] border border-slate-200 dark:border-slate-700"
           >
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h3 className="text-xl font-semibold text-slate-800">İşletme Detayları</h3>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100">İşletme Detayları</h3>
               <button
                 onClick={closeDetailModal}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-slate-500" />
+                <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
               </button>
             </div>
             
             <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
               {/* İşletme Adı */}
               <div>
-                <label className="text-sm font-medium text-slate-600 block mb-2">İşletme Adı</label>
-                <div className="text-lg font-semibold text-slate-800">{selectedItem.name || 'Belirtilmemiş'}</div>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">İşletme Adı</label>
+                <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{selectedItem.name || 'Belirtilmemiş'}</div>
               </div>
 
               {/* Adres */}
               <div>
-                <label className="text-sm font-medium text-slate-600 block mb-2">Adres</label>
-                <div className="text-slate-700">{selectedItem.address || 'Belirtilmemiş'}</div>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">Adres</label>
+                <div className="text-slate-700 dark:text-slate-300">{selectedItem.address || 'Belirtilmemiş'}</div>
               </div>
 
               {/* Şehir */}
               <div>
-                <label className="text-sm font-medium text-slate-600 block mb-2">Şehir</label>
-                <div className="text-slate-700">{selectedItem.city || 'Belirtilmemiş'}</div>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">Şehir</label>
+                <div className="text-slate-700 dark:text-slate-300">{selectedItem.city || 'Belirtilmemiş'}</div>
               </div>
 
               {/* İletişim Bilgileri */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-slate-600 block mb-2">Telefon</label>
+                  <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">Telefon</label>
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-700 font-medium">{selectedItem.phone || 'Belirtilmemiş'}</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">{selectedItem.phone || 'Belirtilmemiş'}</span>
                     {selectedItem.phone && (
                       <>
                         <a
                           href={`tel:${String(selectedItem.phone).replace(/\s+/g,'')}`}
-                          className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                          className="p-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
                           title="Ara"
                         >
                           <Phone className="w-4 h-4" />
@@ -359,7 +359,7 @@ export default function GoogleMapsScraper() {
                           href={getWhatsAppUrl(selectedItem.phone)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                          className="p-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
                           title="WhatsApp'ta mesaj gönder"
                         >
                           <MessageCircle className="w-4 h-4" />
@@ -370,13 +370,13 @@ export default function GoogleMapsScraper() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-slate-600 block mb-2">E-posta</label>
+                  <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">E-posta</label>
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-700 font-medium">{selectedItem.email || 'Belirtilmemiş'}</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">{selectedItem.email || 'Belirtilmemiş'}</span>
                     {selectedItem.email && (
                       <a
                         href={`mailto:${selectedItem.email}`}
-                        className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                        className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
                         title="E-posta gönder"
                       >
                         <Mail className="w-4 h-4" />
@@ -388,15 +388,15 @@ export default function GoogleMapsScraper() {
 
               {/* Web Sitesi */}
               <div>
-                <label className="text-sm font-medium text-slate-600 block mb-2">Web Sitesi</label>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">Web Sitesi</label>
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-700 font-medium truncate">{selectedItem.website || 'Belirtilmemiş'}</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{selectedItem.website || 'Belirtilmemiş'}</span>
                   {selectedItem.website && (
                     <a
                       href={selectedItem.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                      className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
                       title="Web sitesini aç"
                     >
                       <Globe className="w-4 h-4" />
@@ -407,15 +407,15 @@ export default function GoogleMapsScraper() {
 
               {/* Harita Konumu */}
               <div>
-                <label className="text-sm font-medium text-slate-600 block mb-2">Harita Konumu</label>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">Harita Konumu</label>
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-700 font-medium truncate">{selectedItem.locationUrl || 'Belirtilmemiş'}</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{selectedItem.locationUrl || 'Belirtilmemiş'}</span>
                   {selectedItem.locationUrl && (
                     <a
                       href={selectedItem.locationUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
+                      className="p-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
                       title="Haritada aç"
                     >
                       <MapPinned className="w-4 h-4" />
@@ -428,28 +428,28 @@ export default function GoogleMapsScraper() {
               {(selectedItem.lat || selectedItem.lng) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-2">Enlem (Latitude)</label>
-                    <div className="text-slate-700 font-mono text-sm">{selectedItem.lat || 'Belirtilmemiş'}</div>
+                    <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">Enlem (Latitude)</label>
+                    <div className="text-slate-700 dark:text-slate-300 font-mono text-sm">{selectedItem.lat || 'Belirtilmemiş'}</div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-2">Boylam (Longitude)</label>
-                    <div className="text-slate-700 font-mono text-sm">{selectedItem.lng || 'Belirtilmemiş'}</div>
+                    <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">Boylam (Longitude)</label>
+                    <div className="text-slate-700 dark:text-slate-300 font-mono text-sm">{selectedItem.lng || 'Belirtilmemiş'}</div>
                   </div>
                 </div>
               )}
 
               {/* Arama Sorgusu */}
               <div>
-                <label className="text-sm font-medium text-slate-600 block mb-2">Arama Sorgusu</label>
-                <div className="text-slate-700 font-mono text-sm bg-slate-50 p-2 rounded">{selectedItem.query || query || 'Belirtilmemiş'}</div>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-2">Arama Sorgusu</label>
+                <div className="text-slate-700 dark:text-slate-300 font-mono text-sm bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700">{selectedItem.query || query || 'Belirtilmemiş'}</div>
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
               <button
                 onClick={closeDetailModal}
-                className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
+                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
               >
                 Kapat
               </button>

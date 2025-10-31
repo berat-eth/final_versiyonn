@@ -102,33 +102,33 @@ export default function FileManager() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Dosya Görüntüleyici</h2>
-          <p className="text-slate-500 mt-1">Sunucu dosyalarını görüntüleyin</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Dosya Görüntüleyici</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Sunucu dosyalarını görüntüleyin</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={()=>loadList(cwd)} className="px-4 py-3 border rounded-xl hover:bg-slate-50 flex items-center gap-2"><RefreshCw className="w-4 h-4"/>Yenile</button>
+          <button onClick={()=>loadList(cwd)} className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 text-slate-700 dark:text-slate-300 transition-colors"><RefreshCw className="w-4 h-4"/>Yenile</button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-slate-600">
-        <button onClick={goUp} className="px-2 py-1 border rounded-lg hover:bg-slate-50 flex items-center gap-1"><ArrowLeft className="w-4 h-4"/>Yukarı</button>
-        <span className="px-2 py-1 bg-slate-100 rounded-lg">{cwd}</span>
+      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+        <button onClick={goUp} className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1 text-slate-700 dark:text-slate-300 transition-colors"><ArrowLeft className="w-4 h-4"/>Yukarı</button>
+        <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300">{cwd}</span>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        {loading && <p className="text-slate-500 text-sm">Yükleniyor...</p>}
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+        {loading && <p className="text-slate-500 dark:text-slate-400 text-sm">Yükleniyor...</p>}
+        {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map((it, idx)=> (
-            <motion.div key={it.path || idx} initial={{ opacity: 0, y: 6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx * 0.02 }} className="border rounded-xl p-4 hover:shadow-sm cursor-pointer"
+            <motion.div key={it.path || idx} initial={{ opacity: 0, y: 6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx * 0.02 }} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:shadow-sm dark:hover:shadow-lg cursor-pointer bg-white dark:bg-slate-800 transition-all"
               onClick={()=>{ if (it.type==='dir') setCwd(it.path) }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  {it.type==='dir' ? <Folder className="w-6 h-6 text-yellow-600"/> : <File className="w-6 h-6 text-slate-600"/>}
+                  {it.type==='dir' ? <Folder className="w-6 h-6 text-yellow-600 dark:text-yellow-400"/> : <File className="w-6 h-6 text-slate-600 dark:text-slate-400"/>}
                   <div>
-                    <p className="font-semibold text-slate-800">{it.name}</p>
-                    <p className="text-xs text-slate-500">{it.modifiedAt || ''}</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">{it.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{it.modifiedAt || ''}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -136,7 +136,7 @@ export default function FileManager() {
                     <button 
                       onClick={(e)=>{ e.stopPropagation(); handleViewFile(it.path) }} 
                       title="Görüntüle" 
-                      className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 hover:text-blue-700"
+                      className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                     >
                       <Eye className="w-4 h-4"/>
                     </button>
@@ -146,7 +146,7 @@ export default function FileManager() {
             </motion.div>
           ))}
           {items.length === 0 && !loading && !error && (
-            <div className="text-slate-500 text-sm">Bu klasörde içerik yok</div>
+            <div className="text-slate-500 dark:text-slate-400 text-sm">Bu klasörde içerik yok</div>
           )}
         </div>
       </div>
@@ -156,9 +156,9 @@ export default function FileManager() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-sm overflow-hidden"
+          className="bg-white dark:bg-dark-card rounded-2xl shadow-sm overflow-hidden border border-slate-200 dark:border-slate-700"
         >
-          <div className="bg-slate-900 text-slate-100 p-4 border-b border-slate-700">
+          <div className="bg-slate-900 dark:bg-slate-950 text-slate-100 p-4 border-b border-slate-700 dark:border-slate-800">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
                 <Code className="w-4 h-4" />
@@ -171,7 +171,7 @@ export default function FileManager() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleCloseViewer}
-                  className="px-3 py-1 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2 text-sm"
+                  className="px-3 py-1 bg-slate-600 dark:bg-slate-700 text-white rounded-lg hover:bg-slate-700 dark:hover:bg-slate-600 flex items-center gap-2 text-sm transition-colors"
                 >
                   <X className="w-4 h-4" />
                   Kapat
@@ -180,7 +180,7 @@ export default function FileManager() {
             </div>
           </div>
           <div className="relative">
-            <pre className="w-full h-96 p-4 font-mono text-sm bg-slate-900 text-slate-100 border-0 outline-none overflow-auto whitespace-pre-wrap"
+            <pre className="w-full h-96 p-4 font-mono text-sm bg-slate-900 dark:bg-slate-950 text-slate-100 border-0 outline-none overflow-auto whitespace-pre-wrap"
               style={{
                 fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
                 lineHeight: '1.5',
@@ -189,7 +189,7 @@ export default function FileManager() {
             >
               {fileContent || 'Dosya içeriği yükleniyor...'}
             </pre>
-            <div className="absolute top-4 right-4 text-xs text-slate-500">
+            <div className="absolute top-4 right-4 text-xs text-slate-500 dark:text-slate-400">
               {fileContent.split('\n').length} satır
             </div>
           </div>

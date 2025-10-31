@@ -172,36 +172,36 @@ export default function SQLQuery() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800 flex items-center">
-            <Database className="w-8 h-8 text-blue-600 mr-3" />
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 flex items-center">
+            <Database className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-3" />
             SQL Sorgu Penceresi
           </h2>
-          <p className="text-slate-500 mt-1">Veritabanı sorgularınızı çalıştırın (Sadece SELECT)</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Veritabanı sorgularınızı çalıştırın (Sadece SELECT)</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sol Panel - Tablolar */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Veritabanı Tabloları</h3>
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Veritabanı Tabloları</h3>
             <div className="space-y-2">
               {loadingTables ? (
-                <p className="text-slate-500">Tablolar yükleniyor...</p>
+                <p className="text-slate-500 dark:text-slate-400">Tablolar yükleniyor...</p>
               ) : (
               tables.map((table) => (
                 <button
                   key={table.name}
                   onClick={() => loadSampleQuery(table.name)}
-                  className="w-full text-left p-3 bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors group"
+                  className="w-full text-left p-3 bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors group border border-slate-200 dark:border-slate-700"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-slate-800 group-hover:text-blue-600">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                       {table.name}
                     </span>
-                    <span className="text-xs text-slate-500">{table.rowCount} satır</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{table.rowCount} satır</span>
                   </div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     {table.columns.slice(0, 3).join(', ')}
                     {table.columns.length > 3 && '...'}
                   </div>
@@ -210,12 +210,12 @@ export default function SQLQuery() {
               )}
             </div>
 
-            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-              <h4 className="font-semibold text-yellow-800 mb-2 flex items-center text-sm">
+            <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+              <h4 className="font-semibold text-yellow-800 dark:text-yellow-300 mb-2 flex items-center text-sm">
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 Güvenlik Kuralları
               </h4>
-              <ul className="text-xs text-yellow-700 space-y-1">
+              <ul className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
                 <li>✅ SELECT sorguları</li>
                 <li>❌ UPDATE, DELETE</li>
                 <li>❌ INSERT, DROP</li>
@@ -228,23 +228,23 @@ export default function SQLQuery() {
         {/* Sağ Panel - Sorgu ve Sonuçlar */}
         <div className="lg:col-span-3 space-y-6">
           {/* Sorgu Editörü */}
-          <div className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-800">SQL Sorgusu</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">SQL Sorgusu</h3>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => copyToClipboard(query)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                   title="Kopyala"
                 >
-                  <Copy className="w-4 h-4 text-slate-600" />
+                  <Copy className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 </button>
                 <button
                   onClick={() => setQuery('')}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                   title="Temizle"
                 >
-                  <Trash2 className="w-4 h-4 text-slate-600" />
+                  <Trash2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 </button>
               </div>
             </div>
@@ -253,12 +253,12 @@ export default function SQLQuery() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="SELECT * FROM users WHERE..."
-              className="w-full h-40 px-4 py-3 bg-slate-900 text-green-400 font-mono text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full h-40 px-4 py-3 bg-slate-900 dark:bg-slate-950 text-green-400 font-mono text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               spellCheck={false}
             />
 
             <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-slate-500">
+              <div className="text-sm text-slate-500 dark:text-slate-400">
                 {query.length} karakter
               </div>
               <button
@@ -286,9 +286,9 @@ export default function SQLQuery() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-red-50 border border-red-200 rounded-xl p-4"
+              className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4"
             >
-              <p className="text-red-700 font-medium">{error}</p>
+              <p className="text-red-700 dark:text-red-400 font-medium">{error}</p>
             </motion.div>
           )}
 
@@ -297,17 +297,17 @@ export default function SQLQuery() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl shadow-sm p-6"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-4">
-                  <h3 className="text-lg font-bold text-slate-800">Sorgu Sonuçları</h3>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Sorgu Sonuçları</h3>
                   <div className="flex items-center space-x-3 text-sm">
-                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg font-medium">
+                    <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg font-medium">
                       <CheckCircle className="w-4 h-4 inline mr-1" />
                       {result.rowCount} satır
                     </span>
-                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg font-medium">
+                    <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg font-medium">
                       <Clock className="w-4 h-4 inline mr-1" />
                       {result.executionTime.toFixed(3)}s
                     </span>
@@ -325,19 +325,19 @@ export default function SQLQuery() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b-2 border-slate-200">
+                    <tr className="border-b-2 border-slate-200 dark:border-slate-700">
                       {result.columns.map((col) => (
-                        <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                        <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
                           {col}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {result.rows.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         {result.columns.map((col) => (
-                          <td key={col} className="px-4 py-3 text-sm text-slate-700">
+                          <td key={col} className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
                             {row[col]}
                           </td>
                         ))}
@@ -350,28 +350,28 @@ export default function SQLQuery() {
           )}
 
           {/* Sorgu Geçmişi */}
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Sorgu Geçmişi</h3>
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Sorgu Geçmişi</h3>
             <div className="space-y-2">
               {queryHistory.map((item) => (
                 <div
                   key={item.id}
-                  className="p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
                   onClick={() => setQuery(item.query)}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-slate-500">{item.timestamp}</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{item.timestamp}</span>
                     <div className="flex items-center space-x-2">
                       {item.status === 'success' ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                           ✓ {item.rowCount} satır • {item.executionTime}s
                         </span>
                       ) : (
-                        <span className="text-xs text-red-600 font-medium">✗ Hata</span>
+                        <span className="text-xs text-red-600 dark:text-red-400 font-medium">✗ Hata</span>
                       )}
                     </div>
                   </div>
-                  <code className="text-sm text-slate-700 font-mono">{item.query}</code>
+                  <code className="text-sm text-slate-700 dark:text-slate-300 font-mono">{item.query}</code>
                 </div>
               ))}
             </div>
