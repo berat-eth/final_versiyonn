@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
+import UserMenu from './UserMenu'
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -94,9 +95,11 @@ export default function Header() {
                 </span>
               </Link>
             </nav>
+            <UserMenu />
           </div>
 
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-2">
+            <UserMenu />
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className={`p-2 rounded-lg transition-all ${isTransparent ? 'text-white hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
               <span className="material-symbols-outlined text-2xl">{mobileMenuOpen ? 'close' : 'menu'}</span>
             </button>
@@ -127,6 +130,9 @@ export default function Header() {
                 İletişim
               </Link>
             </nav>
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-700 mt-2">
+              <UserMenu />
+            </div>
           </div>
         )}
       </div>

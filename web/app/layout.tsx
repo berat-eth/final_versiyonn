@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Script from 'next/script'
 import './globals.css'
 import WhatsAppWrapper from '@/components/WhatsAppWrapper'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://huglutekstil.com'),
@@ -112,8 +113,10 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-background-light dark:bg-background-dark font-sans">
-        {children}
-        <WhatsAppWrapper />
+        <AuthProvider>
+          {children}
+          <WhatsAppWrapper />
+        </AuthProvider>
         <Script id="service-worker" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {
