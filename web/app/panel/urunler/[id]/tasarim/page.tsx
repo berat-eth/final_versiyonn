@@ -55,6 +55,7 @@ export default function DesignEditorPage() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [skipDesign, setSkipDesign] = useState(false)
   const [invoiceInfo, setInvoiceInfo] = useState({
     companyName: '',
     taxNumber: '',
@@ -272,9 +273,9 @@ export default function DesignEditorPage() {
         canvasSize: canvasSize
       }
 
-      // Tasarım görüntüsünü export et (base64)
+      // Tasarım görüntüsünü export et (base64) - sadece skipDesign false ise
       let designImage = null
-      if (canvasRef.current && elements.length > 0) {
+      if (!skipDesign && canvasRef.current && elements.length > 0) {
         try {
           const html2canvas = (await import('html2canvas')).default
           const canvas = await html2canvas(canvasRef.current, {
@@ -295,7 +296,10 @@ export default function DesignEditorPage() {
         .map(([size, qty]) => ({ size, quantity: qty }))
 
       // Customizations objesi
-      const customizations = {
+      const customizations = skipDesign ? {
+        sizes: sizeQuantities,
+        skipDesign: true
+      } : {
         design: designData,
         designImage: designImage,
         sizes: sizeQuantities
@@ -479,10 +483,6 @@ export default function DesignEditorPage() {
                 {/* Order Form Button */}
                 <button
                   onClick={() => {
-                    if (elements.length === 0) {
-                      alert('Lütfen önce bir tasarım oluşturun')
-                      return
-                    }
                     setShowOrderForm(true)
                   }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white font-bold rounded-xl hover:shadow-lg transition-all"
@@ -563,7 +563,7 @@ export default function DesignEditorPage() {
 
               <div
                 ref={canvasRef}
-                className="relative bg-gray-100 dark:bg-gray-700 rounded-xl overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600"
+                className="relative bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600"
                 style={{ width: '100%', height: '600px', maxHeight: '600px' }}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -576,7 +576,7 @@ export default function DesignEditorPage() {
                       src={product.image}
                       alt={product.name}
                       fill
-                      className="object-contain opacity-30"
+                      className="object-contain"
                       unoptimized
                     />
                   </div>
@@ -628,20 +628,6 @@ export default function DesignEditorPage() {
                     )}
                   </div>
                 ))}
-
-                {/* Empty State */}
-                {elements.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <span className="material-symbols-outlined text-6xl text-gray-400 dark:text-gray-500 mb-4">
-                        add_photo_alternate
-                      </span>
-                      <p className="text-gray-600 dark:text-gray-400">
-                        Tasarım oluşturmak için logo veya yazı ekleyin
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -689,13 +675,31 @@ export default function DesignEditorPage() {
                 </div>
               ) : (
                 <>
+                  {/* Skip Design Checkbox */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={skipDesign}
+                        onChange={(e) => setSkipDesign(e.target.checked)}
+                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <span className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <span className="material-symbols-outlined text-lg">check_circle</span>
+                          Tasarım yapmadan devam et
+                        </span>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Bu seçeneği işaretlerseniz, tasarım editöründe tasarım yapmak zorunlu değildir. Sadece beden ve adet bilgileri ile talep oluşturabilirsiniz.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
                   {/* Product Info */}
                   {product && (
                     <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
                       <h3 className="font-bold text-gray-900 dark:text-white mb-2">{product.name}</h3>
-                      <p className="text-gray-600 dark:text-gray-400">
-                        Fiyat: {Number(product.price || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                      </p>
                     </div>
                   )}
 

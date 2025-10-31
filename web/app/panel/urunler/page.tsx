@@ -238,10 +238,7 @@ export default function ProductsPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between mt-4">
-                    <p className="text-xl font-black text-blue-600 dark:text-blue-400">
-                      {Number(product.price || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                    </p>
+                  <div className="flex items-center justify-end mt-4">
                     <button
                       onClick={() => toggleFavorite(product.id)}
                       className={`p-2 rounded-lg transition-colors ${

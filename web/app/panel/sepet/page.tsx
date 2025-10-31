@@ -144,10 +144,7 @@ export default function CartPage() {
 
                   {/* Product Info */}
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{item.name}</h3>
-                    <p className="text-xl font-black text-blue-600 dark:text-blue-400 mb-4">
-                      {item.price.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                    </p>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">{item.name}</h3>
 
                     {/* Quantity Controls */}
                     <div className="flex items-center gap-4">
@@ -189,11 +186,6 @@ export default function CartPage() {
                         <span className="material-symbols-outlined">delete</span>
                       </button>
                     </div>
-
-                    {/* Subtotal */}
-                    <p className="mt-4 text-right font-bold text-gray-900 dark:text-white">
-                      Ara Toplam: {(item.price * item.quantity).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                    </p>
                   </div>
                 </div>
               </div>
@@ -209,12 +201,6 @@ export default function CartPage() {
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Toplam Ürün:</span>
                   <span className="font-semibold">{cartItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
-                </div>
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between text-lg font-bold text-gray-900 dark:text-white">
-                  <span>Toplam:</span>
-                  <span className="text-2xl text-blue-600 dark:text-blue-400">
-                    {total.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                  </span>
                 </div>
               </div>
 

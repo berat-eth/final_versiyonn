@@ -26,6 +26,18 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['react-icons'],
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        cacheGroups: {
+          default: false,
+          vendors: false,
+        },
+      };
+    }
+    return config;
+  },
 }
 
 module.exports = nextConfig

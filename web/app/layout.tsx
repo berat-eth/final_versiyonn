@@ -66,9 +66,12 @@ export default function RootLayout({
   return (
     <html lang="tr" className="light">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
           rel="stylesheet"
+          data-noprefetch
         />
         <link rel="canonical" href="https://huglutekstil.com" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
@@ -113,6 +116,47 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-background-light dark:bg-background-dark font-sans">
+        <Script
+          id="material-symbols-check"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                // Ensure Material Symbols font is loaded
+                if (typeof document !== 'undefined') {
+                  // Check font loading immediately
+                  function checkFont() {
+                    var fontLink = document.querySelector('link[href*="Material+Symbols+Outlined"]');
+                    if (!fontLink) return;
+                    
+                    // Use Font Loading API to check if font is loaded
+                    if (document.fonts && document.fonts.check) {
+                      var isLoaded = document.fonts.check('24px "Material Symbols Outlined"');
+                      if (!isLoaded) {
+                        // Font not loaded, force reload with cache bust
+                        var newLink = fontLink.cloneNode(true);
+                        newLink.href = fontLink.href.split('&v=')[0] + '&v=' + Date.now();
+                        fontLink.parentNode.replaceChild(newLink, fontLink);
+                      }
+                    }
+                  }
+                  
+                  // Check immediately
+                  if (document.readyState === 'complete') {
+                    checkFont();
+                  } else {
+                    window.addEventListener('load', checkFont);
+                  }
+                  
+                  // Also check after fonts ready
+                  if (document.fonts && document.fonts.ready) {
+                    document.fonts.ready.then(checkFont);
+                  }
+                }
+              })();
+            `,
+          }}
+        />
         <AuthProvider>
           {children}
           <WhatsAppWrapper />

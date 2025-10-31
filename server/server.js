@@ -4309,7 +4309,7 @@ app.get('/api/admin/custom-production-requests', authenticateAdmin, async (req, 
       'id', 'userId', 'tenantId', 'status', 'totalQuantity', 'totalAmount', 'customerName', 'customerEmail', 'customerPhone', 'companyName', 'taxNumber', 'taxAddress', 'companyAddress', 'notes', 'createdAt'
     ];
     const optionalCols = [
-      'quoteAmount', 'quoteCurrency', 'quoteNotes', 'quoteStatus', 'quotedAt', 'quoteValidUntil'
+      'quoteAmount', 'quoteCurrency', 'quoteNotes', 'quoteStatus', 'quotedAt', 'quoteValidUntil', 'source'
     ];
     const selectCols = baseCols
       .concat(optionalCols.filter(n => names.has(n)))
@@ -4318,7 +4318,25 @@ app.get('/api/admin/custom-production-requests', authenticateAdmin, async (req, 
     const [requests] = await poolWrapper.execute(
       `SELECT ${selectCols} FROM custom_production_requests ORDER BY createdAt DESC`
     );
-    res.json({ success: true, data: requests });
+    
+    // Get items for each request
+    const requestsWithItems = await Promise.all(
+      requests.map(async (request) => {
+        const [items] = await poolWrapper.execute(
+          `SELECT cpi.*, p.name as productName, p.image as productImage, p.price as productPrice
+           FROM custom_production_items cpi
+           LEFT JOIN products p ON cpi.productId = p.id AND p.tenantId = cpi.tenantId
+           WHERE cpi.requestId = ?`,
+          [request.id]
+        );
+        return {
+          ...request,
+          items: items || []
+        };
+      })
+    );
+    
+    res.json({ success: true, data: requestsWithItems });
   } catch (error) {
     console.error('❌ Error getting custom production requests:', error);
     res.status(500).json({ success: false, message: 'Error getting custom production requests' });
@@ -4394,6 +4412,139 @@ app.post('/api/admin/custom-production-requests/:id/quote', authenticateAdmin, a
   } catch (error) {
     console.error('❌ Error setting quote:', error);
     res.status(500).json({ success: false, message: 'Error setting quote' });
+  }
+});
+
+// User quote status update (accept/reject)
+app.put('/api/custom-production-requests/:requestId/quote-status', async (req, res) => {
+  try {
+    const requestId = parseInt(req.params.requestId);
+    const { status } = req.body || {};
+    
+    if (!status || !['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Geçersiz durum. accepted veya rejected olmalı' });
+    }
+
+    // Ensure columns exist
+    const [cols] = await poolWrapper.execute(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_requests'
+    `);
+    const names = cols.map(c => c.COLUMN_NAME);
+    const alters = [];
+    if (!names.includes('quoteStatus')) alters.push("ADD COLUMN quoteStatus ENUM('none','sent','accepted','rejected') DEFAULT 'none' AFTER quoteNotes");
+    if (alters.length > 0) {
+      await poolWrapper.execute(`ALTER TABLE custom_production_requests ${alters.join(', ')}`);
+    }
+
+    await poolWrapper.execute(
+      `UPDATE custom_production_requests 
+       SET quoteStatus = ?, updatedAt = CURRENT_TIMESTAMP 
+       WHERE id = ?`,
+      [status, requestId]
+    );
+
+    res.json({ success: true, message: `Teklif ${status === 'accepted' ? 'onaylandı' : 'reddedildi'}` });
+  } catch (error) {
+    console.error('❌ Error updating quote status:', error);
+    res.status(500).json({ success: false, message: 'Error updating quote status' });
+  }
+});
+
+// Quote request from website form (Teklif Al formu)
+app.post('/api/quote-requests', async (req, res) => {
+  try {
+    const tenantId = 1; // Default tenant
+    const {
+      name,
+      email,
+      phone,
+      company,
+      productType,
+      quantity,
+      budget,
+      description,
+      embroidery,
+      printing,
+      wholesale,
+      embroideryDetails,
+      printingDetails,
+      sizeDistribution
+    } = req.body || {};
+
+    if (!name || !email || !phone || !productType || !quantity) {
+      return res.status(400).json({
+        success: false,
+        message: 'Eksik alanlar: ad soyad, e-posta, telefon, ürün tipi ve miktar gereklidir'
+      });
+    }
+
+    // Ensure source column exists
+    const [cols] = await poolWrapper.execute(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_requests'
+    `);
+    const names = cols.map(c => c.COLUMN_NAME);
+    if (!names.includes('source')) {
+      await poolWrapper.execute("ALTER TABLE custom_production_requests ADD COLUMN source VARCHAR(50) DEFAULT 'website' AFTER userId");
+    }
+
+    // Generate request number
+    const requestNumber = `TEK-${Date.now()}`;
+
+    // Build notes from form data
+    let notes = `Teklif Al Formundan Gelen Talep\n`;
+    notes += `Ürün Tipi: ${productType}\n`;
+    notes += `Miktar: ${quantity} adet\n`;
+    if (budget) notes += `Bütçe Aralığı: ${budget}\n`;
+    if (description) notes += `\nProje Detayları:\n${description}\n`;
+    
+    const services = [];
+    if (embroidery) services.push('Nakış');
+    if (printing) services.push('Baskı');
+    if (wholesale) services.push('Toptan');
+    if (services.length > 0) notes += `\nHizmet Seçenekleri: ${services.join(', ')}\n`;
+    
+    if (embroidery && embroideryDetails) notes += `\nNakış Detayları:\n${embroideryDetails}\n`;
+    if (printing && printingDetails) notes += `\nBaskı Detayları:\n${printingDetails}\n`;
+    if (sizeDistribution) notes += `\nBeden Dağılımı:\n${sizeDistribution}\n`;
+
+    // Create custom production request (userId null, çünkü form dolduran kullanıcı giriş yapmamış olabilir)
+    const [requestResult] = await poolWrapper.execute(
+      `INSERT INTO custom_production_requests 
+       (tenantId, userId, requestNumber, status, totalQuantity, totalAmount, 
+        customerName, customerEmail, customerPhone, companyName, notes, source) 
+       VALUES (?, NULL, ?, 'pending', ?, 0, ?, ?, ?, ?, ?, 'quote-form')`,
+      [
+        tenantId,
+        requestNumber,
+        parseInt(quantity) || 0,
+        name,
+        email,
+        phone || null,
+        company || null,
+        notes || null
+      ]
+    );
+
+    const requestId = requestResult.insertId;
+
+    console.log(`✅ Quote request created: ${requestNumber} (ID: ${requestId})`);
+
+    res.json({
+      success: true,
+      message: 'Teklif talebiniz başarıyla alındı',
+      data: {
+        id: requestId,
+        requestNumber: requestNumber
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error creating quote request:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Teklif talebi oluşturulamadı: ' + (error.message || 'Bilinmeyen hata')
+    });
   }
 });
 

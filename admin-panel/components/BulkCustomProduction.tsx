@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Crown, Plus, MessageSquare, Search, Filter, Send, Globe, Building2, Eye, User, Mail, Phone, Package, RefreshCw, CheckCircle, XCircle } from 'lucide-react'
+import { Crown, Plus, MessageSquare, Search, Filter, Send, Globe, Building2, Eye, User, Mail, Phone, Package, RefreshCw, CheckCircle, XCircle, FileText, Download, Printer } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
 
@@ -26,6 +26,11 @@ export default function BulkCustomProduction() {
   const [showWebsiteDetailModal, setShowWebsiteDetailModal] = useState(false)
   const [websiteSearchQuery, setWebsiteSearchQuery] = useState('')
   const [websiteStatusFilter, setWebsiteStatusFilter] = useState<string>('all')
+  const [showProformaModal, setShowProformaModal] = useState(false)
+  const [selectedRequestForProforma, setSelectedRequestForProforma] = useState<any | null>(null)
+  const [showQuoteModal, setShowQuoteModal] = useState(false)
+  const [quoteAmount, setQuoteAmount] = useState<string>('')
+  const [quoteNotes, setQuoteNotes] = useState<string>('')
 
   // Messages
   const [messages, setMessages] = useState<any[]>([])
@@ -166,6 +171,23 @@ export default function BulkCustomProduction() {
             <span className="text-slate-700 dark:text-slate-300 flex-1 break-words">{data.bendenDescription}</span>
           </div>
         )}
+        {/* Beden Sayıları (Web sitesinden gelen talepler için) */}
+        {data.sizes && Array.isArray(data.sizes) && data.sizes.length > 0 && (
+          <div className="flex items-start gap-2">
+            <span className="font-semibold text-slate-600 dark:text-slate-400 min-w-[80px]">Beden Dağılımı:</span>
+            <div className="flex flex-wrap gap-2 flex-1">
+              {data.sizes.map((sizeItem: any, idx: number) => (
+                <span 
+                  key={idx}
+                  className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs font-medium"
+                  title={`${sizeItem.size}: ${sizeItem.quantity} adet`}
+                >
+                  {sizeItem.size}: <strong>{sizeItem.quantity}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -198,13 +220,18 @@ export default function BulkCustomProduction() {
     try {
       setWebsiteLoading(true)
       setWebsiteError(null)
-      // Siteden gelen talepleri getir - userId var olanlar (müşteriler tarafından gönderilenler)
+      // Siteden gelen talepleri getir - userId var olanlar (müşteriler tarafından gönderilenler) + Teklif Al formundan gelenler
       const res = await api.get<any>('/admin/custom-production-requests')
       if ((res as any)?.success && Array.isArray((res as any).data)) {
-        // Siteden gelen talepler: userId var ve customerName genellikle dolu olanlar
-        let websiteData = (res as any).data.filter((r: any) => 
-          r.userId && r.customerName && (!r.customerName.includes('B2B') && !r.customerName.includes('Toptan'))
-        )
+        // Siteden gelen talepler: sadece userId var olanlar (müşteriler tarafından gönderilenler)
+        // Teklif Al formundan gelenler artık ayrı sayfada (Gelen Form Verileri) gösteriliyor
+        let websiteData = (res as any).data.filter((r: any) => {
+          // Teklif Al formundan gelenleri hariç tut
+          if (r.source === 'quote-form') return false
+          // Müşteri panelinden gelenler (userId var ve B2B değil)
+          if (r.userId && r.customerName && (!r.customerName.includes('B2B') && !r.customerName.includes('Toptan'))) return true
+          return false
+        })
         
         // Her talebin items'larına ürün adlarını ekle
         for (const request of websiteData) {
@@ -699,6 +726,17 @@ export default function BulkCustomProduction() {
                 <p className="text-slate-500 dark:text-slate-400 text-sm">Talep #{selectedId}</p>
               </div>
               <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    const req = requests.find((x:any)=> x.id === selectedId)
+                    setSelectedRequestForProforma(req || { id: selectedId, items: items })
+                    setShowProformaModal(true)
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  Proforma Fatura
+                </button>
                 <button onClick={()=> setRequestStatus(selectedId, 'review')} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors">Teklif</button>
                 <button onClick={()=> setRequestStatus(selectedId, 'completed')} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors">Onayla</button>
                 <button onClick={()=> setRequestStatus(selectedId, 'cancelled')} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors">Reddet</button>
@@ -985,7 +1023,9 @@ export default function BulkCustomProduction() {
                       <p className="text-sm text-slate-500 dark:text-slate-400">Müşteri</p>
                     </div>
                     <p className="font-semibold text-slate-800 dark:text-slate-100">{selectedWebsiteRequest.customerName || '-'}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">User ID: {selectedWebsiteRequest.userId}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {selectedWebsiteRequest.userId ? `User ID: ${selectedWebsiteRequest.userId}` : 'Misafir Kullanıcı (Giriş yapmadan form doldurdu)'}
+                    </p>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center space-x-2 mb-2">
@@ -1040,6 +1080,7 @@ export default function BulkCustomProduction() {
                           <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Ürün</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Adet</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Beden Dağılımı</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Birim Fiyat</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Toplam</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Not/Özelleştirme</th>
@@ -1052,12 +1093,43 @@ export default function BulkCustomProduction() {
                                 {item.productName || (item.productId ? `Ürün #${item.productId}` : '-')}
                               </td>
                               <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.quantity || 0}</td>
+                              <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+                                {(() => {
+                                  try {
+                                    const customizations = typeof item.customizations === 'string' 
+                                      ? JSON.parse(item.customizations) 
+                                      : item.customizations;
+                                    if (customizations && customizations.sizes && Array.isArray(customizations.sizes) && customizations.sizes.length > 0) {
+                                      return (
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {customizations.sizes.map((sizeItem: any, idx: number) => (
+                                            <span 
+                                              key={idx}
+                                              className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs font-medium"
+                                              title={`${sizeItem.size}: ${sizeItem.quantity} adet`}
+                                            >
+                                              {sizeItem.size}: <strong>{sizeItem.quantity}</strong>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      );
+                                    }
+                                  } catch {}
+                                  return <span className="text-slate-500 dark:text-slate-400">-</span>;
+                                })()}
+                              </td>
                               <td className="px-4 py-3 text-slate-700 dark:text-slate-300">₺{Number(item.price || 0).toLocaleString('tr-TR')}</td>
                               <td className="px-4 py-3 font-semibold text-green-600 dark:text-green-400">
                                 ₺{Number((item.price || 0) * (item.quantity || 0)).toLocaleString('tr-TR')}
                               </td>
                               <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
-                                {item.note || (item.customizations ? JSON.stringify(item.customizations) : '-')}
+                                {item.note ? (
+                                  <span className="text-slate-700 dark:text-slate-300">{item.note}</span>
+                                ) : item.customizations ? (
+                                  renderCustomization(item.customizations)
+                                ) : (
+                                  <span className="text-slate-500 dark:text-slate-400">-</span>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -1079,7 +1151,42 @@ export default function BulkCustomProduction() {
                 )}
 
                 {/* Status Actions */}
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        setSelectedRequestForProforma(selectedWebsiteRequest)
+                        setShowProformaModal(true)
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Proforma Fatura
+                    </button>
+                    <button 
+                      onClick={() => {
+                        // Birim fiyat * 1.2 (kar) * 1.1 (KDV) = birim fiyat * 1.32
+                        let calculatedQuoteAmount = 0
+                        if (selectedWebsiteRequest.items && selectedWebsiteRequest.items.length > 0) {
+                          selectedWebsiteRequest.items.forEach((item: any) => {
+                            const basePrice = item.price || item.productPrice || 0
+                            const quantity = item.quantity || 0
+                            // Kar: %20, KDV: %10
+                            const quotePricePerUnit = basePrice * 1.2 * 1.1 // = basePrice * 1.32
+                            calculatedQuoteAmount += quotePricePerUnit * quantity
+                          })
+                        }
+                        setQuoteAmount(calculatedQuoteAmount.toFixed(2))
+                        setQuoteNotes('')
+                        setShowQuoteModal(true)
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Teklif Oluştur
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
                   <select
                     onChange={(e) => updateWebsiteRequestStatus(selectedWebsiteRequest.id, e.target.value)}
                     value={selectedWebsiteRequest.status}
@@ -1099,6 +1206,468 @@ export default function BulkCustomProduction() {
                   >
                     Kapat
                   </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Teklif Oluştur Modal */}
+      <AnimatePresence>
+        {showQuoteModal && selectedWebsiteRequest && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowQuoteModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-700"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Teklif Oluştur</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                  {selectedWebsiteRequest.requestNumber || `Talep #${selectedWebsiteRequest.id}`}
+                </p>
+    </div>
+
+              <div className="p-6 space-y-4">
+                {/* Hesaplama Detayları */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">Fiyatlandırma Formülü</h4>
+                  <p className="text-sm text-blue-800 dark:text-blue-400">
+                    Birim Fiyat × 1.20 (Kar) × 1.10 (KDV) = Birim Fiyat × 1.32
+                  </p>
+                </div>
+
+                {/* Ürün ve Beden Detayları */}
+                {selectedWebsiteRequest.items && selectedWebsiteRequest.items.length > 0 && (
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-100 dark:bg-slate-800">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-semibold">Ürün</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold">Beden</th>
+                          <th className="px-4 py-2 text-right text-xs font-semibold">Adet</th>
+                          <th className="px-4 py-2 text-right text-xs font-semibold">Birim Fiyat</th>
+                          <th className="px-4 py-2 text-right text-xs font-semibold">Teklif Fiyat</th>
+                          <th className="px-4 py-2 text-right text-xs font-semibold">Toplam</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                        {selectedWebsiteRequest.items.map((item: any, itemIdx: number) => {
+                          const basePrice = item.price || item.productPrice || 0
+                          const quotePricePerUnit = basePrice * 1.32
+                          
+                          try {
+                            const customizations = typeof item.customizations === 'string' 
+                              ? JSON.parse(item.customizations) 
+                              : item.customizations;
+                            
+                            if (customizations?.sizes && Array.isArray(customizations.sizes) && customizations.sizes.length > 0) {
+                              return customizations.sizes.map((sizeItem: any, sizeIdx: number) => {
+                                const sizeQuantity = sizeItem.quantity || 0
+                                const sizeTotal = quotePricePerUnit * sizeQuantity
+                                
+                                return (
+                                  <tr key={`${itemIdx}-${sizeIdx}`} className={sizeIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800'}>
+                                    {sizeIdx === 0 && (
+                                      <td rowSpan={customizations.sizes.length} className="px-4 py-2 font-semibold text-slate-800 dark:text-slate-100">
+                                        {item.productName || `Ürün #${item.productId}`}
+                                      </td>
+                                    )}
+                                    <td className="px-4 py-2">
+                                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs">
+                                        {sizeItem.size}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-right text-slate-700 dark:text-slate-300">{sizeQuantity}</td>
+                                    {sizeIdx === 0 && (
+                                      <td rowSpan={customizations.sizes.length} className="px-4 py-2 text-right text-slate-700 dark:text-slate-300">
+                                        ₺{Number(basePrice).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                    )}
+                                    {sizeIdx === 0 && (
+                                      <td rowSpan={customizations.sizes.length} className="px-4 py-2 text-right text-green-600 dark:text-green-400 font-semibold">
+                                        ₺{Number(quotePricePerUnit).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                    )}
+                                    <td className="px-4 py-2 text-right font-semibold text-slate-800 dark:text-slate-100">
+                                      ₺{Number(sizeTotal).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                )
+                              })
+                            }
+                          } catch {}
+                          
+                          // Beden bilgisi yoksa
+                          const itemQuantity = item.quantity || 0
+                          const itemTotal = quotePricePerUnit * itemQuantity
+                          
+                          return (
+                            <tr key={itemIdx} className="bg-white dark:bg-slate-900">
+                              <td className="px-4 py-2 font-semibold text-slate-800 dark:text-slate-100">
+                                {item.productName || `Ürün #${item.productId}`}
+                              </td>
+                              <td className="px-4 py-2 text-slate-500 dark:text-slate-400">-</td>
+                              <td className="px-4 py-2 text-right text-slate-700 dark:text-slate-300">{itemQuantity}</td>
+                              <td className="px-4 py-2 text-right text-slate-700 dark:text-slate-300">
+                                ₺{Number(basePrice).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-4 py-2 text-right text-green-600 dark:text-green-400 font-semibold">
+                                ₺{Number(quotePricePerUnit).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-4 py-2 text-right font-semibold text-slate-800 dark:text-slate-100">
+                                ₺{Number(itemTotal).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Teklif Tutarı */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Teklif Tutarı (₺)
+                  </label>
+                  <input
+                    type="number"
+                    value={quoteAmount}
+                    onChange={(e) => setQuoteAmount(e.target.value)}
+                    step="0.01"
+                    min="0"
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Teklif Notları */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Teklif Notları (Opsiyonel)
+                  </label>
+                  <textarea
+                    value={quoteNotes}
+                    onChange={(e) => setQuoteNotes(e.target.value)}
+                    rows={4}
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Teklif ile ilgili özel notlar..."
+                  />
+                </div>
+
+                {/* Aksiyon Butonları */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <button
+                    onClick={() => {
+                      setShowQuoteModal(false)
+                      setQuoteAmount('')
+                      setQuoteNotes('')
+                    }}
+                    className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await api.post<any>(`/admin/custom-production-requests/${selectedWebsiteRequest.id}/quote`, {
+                          quoteAmount: parseFloat(quoteAmount),
+                          quoteCurrency: 'TRY',
+                          quoteNotes: quoteNotes,
+                          quoteValidUntil: null
+                        })
+                        if ((response as any)?.success) {
+                          alert('Teklif başarıyla gönderildi')
+                          setShowQuoteModal(false)
+                          setQuoteAmount('')
+                          setQuoteNotes('')
+                          await loadWebsiteRequests()
+                          setShowWebsiteDetailModal(false)
+                        } else {
+                          alert('Teklif gönderilemedi: ' + ((response as any)?.message || 'Bilinmeyen hata'))
+                        }
+                      } catch (error: any) {
+                        console.error('Teklif gönderme hatası:', error)
+                        alert('Teklif gönderilemedi: ' + (error.message || 'Bilinmeyen hata'))
+                      }
+                    }}
+                    disabled={!quoteAmount || parseFloat(quoteAmount) <= 0}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Teklifi Gönder
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Proforma Fatura Modal */}
+      <AnimatePresence>
+        {showProformaModal && selectedRequestForProforma && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowProformaModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-700"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Proforma Fatura</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                    {selectedRequestForProforma.requestNumber || `Talep #${selectedRequestForProforma.id}`}
+                  </p>
+    </div>
+                <button
+                  onClick={() => setShowProformaModal(false)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <XCircle className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                {/* Firma Bilgileri */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Gönderen (Firma)</h4>
+                    <p className="font-bold text-slate-800 dark:text-slate-100 mb-1">Huğlu Tekstil Atölyesi</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">KOMEK, 43173.SK SİTESİ NO:20</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Beyşehir, Konya 42700</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Tel: +90 530 312 58 13</p>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Alıcı (Müşteri)</h4>
+                    <p className="font-bold text-slate-800 dark:text-slate-100 mb-1">
+                      {selectedRequestForProforma.customerName || '-'}
+                    </p>
+                    {selectedRequestForProforma.companyName && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{selectedRequestForProforma.companyName}</p>
+                    )}
+                    {selectedRequestForProforma.companyAddress && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">{selectedRequestForProforma.companyAddress}</p>
+                    )}
+                    {selectedRequestForProforma.taxAddress && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{selectedRequestForProforma.taxAddress}</p>
+                    )}
+                    {selectedRequestForProforma.customerEmail && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">E-posta: {selectedRequestForProforma.customerEmail}</p>
+                    )}
+                    {selectedRequestForProforma.customerPhone && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">Tel: {selectedRequestForProforma.customerPhone}</p>
+                    )}
+                    {selectedRequestForProforma.taxNumber && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Vergi No: {selectedRequestForProforma.taxNumber}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fatura Bilgileri */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Proforma Fatura No</p>
+                      <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                        PRO-{selectedRequestForProforma.requestNumber || selectedRequestForProforma.id}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Tarih</p>
+                      <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                        {new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ürün Listesi - Beden Bazlı */}
+                <div>
+                  <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Ürünler</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">#</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Ürün</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Beden</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Adet</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Birim Fiyat</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Tutar</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                        {(() => {
+                          let rowIndex = 0
+                          const rows: JSX.Element[] = []
+                          
+                          const items = Array.isArray(selectedRequestForProforma.items) 
+                            ? selectedRequestForProforma.items 
+                            : []
+                          
+                          items.forEach((item: any, itemIdx: number) => {
+                            const itemPrice = item.price || item.productPrice || 0
+                            
+                            try {
+                              const customizations = typeof item.customizations === 'string' 
+                                ? JSON.parse(item.customizations) 
+                                : item.customizations;
+                              
+                              if (customizations?.sizes && Array.isArray(customizations.sizes) && customizations.sizes.length > 0) {
+                                // Beden bazlı gösterim
+                                customizations.sizes.forEach((sizeItem: any, sizeIdx: number) => {
+                                  rowIndex++
+                                  const sizeQuantity = sizeItem.quantity || 0
+                                  const sizeTotal = itemPrice * sizeQuantity
+                                  
+                                  rows.push(
+                                    <tr key={`${item.id || itemIdx}-${sizeIdx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{rowIndex}</td>
+                                      <td className="px-4 py-3">
+                                        {sizeIdx === 0 && (
+                                          <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                            {item.productName || (item.productId ? `Ürün #${item.productId}` : '-')}
+                                          </p>
+                                        )}
+                                        {sizeIdx > 0 && <span className="text-slate-400 text-sm">↳</span>}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs font-medium">
+                                          {sizeItem.size}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{sizeQuantity}</td>
+                                      <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">₺{Number(itemPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      <td className="px-4 py-3 text-right font-semibold text-slate-800 dark:text-slate-100">₺{Number(sizeTotal).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    </tr>
+                                  )
+                                })
+                              } else {
+                                // Beden bilgisi yoksa normal gösterim
+                                rowIndex++
+                                const itemQuantity = item.quantity || 0
+                                const itemTotal = itemPrice * itemQuantity
+                                
+                                rows.push(
+                                  <tr key={item.id || itemIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{rowIndex}</td>
+                                    <td className="px-4 py-3">
+                                      <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                        {item.productName || (item.productId ? `Ürün #${item.productId}` : '-')}
+                                      </p>
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">-</td>
+                                    <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{itemQuantity}</td>
+                                    <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">₺{Number(itemPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-3 text-right font-semibold text-slate-800 dark:text-slate-100">₺{Number(itemTotal).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  </tr>
+                                )
+                              }
+                            } catch {
+                              // Parse hatası durumunda normal gösterim
+                              rowIndex++
+                              const itemQuantity = item.quantity || 0
+                              const itemTotal = itemPrice * itemQuantity
+                              
+                              rows.push(
+                                <tr key={item.id || itemIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{rowIndex}</td>
+                                  <td className="px-4 py-3">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                      {item.productName || (item.productId ? `Ürün #${item.productId}` : '-')}
+                                    </p>
+                                  </td>
+                                  <td className="px-4 py-3 text-slate-500 dark:text-slate-400">-</td>
+                                  <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{itemQuantity}</td>
+                                  <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">₺{Number(itemPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  <td className="px-4 py-3 text-right font-semibold text-slate-800 dark:text-slate-100">₺{Number(itemTotal).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                </tr>
+                              )
+                            }
+                          })
+                          
+                          return rows
+                        })()}
+                        <tr className="bg-slate-50 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600">
+                          <td colSpan={5} className="px-4 py-3 text-right font-bold text-slate-800 dark:text-slate-100">Toplam:</td>
+                          <td className="px-4 py-3 text-right font-bold text-lg text-green-600 dark:text-green-400">
+                            ₺{Number(selectedRequestForProforma.totalAmount || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Notlar */}
+                {selectedRequestForProforma.notes && (
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Notlar</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{selectedRequestForProforma.notes}</p>
+                  </div>
+                )}
+
+                {/* Uyarı */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    <strong>Not:</strong> Bu belge proforma faturadır ve resmi fatura yerine geçmez. Ödeme sonrası resmi fatura kesilecektir.
+                  </p>
+                </div>
+
+                {/* Aksiyon Butonları */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <button
+                    onClick={() => {
+                      window.print()
+                    }}
+                    className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center gap-2"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Yazdır
+                  </button>
+                  <button
+                    onClick={() => {
+                      const html = generateProformaInvoiceHTML(selectedRequestForProforma)
+                      const blob = new Blob([html], { type: 'text/html' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `proforma-fatura-${selectedRequestForProforma.requestNumber || selectedRequestForProforma.id}.html`
+                      document.body.appendChild(a)
+                      a.click()
+                      document.body.removeChild(a)
+                      URL.revokeObjectURL(url)
+                    }}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    HTML İndir
+                  </button>
+                  <button
+                    onClick={() => setShowProformaModal(false)}
+                    className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    Kapat
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -1107,6 +1676,229 @@ export default function BulkCustomProduction() {
       </AnimatePresence>
     </div>
   )
+}
+
+// Proforma Fatura HTML Template Generator
+function generateProformaInvoiceHTML(request: any): string {
+  const invoiceNumber = `PRO-${request.requestNumber || request.id}`
+  const invoiceDate = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })
+  const items = request.items || []
+  
+  const itemsRows = items.map((item: any, idx: number) => {
+    const itemPrice = item.price || item.productPrice || 0
+    const itemQuantity = item.quantity || 0
+    const itemTotal = itemPrice * itemQuantity
+    
+    let sizeInfo = ''
+    try {
+      const customizations = typeof item.customizations === 'string' 
+        ? JSON.parse(item.customizations) 
+        : item.customizations;
+      if (customizations?.sizes && Array.isArray(customizations.sizes) && customizations.sizes.length > 0) {
+        sizeInfo = `<br><small style="color: #64748b;">Beden: ${customizations.sizes.map((s: any) => `${s.size}:${s.quantity}`).join(', ')}</small>`
+      }
+    } catch {}
+    
+    return `
+      <tr>
+        <td style="padding: 8px; text-align: center; border-bottom: 1px solid #e2e8f0;">${idx + 1}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${escapeHtml(item.productName || (item.productId ? `Ürün #${item.productId}` : '-'))}${sizeInfo}</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #e2e8f0;">${itemQuantity}</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #e2e8f0;">₺${Number(itemPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #e2e8f0; font-weight: 600;">₺${Number(itemTotal).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      </tr>
+    `
+  }).join('')
+  
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proforma Fatura - ${invoiceNumber}</title>
+  <style>
+    @media print {
+      body { margin: 0; }
+      .no-print { display: none; }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      max-width: 210mm;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    .invoice-container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .company-info h1 {
+      margin: 0 0 10px 0;
+      color: #1e40af;
+      font-size: 24px;
+    }
+    .invoice-info {
+      text-align: right;
+    }
+    .invoice-info h2 {
+      margin: 0 0 10px 0;
+      color: #7c3aed;
+      font-size: 20px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .info-card {
+      background: #f8fafc;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+    .info-card h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th {
+      background: #1e293b;
+      color: white;
+      padding: 12px 8px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    th:last-child,
+    td:last-child {
+      text-align: right;
+    }
+    .total-row {
+      background: #f1f5f9;
+      font-weight: 700;
+    }
+    .total-row td {
+      padding: 15px 8px;
+      font-size: 18px;
+    }
+    .note-box {
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    .footer {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 2px solid #e2e8f0;
+      text-align: center;
+      color: #64748b;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <div class="header">
+      <div class="company-info">
+        <h1>Huğlu Tekstil Atölyesi</h1>
+        <p style="margin: 5px 0; color: #64748b;">KOMEK, 43173.SK SİTESİ NO:20</p>
+        <p style="margin: 5px 0; color: #64748b;">Beyşehir, Konya 42700</p>
+        <p style="margin: 5px 0; color: #64748b;">Tel: +90 530 312 58 13</p>
+      </div>
+      <div class="invoice-info">
+        <h2>PROFORMA FATURA</h2>
+        <p style="margin: 5px 0;"><strong>No:</strong> ${invoiceNumber}</p>
+        <p style="margin: 5px 0;"><strong>Tarih:</strong> ${invoiceDate}</p>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>Gönderen</h3>
+        <p style="margin: 5px 0; font-weight: 600;">Huğlu Tekstil Atölyesi</p>
+        <p style="margin: 5px 0; color: #64748b;">KOMEK, 43173.SK SİTESİ NO:20</p>
+        <p style="margin: 5px 0; color: #64748b;">Beyşehir, Konya 42700</p>
+      </div>
+      <div class="info-card">
+        <h3>Alıcı</h3>
+        <p style="margin: 5px 0; font-weight: 600;">${escapeHtml(request.customerName || '-')}</p>
+        ${request.companyName ? `<p style="margin: 5px 0; color: #64748b;">${escapeHtml(request.companyName)}</p>` : ''}
+        ${request.companyAddress ? `<p style="margin: 5px 0; color: #64748b;">${escapeHtml(request.companyAddress)}</p>` : ''}
+        ${request.taxAddress ? `<p style="margin: 5px 0; color: #64748b;">${escapeHtml(request.taxAddress)}</p>` : ''}
+        ${request.customerEmail ? `<p style="margin: 5px 0; color: #64748b;">E-posta: ${escapeHtml(request.customerEmail)}</p>` : ''}
+        ${request.customerPhone ? `<p style="margin: 5px 0; color: #64748b;">Tel: ${escapeHtml(request.customerPhone)}</p>` : ''}
+        ${request.taxNumber ? `<p style="margin: 5px 0; color: #64748b;">Vergi No: ${escapeHtml(request.taxNumber)}</p>` : ''}
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Ürün</th>
+          <th style="text-align: right;">Miktar</th>
+          <th style="text-align: right;">Birim Fiyat</th>
+          <th style="text-align: right;">Tutar</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows}
+        <tr class="total-row">
+          <td colspan="4" style="text-align: right; padding: 15px 8px;">TOPLAM:</td>
+          <td style="padding: 15px 8px; color: #059669; font-size: 18px;">₺${Number(request.totalAmount || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ${request.notes ? `
+    <div class="note-box">
+      <h4 style="margin: 0 0 10px 0; font-size: 14px;">Notlar</h4>
+      <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(request.notes)}</p>
+    </div>
+    ` : ''}
+
+    <div class="note-box">
+      <p style="margin: 0; font-weight: 600; color: #92400e;"><strong>Not:</strong> Bu belge proforma faturadır ve resmi fatura yerine geçmez. Ödeme sonrası resmi fatura kesilecektir.</p>
+    </div>
+
+    <div class="footer">
+      <p>Huğlu Tekstil Atölyesi - ${invoiceDate}</p>
+      <p>Bu belge elektronik ortamda oluşturulmuştur.</p>
+    </div>
+  </div>
+</body>
+</html>`
+}
+
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return String(text || '').replace(/[&<>"']/g, (m) => map[m])
 }
 
 

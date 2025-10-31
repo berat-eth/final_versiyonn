@@ -336,6 +336,26 @@ export const customProductionApi = {
     const client = new ApiClient(API_BASE_URL);
     return client.post<ApiResponse<{ id: number; requestNumber: string; status: string; totalQuantity: number; totalAmount: number }>>('/custom-production-requests', requestData, { requiresAuth: true });
   },
+
+  getUserRequests: async (userId: number): Promise<ApiResponse<any[]>> => {
+    const client = new ApiClient(API_BASE_URL);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+    // userKey olarak userId kullanıyoruz (backend resolveUserKeyToPk ile çözüyor)
+    return client.get<ApiResponse<any[]>>(`/custom-production-requests/${userId}`, { requiresAuth: true });
+  },
+
+  getRequestById: async (requestId: number, userId: number): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.get<ApiResponse<any>>(`/custom-production-requests/${userId}/${requestId}`, { requiresAuth: true });
+  },
+
+  updateQuoteStatus: async (requestId: number, status: 'accepted' | 'rejected'): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.put<ApiResponse<any>>(`/custom-production-requests/${requestId}/quote-status`, { status }, { requiresAuth: true });
+  },
 };
 
 // Products API methods

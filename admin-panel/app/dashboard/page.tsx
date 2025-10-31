@@ -24,6 +24,7 @@ import LiveData from '@/components/LiveData'
 import Chatbot from '@/components/Chatbot'
 import Security from '@/components/Security'
 import BulkCustomProduction from '@/components/BulkCustomProduction'
+import QuoteFormRequests from '@/components/QuoteFormRequests'
 import Backup from '@/components/Backup'
 import ServerStats from '@/components/ServerStats'
 import PushNotifications from '@/components/PushNotifications'
@@ -220,6 +221,7 @@ export default function DashboardPage() {
           {activeTab === 'sql-query' && <SQLQuery />}
           {activeTab === 'settings' && <Settings />}
           {activeTab === 'bulk-custom-production' && <BulkCustomProduction />}
+          {activeTab === 'quote-form-requests' && <QuoteFormRequests />}
           {activeTab === 'project-ajax' && <ProjectAjax />}
           {activeTab === 'email' && <Email />}
           {activeTab === 'sms' && <SMS />}

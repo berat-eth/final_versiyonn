@@ -101,21 +101,42 @@ export async function POST(request: NextRequest) {
       company: sanitizeInput(body.company || ''),
       productType: sanitizeInput(body.productType),
       quantity: sanitizeInput(body.quantity),
-      fabric: sanitizeInput(body.fabric || ''),
-      color: sanitizeInput(body.color || ''),
-      size: sanitizeInput(body.size || ''),
-      logo: Boolean(body.logo),
+      budget: sanitizeInput(body.budget || ''),
+      description: sanitizeInput(body.description || ''),
       embroidery: Boolean(body.embroidery),
-      urgentOrder: Boolean(body.urgentOrder),
-      deliveryDate: sanitizeInput(body.deliveryDate || ''),
-      notes: sanitizeInput(body.notes || ''),
+      printing: Boolean(body.printing),
+      wholesale: Boolean(body.wholesale),
+      embroideryDetails: sanitizeInput(body.embroideryDetails || ''),
+      printingDetails: sanitizeInput(body.printingDetails || ''),
+      sizeDistribution: sanitizeInput(body.sizeDistribution || ''),
       timestamp: new Date().toISOString(),
       ip: ip
     }
 
-    // TODO: Burada veriyi veritabanına kaydet veya e-posta gönder
-    // Örnek: await sendEmail(sanitizedData)
-    // Örnek: await saveToDatabase(sanitizedData)
+    // Backend'e veriyi gönder
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+    
+    try {
+      const backendResponse = await fetch(`${API_BASE_URL}/quote-requests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-API-Key': API_KEY,
+        },
+        body: JSON.stringify(sanitizedData),
+      })
+
+      if (!backendResponse.ok) {
+        const errorData = await backendResponse.json().catch(() => ({}))
+        console.error('Backend quote request error:', errorData)
+        // Backend hatası olsa bile kullanıcıya başarı mesajı göster (güvenlik)
+      }
+    } catch (backendError) {
+      console.error('Backend connection error:', backendError)
+      // Backend bağlantı hatası olsa bile kullanıcıya başarı mesajı göster
+    }
 
     console.log('Teklif talebi alındı:', {
       email: sanitizedData.email,
