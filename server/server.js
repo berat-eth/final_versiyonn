@@ -424,7 +424,9 @@ app.use('/api', (req, res, next) => {
     '/health',
     '/admin/login',
     '/tenants', // Tenant creation doesn't require API key
-    '/users' // User registration doesn't require API key
+    '/users', // User registration doesn't require API key
+    '/users/login', // User login doesn't require API key
+    '/auth/google/verify' // Google OAuth doesn't require API key
   ];
 
   if (skipApiKeyPaths.includes(path)) {
@@ -825,6 +827,54 @@ async function ensureDefaultTenantApiKey() {
     console.log('✅ Default tenant API key ensured/updated');
   } catch (error) {
     console.warn('⚠️ Could not ensure default tenant API key:', error.message);
+  }
+}
+
+// Ensure test user exists for panel testing (idempotent)
+async function ensureTestUser() {
+  try {
+    // Get active tenant ID
+    const [tenants] = await poolWrapper.execute('SELECT id FROM tenants WHERE isActive = true ORDER BY id ASC LIMIT 1');
+    if (tenants.length === 0) {
+      console.warn('⚠️ No active tenant found, skipping test user creation');
+      return;
+    }
+    const tenantId = tenants[0].id;
+
+    const TEST_EMAIL = 'test@test.com';
+    const TEST_PASSWORD = 'test123';
+    const TEST_NAME = 'Test Kullanıcı';
+    const TEST_USER_ID = '12345678'; // 8-digit user_id
+
+    // Check if test user already exists
+    const [existingUser] = await poolWrapper.execute(
+      'SELECT id FROM users WHERE email = ? AND tenantId = ?',
+      [TEST_EMAIL, tenantId]
+    );
+
+    if (existingUser.length === 0) {
+      // Create test user
+      const hashedPassword = await hashPassword(TEST_PASSWORD);
+      await poolWrapper.execute(
+        'INSERT INTO users (user_id, tenantId, name, email, password, isActive, createdAt) VALUES (?, ?, ?, ?, ?, true, NOW())',
+        [TEST_USER_ID, tenantId, TEST_NAME, TEST_EMAIL, hashedPassword]
+      );
+      console.log('✅ Test user created successfully');
+      console.log(`   Email: ${TEST_EMAIL}`);
+      console.log(`   Password: ${TEST_PASSWORD}`);
+    } else {
+      // Update password if user exists (in case it was changed)
+      const hashedPassword = await hashPassword(TEST_PASSWORD);
+      await poolWrapper.execute(
+        'UPDATE users SET password = ? WHERE email = ? AND tenantId = ?',
+        [hashedPassword, TEST_EMAIL, tenantId]
+      );
+      console.log('✅ Test user password reset');
+      console.log(`   Email: ${TEST_EMAIL}`);
+      console.log(`   Password: ${TEST_PASSWORD}`);
+    }
+  } catch (error) {
+    console.warn('⚠️ Could not ensure test user:', error.message);
   }
 }
 
@@ -6716,21 +6766,28 @@ app.get('/api/products', async (req, res) => {
       } catch { }
     }
 
-    // Get total count
+    // Get total count - sadece tekstil ürünleri
+    // Tekstil kategorileri: Tişört, Gömlek, Pantolon, Mont, Hırka, vb.
+    const tekstilKategoriler = [
+      'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
+      'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
+      'Yağmurluk', 'Rüzgarlık', 'Mutfak Ürünleri', 'Camp Ürünleri'
+    ];
+    const kategoriConditions = tekstilKategoriler.map(() => 'category LIKE ?').join(' OR ');
     const [countRows] = await poolWrapper.execute(
-      'SELECT COUNT(*) as total FROM products WHERE tenantId = ?',
-      [req.tenant.id]
+      `SELECT COUNT(*) as total FROM products WHERE tenantId = ? AND (${kategoriConditions})`,
+      [req.tenant.id, ...tekstilKategoriler.map(kat => `%${kat}%`)]
     );
     const total = countRows[0].total;
 
-    // Get paginated products
+    // Get paginated products - sadece tekstil ürünleri (category filtreleme ile)
     const [rows] = await poolWrapper.execute(
       `SELECT id, name, price, image, brand, category, lastUpdated, rating, reviewCount, stock, sku
        FROM products
-       WHERE tenantId = ?
+       WHERE tenantId = ? AND (${kategoriConditions})
        ORDER BY lastUpdated DESC
        LIMIT ? OFFSET ?`,
-      [req.tenant.id, limit, offset]
+      [req.tenant.id, ...tekstilKategoriler.map(kat => `%${kat}%`), limit, offset]
     );
 
     // Clean HTML entities from all products
@@ -7235,10 +7292,24 @@ app.get('/api/variation-options/:optionId', async (req, res) => {
 
 app.post('/api/products/filter', async (req, res) => {
   try {
-    const { category, minPrice, maxPrice, brand, search } = req.body;
+    const { category, minPrice, maxPrice, brand, search, tekstilOnly } = req.body;
 
-    let query = 'SELECT * FROM products WHERE 1=1';
-    const params = [];
+    let query = 'SELECT * FROM products WHERE tenantId = ?';
+    const params = [req.tenant.id];
+
+    // Tekstil ürünleri için kategori filtreleme (varsayılan olarak tekstil ürünleri)
+    if (tekstilOnly !== false) {
+      const tekstilKategoriler = [
+        'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
+        'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
+        'Yağmurluk', 'Rüzgarlık', 'Mutfak Ürünleri', 'Camp Ürünleri'
+      ];
+      const kategoriConditions = tekstilKategoriler.map(() => 'category LIKE ?').join(' OR ');
+      query += ` AND (${kategoriConditions})`;
+      tekstilKategoriler.forEach(kat => {
+        params.push(`%${kat}%`);
+      });
+    }
 
     if (category) {
       query += ' AND category = ?';
@@ -7668,6 +7739,9 @@ async function startServer() {
   }
   // Ensure default tenant API key exists and active
   await ensureDefaultTenantApiKey();
+
+  // Ensure test user exists for panel testing
+  await ensureTestUser();
 
   // Initialize flash deals table
   await createFlashDealsTable();

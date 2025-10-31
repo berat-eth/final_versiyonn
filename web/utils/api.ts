@@ -305,6 +305,40 @@ export const supportApi = {
   },
 };
 
+// Products API methods
+export const productsApi = {
+  getProducts: async (page = 1, limit = 20, category?: string): Promise<ApiResponse<{ products: any[]; total: number; hasMore: boolean }>> => {
+    const client = new ApiClient(API_BASE_URL);
+    const params: Record<string, string | number | boolean> = { page: page.toString(), limit: limit.toString() };
+    if (category) {
+      params.category = category;
+    }
+    return client.get<ApiResponse<{ products: any[]; total: number; hasMore: boolean }>>('/products', { params, requiresAuth: true });
+  },
+
+  searchProducts: async (query: string, page = 1, limit = 50): Promise<ApiResponse<any[]>> => {
+    const client = new ApiClient(API_BASE_URL);
+    const params: Record<string, string | number | boolean> = { q: query, page: page.toString(), limit: limit.toString() };
+    return client.get<ApiResponse<any[]>>('/products/search', { params, requiresAuth: true });
+  },
+
+  getProductById: async (productId: number): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.get<ApiResponse<any>>(`/products/${productId}`, { requiresAuth: true });
+  },
+
+  filterProducts: async (filters: {
+    category?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    brand?: string;
+    search?: string;
+  }): Promise<ApiResponse<any[]>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.post<ApiResponse<any[]>>('/products/filter', filters, { requiresAuth: true });
+  },
+};
+
 // Export default client instance
 export const apiClient = new ApiClient(API_BASE_URL);
 export default apiClient;
