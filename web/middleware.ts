@@ -2,13 +2,30 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Tüm _next path'lerini direkt geç - middleware müdahalesi yok
+  if (pathname.startsWith('/_next/')) {
+    const response = NextResponse.next()
+    
+    // Sadece cache headers ekle, CSP ve diğer güvenlik header'ları ekleme
+    if (
+      pathname.startsWith('/_next/static') ||
+      pathname.startsWith('/_next/image')
+    ) {
+      response.headers.set(
+        'Cache-Control',
+        'public, max-age=31536000, immutable'
+      )
+    }
+    
+    return response
+  }
+
   const response = NextResponse.next()
 
   // Cache headers for static assets
-  if (
-    request.nextUrl.pathname.startsWith('/_next/static') ||
-    request.nextUrl.pathname.startsWith('/assets')
-  ) {
+  if (pathname.startsWith('/assets')) {
     response.headers.set(
       'Cache-Control',
       'public, max-age=31536000, immutable'
@@ -28,7 +45,7 @@ export function middleware(request: NextRequest) {
     'camera=(), microphone=(), geolocation=(), interest-cohort=()'
   )
   
-  // Content Security Policy
+  // Content Security Policy - Next.js internal path'leri için izin ver
   response.headers.set(
     'Content-Security-Policy',
     [
@@ -52,6 +69,13 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api|_next/static|_next/image|_next/webpack|_next/webpack-hmr|favicon.ico).*)',
   ],
 }

@@ -326,11 +326,14 @@ export default function DesignEditorPage() {
           router.push('/panel/teklifler')
         }, 2000)
       } else {
-        alert('Talep oluşturulurken bir hata oluştu: ' + (response.message || 'Bilinmeyen hata'))
+        const errorMsg = response.message || 'Bilinmeyen hata'
+        console.error('Talep oluşturma hatası:', errorMsg, response)
+        alert('Talep oluşturulurken bir hata oluştu: ' + errorMsg)
       }
     } catch (error) {
       console.error('Talep oluşturma hatası:', error)
-      alert('Talep oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.')
+      const errorMsg = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu'
+      alert('Talep oluşturulurken bir hata oluştu: ' + errorMsg)
     } finally {
       setIsSubmitting(false)
     }

@@ -85,11 +85,18 @@ class ApiClient {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({
-          success: false,
-          message: `HTTP ${response.status}: ${response.statusText}`,
-        }));
-        throw new Error(errorData.message || 'API request failed');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = {
+            success: false,
+            message: `HTTP ${response.status}: ${response.statusText}`,
+          };
+        }
+        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        console.error(`❌ API Error [${endpoint}]:`, errorMessage, errorData);
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

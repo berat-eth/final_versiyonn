@@ -8964,11 +8964,19 @@ async function startServer() {
 
         // Create custom production items
         for (const item of items) {
+          const customizationsJson = item.customizations 
+            ? JSON.stringify(item.customizations) 
+            : JSON.stringify({});
+          
+          if (!item.productId || !item.quantity) {
+            throw new Error(`Invalid item data: productId=${item.productId}, quantity=${item.quantity}`);
+          }
+          
           await connection.execute(
             `INSERT INTO custom_production_items 
            (tenantId, requestId, productId, quantity, customizations) 
            VALUES (?, ?, ?, ?, ?)`,
-            [tenantId, requestId, item.productId, item.quantity, JSON.stringify(item.customizations)]
+            [tenantId, requestId, item.productId, item.quantity, customizationsJson]
           );
         }
 
@@ -8989,14 +8997,24 @@ async function startServer() {
         });
 
       } catch (error) {
-        await connection.rollback();
+        try {
+          await connection.rollback();
+        } catch (rollbackError) {
+          console.error('❌ Error rolling back transaction:', rollbackError);
+        }
         connection.release();
         throw error;
       }
 
     } catch (error) {
       console.error('❌ Error creating custom production request:', error);
-      res.status(500).json({ success: false, message: 'Error creating custom production request' });
+      const errorMessage = error.message || 'Error creating custom production request';
+      const errorDetails = process.env.NODE_ENV === 'development' ? error.stack : undefined;
+      res.status(500).json({ 
+        success: false, 
+        message: errorMessage,
+        ...(errorDetails && { details: errorDetails })
+      });
     }
   });
 
