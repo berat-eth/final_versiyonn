@@ -67,18 +67,19 @@ export default function DesignEditorPage() {
   // Canvas boyutunu container'a göre hesapla
   useEffect(() => {
     const updateCanvasSize = () => {
-      if (canvasContainerRef.current) {
+      if (canvasContainerRef.current && typeof window !== 'undefined') {
         const container = canvasContainerRef.current
         const rect = container.getBoundingClientRect()
         const padding = 40
         const availableWidth = rect.width - padding
         const availableHeight = rect.height - padding
         
-        // Minimum ve maksimum boyutlar
-        const minWidth = 1200
-        const minHeight = 1200
-        const maxWidth = 2000
-        const maxHeight = 2000
+        // Mobil için daha küçük, desktop için daha büyük boyutlar
+        const isMobile = window.innerWidth < 768
+        const minWidth = isMobile ? 600 : 1200
+        const minHeight = isMobile ? 600 : 1200
+        const maxWidth = isMobile ? 800 : 2000
+        const maxHeight = isMobile ? 800 : 2000
         
         setCanvasSize({ 
           width: Math.min(Math.max(availableWidth, minWidth), maxWidth), 
@@ -88,12 +89,14 @@ export default function DesignEditorPage() {
     }
 
     // İlk yüklemede ve resize'da güncelle
-    const timer = setTimeout(updateCanvasSize, 100)
-    window.addEventListener('resize', updateCanvasSize)
-    
-    return () => {
-      clearTimeout(timer)
-      window.removeEventListener('resize', updateCanvasSize)
+    if (typeof window !== 'undefined') {
+      const timer = setTimeout(updateCanvasSize, 100)
+      window.addEventListener('resize', updateCanvasSize)
+      
+      return () => {
+        clearTimeout(timer)
+        window.removeEventListener('resize', updateCanvasSize)
+      }
     }
   }, [])
   const [showGrid, setShowGrid] = useState(false)
@@ -606,38 +609,41 @@ export default function DesignEditorPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Modern Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-40">
-        <div className="max-w-[1920px] mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-        {/* Breadcrumb */}
-            <nav className="flex items-center gap-2 text-sm">
-              <Link href="/panel/urunler" className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium">
-            Ürünler
-          </Link>
-              <span className="material-symbols-outlined text-sm text-gray-400">chevron_right</span>
-          {product && (
-            <>
-                  <Link href={`/urunler/${product.id}`} className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium">
-                    {product.name.length > 30 ? product.name.substring(0, 30) + '...' : product.name}
+        <div className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            {/* Breadcrumb */}
+            <nav className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm flex-1 min-w-0">
+              <Link href="/panel/urunler" className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium truncate">
+                Ürünler
               </Link>
-                  <span className="material-symbols-outlined text-sm text-gray-400">chevron_right</span>
-            </>
-          )}
-              <span className="text-gray-900 dark:text-white font-bold">Tasarım Editörü</span>
-        </nav>
+              <span className="material-symbols-outlined text-xs sm:text-sm text-gray-400 flex-shrink-0">chevron_right</span>
+              {product && (
+                <>
+                  <Link href={`/urunler/${product.id}`} className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium truncate max-w-[100px] sm:max-w-none">
+                    <span className="hidden sm:inline">
+                      {product.name.length > 30 ? product.name.substring(0, 30) + '...' : product.name}
+                    </span>
+                    <span className="sm:hidden">Ürün</span>
+                  </Link>
+                  <span className="material-symbols-outlined text-xs sm:text-sm text-gray-400 flex-shrink-0">chevron_right</span>
+                </>
+              )}
+              <span className="text-gray-900 dark:text-white font-bold truncate">Tasarım Editörü</span>
+            </nav>
 
             {/* Product Info */}
             {product && (
-              <div className="flex items-center gap-4">
-                <div className="text-right hidden md:block">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="text-right hidden lg:block">
                   <p className="text-xs text-gray-500 dark:text-gray-400">Ürün</p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{product.name}</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white truncate max-w-[150px]">{product.name}</p>
                 </div>
                 <Link
                   href={`/urunler/${product.id}`}
-                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all flex items-center gap-2 text-sm font-medium"
+                  className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-medium"
                 >
-                  <span className="material-symbols-outlined text-base">arrow_back</span>
-                  <span>Geri</span>
+                  <span className="material-symbols-outlined text-base sm:text-lg">arrow_back</span>
+                  <span className="hidden sm:inline">Geri</span>
                 </Link>
               </div>
             )}
@@ -645,11 +651,11 @@ export default function DesignEditorPage() {
         </div>
       </div>
 
-      <div className="max-w-[1920px] mx-auto px-6 py-6">
+      <div className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6">
 
-        <div className="grid lg:grid-cols-[280px_1fr_320px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_320px] gap-4 sm:gap-6">
           {/* Left Sidebar - Product Images */}
-          <div className="space-y-4">
+          <div className="space-y-4 hidden lg:block">
             {/* Product Images Gallery */}
             {productImages.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sticky top-24">
@@ -689,11 +695,11 @@ export default function DesignEditorPage() {
           </div>
 
           {/* Main Content Area */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4 lg:col-span-1">
             {/* Modern Toolbar */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-              <div className="p-3">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="p-2 sm:p-3">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto">
                 {/* Undo/Redo Controls */}
                 <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                   <button
@@ -958,13 +964,14 @@ export default function DesignEditorPage() {
             {/* Canvas Area */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               {/* Canvas Header */}
-              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-xl">palette</span>
+              <div className="px-3 sm:px-4 py-2 sm:py-3 bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-wrap gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-gray-900 dark:text-white flex items-center gap-1.5 sm:gap-2">
+                  <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-lg sm:text-xl">palette</span>
                   <span>Tasarım Alanı</span>
                 </h2>
                 <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <span>Canvas: {Math.round(canvasSize.width)} × {Math.round(canvasSize.height)}px</span>
+                  <span className="hidden sm:inline">Canvas: {Math.round(canvasSize.width)} × {Math.round(canvasSize.height)}px</span>
+                  <span className="sm:hidden">{Math.round(canvasSize.width)}×{Math.round(canvasSize.height)}</span>
                 </div>
               </div>
 
@@ -972,7 +979,11 @@ export default function DesignEditorPage() {
               <div
                 ref={canvasContainerRef}
                 className="relative overflow-auto bg-gray-100 dark:bg-gray-900/50"
-                style={{ height: 'calc(100vh - 320px)', minHeight: '600px', maxHeight: '1100px' }}
+                style={{ 
+                  height: 'calc(100vh - 280px)', 
+                  minHeight: '400px',
+                  maxHeight: 'calc(100vh - 280px)',
+                }}
               >
                 <div
                   ref={canvasRef}
@@ -1104,10 +1115,10 @@ export default function DesignEditorPage() {
           </div>
 
           {/* Right Sidebar - Controls */}
-          <div className="space-y-4">
+          <div className="hidden lg:block space-y-4">
             {/* Selected Element Controls */}
             {selectedElementData && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sticky top-24">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 sm:p-4 sticky top-24">
                 <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                   <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">tune</span>
                   <span>Öğe Ayarları</span>
