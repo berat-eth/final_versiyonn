@@ -78,9 +78,6 @@ export default function ProformaInvoice() {
   const [selectedRequest, setSelectedRequest] = useState<ProformaRequest | null>(null)
   const [selectedItems, setSelectedItems] = useState<ProformaItem[]>([])
   
-  // Beden dağılımları - Her ürün için düzenlenebilir
-  const [itemSizeDistributions, setItemSizeDistributions] = useState<Record<number, SizeDistribution>>({})
-  
   // Maliyet girişi - Her ürün için ayrı
   const [itemCosts, setItemCosts] = useState<Record<number, CostInputs>>({})
   
@@ -112,7 +109,7 @@ export default function ProformaInvoice() {
   
   useEffect(() => {
     calculateCosts()
-  }, [itemCosts, profitMargin, selectedItems, sharedShippingCost, vatRate, itemSizeDistributions])
+  }, [itemCosts, profitMargin, selectedItems, sharedShippingCost, vatRate])
   
   useEffect(() => {
     if (calculation) {
@@ -221,29 +218,20 @@ export default function ProformaInvoice() {
         }
         
         setSelectedItems(items)
-        
-        // Beden dağılımlarını state'e kaydet
-        const sizeDistributions: Record<number, SizeDistribution> = {}
-        items.forEach(item => {
-          if (item.sizeDistribution) {
-            sizeDistributions[item.id] = { ...item.sizeDistribution }
-          }
-        })
-        setItemSizeDistributions(sizeDistributions)
       }
     } catch (e: any) {
       console.error('Talep detayları getirilemedi:', e)
       setSelectedItems([])
-      setItemSizeDistributions({})
     }
   }
 
   const resetCosts = () => {
     // Her ürün için maliyet girişlerini sıfırla
+    // NOT: Veritabanından fiyat çekilmiyor, kullanıcının manuel girişi bekleniyor
     const newCosts: Record<number, CostInputs> = {}
     selectedItems.forEach(item => {
       newCosts[item.id] = {
-        unitCost: 0,
+        unitCost: 0, // Kullanıcının girdiği değer kullanılacak, veritabanı fiyatı kullanılmıyor
         printingCost: 0,
         embroideryCost: 0
       }
@@ -255,9 +243,9 @@ export default function ProformaInvoice() {
   }
 
   const calculateCosts = () => {
-    // Toplam adet hesapla - Önce state'teki beden dağılımını kontrol et, yoksa item'dakini kullan
+    // Toplam adet hesapla
     const totalQuantity = selectedItems.reduce((sum, item) => {
-      const sizeDist = itemSizeDistributions[item.id] || item.sizeDistribution
+      const sizeDist = item.sizeDistribution
       if (sizeDist) {
         return sum + Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
       }
@@ -284,7 +272,7 @@ export default function ProformaInvoice() {
         embroideryCost: 0
       }
       
-      const sizeDist = itemSizeDistributions[item.id] || item.sizeDistribution
+      const sizeDist = item.sizeDistribution
       const itemQuantity = sizeDist 
         ? Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
         : item.quantity
@@ -343,14 +331,22 @@ export default function ProformaInvoice() {
     // Toplam maliyet (ürünler + kargo)
     const totalCostWithShipping = totalCost + sharedShippingCost
     
-    // Toplam teklif tutarı (KDV hariç)
+    // Toplam teklif tutarı (KDV hariç) - TÜM ÜRÜNLERİN TOPLAMI
     const totalOfferAmount = itemCalculations.reduce((sum, calc) => sum + calc.totalOfferAmount, 0)
     
-    // Toplam KDV
+    // Toplam KDV - TÜM ÜRÜNLERİN TOPLAMI
     const totalVatAmount = itemCalculations.reduce((sum, calc) => sum + calc.vatAmount, 0)
     
-    // Toplam tutar (KDV dahil)
+    // Toplam tutar (KDV dahil) - TÜM ÜRÜNLERİN TOPLAMI
+    // Alternatif hesaplama: Her ürünün totalWithVat değerlerini topla
+    const totalWithVatFromItems = itemCalculations.reduce((sum, calc) => sum + calc.totalWithVat, 0)
+    // İki yöntem de aynı sonucu vermeli, güvenlik için ikisini de kontrol et
     const totalWithVat = totalOfferAmount + totalVatAmount
+    
+    // Hesaplama kontrolü (geliştirme aşamasında)
+    if (Math.abs(totalWithVat - totalWithVatFromItems) > 0.01) {
+      console.warn('Toplam hesaplama uyumsuzluğu:', { totalWithVat, totalWithVatFromItems })
+    }
     
     // Kâr yüzdesi (kargo dahil toplam maliyet üzerinden)
     const profitPercentage = totalCostWithShipping > 0 
@@ -393,34 +389,6 @@ export default function ProformaInvoice() {
   const handleSharedShippingChange = (value: string) => {
     const numValue = value === '' || isNaN(Number(value)) ? 0 : Number(value)
     setSharedShippingCost(numValue)
-  }
-  
-  // Beden dağılımı - Tek beden için sayı değiştirme
-  const handleSizeQuantityChange = (itemId: number, size: string, value: string) => {
-    const numValue = value === '' || isNaN(Number(value)) ? 0 : Number(value)
-    setItemSizeDistributions(prev => ({
-      ...prev,
-      [itemId]: {
-        ...(prev[itemId] || {}),
-        [size]: numValue
-      }
-    }))
-  }
-  
-  // Beden dağılımı - Tüm bedenlere toplu sayı girme
-  const handleBulkSizeQuantity = (itemId: number, bulkValue: string) => {
-    const numValue = bulkValue === '' || isNaN(Number(bulkValue)) ? 0 : Number(bulkValue)
-    const currentSizeDist = itemSizeDistributions[itemId] || selectedItems.find(i => i.id === itemId)?.sizeDistribution || {}
-    
-    const newSizeDist: SizeDistribution = {}
-    Object.keys(currentSizeDist).forEach(size => {
-      newSizeDist[size] = numValue
-    })
-    
-    setItemSizeDistributions(prev => ({
-      ...prev,
-      [itemId]: newSizeDist
-    }))
   }
   
   const handleProfitMarginChange = (value: string) => {
@@ -1185,7 +1153,7 @@ export default function ProformaInvoice() {
   })
 
   const totalQuantity = selectedItems.reduce((sum, item) => {
-    const sizeDist = itemSizeDistributions[item.id] || item.sizeDistribution
+    const sizeDist = item.sizeDistribution
     if (sizeDist) {
       return sum + Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
     }
@@ -1413,27 +1381,12 @@ export default function ProformaInvoice() {
                               
                               {/* Beden Dağılım Tablosu */}
                               {(() => {
-                                const sizeDist = itemSizeDistributions[item.id] || item.sizeDistribution
+                                const sizeDist = item.sizeDistribution
                                 if (sizeDist && Object.keys(sizeDist).length > 0) {
                                   return (
                                     <div className="mt-3">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                          Beden Dağılımı:
-                                        </div>
-                                        {/* Toplu Sayı Girişi */}
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                                            Toplu:
-                                          </label>
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            placeholder="0"
-                                            className="w-20 px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            onChange={(e) => handleBulkSizeQuantity(item.id, e.target.value)}
-                                          />
-                                        </div>
+                                      <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                        Beden Dağılımı:
                                       </div>
                                       <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                                         {Object.entries(sizeDist).map(([size, quantity]) => (
@@ -1442,13 +1395,9 @@ export default function ProformaInvoice() {
                                             className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-center"
                                           >
                                             <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">{size}</div>
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              value={quantity || 0}
-                                              onChange={(e) => handleSizeQuantityChange(item.id, size, e.target.value)}
-                                              className="w-full px-1 py-0.5 text-xs text-center font-semibold text-blue-700 dark:text-blue-400 border border-transparent hover:border-blue-400 dark:hover:border-blue-600 rounded bg-transparent focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800"
-                                            />
+                                            <div className="text-sm font-semibold text-blue-700 dark:text-blue-400">
+                                              {quantity || 0}
+                                            </div>
                                           </div>
                                         ))}
                                       </div>
@@ -1616,112 +1565,147 @@ export default function ProformaInvoice() {
 
               {/* BÖLÜM 4: Hesaplama Sonuçları */}
               {calculation && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-                  <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
-                    <Calculator className="w-5 h-5" />
-                    Hesaplama Sonuçları
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 md:p-8">
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                      <Calculator className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <span>Hesaplama Sonuçları</span>
                   </h2>
                   
                   {/* Her ürün için ayrı hesaplama */}
-                  <div className="space-y-4 mb-6">
-                    {calculation.itemCalculations.map((itemCalc) => (
-                      <div
-                        key={itemCalc.itemId}
-                        className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700"
-                      >
-                        <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">
-                          {itemCalc.productName}
-                        </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-sm">
-                          <div>
-                            <div className="text-slate-500 dark:text-slate-400">Adet</div>
-                            <div className="font-medium text-slate-800 dark:text-slate-200">{itemCalc.quantity}</div>
+                  {calculation.itemCalculations.length > 0 && (
+                    <div className="space-y-6 mb-8">
+                      <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-4">Ürün Detayları</h3>
+                      {calculation.itemCalculations.map((itemCalc, idx) => (
+                        <div
+                          key={itemCalc.itemId}
+                          className="p-5 md:p-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-xl border-2 border-slate-200 dark:border-slate-700 shadow-sm"
+                        >
+                          <div className="flex items-center justify-between mb-5 pb-4 border-b-2 border-slate-200 dark:border-slate-700">
+                            <h4 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                              <span className="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-semibold">
+                                #{idx + 1}
+                              </span>
+                              <span>{itemCalc.productName}</span>
+                            </h4>
                           </div>
-                          <div>
-                            <div className="text-slate-500 dark:text-slate-400">Toplam Maliyet</div>
-                            <div className="font-medium text-slate-800 dark:text-slate-200">
-                              ₺{itemCalc.totalCost.toFixed(2)}
+                          
+                          {/* Birim Fiyat Bilgileri */}
+                          <div className="mb-5 pb-5 border-b border-slate-200 dark:border-slate-700">
+                            <h5 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wide">Birim Fiyat Bilgileri</h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                              <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600">
+                                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Adet</div>
+                                <div className="text-2xl font-bold text-slate-900 dark:text-white">{itemCalc.quantity}</div>
+                              </div>
+                              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-800">
+                                <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-2">Birim Fiyat (KDV Hariç)</div>
+                                <div className="text-xl font-bold text-blue-700 dark:text-blue-400">
+                                  ₺{itemCalc.unitPrice.toFixed(2)}
+                                </div>
+                                <div className="text-xs text-blue-600 dark:text-blue-500 mt-1 italic">
+                                  Birim + Baskı + Nakış + Kargo
+                                </div>
+                              </div>
+                              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-2 border-purple-200 dark:border-purple-800">
+                                <div className="text-xs font-medium text-purple-700 dark:text-purple-400 mb-2">Birim Fiyat (KDV Dahil)</div>
+                                <div className="text-xl font-bold text-purple-700 dark:text-purple-400">
+                                  ₺{itemCalc.finalUnitPrice.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600">
+                                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Toplam Maliyet</div>
+                                <div className="text-xl font-bold text-slate-900 dark:text-white">
+                                  ₺{itemCalc.totalCost.toFixed(2)}
+                                </div>
+                              </div>
                             </div>
                           </div>
+
+                          {/* Ürün Toplam Bilgileri */}
                           <div>
-                            <div className="text-slate-500 dark:text-slate-400">Birim Fiyat (KDV Hariç)</div>
-                            <div className="font-medium text-blue-600 dark:text-blue-400">
-                              ₺{itemCalc.unitPrice.toFixed(2)}
-                            </div>
-                            <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                              (Birim + Baskı + Nakış + Kargo)
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-slate-500 dark:text-slate-400">Birim Fiyat (KDV Dahil)</div>
-                            <div className="font-medium text-purple-600 dark:text-purple-400">
-                              ₺{itemCalc.finalUnitPrice.toFixed(2)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-slate-500 dark:text-slate-400">Ürün Teklif (KDV Hariç)</div>
-                            <div className="font-medium text-green-600 dark:text-green-400">
-                              ₺{itemCalc.totalOfferAmount.toFixed(2)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-slate-500 dark:text-slate-400">KDV (%{calculation.vatRate})</div>
-                            <div className="font-medium text-orange-600 dark:text-orange-400">
-                              ₺{itemCalc.vatAmount.toFixed(2)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-slate-500 dark:text-slate-400">Toplam (KDV Dahil)</div>
-                            <div className="font-medium text-purple-600 dark:text-purple-400">
-                              ₺{itemCalc.totalWithVat.toFixed(2)}
+                            <h5 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wide">Ürün Toplam Tutarlar</h5>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-700">
+                                <div className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">Ürün Teklif (KDV Hariç)</div>
+                                <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+                                  ₺{itemCalc.totalOfferAmount.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border-2 border-orange-300 dark:border-orange-700">
+                                <div className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-2">KDV (%{calculation.vatRate})</div>
+                                <div className="text-2xl font-bold text-orange-700 dark:text-orange-400">
+                                  ₺{itemCalc.vatAmount.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-2 border-purple-300 dark:border-purple-700">
+                                <div className="text-xs font-semibold text-purple-700 dark:text-purple-400 mb-2">Toplam (KDV Dahil)</div>
+                                <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                                  ₺{itemCalc.totalWithVat.toFixed(2)}
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                   
-                  {/* Toplam Özet */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                      <div className="text-sm text-slate-500 dark:text-slate-400">Toplam Adet</div>
-                      <div className="text-xl font-bold text-slate-800 dark:text-slate-200 mt-1">
-                        {calculation.totalQuantity}
-                      </div>
+                  {/* Toplam Özet - TÜM ÜRÜNLERİN TOPLAMI */}
+                  <div className="pt-6 mt-6 border-t-4 border-purple-500 dark:border-purple-400 bg-gradient-to-r from-purple-50 via-purple-50/50 to-purple-50 dark:from-purple-900/30 dark:via-purple-900/20 dark:to-purple-900/30 rounded-xl p-6 md:p-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-2xl font-bold text-purple-700 dark:text-purple-300 flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 dark:bg-purple-800 rounded-lg">
+                          <Calculator className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <span>GENEL TOPLAM (Tüm Ürünler)</span>
+                      </h3>
                     </div>
-                    
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                      <div className="text-sm text-slate-500 dark:text-slate-400">Toplam Maliyet</div>
-                      <div className="text-xl font-bold text-slate-800 dark:text-slate-200 mt-1">
-                        ₺{calculation.totalCost.toFixed(2)}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                      <div className="p-5 bg-white dark:bg-slate-800 rounded-xl border-2 border-slate-300 dark:border-slate-600 shadow-md">
+                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Toplam Adet</div>
+                        <div className="text-3xl font-black text-slate-900 dark:text-white">
+                          {calculation.totalQuantity}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <div className="text-sm text-green-700 dark:text-green-400">Teklif (KDV Hariç)</div>
-                      <div className="text-xl font-bold text-green-700 dark:text-green-400 mt-1">
-                        ₺{calculation.totalOfferAmount.toFixed(2)}
+                      
+                      <div className="p-5 bg-white dark:bg-slate-800 rounded-xl border-2 border-slate-300 dark:border-slate-600 shadow-md">
+                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">Toplam Maliyet</div>
+                        <div className="text-3xl font-black text-slate-900 dark:text-white">
+                          ₺{calculation.totalCost.toFixed(2)}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                      <div className="text-sm text-orange-700 dark:text-orange-400">KDV (%{calculation.vatRate})</div>
-                      <div className="text-xl font-bold text-orange-700 dark:text-orange-400 mt-1">
-                        ₺{calculation.totalVatAmount.toFixed(2)}
+                      
+                      <div className="p-5 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-900/20 rounded-xl border-2 border-green-400 dark:border-green-600 shadow-lg">
+                        <div className="text-xs font-bold text-green-700 dark:text-green-400 mb-2 uppercase tracking-wide">Toplam Teklif</div>
+                        <div className="text-sm text-green-600 dark:text-green-500 mb-1">KDV Hariç</div>
+                        <div className="text-3xl font-black text-green-700 dark:text-green-400">
+                          ₺{calculation.totalOfferAmount.toFixed(2)}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                      <div className="text-sm text-purple-700 dark:text-purple-400">Toplam (KDV Dahil)</div>
-                      <div className="text-xl font-bold text-purple-700 dark:text-purple-400 mt-1">
-                        ₺{calculation.totalWithVat.toFixed(2)}
+                      
+                      <div className="p-5 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-900/20 rounded-xl border-2 border-orange-400 dark:border-orange-600 shadow-lg">
+                        <div className="text-xs font-bold text-orange-700 dark:text-orange-400 mb-2 uppercase tracking-wide">Toplam KDV</div>
+                        <div className="text-sm text-orange-600 dark:text-orange-500 mb-1">%{calculation.vatRate}</div>
+                        <div className="text-3xl font-black text-orange-700 dark:text-orange-400">
+                          ₺{calculation.totalVatAmount.toFixed(2)}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <div className="text-sm text-blue-700 dark:text-blue-400">Kâr Yüzdesi</div>
-                      <div className="text-xl font-bold text-blue-700 dark:text-blue-400 mt-1">
-                        %{calculation.profitPercentage.toFixed(2)}
+                      
+                      <div className="p-6 bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700 rounded-xl border-4 border-purple-400 dark:border-purple-500 shadow-xl col-span-1 lg:col-span-2">
+                        <div className="text-xs font-black text-white mb-2 uppercase tracking-wider">GENEL TOPLAM</div>
+                        <div className="text-sm font-semibold text-purple-100 mb-2">KDV Dahil - Tüm Ürünler</div>
+                        <div className="text-4xl md:text-5xl font-black text-white leading-tight">
+                          ₺{calculation.totalWithVat.toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      <div className="p-5 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 rounded-xl border-2 border-blue-400 dark:border-blue-600 shadow-lg">
+                        <div className="text-xs font-bold text-blue-700 dark:text-blue-400 mb-2 uppercase tracking-wide">Kâr Yüzdesi</div>
+                        <div className="text-3xl font-black text-blue-700 dark:text-blue-400">
+                          %{calculation.profitPercentage.toFixed(2)}
+                        </div>
                       </div>
                     </div>
                   </div>

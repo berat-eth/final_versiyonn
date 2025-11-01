@@ -488,6 +488,16 @@ export default function DesignEditorPage() {
     return Object.values(sizes).reduce((sum, qty) => sum + qty, 0)
   }
 
+  // Toplu beden girişi
+  const handleBulkSizeInput = (value: string) => {
+    const numValue = value === '' || isNaN(Number(value)) ? 0 : Math.max(0, Number(value))
+    const newSizes: Record<string, number> = {}
+    Object.keys(sizes).forEach(size => {
+      newSizes[size] = numValue
+    })
+    setSizes(newSizes)
+  }
+
   const handleSubmitOrder = async () => {
     if (!user || !product || !productId) {
       alert('Lütfen önce giriş yapın')
@@ -1419,10 +1429,27 @@ export default function DesignEditorPage() {
 
                   {/* Size Quantities */}
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">straighten</span>
-                      Beden ve Adet Seçimi
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">straighten</span>
+                        Beden ve Adet Seçimi
+                      </h3>
+                    </div>
+                    
+                    {/* Toplu Sayı Girişi */}
+                    <div className="mb-4 flex items-center gap-2">
+                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                        Tüm Bedenlere:
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        onChange={(e) => handleBulkSizeInput(e.target.value)}
+                        className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {Object.keys(sizes).map((size) => (
                         <div key={size} className="space-y-2">
