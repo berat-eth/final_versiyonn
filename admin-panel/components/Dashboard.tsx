@@ -3,7 +3,7 @@
 import { TrendingUp, Package, ShoppingCart, Users, ArrowUp, ArrowDown, DollarSign, Eye, AlertTriangle, CheckCircle, Clock, Star, Truck, CreditCard, RefreshCw, Activity, Target, Zap, TrendingDown, UserPlus, MessageSquare, Heart, BarChart3, Calendar, Filter, Download, Bell, X, Shield, Mail, Send, Smartphone, MousePointer, MapPin, Navigation, Brain } from 'lucide-react'
 import { Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart } from 'recharts'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useTheme } from '@/lib/ThemeContext'
 import { formatDDMMYYYY } from '@/lib/date'
 import dynamic from 'next/dynamic'
@@ -59,6 +59,7 @@ export default function Dashboard() {
   const [showFilterModal, setShowFilterModal] = useState(false)
   const [notifications, setNotifications] = useState(3)
   const [showCategoryDetails, setShowCategoryDetails] = useState(false)
+  const [chartHeight, setChartHeight] = useState(300)
 
   const [totalProducts, setTotalProducts] = useState<number>(0)
   const [totalOrders, setTotalOrders] = useState<number>(0)
@@ -90,6 +91,18 @@ export default function Dashboard() {
   const [customProdInProgress, setCustomProdInProgress] = useState<number>(0)
   const [customProdCompleted, setCustomProdCompleted] = useState<number>(0)
   const [customProdAmount, setCustomProdAmount] = useState<number>(0)
+
+  // Chart height'ı responsive yap
+  useEffect(() => {
+    const updateChartHeight = () => {
+      if (typeof window !== 'undefined') {
+        setChartHeight(window.innerWidth < 640 ? 250 : 300)
+      }
+    }
+    updateChartHeight()
+    window.addEventListener('resize', updateChartHeight)
+    return () => window.removeEventListener('resize', updateChartHeight)
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -732,17 +745,17 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-800 mb-6">Kategori Dağılımı</h3>
-          <ResponsiveContainer width="100%" height={300}>
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 sm:mb-6">Kategori Dağılımı</h3>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             {categoryData && categoryData.length > 0 ? (
             <PieChart>
               <Pie
                 data={categoryData}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={100}
+                innerRadius={50}
+                outerRadius={80}
                 paddingAngle={5}
                 dataKey="value"
               >
@@ -750,20 +763,31 @@ export default function Dashboard() {
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: theme === 'dark' ? '#1e293b' : 'white',
+                  border: theme === 'dark' ? '1px solid #334155' : '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  color: theme === 'dark' ? '#e2e8f0' : '#1e293b',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}
+                itemStyle={{
+                  color: theme === 'dark' ? '#e2e8f0' : '#1e293b'
+                }}
+              />
             </PieChart>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
+              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">Veri yok</div>
             )}
           </ResponsiveContainer>
-          <div className="mt-4 space-y-2">
+          <div className="mt-3 sm:mt-4 space-y-2">
             {categoryData.map((cat) => (
-              <div key={cat.name} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }}></div>
-                  <span className="text-sm text-slate-600">{cat.name}</span>
+              <div key={cat.name} className="flex items-center justify-between py-1">
+                <div className="flex items-center space-x-2 min-w-0 flex-1">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }}></div>
+                  <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate">{cat.name}</span>
                 </div>
-                <span className="text-sm font-semibold text-slate-800">{cat.value}%</span>
+                <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 ml-2 flex-shrink-0">{cat.value}%</span>
               </div>
             ))}
           </div>
@@ -796,18 +820,18 @@ export default function Dashboard() {
                     {cat.siparisler} sipariş
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4">
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Satış</p>
-                    <p className="font-bold text-green-600 dark:text-green-400">₺{(cat.satis / 1000).toFixed(0)}K</p>
+                    <p className="font-bold text-sm sm:text-base text-green-600 dark:text-green-400">₺{(cat.satis / 1000).toFixed(0)}K</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Kar</p>
-                    <p className="font-bold text-blue-600 dark:text-blue-400">₺{(cat.kar / 1000).toFixed(0)}K</p>
+                    <p className="font-bold text-sm sm:text-base text-blue-600 dark:text-blue-400">₺{(cat.kar / 1000).toFixed(0)}K</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Stok</p>
-                    <p className="font-bold text-purple-600 dark:text-purple-400">{cat.stok}</p>
+                    <p className="font-bold text-sm sm:text-base text-purple-600 dark:text-purple-400">{cat.stok}</p>
                   </div>
                 </div>
                 <div className="mt-3 bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
@@ -1226,7 +1250,7 @@ export default function Dashboard() {
           </div>
 
           {/* Aktivite İstatistikleri */}
-          <div className="grid grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-6">
             <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
                 <ShoppingCart className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -1576,22 +1600,22 @@ export default function Dashboard() {
                         {cat.siparisler} sipariş
                       </span>
                     </div>
-                    <div className="grid grid-cols-4 gap-4 mb-4">
-                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Satış</p>
-                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">₺{(cat.satis / 1000).toFixed(0)}K</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4">
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 sm:p-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-1">Satış</p>
+                        <p className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400">₺{(cat.satis / 1000).toFixed(0)}K</p>
                       </div>
-                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Kar</p>
-                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">₺{(cat.kar / 1000).toFixed(0)}K</p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 sm:p-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-1">Kar</p>
+                        <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">₺{(cat.kar / 1000).toFixed(0)}K</p>
                       </div>
-                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Stok</p>
-                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{cat.stok}</p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 sm:p-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-1">Stok</p>
+                        <p className="text-lg sm:text-2xl font-bold text-purple-600 dark:text-purple-400">{cat.stok}</p>
                       </div>
-                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Kar Marjı</p>
-                        <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{((cat.kar / cat.satis) * 100).toFixed(1)}%</p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 sm:p-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-1">Kar Marjı</p>
+                        <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{((cat.kar / cat.satis) * 100).toFixed(1)}%</p>
                       </div>
                     </div>
                     <div className="bg-slate-200 rounded-full h-3 overflow-hidden">
@@ -1702,12 +1726,12 @@ export default function Dashboard() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div className="flex items-center">
-                  <Filter className="w-6 h-6 text-blue-600 dark:text-blue-400 mr-3" />
-                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Filtreler</h3>
+                  <Filter className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400 mr-2 sm:mr-3" />
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">Filtreler</h3>
                 </div>
                 <button
                   onClick={() => setShowFilterModal(false)}

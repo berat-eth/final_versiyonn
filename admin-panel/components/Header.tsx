@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, Bell, Mail, User, List, Shield, X, Package, Users, ShoppingCart, Sun, Moon } from 'lucide-react'
+import { Search, Bell, Mail, User, List, Shield, X, Package, Users, ShoppingCart, Sun, Moon, Menu } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { formatDDMMYYYY } from '@/lib/date'
@@ -10,7 +10,11 @@ import { api } from '@/lib/api'
 import { useTheme } from '@/lib/ThemeContext'
  
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void
+}
+
+export default function Header({ onMenuClick }: HeaderProps = {}) {
   const { theme, toggleTheme } = useTheme()
   const [showLogs, setShowLogs] = useState(false)
   const [logs, setLogs] = useState<any[]>([])
@@ -142,18 +146,30 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-white/80 dark:bg-dark-bg/90 backdrop-blur-lg border-b border-slate-200 dark:border-dark-border px-6 py-4 sticky top-0 z-10">
-      <div className="flex items-center justify-between">
-        <div className="flex-1 max-w-xl">
+    <header className="bg-white/80 dark:bg-dark-bg/90 backdrop-blur-lg border-b border-slate-200 dark:border-dark-border px-3 sm:px-6 py-3 sm:py-4 sticky top-0 z-10">
+      <div className="flex items-center justify-between gap-2 sm:gap-4">
+        {/* Mobil Hamburger Butonu */}
+        {onMenuClick && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onMenuClick}
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors lg:hidden flex-shrink-0"
+            title="Menü"
+          >
+            <Menu className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+          </motion.button>
+        )}
+        <div className="flex-1 max-w-xl min-w-0">
           <div className="relative search-container">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 sm:w-5 sm:h-5" />
             <input
               type="text"
-              placeholder="Ürün, sipariş veya müşteri ara..."
+              placeholder="Ara..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => searchQuery.length >= 2 && setShowSearchResults(true)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-800 transition-all dark:text-white dark:placeholder-slate-400"
+              className="w-full pl-8 sm:pl-10 pr-8 sm:pr-4 py-2 sm:py-2.5 text-sm sm:text-base bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-800 transition-all dark:text-white dark:placeholder-slate-400"
             />
             {searchQuery && (
               <button
@@ -161,9 +177,9 @@ export default function Header() {
                   setSearchQuery('')
                   setShowSearchResults(false)
                 }}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3 h-3 sm:w-4 sm:h-4" />
               </button>
             )}
             
@@ -281,33 +297,33 @@ export default function Header() {
           </div>
         </div>
 
-        <div className="flex items-center space-x-4 ml-6">
+        <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-4 ml-2 sm:ml-4 md:ml-6 flex-shrink-0">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="relative p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
-            <Bell className="w-6 h-6 text-slate-600 dark:text-slate-300" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            <Bell className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-600 dark:text-slate-300" />
+            <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-red-500 rounded-full"></span>
           </motion.button>
 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="relative p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors hidden sm:inline-flex"
           >
-            <Mail className="w-6 h-6 text-slate-600 dark:text-slate-300" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+            <Mail className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-600 dark:text-slate-300" />
+            <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full"></span>
           </motion.button>
 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowLogs(!showLogs)}
-            className="relative p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="relative p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors hidden md:inline-flex"
             title="API Logları"
           >
-            <List className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+            <List className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-600 dark:text-slate-300" />
           </motion.button>
 
           {/* Sistem Durumu butonu */}
@@ -320,10 +336,12 @@ export default function Header() {
                 window.dispatchEvent(new CustomEvent('open-health-modal'))
               }
             }}
-            className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm inline-flex items-center gap-2"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs sm:text-sm inline-flex items-center gap-1 sm:gap-2"
             title="Sistem Durumu"
           >
-            <Shield className="w-4 h-4" /> Sistem Durumu
+            <Shield className="w-3 h-3 sm:w-4 sm:h-4" /> 
+            <span className="hidden sm:inline">Sistem Durumu</span>
+            <span className="sm:hidden">Sistem</span>
           </motion.button>
 
           {/* Dark Mode Toggle */}
@@ -331,39 +349,39 @@ export default function Header() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={toggleTheme}
-            className="p-2 rounded-lg transition-colors inline-flex items-center justify-center dark:bg-slate-700 bg-slate-100 hover:bg-slate-200 dark:hover:bg-slate-600"
+            className="p-1.5 sm:p-2 rounded-lg transition-colors inline-flex items-center justify-center dark:bg-slate-700 bg-slate-100 hover:bg-slate-200 dark:hover:bg-slate-600"
             title={theme === 'light' ? 'Karanlık Mod' : 'Aydınlık Mod'}
           >
             {theme === 'light' ? (
-              <Moon className="w-5 h-5 text-slate-700" />
+              <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
             ) : (
-              <Sun className="w-5 h-5 text-yellow-300" />
+              <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-300" />
             )}
           </motion.button>
 
-          <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
+          <div className="h-6 sm:h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
 
-          <div className="flex items-center space-x-3">
-            <div className="text-right">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Admin User</p>
+          <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-3">
+            <div className="text-right hidden md:block">
+              <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Admin User</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">Yönetici</p>
             </div>
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold cursor-pointer hover:shadow-lg transition-shadow">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold cursor-pointer hover:shadow-lg transition-shadow text-xs sm:text-sm md:text-base">
               AY
             </div>
           </div>
         </div>
       </div>
       {showLogs && (
-        <div className="mt-4 bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-dark-border p-4 max-h-96 overflow-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <h4 className="text-sm font-semibold text-slate-700">API Logları</h4>
-              <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Ara (GET 200 /products)" className="px-2 py-1 text-xs bg-slate-100 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <div className="mt-4 bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-dark-border p-3 sm:p-4 max-h-96 overflow-auto">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+              <h4 className="text-xs sm:text-sm font-semibold text-slate-700">API Logları</h4>
+              <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Ara..." className="w-full sm:w-auto px-2 py-1 text-xs bg-slate-100 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={()=>{if (typeof window !== 'undefined') localStorage.removeItem('apiLogs'); setLogs([])}} className="text-xs text-red-600 hover:underline">Temizle</button>
-              <button onClick={()=>{setExpanded({})}} className="text-xs text-slate-600 hover:underline">Daralt</button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={()=>{if (typeof window !== 'undefined') localStorage.removeItem('apiLogs'); setLogs([])}} className="text-xs text-red-600 hover:underline whitespace-nowrap">Temizle</button>
+              <button onClick={()=>{setExpanded({})}} className="text-xs text-slate-600 hover:underline whitespace-nowrap">Daralt</button>
             </div>
           </div>
           {filtered.length === 0 ? (

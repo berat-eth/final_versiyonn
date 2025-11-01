@@ -8,11 +8,47 @@ import { motion, AnimatePresence } from 'framer-motion'
 interface SidebarProps {
   activeTab: string
   setActiveTab: (tab: string) => void
+  isOpen?: boolean
+  onToggle?: () => void
 }
 
-export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: SidebarProps) {
   const router = useRouter()
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  // Mobilde varsayılan olarak kapalı, desktop'ta açık
+  // Eğer parent'tan isOpen prop'u geliyorsa onu kullan, yoksa local state kullan
+  const [internalCollapsed, setInternalCollapsed] = useState(true)
+  const isControlled = isOpen !== undefined
+  const isCollapsed = isControlled ? !isOpen : internalCollapsed
+  
+  // Mobilde menü açıldığında body scroll'unu engelle
+  const handleToggle = () => {
+    if (isControlled && onToggle) {
+      onToggle()
+    } else {
+      setInternalCollapsed(!internalCollapsed)
+    }
+    
+    if (typeof window !== 'undefined') {
+      const shouldHide = isControlled ? !isOpen : !internalCollapsed
+      if (!shouldHide) {
+        document.body.style.overflow = ''
+      } else {
+        document.body.style.overflow = 'hidden'
+      }
+    }
+  }
+  
+  // Mobilde menü kapandığında scroll'u geri aç
+  const handleClose = () => {
+    if (isControlled && onToggle) {
+      onToggle()
+    } else {
+      setInternalCollapsed(true)
+    }
+    if (typeof window !== 'undefined') {
+      document.body.style.overflow = ''
+    }
+  }
 
   const handleLogout = () => {
     if (confirm('Çıkış yapmak istediğinizden emin misiniz?')) {
@@ -131,19 +167,23 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-            onClick={() => setIsCollapsed(true)}
+            onClick={handleClose}
           />
         )}
       </AnimatePresence>
 
       <aside className={`${
-        isCollapsed ? 'w-20' : 'w-72'
+        // Mobilde: kapalıysa tamamen gizle, açıksa göster
+        // Desktop'ta: her zaman görünür, sadece genişlik değişir
+        isCollapsed 
+          ? 'w-72 -translate-x-full lg:translate-x-0 lg:w-20' 
+          : 'w-72 translate-x-0'
       } bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-white shadow-2xl flex flex-col h-screen transition-all duration-300 fixed lg:relative z-50`}>
         {/* Header with Toggle */}
         <div className="p-4 border-b border-slate-700 dark:border-slate-800 flex-shrink-0">
           <div className="flex items-center justify-between">
             <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
+              onClick={handleToggle}
               className="p-2 hover:bg-slate-700 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               {isCollapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
@@ -171,6 +211,10 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
                   onClick={() => {
                     if (item.id === 'admin-logs') { router.push('/admin-logs'); return }
                     setActiveTab(item.id)
+                    // Mobilde menü öğesine tıklandığında sidebar'ı kapat
+                    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                      setTimeout(() => handleClose(), 100)
+                    }
                   }}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}

@@ -470,13 +470,13 @@ export default function Orders() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-[min(40rem,calc(100vw-2rem))] max-h-[calc(100vh-4rem)] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-                    <Truck className="w-6 h-6 text-white" />
+              <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Truck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Kargo Takip</h3>
+                    <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">Kargo Takip</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Sipariş #{selectedOrderForAction.id}</p>
                   </div>
                 </div>
@@ -614,15 +614,15 @@ export default function Orders() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-3xl w-full"
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-white" />
+              <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Fatura Detayları</h3>
+                    <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">Fatura Detayları</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Sipariş #{selectedOrderForAction.id}</p>
                   </div>
                 </div>
