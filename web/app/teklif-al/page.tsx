@@ -1,14 +1,14 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 const Header = dynamic(() => import('@/components/Header'), { ssr: true })
 const Footer = dynamic(() => import('@/components/Footer'), { ssr: true })
 
-export default function TeklifAlPage() {
+function TeklifAlForm() {
   const searchParams = useSearchParams()
   const { user } = useAuth()
   const [formData, setFormData] = useState({
@@ -614,5 +614,20 @@ export default function TeklifAlPage() {
         <Footer />
       </div>
     </div>
+  )
+}
+
+export default function TeklifAlPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Yükleniyor...</p>
+        </div>
+      </div>
+    }>
+      <TeklifAlForm />
+    </Suspense>
   )
 }
