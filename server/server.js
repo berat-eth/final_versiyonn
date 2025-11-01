@@ -4360,7 +4360,7 @@ app.put('/api/admin/custom-production-requests/:id/status', authenticateAdmin, a
   try {
     const id = parseInt(req.params.id);
     const { status, estimatedDeliveryDate, actualDeliveryDate, notes } = req.body || {};
-    const validStatuses = ['pending', 'review', 'design', 'production', 'shipped', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'review', 'design', 'production', 'shipped', 'completed', 'cancelled', 'archived', 'approved'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({ success: false, message: 'Geçersiz durum' });
     }
@@ -4412,6 +4412,188 @@ app.post('/api/admin/custom-production-requests/:id/quote', authenticateAdmin, a
   } catch (error) {
     console.error('❌ Error setting quote:', error);
     res.status(500).json({ success: false, message: 'Error setting quote' });
+  }
+});
+
+// Admin - Proforma Quote (detaylı maliyet hesaplaması ile)
+app.post('/api/admin/custom-production-requests/:id/proforma-quote', authenticateAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const {
+      itemCosts,
+      sharedShippingCost,
+      profitMargin,
+      vatRate,
+      unitSalePrice,
+      totalOfferAmount,
+      totalVatAmount,
+      totalWithVat,
+      profitPercentage,
+      notes,
+      calculation
+    } = req.body || {};
+
+    // Request var mı kontrol et
+    const [requestRows] = await poolWrapper.execute(
+      'SELECT id, status FROM custom_production_requests WHERE id = ?',
+      [id]
+    );
+    
+    if (requestRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+
+    // Proforma quote kolonlarını kontrol et ve ekle
+    const [cols] = await poolWrapper.execute(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_requests'
+    `);
+    const names = cols.map(c => c.COLUMN_NAME);
+    const alters = [];
+    
+    if (!names.includes('proformaQuoteData')) {
+      alters.push("ADD COLUMN proformaQuoteData JSON NULL AFTER quoteValidUntil");
+    }
+    if (!names.includes('proformaItemCosts')) {
+      alters.push("ADD COLUMN proformaItemCosts JSON NULL AFTER proformaQuoteData");
+    }
+    if (!names.includes('proformaSharedShippingCost')) {
+      alters.push("ADD COLUMN proformaSharedShippingCost DECIMAL(10,2) DEFAULT 0 AFTER proformaItemCosts");
+    }
+    if (!names.includes('proformaProfitMargin')) {
+      alters.push("ADD COLUMN proformaProfitMargin DECIMAL(5,2) DEFAULT 0 AFTER proformaSharedShippingCost");
+    }
+    if (!names.includes('proformaVatRate')) {
+      alters.push("ADD COLUMN proformaVatRate DECIMAL(5,2) DEFAULT 10 AFTER proformaProfitMargin");
+    }
+    if (!names.includes('proformaTotalWithVat')) {
+      alters.push("ADD COLUMN proformaTotalWithVat DECIMAL(10,2) NULL AFTER proformaVatRate");
+    }
+    if (!names.includes('proformaQuotedAt')) {
+      alters.push("ADD COLUMN proformaQuotedAt TIMESTAMP NULL AFTER proformaTotalWithVat");
+    }
+    
+    if (alters.length > 0) {
+      await poolWrapper.execute(`ALTER TABLE custom_production_requests ${alters.join(', ')}`);
+    }
+
+    // Proforma quote verilerini güncelle
+    const proformaQuoteData = {
+      unitSalePrice: parseFloat(unitSalePrice) || 0,
+      totalOfferAmount: parseFloat(totalOfferAmount) || 0,
+      totalVatAmount: parseFloat(totalVatAmount) || 0,
+      totalWithVat: parseFloat(totalWithVat) || 0,
+      profitPercentage: parseFloat(profitPercentage) || 0,
+      notes: notes || '',
+      calculation: calculation || null,
+      quotedAt: new Date().toISOString()
+    };
+
+    await poolWrapper.execute(`
+      UPDATE custom_production_requests 
+      SET 
+        proformaQuoteData = ?,
+        proformaItemCosts = ?,
+        proformaSharedShippingCost = ?,
+        proformaProfitMargin = ?,
+        proformaVatRate = ?,
+        proformaTotalWithVat = ?,
+        proformaQuotedAt = NOW(),
+        status = 'review',
+        updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [
+      JSON.stringify(proformaQuoteData),
+      JSON.stringify(itemCosts || {}),
+      parseFloat(sharedShippingCost) || 0,
+      parseFloat(profitMargin) || 0,
+      parseFloat(vatRate) || 10,
+      parseFloat(totalWithVat) || 0,
+      id
+    ]);
+
+    res.json({ 
+      success: true, 
+      message: 'Proforma teklif başarıyla kaydedildi',
+      data: {
+        id,
+        proformaQuoteData,
+        itemCosts
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error saving proforma quote:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Proforma teklif kaydedilemedi: ' + (error.message || 'Bilinmeyen hata')
+    });
+  }
+});
+
+// Admin - Revizyon İste (proforma için)
+app.put('/api/admin/custom-production-requests/:id/request-revision', authenticateAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { revisionNotes } = req.body || {};
+
+    const [requestRows] = await poolWrapper.execute(
+      'SELECT id FROM custom_production_requests WHERE id = ?',
+      [id]
+    );
+    
+    if (requestRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+
+    // Revizyon kolonlarını kontrol et
+    const [cols] = await poolWrapper.execute(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_requests'
+    `);
+    const names = cols.map(c => c.COLUMN_NAME);
+    
+    if (!names.includes('revisionNotes')) {
+      await poolWrapper.execute("ALTER TABLE custom_production_requests ADD COLUMN revisionNotes TEXT NULL AFTER notes");
+    }
+    if (!names.includes('revisionRequestedAt')) {
+      await poolWrapper.execute("ALTER TABLE custom_production_requests ADD COLUMN revisionRequestedAt TIMESTAMP NULL AFTER revisionNotes");
+    }
+
+    await poolWrapper.execute(`
+      UPDATE custom_production_requests 
+      SET 
+        status = 'pending',
+        revisionNotes = ?,
+        revisionRequestedAt = NOW(),
+        updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [revisionNotes || '', id]);
+
+    res.json({ success: true, message: 'Revizyon talebi gönderildi' });
+  } catch (error) {
+    console.error('❌ Error requesting revision:', error);
+    res.status(500).json({ success: false, message: 'Revizyon talebi gönderilemedi' });
+  }
+});
+
+// Admin - Proforma Onayla
+app.put('/api/admin/custom-production-requests/:id/approve-proforma', authenticateAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+
+    await poolWrapper.execute(`
+      UPDATE custom_production_requests 
+      SET 
+        status = 'approved',
+        quoteStatus = 'sent',
+        updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [id]);
+
+    res.json({ success: true, message: 'Proforma onaylandı' });
+  } catch (error) {
+    console.error('❌ Error approving proforma:', error);
+    res.status(500).json({ success: false, message: 'Proforma onaylanamadı' });
   }
 });
 
@@ -8970,6 +9152,81 @@ async function startServer() {
     }
   });
   // Get single custom production request
+  app.get('/api/custom-production-requests/:userKey', async (req, res) => {
+    try {
+      const userKey = req.params.userKey;
+      const userId = await resolveUserKeyToPk(userKey);
+      
+      if (!userId) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+
+      // Detect optional columns
+      const [cols] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_requests'
+      `);
+      const names = new Set(cols.map(c => c.COLUMN_NAME));
+      const baseCols = [
+        'id', 'userId', 'tenantId', 'status', 'totalQuantity', 'totalAmount', 'customerName', 'customerEmail', 
+        'customerPhone', 'companyName', 'taxNumber', 'taxAddress', 'companyAddress', 'notes', 'createdAt'
+      ];
+      const optionalCols = [
+        'quoteAmount', 'quoteCurrency', 'quoteNotes', 'quoteStatus', 'quotedAt', 'quoteValidUntil', 
+        'proformaQuoteData', 'proformaItemCosts', 'proformaSharedShippingCost', 'proformaProfitMargin', 
+        'proformaVatRate', 'proformaTotalWithVat', 'proformaQuotedAt', 'revisionNotes', 'revisionRequestedAt',
+        'requestNumber', 'estimatedDeliveryDate', 'actualDeliveryDate', 'source'
+      ];
+      const selectCols = baseCols
+        .concat(optionalCols.filter(n => names.has(n)))
+        .join(', ');
+
+      const [requests] = await poolWrapper.execute(
+        `SELECT ${selectCols} FROM custom_production_requests WHERE userId = ? ORDER BY createdAt DESC`,
+        [userId]
+      );
+
+      // Get items for each request
+      const requestsWithItems = await Promise.all(
+        requests.map(async (request) => {
+          const [items] = await poolWrapper.execute(
+            `SELECT cpi.*, p.name as productName, p.image as productImage, p.price as productPrice
+             FROM custom_production_items cpi
+             LEFT JOIN products p ON cpi.productId = p.id AND p.tenantId = cpi.tenantId
+             WHERE cpi.requestId = ?`,
+            [request.id]
+          );
+
+          // Parse JSON fields if they exist
+          if (request.proformaQuoteData && typeof request.proformaQuoteData === 'string') {
+            try {
+              request.proformaQuoteData = JSON.parse(request.proformaQuoteData);
+            } catch (e) {
+              console.error('Error parsing proformaQuoteData:', e);
+            }
+          }
+          if (request.proformaItemCosts && typeof request.proformaItemCosts === 'string') {
+            try {
+              request.proformaItemCosts = JSON.parse(request.proformaItemCosts);
+            } catch (e) {
+              console.error('Error parsing proformaItemCosts:', e);
+            }
+          }
+
+          return {
+            ...request,
+            items: items || []
+          };
+        })
+      );
+
+      res.json({ success: true, data: requestsWithItems });
+    } catch (error) {
+      console.error('❌ Error getting user custom production requests:', error);
+      res.status(500).json({ success: false, message: 'Error getting requests' });
+    }
+  });
+
   app.get('/api/custom-production-requests/:userKey/:requestId', async (req, res) => {
     try {
       const { userKey, requestId } = req.params;
@@ -8989,9 +9246,29 @@ async function startServer() {
         return res.status(400).json({ success: false, message: 'Invalid or unknown user' });
       }
 
+      // Detect optional columns
+      const [cols] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_requests'
+      `);
+      const names = new Set(cols.map(c => c.COLUMN_NAME));
+      const baseCols = [
+        'id', 'userId', 'tenantId', 'status', 'totalQuantity', 'totalAmount', 'customerName', 'customerEmail', 
+        'customerPhone', 'companyName', 'taxNumber', 'taxAddress', 'companyAddress', 'notes', 'createdAt'
+      ];
+      const optionalCols = [
+        'quoteAmount', 'quoteCurrency', 'quoteNotes', 'quoteStatus', 'quotedAt', 'quoteValidUntil', 
+        'proformaQuoteData', 'proformaItemCosts', 'proformaSharedShippingCost', 'proformaProfitMargin', 
+        'proformaVatRate', 'proformaTotalWithVat', 'proformaQuotedAt', 'revisionNotes', 'revisionRequestedAt',
+        'requestNumber', 'estimatedDeliveryDate', 'actualDeliveryDate', 'source'
+      ];
+      const selectCols = baseCols
+        .concat(optionalCols.filter(n => names.has(n)))
+        .join(', ');
+
       // Get request details
       const [requests] = await poolWrapper.execute(
-        `SELECT * FROM custom_production_requests 
+        `SELECT ${selectCols} FROM custom_production_requests 
        WHERE id = ? AND userId = ? AND tenantId = ?`,
         [numericRequestId, numericUserId, tenantId]
       );
@@ -9006,10 +9283,26 @@ async function startServer() {
       const [items] = await poolWrapper.execute(`
       SELECT cpi.*, p.name as productName, p.image as productImage, p.price as productPrice
       FROM custom_production_items cpi
-      LEFT JOIN products p ON cpi.productId = p.id
+      LEFT JOIN products p ON cpi.productId = p.id AND p.tenantId = cpi.tenantId
       WHERE cpi.requestId = ? AND cpi.tenantId = ?
       ORDER BY cpi.createdAt
     `, [numericRequestId, tenantId]);
+
+      // Parse JSON fields if they exist
+      if (request.proformaQuoteData && typeof request.proformaQuoteData === 'string') {
+        try {
+          request.proformaQuoteData = JSON.parse(request.proformaQuoteData);
+        } catch (e) {
+          console.error('Error parsing proformaQuoteData:', e);
+        }
+      }
+      if (request.proformaItemCosts && typeof request.proformaItemCosts === 'string') {
+        try {
+          request.proformaItemCosts = JSON.parse(request.proformaItemCosts);
+        } catch (e) {
+          console.error('Error parsing proformaItemCosts:', e);
+        }
+      }
 
       const formattedRequest = {
         ...request,
@@ -9020,7 +9313,9 @@ async function startServer() {
           productImage: item.productImage,
           productPrice: item.productPrice,
           quantity: item.quantity,
-          customizations: JSON.parse(item.customizations)
+          customizations: typeof item.customizations === 'string' 
+            ? JSON.parse(item.customizations) 
+            : item.customizations
         }))
       };
 

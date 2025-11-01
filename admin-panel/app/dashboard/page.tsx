@@ -25,6 +25,7 @@ import Chatbot from '@/components/Chatbot'
 import Security from '@/components/Security'
 import BulkCustomProduction from '@/components/BulkCustomProduction'
 import QuoteFormRequests from '@/components/QuoteFormRequests'
+import ProformaInvoice from '@/components/ProformaInvoice'
 import Backup from '@/components/Backup'
 import ServerStats from '@/components/ServerStats'
 import PushNotifications from '@/components/PushNotifications'
@@ -222,6 +223,7 @@ export default function DashboardPage() {
           {activeTab === 'settings' && <Settings />}
           {activeTab === 'bulk-custom-production' && <BulkCustomProduction />}
           {activeTab === 'quote-form-requests' && <QuoteFormRequests />}
+          {activeTab === 'proforma-invoice' && <ProformaInvoice />}
           {activeTab === 'project-ajax' && <ProjectAjax />}
           {activeTab === 'email' && <Email />}
           {activeTab === 'sms' && <SMS />}

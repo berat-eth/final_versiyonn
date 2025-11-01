@@ -115,6 +115,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         { id: 'applications', label: 'Bayilik Başvuruları', icon: FileText },
         { id: 'bulk-custom-production', label: 'Özel Toptan Üretim', icon: Crown },
         { id: 'quote-form-requests', label: 'Gelen Form Verileri', icon: FileText },
+        { id: 'proforma-invoice', label: 'Proforma Fatura', icon: FileText },
         { id: 'google-maps-scraper', label: 'Google Maps Data Scrapper', icon: Link },
       ]
     },
