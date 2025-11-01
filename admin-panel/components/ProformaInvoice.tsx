@@ -1473,7 +1473,7 @@ export default function ProformaInvoice() {
                             <input
                               type="number"
                               step="0.01"
-                              value={costs.unitCost}
+                              value={costs.unitCost ?? 0}
                               onChange={(e) => handleCostChange(item.id, 'unitCost', e.target.value)}
                               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                               placeholder="0.00"
@@ -1488,7 +1488,7 @@ export default function ProformaInvoice() {
                             <input
                               type="number"
                               step="0.01"
-                              value={costs.printingCost}
+                              value={costs.printingCost ?? 0}
                               onChange={(e) => handleCostChange(item.id, 'printingCost', e.target.value)}
                               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                               placeholder="0.00"
@@ -1503,7 +1503,7 @@ export default function ProformaInvoice() {
                             <input
                               type="number"
                               step="0.01"
-                              value={costs.embroideryCost}
+                              value={costs.embroideryCost ?? 0}
                               onChange={(e) => handleCostChange(item.id, 'embroideryCost', e.target.value)}
                               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                               placeholder="0.00"
@@ -1524,7 +1524,7 @@ export default function ProformaInvoice() {
                       <input
                         type="number"
                         step="0.01"
-                        value={sharedShippingCost}
+                        value={sharedShippingCost ?? 0}
                         onChange={(e) => handleSharedShippingChange(e.target.value)}
                         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                       />
@@ -1535,7 +1535,7 @@ export default function ProformaInvoice() {
                         KDV Oranı (%)
                       </label>
                       <select
-                        value={vatRate}
+                        value={vatRate ?? 10}
                         onChange={(e) => setVatRate(Number(e.target.value))}
                         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                       >
@@ -1554,7 +1554,7 @@ export default function ProformaInvoice() {
                       <input
                         type="number"
                         step="0.1"
-                        value={profitMargin}
+                        value={profitMargin ?? 0}
                         onChange={(e) => handleProfitMarginChange(e.target.value)}
                         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                       />
@@ -1759,7 +1759,7 @@ export default function ProformaInvoice() {
                       <input
                         type="number"
                         step="0.01"
-                        value={unitSalePrice}
+                        value={unitSalePrice ?? 0}
                         onChange={(e) => {
                           const value = e.target.value === '' || isNaN(Number(e.target.value)) ? 0 : Number(e.target.value)
                           setUnitSalePrice(value)
@@ -1780,7 +1780,7 @@ export default function ProformaInvoice() {
                       <input
                         type="number"
                         step="0.01"
-                        value={totalOfferAmount}
+                        value={totalOfferAmount ?? 0}
                         onChange={(e) => {
                           const value = e.target.value === '' || isNaN(Number(e.target.value)) ? 0 : Number(e.target.value)
                           setTotalOfferAmount(value)
@@ -1802,7 +1802,7 @@ export default function ProformaInvoice() {
                       <input
                         type="number"
                         step="0.1"
-                        value={profitPercentage.toFixed(2)}
+                        value={(profitPercentage ?? 0).toFixed(2)}
                         readOnly
                         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                       />
@@ -1814,7 +1814,7 @@ export default function ProformaInvoice() {
                       Notlar
                     </label>
                     <textarea
-                      value={notes}
+                      value={notes ?? ''}
                       onChange={(e) => setNotes(e.target.value)}
                       rows={4}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
