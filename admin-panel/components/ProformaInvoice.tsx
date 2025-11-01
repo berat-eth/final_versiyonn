@@ -1562,7 +1562,7 @@ export default function ProformaInvoice() {
                         <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">
                           {itemCalc.productName}
                         </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-sm">
                           <div>
                             <div className="text-slate-500 dark:text-slate-400">Adet</div>
                             <div className="font-medium text-slate-800 dark:text-slate-200">{itemCalc.quantity}</div>
@@ -1574,8 +1574,17 @@ export default function ProformaInvoice() {
                             </div>
                           </div>
                           <div>
-                            <div className="text-slate-500 dark:text-slate-400">Birim Satış Fiyatı (KDV Hariç)</div>
+                            <div className="text-slate-500 dark:text-slate-400">Birim Fiyat (KDV Hariç)</div>
                             <div className="font-medium text-blue-600 dark:text-blue-400">
+                              ₺{itemCalc.unitPrice.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                              (Birim + Baskı + Nakış + Kargo)
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-slate-500 dark:text-slate-400">Birim Fiyat (KDV Dahil)</div>
+                            <div className="font-medium text-purple-600 dark:text-purple-400">
                               ₺{itemCalc.finalUnitPrice.toFixed(2)}
                             </div>
                           </div>
