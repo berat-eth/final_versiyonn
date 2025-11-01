@@ -24,16 +24,18 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next()
 
-  // Dynamic pages için cache'i devre dışı bırak
-  if (pathname.startsWith('/urunler') || 
-      pathname.startsWith('/panel') ||
-      pathname.startsWith('/teklif')) {
+  // TÜM HTML sayfaları için cache'i devre dışı bırak (sadece static asset'ler değil)
+  // Eğer path bir dosya uzantısı içermiyorsa (HTML sayfası), cache'i bypass et
+  const isHtmlPage = !pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot|json|xml|txt|pdf)$/i)
+  
+  if (isHtmlPage) {
     response.headers.set(
       'Cache-Control',
       'no-cache, no-store, must-revalidate, max-age=0'
     )
     response.headers.set('Pragma', 'no-cache')
     response.headers.set('Expires', '0')
+    response.headers.set('X-Accel-Expires', '0') // Nginx için
   }
 
   // Cache headers for static assets
@@ -64,9 +66,9 @@ export function middleware(request: NextRequest) {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://accounts.google.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: https: blob:",
+      "img-src 'self' data: https: blob: https://static.ticimax.cloud https://*.ticimax.cloud",
       "font-src 'self' https://fonts.gstatic.com",
-      "connect-src 'self' https://wa.me https://api.plaxsy.com https://accounts.google.com",
+      "connect-src 'self' https: https://wa.me https://api.plaxsy.com https://api.zerodaysoftware.tr https://static.ticimax.cloud https://*.ticimax.cloud https://accounts.google.com",
       "frame-src 'self' https://www.google.com https://accounts.google.com",
       "object-src 'none'",
       "base-uri 'self'",

@@ -11,20 +11,31 @@ interface Product {
   id: number;
   name: string;
   image?: string;
+  images?: string | string[];
   price: number;
 }
 
 interface DesignElement {
   id: string;
-  type: 'logo' | 'text';
-  content: string; // URL for logo, text for text
+  type: 'logo' | 'text' | 'shape';
+  content: string; // URL for logo, text for text, shape type for shape
   x: number;
   y: number;
   width: number;
   height: number;
   fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: 'normal' | 'bold' | 'lighter';
+  fontStyle?: 'normal' | 'italic';
+  textAlign?: 'left' | 'center' | 'right';
   color?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  opacity?: number;
   rotation?: number;
+  zIndex?: number;
+  shadow?: boolean;
 }
 
 export default function DesignEditorPage() {
@@ -33,15 +44,60 @@ export default function DesignEditorPage() {
   const productId = params?.id ? Number(params.id) : null
   
   const [product, setProduct] = useState<Product | null>(null)
+  const [productImages, setProductImages] = useState<string[]>([])
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [elements, setElements] = useState<DesignElement[]>([])
+  const [history, setHistory] = useState<DesignElement[][]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
   const [selectedElement, setSelectedElement] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [showTextInput, setShowTextInput] = useState(false)
+  const [showShapeMenu, setShowShapeMenu] = useState(false)
   const [textInput, setTextInput] = useState('')
   const [textColor, setTextColor] = useState('#000000')
   const [textSize, setTextSize] = useState(24)
+  const [fontFamily, setFontFamily] = useState('Arial')
+  const [fontWeight, setFontWeight] = useState<'normal' | 'bold' | 'lighter'>('normal')
+  const [fontStyle, setFontStyle] = useState<'normal' | 'italic'>('normal')
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('center')
+  const [zoom, setZoom] = useState(100)
+  
+  // Canvas boyutunu container'a göre hesapla
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      if (canvasContainerRef.current) {
+        const container = canvasContainerRef.current
+        const rect = container.getBoundingClientRect()
+        const padding = 40
+        const availableWidth = rect.width - padding
+        const availableHeight = rect.height - padding
+        
+        // Minimum ve maksimum boyutlar
+        const minWidth = 1200
+        const minHeight = 1200
+        const maxWidth = 2000
+        const maxHeight = 2000
+        
+        setCanvasSize({ 
+          width: Math.min(Math.max(availableWidth, minWidth), maxWidth), 
+          height: Math.min(Math.max(availableHeight, minHeight), maxHeight)
+        })
+      }
+    }
+
+    // İlk yüklemede ve resize'da güncelle
+    const timer = setTimeout(updateCanvasSize, 100)
+    window.addEventListener('resize', updateCanvasSize)
+    
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('resize', updateCanvasSize)
+    }
+  }, [])
+  const [showGrid, setShowGrid] = useState(false)
+  const [showLayers, setShowLayers] = useState(false)
   const [showOrderForm, setShowOrderForm] = useState(false)
   const [sizes, setSizes] = useState<Record<string, number>>({
     'XS': 0,
@@ -65,19 +121,64 @@ export default function DesignEditorPage() {
   
   const { user } = useAuth()
   const canvasRef = useRef<HTMLDivElement>(null)
+  const canvasContainerRef = useRef<HTMLDivElement>(null)
   const [canvasSize, setCanvasSize] = useState({ width: 500, height: 600 })
+
+  // Undo/Redo functions
+  const saveToHistory = (newElements: DesignElement[]) => {
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push([...newElements])
+    setHistory(newHistory)
+    setHistoryIndex(newHistory.length - 1)
+  }
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1
+      setHistoryIndex(newIndex)
+      setElements([...history[newIndex]])
+    }
+  }
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1
+      setHistoryIndex(newIndex)
+      setElements([...history[newIndex]])
+    }
+  }
 
   useEffect(() => {
     if (productId) {
       loadProduct()
     }
     
-    // Canvas boyutunu ayarla
-    if (canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect()
-      setCanvasSize({ width: rect.width, height: rect.height })
+
+    // İlk durumu history'ye kaydet
+    if (elements.length === 0 && history.length === 0) {
+      setHistory([[]])
+      setHistoryIndex(0)
     }
   }, [productId])
+
+  useEffect(() => {
+    // Keyboard shortcuts
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        handleUndo()
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        handleRedo()
+      } else if (e.key === 'Delete' && selectedElement) {
+        e.preventDefault()
+        handleDelete()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedElement, historyIndex, history])
 
   const loadProduct = async () => {
     if (!productId) return
@@ -87,7 +188,33 @@ export default function DesignEditorPage() {
       const response = await productsApi.getProductById(productId)
       
       if (response.success && response.data) {
-        setProduct(response.data)
+        const productData = response.data
+        setProduct(productData)
+        
+        // Tüm görselleri yükle
+        let images: string[] = [];
+        if (productData.images) {
+          if (typeof productData.images === 'string') {
+            try {
+              const parsed = JSON.parse(productData.images);
+              images = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              images = [productData.images];
+            }
+          } else if (Array.isArray(productData.images)) {
+            images = productData.images;
+          }
+        }
+        
+        // Ana resmi ekle (eğer images'da yoksa)
+        if (productData.image && !images.includes(productData.image)) {
+          images.unshift(productData.image);
+        } else if (productData.image && !images.length) {
+          images = [productData.image];
+        }
+        
+        setProductImages(images);
+        setSelectedImageIndex(0);
       }
     } catch (error) {
       console.error('Ürün yüklenemedi:', error)
@@ -117,10 +244,13 @@ export default function DesignEditorPage() {
         y: canvasSize.height / 2 - 50,
         width: 100,
         height: 100,
-        rotation: 0
+        rotation: 0,
+        zIndex: elements.length
       }
-      setElements([...elements, newElement])
+      const newElements = [...elements, newElement]
+      setElements(newElements)
       setSelectedElement(newElement.id)
+      saveToHistory(newElements)
     }
     reader.readAsDataURL(file)
   }
@@ -137,13 +267,46 @@ export default function DesignEditorPage() {
       width: 200,
       height: 40,
       fontSize: textSize,
+      fontFamily: fontFamily,
+      fontWeight: fontWeight,
+      fontStyle: fontStyle,
+      textAlign: textAlign,
       color: textColor,
-      rotation: 0
+      rotation: 0,
+      zIndex: elements.length,
+      opacity: 1,
+      shadow: false
     }
-    setElements([...elements, newElement])
+    const newElements = [...elements, newElement]
+    setElements(newElements)
     setSelectedElement(newElement.id)
     setTextInput('')
     setShowTextInput(false)
+    saveToHistory(newElements)
+  }
+
+  const handleAddShape = (shapeType: 'circle' | 'square' | 'line') => {
+    const newElement: DesignElement = {
+      id: `shape-${Date.now()}`,
+      type: 'shape',
+      content: shapeType,
+      x: canvasSize.width / 2 - 50,
+      y: canvasSize.height / 2 - 50,
+      width: shapeType === 'line' ? 100 : 100,
+      height: shapeType === 'line' ? 5 : 100,
+      color: '#000000',
+      backgroundColor: shapeType === 'line' ? '#000000' : '#FF0000',
+      borderColor: '#000000',
+      borderWidth: 2,
+      rotation: 0,
+      zIndex: elements.length,
+      opacity: 1
+    }
+    const newElements = [...elements, newElement]
+    setElements(newElements)
+    setSelectedElement(newElement.id)
+    setShowShapeMenu(false)
+    saveToHistory(newElements)
   }
 
   const handleMouseDown = (e: React.MouseEvent, elementId: string) => {
@@ -174,57 +337,117 @@ export default function DesignEditorPage() {
     const x = e.clientX - rect.left - dragOffset.x
     const y = e.clientY - rect.top - dragOffset.y
 
-    setElements(elements.map(el => 
+    const newElements = elements.map(el => 
       el.id === selectedElement 
         ? { ...el, x: Math.max(0, Math.min(x, canvasSize.width - el.width)), y: Math.max(0, Math.min(y, canvasSize.height - el.height)) }
         : el
-    ))
+    )
+    setElements(newElements)
   }
 
   const handleMouseUp = () => {
+    if (isDragging && selectedElement) {
+      // Sürükleme bitince history'ye kaydet
+      saveToHistory([...elements])
+    }
     setIsDragging(false)
   }
 
   const handleDelete = () => {
     if (selectedElement) {
-      setElements(elements.filter(el => el.id !== selectedElement))
+      const newElements = elements.filter(el => el.id !== selectedElement)
+      setElements(newElements)
       setSelectedElement(null)
+      saveToHistory(newElements)
     }
   }
 
   const handleResize = (elementId: string, delta: number) => {
-    setElements(elements.map(el => {
+    const newElements = elements.map(el => {
       if (el.id === elementId) {
         const newWidth = Math.max(20, Math.min(el.width + delta, canvasSize.width - el.x))
-        const newHeight = el.type === 'logo' 
+        const newHeight = el.type === 'logo' || el.type === 'shape'
           ? (el.height * newWidth / el.width) 
           : el.height
         return { ...el, width: newWidth, height: newHeight }
       }
       return el
-    }))
+    })
+    setElements(newElements)
+    saveToHistory(newElements)
   }
 
   const handleRotate = (elementId: string, delta: number) => {
-    setElements(elements.map(el => {
+    const newElements = elements.map(el => {
       if (el.id === elementId) {
         return { ...el, rotation: (el.rotation || 0) + delta }
       }
       return el
-    }))
+    })
+    setElements(newElements)
+    saveToHistory(newElements)
+  }
+
+  const handleUpdateElement = (elementId: string, updates: Partial<DesignElement>) => {
+    const newElements = elements.map(el => 
+      el.id === elementId ? { ...el, ...updates } : el
+    )
+    setElements(newElements)
+    saveToHistory(newElements)
+  }
+
+  const handleMoveLayer = (elementId: string, direction: 'up' | 'down') => {
+    const elementIndex = elements.findIndex(el => el.id === elementId)
+    if (elementIndex === -1) return
+
+    const newElements = [...elements]
+    const targetIndex = direction === 'up' ? elementIndex + 1 : elementIndex - 1
+    
+    if (targetIndex >= 0 && targetIndex < elements.length) {
+      [newElements[elementIndex], newElements[targetIndex]] = [newElements[targetIndex], newElements[elementIndex]]
+      newElements.forEach((el, idx) => {
+        el.zIndex = idx
+      })
+      setElements(newElements)
+      saveToHistory(newElements)
+    }
   }
 
   const handleExport = async () => {
     if (!canvasRef.current) return
 
     try {
+      // Önce orijinal görseli yükleyip boyutunu al
+      let originalImageWidth = canvasSize.width
+      let originalImageHeight = canvasSize.height
+      
+      if (productImages.length > 0 && productImages[selectedImageIndex]) {
+        const img = new window.Image()
+        img.crossOrigin = 'anonymous'
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            originalImageWidth = img.naturalWidth
+            originalImageHeight = img.naturalHeight
+            resolve(null)
+          }
+          img.onerror = reject
+          img.src = productImages[selectedImageIndex]
+        })
+      }
+
       // html2canvas kullanarak canvas'ı görüntüye dönüştür
+      // Yüksek çözünürlük için scale'i dinamik yap
       const html2canvas = (await import('html2canvas')).default
       const canvas = await html2canvas(canvasRef.current, {
         backgroundColor: null,
-        scale: 2,
+        scale: Math.max(2, Math.min(originalImageWidth / canvasSize.width, originalImageHeight / canvasSize.height, 4)),
         useCORS: true,
-        allowTaint: true
+        allowTaint: true,
+        logging: false,
+        width: originalImageWidth || canvasSize.width,
+        height: originalImageHeight || canvasSize.height,
+        windowWidth: originalImageWidth || canvasSize.width,
+        windowHeight: originalImageHeight || canvasSize.height,
       })
 
       // Canvas'ı blob'a dönüştür ve indir
@@ -239,7 +462,7 @@ export default function DesignEditorPage() {
           document.body.removeChild(a)
           URL.revokeObjectURL(url)
         }
-      }, 'image/png')
+      }, 'image/png', 1.0) // Maximum kalite
     } catch (error) {
       console.error('Export hatası:', error)
       alert('Tasarım export edilirken bir hata oluştu. Lütfen tekrar deneyin.')
@@ -277,12 +500,33 @@ export default function DesignEditorPage() {
       let designImage = null
       if (!skipDesign && canvasRef.current && elements.length > 0) {
         try {
+          // Orijinal görsel boyutunu al
+          let originalImageWidth = canvasSize.width
+          let originalImageHeight = canvasSize.height
+          
+          if (productImages.length > 0 && productImages[selectedImageIndex]) {
+            const img = new window.Image()
+            img.crossOrigin = 'anonymous'
+            await new Promise((resolve, reject) => {
+              img.onload = () => {
+                originalImageWidth = img.naturalWidth
+                originalImageHeight = img.naturalHeight
+                resolve(null)
+              }
+              img.onerror = resolve // Hata olsa bile devam et
+              img.src = productImages[selectedImageIndex]
+            })
+          }
+
           const html2canvas = (await import('html2canvas')).default
           const canvas = await html2canvas(canvasRef.current, {
             backgroundColor: null,
-            scale: 2,
+            scale: Math.max(2, Math.min(originalImageWidth / canvasSize.width, originalImageHeight / canvasSize.height, 4)),
             useCORS: true,
-            allowTaint: true
+            allowTaint: true,
+            logging: false,
+            width: originalImageWidth || canvasSize.width,
+            height: originalImageHeight || canvasSize.height,
           })
           designImage = canvas.toDataURL('image/png')
         } catch (error) {
@@ -359,35 +603,119 @@ export default function DesignEditorPage() {
   const selectedElementData = elements.find(el => el.id === selectedElement)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Modern Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-40">
+        <div className="max-w-[1920px] mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
         {/* Breadcrumb */}
-        <nav className="mb-8 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <Link href="/panel/urunler" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <nav className="flex items-center gap-2 text-sm">
+              <Link href="/panel/urunler" className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium">
             Ürünler
           </Link>
-          <span className="material-symbols-outlined text-sm">chevron_right</span>
+              <span className="material-symbols-outlined text-sm text-gray-400">chevron_right</span>
           {product && (
             <>
-              <Link href={`/urunler/${product.id}`} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                {product.name}
+                  <Link href={`/urunler/${product.id}`} className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium">
+                    {product.name.length > 30 ? product.name.substring(0, 30) + '...' : product.name}
               </Link>
-              <span className="material-symbols-outlined text-sm">chevron_right</span>
+                  <span className="material-symbols-outlined text-sm text-gray-400">chevron_right</span>
             </>
           )}
-          <span className="text-gray-900 dark:text-white font-semibold">Tasarım Editörü</span>
+              <span className="text-gray-900 dark:text-white font-bold">Tasarım Editörü</span>
         </nav>
 
-        <div className="grid lg:grid-cols-4 gap-6">
-          {/* Left Sidebar - Tools */}
-          <div className="lg:col-span-1 space-y-4">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-xl font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">build</span>
-                Araçlar
-              </h2>
-              
-              <div className="space-y-3">
+            {/* Product Info */}
+            {product && (
+              <div className="flex items-center gap-4">
+                <div className="text-right hidden md:block">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Ürün</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{product.name}</p>
+                </div>
+                <Link
+                  href={`/urunler/${product.id}`}
+                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all flex items-center gap-2 text-sm font-medium"
+                >
+                  <span className="material-symbols-outlined text-base">arrow_back</span>
+                  <span>Geri</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-[1920px] mx-auto px-6 py-6">
+
+        <div className="grid lg:grid-cols-[280px_1fr_320px] gap-6">
+          {/* Left Sidebar - Product Images */}
+          <div className="space-y-4">
+            {/* Product Images Gallery */}
+            {productImages.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sticky top-24">
+                <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto custom-scrollbar">
+                  {productImages.map((img, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedImageIndex(idx)}
+                      className={`group relative w-full aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                        selectedImageIndex === idx
+                          ? 'border-blue-500 ring-2 ring-blue-300 dark:ring-blue-700 shadow-md'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm'
+                      }`}
+                    >
+                      <Image
+                        src={img}
+                        alt={`${product?.name || 'Ürün'} - Görsel ${idx + 1}`}
+                        fill
+                        className="object-cover transition-transform group-hover:scale-105"
+                        unoptimized
+                      />
+                      {selectedImageIndex === idx && (
+                        <div className="absolute inset-0 bg-blue-500/10 flex items-center justify-center">
+                          <div className="bg-blue-500 text-white rounded-full p-1.5 shadow-lg">
+                            <span className="material-symbols-outlined text-lg">check</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-2">
+                        <span className="text-xs text-white font-medium">#{idx + 1}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Main Content Area */}
+          <div className="space-y-4">
+            {/* Modern Toolbar */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                {/* Undo/Redo Controls */}
+                <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                  <button
+                    onClick={handleUndo}
+                    disabled={historyIndex <= 0}
+                    className="p-2 text-gray-700 dark:text-gray-300 rounded-md hover:bg-white dark:hover:bg-gray-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Geri Al (Ctrl+Z)"
+                  >
+                    <span className="material-symbols-outlined text-lg">undo</span>
+                  </button>
+                  <button
+                    onClick={handleRedo}
+                    disabled={historyIndex >= history.length - 1}
+                    className="p-2 text-gray-700 dark:text-gray-300 rounded-md hover:bg-white dark:hover:bg-gray-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Yinele (Ctrl+Y)"
+                  >
+                    <span className="material-symbols-outlined text-lg">redo</span>
+                  </button>
+                </div>
+
+                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
+
                 {/* Logo Upload */}
                 <label className="block">
                   <input
@@ -396,129 +724,414 @@ export default function DesignEditorPage() {
                     onChange={handleLogoUpload}
                     className="hidden"
                   />
-                  <div className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:shadow-lg transition-all cursor-pointer">
-                    <span className="material-symbols-outlined">image</span>
-                    <span>Logo Ekle</span>
+                  <div className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-sm hover:shadow transition-all cursor-pointer text-sm">
+                    <span className="material-symbols-outlined text-base">image</span>
+                    <span>Logo</span>
                   </div>
                 </label>
+
+                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
 
                 {/* Text Input */}
                 {!showTextInput ? (
                   <button
                     onClick={() => setShowTextInput(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl hover:shadow-lg transition-all"
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 shadow-sm hover:shadow transition-all text-sm"
                   >
-                    <span className="material-symbols-outlined">text_fields</span>
-                    <span>Yazı Ekle</span>
+                    <span className="material-symbols-outlined text-base">text_fields</span>
+                    <span>Yazı</span>
                   </button>
                 ) : (
-                  <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700">
                     <input
                       type="text"
                       value={textInput}
                       onChange={(e) => setTextInput(e.target.value)}
-                      placeholder="Yazı girin..."
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      placeholder="Yazı..."
+                      className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       autoFocus
                     />
-                    
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={textColor}
-                        onChange={(e) => setTextColor(e.target.value)}
-                        className="h-10 w-16 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer"
-                      />
-                      <input
-                        type="number"
-                        value={textSize}
-                        onChange={(e) => setTextSize(Number(e.target.value))}
-                        min="12"
-                        max="72"
-                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                        placeholder="Boyut"
-                      />
-                    </div>
+                    <select
+                      value={fontFamily}
+                      onChange={(e) => setFontFamily(e.target.value)}
+                      className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Arial">Arial</option>
+                      <option value="Helvetica">Helvetica</option>
+                      <option value="Times New Roman">Times</option>
+                      <option value="Courier New">Courier</option>
+                      <option value="Georgia">Georgia</option>
+                      <option value="Verdana">Verdana</option>
+                    </select>
+                    <button
+                      onClick={() => setFontWeight(fontWeight === 'bold' ? 'normal' : 'bold')}
+                      className={`p-1.5 rounded-md transition-all ${
+                        fontWeight === 'bold'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
+                      }`}
+                      title="Kalın"
+                    >
+                      <span className="material-symbols-outlined text-base">format_bold</span>
+                    </button>
+                    <button
+                      onClick={() => setFontStyle(fontStyle === 'italic' ? 'normal' : 'italic')}
+                      className={`p-1.5 rounded-md transition-all ${
+                        fontStyle === 'italic'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
+                      }`}
+                      title="İtalik"
+                    >
+                      <span className="material-symbols-outlined text-base">format_italic</span>
+                    </button>
+                    <input
+                      type="color"
+                      value={textColor}
+                      onChange={(e) => setTextColor(e.target.value)}
+                      className="h-8 w-10 border border-gray-300 dark:border-gray-600 rounded-md cursor-pointer"
+                    />
+                    <input
+                      type="number"
+                      value={textSize}
+                      onChange={(e) => setTextSize(Number(e.target.value))}
+                      min="12"
+                      max="144"
+                      className="w-14 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Size"
+                    />
+                    <button
+                      onClick={handleAddText}
+                      className="px-3 py-1.5 bg-green-500 text-white font-medium rounded-md hover:bg-green-600 transition-all text-xs"
+                    >
+                      Ekle
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowTextInput(false)
+                        setTextInput('')
+                      }}
+                      className="px-3 py-1.5 bg-gray-400 text-white font-medium rounded-md hover:bg-gray-500 transition-all text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleAddText}
-                        className="flex-1 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-all"
-                      >
-                        Ekle
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowTextInput(false)
-                          setTextInput('')
-                        }}
-                        className="px-4 py-2 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 transition-all"
-                      >
-                        İptal
-                      </button>
-                    </div>
+                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
+
+                {/* Shape Menu */}
+                {!showShapeMenu ? (
+                  <button
+                    onClick={() => setShowShapeMenu(true)}
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-medium rounded-lg hover:from-teal-600 hover:to-cyan-600 shadow-sm hover:shadow transition-all text-sm"
+                  >
+                    <span className="material-symbols-outlined text-base">shape_line</span>
+                    <span>Şekil</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 p-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => handleAddShape('circle')}
+                      className="p-2 bg-white dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                      title="Daire"
+                    >
+                      <span className="material-symbols-outlined text-base">circle</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddShape('square')}
+                      className="p-2 bg-white dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                      title="Kare"
+                    >
+                      <span className="material-symbols-outlined text-base">square</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddShape('line')}
+                      className="p-2 bg-white dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                      title="Çizgi"
+                    >
+                      <span className="material-symbols-outlined text-base">horizontal_rule</span>
+                    </button>
+                    <button
+                      onClick={() => setShowShapeMenu(false)}
+                      className="px-2 py-2 bg-gray-400 text-white rounded-md hover:bg-gray-500 transition-all text-xs"
+                    >
+                      ✕
+                    </button>
                   </div>
                 )}
 
                 {/* Delete Button */}
                 {selectedElement && (
-                  <button
-                    onClick={handleDelete}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all"
-                  >
-                    <span className="material-symbols-outlined">delete</span>
-                    <span>Seçili Öğeyi Sil</span>
-                  </button>
+                  <>
+                    <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
+                    <button
+                      onClick={handleDelete}
+                      className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all shadow-sm hover:shadow"
+                      title="Sil (Delete)"
+                    >
+                      <span className="material-symbols-outlined text-base">delete</span>
+                    </button>
+                  </>
                 )}
+
+                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
+
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                  <button
+                    onClick={() => setZoom(Math.max(50, zoom - 10))}
+                    className="p-1.5 text-gray-700 dark:text-gray-300 rounded hover:bg-white dark:hover:bg-gray-600 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-base">remove</span>
+                  </button>
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 min-w-[2.5rem] text-center px-1">{zoom}%</span>
+                  <button
+                    onClick={() => setZoom(Math.min(200, zoom + 10))}
+                    className="p-1.5 text-gray-700 dark:text-gray-300 rounded hover:bg-white dark:hover:bg-gray-600 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-base">add</span>
+                  </button>
+                  <button
+                    onClick={() => setZoom(100)}
+                    className="px-2 py-1 text-gray-700 dark:text-gray-300 rounded hover:bg-white dark:hover:bg-gray-600 transition-all text-xs font-medium ml-1"
+                  >
+                    100%
+                  </button>
+                </div>
+
+                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
+
+                {/* Grid Toggle */}
+                <label className="flex items-center gap-1.5 cursor-pointer px-2 py-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all">
+                  <input
+                    type="checkbox"
+                    checked={showGrid}
+                    onChange={(e) => setShowGrid(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Grid</span>
+                </label>
+
+                {/* Layers Toggle */}
+                <button
+                  onClick={() => setShowLayers(!showLayers)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all text-xs font-medium ${
+                    showLayers 
+                      ? 'bg-blue-500 text-white shadow-sm' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">layers</span>
+                  <span>Katmanlar</span>
+                </button>
+
+                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
 
                 {/* Export Button */}
                 <button
                   onClick={handleExport}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white font-bold rounded-xl hover:shadow-lg transition-all"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white font-medium rounded-lg hover:from-green-600 hover:to-green-700 shadow-sm hover:shadow transition-all text-sm"
                 >
-                  <span className="material-symbols-outlined">download</span>
-                  <span>Tasarımı İndir</span>
+                  <span className="material-symbols-outlined text-base">download</span>
+                  <span>İndir</span>
                 </button>
+
+                <div className="flex-1"></div>
+
+                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
 
                 {/* Order Form Button */}
                 <button
                   onClick={() => {
                     setShowOrderForm(true)
                   }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white font-bold rounded-xl hover:shadow-lg transition-all"
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white font-medium rounded-lg hover:from-purple-600 hover:via-pink-600 hover:to-red-600 shadow-sm hover:shadow transition-all text-sm"
                 >
-                  <span className="material-symbols-outlined">shopping_cart</span>
+                  <span className="material-symbols-outlined text-base">shopping_cart</span>
                   <span>Talep Oluştur</span>
                 </button>
+                </div>
               </div>
             </div>
 
+            {/* Canvas Area */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {/* Canvas Header */}
+              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-xl">palette</span>
+                  <span>Tasarım Alanı</span>
+                </h2>
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>Canvas: {Math.round(canvasSize.width)} × {Math.round(canvasSize.height)}px</span>
+                </div>
+              </div>
+
+              {/* Canvas Container */}
+              <div
+                ref={canvasContainerRef}
+                className="relative overflow-auto bg-gray-100 dark:bg-gray-900/50"
+                style={{ height: 'calc(100vh - 320px)', minHeight: '600px', maxHeight: '1100px' }}
+              >
+                <div
+                  ref={canvasRef}
+                  className="relative bg-white dark:bg-gray-800 mx-auto shadow-2xl border border-gray-200 dark:border-gray-700"
+                  style={{
+                    width: `${canvasSize.width}px`,
+                    height: `${canvasSize.height}px`,
+                    transform: `scale(${zoom / 100})`,
+                    transformOrigin: 'top center',
+                    marginTop: '20px',
+                    marginBottom: `${Math.max(20, canvasSize.height * (zoom / 100 - 1) + 20)}px`,
+                    marginLeft: 'auto',
+                    marginRight: 'auto'
+                  }}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                >
+                  {/* Grid Background */}
+                  {showGrid && (
+                    <div
+                      className="absolute inset-0 opacity-15 pointer-events-none"
+                      style={{
+                        backgroundImage: `
+                          linear-gradient(to right, #9ca3af 1px, transparent 1px),
+                          linear-gradient(to bottom, #9ca3af 1px, transparent 1px)
+                        `,
+                        backgroundSize: '25px 25px'
+                      }}
+                    />
+                  )}
+
+                  {/* Product Image Background - En altta */}
+                  {productImages.length > 0 && productImages[selectedImageIndex] && (
+                    <div className="absolute inset-0" style={{ zIndex: 0 }}>
+                      <img
+                        src={productImages[selectedImageIndex]}
+                        alt={product?.name || 'Ürün görseli'}
+                        className="w-full h-full object-contain"
+                        style={{ 
+                          width: '100%', 
+                          height: '100%',
+                          objectFit: 'contain'
+                        }}
+                        crossOrigin="anonymous"
+                      />
+                    </div>
+                  )}
+
+                  {/* Design Elements - Görselin üstünde */}
+                  {elements.map((element) => (
+                    <div
+                      key={element.id}
+                      onClick={() => setSelectedElement(element.id)}
+                      onMouseDown={(e) => handleMouseDown(e, element.id)}
+                      className={`absolute cursor-move transition-all ${
+                        selectedElement === element.id
+                          ? 'ring-2 ring-blue-500 ring-offset-2'
+                          : ''
+                      }`}
+                      style={{
+                        left: `${element.x}px`,
+                        top: `${element.y}px`,
+                        width: `${element.width}px`,
+                        height: `${element.height}px`,
+                        transform: `rotate(${element.rotation || 0}deg)`,
+                        zIndex: 10 + (element.zIndex || 0) + (selectedElement === element.id ? 100 : 0),
+                        opacity: element.opacity || 1,
+                        pointerEvents: 'auto'
+                      }}
+                    >
+                      {element.type === 'logo' ? (
+                        <img
+                          src={element.content}
+                          alt="Logo"
+                          className="w-full h-full object-contain"
+                          draggable={false}
+                        />
+                      ) : element.type === 'text' ? (
+                        <div
+                          className="w-full h-full flex items-center justify-center"
+                          style={{
+                            fontSize: `${element.fontSize || 24}px`,
+                            fontFamily: element.fontFamily || 'Arial',
+                            fontWeight: element.fontWeight || 'normal',
+                            fontStyle: element.fontStyle || 'normal',
+                            textAlign: element.textAlign || 'center',
+                            color: element.color || '#000000',
+                            textShadow: element.shadow ? '2px 2px 4px rgba(0,0,0,0.3)' : '1px 1px 2px rgba(255,255,255,0.8)',
+                            justifyContent: element.textAlign === 'left' ? 'flex-start' : 
+                                           element.textAlign === 'right' ? 'flex-end' : 'center'
+                          }}
+                        >
+                          {element.content}
+                        </div>
+                      ) : element.type === 'shape' ? (
+                        <div
+                          className="w-full h-full"
+                          style={{
+                            backgroundColor: element.backgroundColor || '#FF0000',
+                            borderColor: element.borderColor || '#000000',
+                            borderWidth: `${element.borderWidth || 2}px`,
+                            borderStyle: 'solid',
+                            borderRadius: element.content === 'circle' ? '50%' : '0',
+                          }}
+                        />
+                      ) : null}
+                      
+                      {/* Selection Indicator - Modern */}
+                      {selectedElement === element.id && (
+                        <>
+                          {/* Corner Handles */}
+                          <div className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg"></div>
+                          <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg"></div>
+                          <div className="absolute -bottom-1.5 -left-1.5 w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg"></div>
+                          <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg"></div>
+                          {/* Edge Handles */}
+                          <div className="absolute top-1/2 -left-1.5 w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg transform -translate-y-1/2"></div>
+                          <div className="absolute top-1/2 -right-1.5 w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg transform -translate-y-1/2"></div>
+                          <div className="absolute -top-1.5 left-1/2 w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2"></div>
+                          <div className="absolute -bottom-1.5 left-1/2 w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2"></div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Sidebar - Controls */}
+          <div className="space-y-4">
             {/* Selected Element Controls */}
             {selectedElementData && (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                  Öğe Ayarları
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sticky top-24">
+                <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">tune</span>
+                  <span>Öğe Ayarları</span>
                 </h3>
                 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {/* Size Control */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
                       Boyut
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => selectedElement && handleResize(selectedElement, -10)}
-                        className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+                        className="p-1.5 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">remove</span>
                       </button>
-                      <span className="flex-1 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      <span className="flex-1 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 py-1.5 rounded-md">
                         {Math.round(selectedElementData.width)}px
                       </span>
                       <button
                         onClick={() => selectedElement && handleResize(selectedElement, 10)}
-                        className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+                        className="p-1.5 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">add</span>
                       </button>
@@ -527,24 +1140,134 @@ export default function DesignEditorPage() {
 
                   {/* Rotation Control */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                      Döndür
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                      Döndürme
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => selectedElement && handleRotate(selectedElement, -5)}
-                        className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+                        className="p-1.5 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">rotate_left</span>
                       </button>
-                      <span className="flex-1 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      <span className="flex-1 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 py-1.5 rounded-md">
                         {Math.round(selectedElementData.rotation || 0)}°
                       </span>
                       <button
                         onClick={() => selectedElement && handleRotate(selectedElement, 5)}
-                        className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+                        className="p-1.5 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                       >
                         <span className="material-symbols-outlined text-sm">rotate_right</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Text-specific Controls */}
+                  {selectedElementData.type === 'text' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                          Font Boyutu
+                        </label>
+                        <input
+                          type="number"
+                          value={selectedElementData.fontSize || 24}
+                          onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { fontSize: Number(e.target.value) })}
+                          min="12"
+                          max="144"
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                          Metin Rengi
+                        </label>
+                        <input
+                          type="color"
+                          value={selectedElementData.color || '#000000'}
+                          onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { color: e.target.value })}
+                          className="w-full h-9 border border-gray-300 dark:border-gray-600 rounded-md cursor-pointer"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Shape-specific Controls */}
+                  {selectedElementData.type === 'shape' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                          Arka Plan Rengi
+                        </label>
+                        <input
+                          type="color"
+                          value={selectedElementData.backgroundColor || '#FF0000'}
+                          onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { backgroundColor: e.target.value })}
+                          className="w-full h-9 border border-gray-300 dark:border-gray-600 rounded-md cursor-pointer"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                          Kenar Rengi
+                        </label>
+                        <input
+                          type="color"
+                          value={selectedElementData.borderColor || '#000000'}
+                          onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { borderColor: e.target.value })}
+                          className="w-full h-9 border border-gray-300 dark:border-gray-600 rounded-md cursor-pointer"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                          Kenar Kalınlığı
+                        </label>
+                        <input
+                          type="number"
+                          value={selectedElementData.borderWidth || 2}
+                          onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { borderWidth: Number(e.target.value) })}
+                          min="0"
+                          max="20"
+                          className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Opacity Control */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                      Opaklık: {Math.round((selectedElementData.opacity || 1) * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={selectedElementData.opacity || 1}
+                      onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { opacity: Number(e.target.value) })}
+                      className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                  </div>
+
+                  {/* Layer Controls */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                      Katman Sırası
+                    </label>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => selectedElement && handleMoveLayer(selectedElement, 'down')}
+                        className="flex-1 px-2 py-2 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-all flex items-center justify-center"
+                        title="Aşağı Taşı"
+                      >
+                        <span className="material-symbols-outlined text-base">arrow_downward</span>
+                      </button>
+                      <button
+                        onClick={() => selectedElement && handleMoveLayer(selectedElement, 'up')}
+                        className="flex-1 px-2 py-2 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-all flex items-center justify-center"
+                        title="Yukarı Taşı"
+                      >
+                        <span className="material-symbols-outlined text-base">arrow_upward</span>
                       </button>
                     </div>
                   </div>
@@ -552,98 +1275,6 @@ export default function DesignEditorPage() {
               </div>
             )}
           </div>
-
-          {/* Canvas Area */}
-          <div className="lg:col-span-3">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-xl font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">palette</span>
-                Tasarım Alanı
-              </h2>
-
-              <div
-                ref={canvasRef}
-                className="relative bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600"
-                style={{ width: '100%', height: '600px', maxHeight: '600px' }}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-              >
-                {/* Product Image Background */}
-                {product?.image && (
-                  <div className="absolute inset-0">
-                    <Image
-                      src={product.image}
-                      alt={product.name}
-                      fill
-                      className="object-contain"
-                      unoptimized
-                    />
-                  </div>
-                )}
-
-                {/* Design Elements */}
-                {elements.map((element) => (
-                  <div
-                    key={element.id}
-                    onClick={() => setSelectedElement(element.id)}
-                    onMouseDown={(e) => handleMouseDown(e, element.id)}
-                    className={`absolute cursor-move transition-all ${
-                      selectedElement === element.id
-                        ? 'ring-2 ring-blue-500 ring-offset-2'
-                        : ''
-                    }`}
-                    style={{
-                      left: `${element.x}px`,
-                      top: `${element.y}px`,
-                      width: `${element.width}px`,
-                      height: `${element.height}px`,
-                      transform: `rotate(${element.rotation || 0}deg)`,
-                      zIndex: selectedElement === element.id ? 10 : 5
-                    }}
-                  >
-                    {element.type === 'logo' ? (
-                      <img
-                        src={element.content}
-                        alt="Logo"
-                        className="w-full h-full object-contain"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center font-bold"
-                        style={{
-                          fontSize: `${element.fontSize || 24}px`,
-                          color: element.color || '#000000',
-                          textShadow: '1px 1px 2px rgba(255,255,255,0.8)'
-                        }}
-                      >
-                        {element.content}
-                      </div>
-                    )}
-                    
-                    {/* Selection Indicator */}
-                    {selectedElement === element.id && (
-                      <div className="absolute -top-2 -left-2 w-4 h-4 bg-blue-500 rounded-full border-2 border-white"></div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Back Button */}
-        <div className="mt-6">
-          {product && (
-            <Link
-              href={`/urunler/${product.id}`}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
-            >
-              <span className="material-symbols-outlined">arrow_back</span>
-              <span>Ürüne Dön</span>
-            </Link>
-          )}
         </div>
       </div>
 

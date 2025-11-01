@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { useAuth } from '@/contexts/AuthContext'
-import { productsApi, favoritesApi } from '@/utils/api'
+import { productsApi } from '@/utils/api'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -31,15 +31,11 @@ export default function Urunler() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
   const limit = 12 // Sayfa başına ürün sayısı
 
   useEffect(() => {
     loadProducts()
-    if (user?.id) {
-      loadFavorites()
-    }
-  }, [page, user?.id])
+  }, [page])
 
   const loadProducts = async () => {
     try {
@@ -61,19 +57,6 @@ export default function Urunler() {
       console.error('Ürünler yüklenemedi:', error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const loadFavorites = async () => {
-    if (!user?.id) return
-    try {
-      const response = await favoritesApi.getUserFavorites(user.id)
-      if (response.success && response.data) {
-        const ids = new Set(response.data.map((f: any) => f.productId))
-        setFavoriteIds(ids)
-      }
-    } catch (error) {
-      console.error('Favoriler yüklenemedi:', error)
     }
   }
 
@@ -109,41 +92,6 @@ export default function Urunler() {
       console.error('Arama başarısız:', error)
     } finally {
       setIsSearching(false)
-    }
-  }
-
-  const toggleFavorite = async (productId: number) => {
-    if (!user?.id) {
-      // Kullanıcı giriş yapmamışsa giriş sayfasına yönlendir
-      window.location.href = '/giris'
-      return
-    }
-    
-    const isFavorite = favoriteIds.has(productId)
-    
-    try {
-      if (isFavorite) {
-        // Favorilerden kaldır
-        const favorite = await favoritesApi.getUserFavorites(user.id)
-        if (favorite.success && favorite.data) {
-          const fav = (favorite.data as any[]).find((f: any) => f.productId === productId)
-          if (fav) {
-            await favoritesApi.removeFromFavorites(fav.id, user.id)
-          }
-        }
-        setFavoriteIds(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(productId)
-          return newSet
-        })
-      } else {
-        // Favorilere ekle
-        await favoritesApi.addToFavorites(user.id, productId)
-        setFavoriteIds(prev => new Set(prev).add(productId))
-      }
-    } catch (error) {
-      console.error('Favori işlemi başarısız:', error)
-      alert('Favori işlemi başarısız. Lütfen tekrar deneyin.')
     }
   }
 
@@ -263,21 +211,6 @@ export default function Urunler() {
                             {product.name}
                           </h3>
                         </Link>
-
-                        <div className="flex items-center justify-end mt-4">
-                          <button
-                            onClick={() => toggleFavorite(product.id)}
-                            className={`p-2 rounded-lg transition-colors ${
-                              favoriteIds.has(product.id)
-                                ? 'text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/20'
-                                : 'text-gray-400 dark:text-gray-600 hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-900/20'
-                            }`}
-                          >
-                            <span className="material-symbols-outlined">
-                              {favoriteIds.has(product.id) ? 'favorite' : 'favorite_border'}
-                            </span>
-                          </button>
-                        </div>
                       </div>
                     </div>
                   ))}

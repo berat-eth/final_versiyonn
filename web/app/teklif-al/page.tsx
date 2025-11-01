@@ -1,12 +1,16 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 
 const Header = dynamic(() => import('@/components/Header'), { ssr: true })
 const Footer = dynamic(() => import('@/components/Footer'), { ssr: true })
 
 export default function TeklifAlPage() {
+  const searchParams = useSearchParams()
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -26,6 +30,62 @@ export default function TeklifAlPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string>('')
+  const [fromOrder, setFromOrder] = useState(false)
+
+  // Siparişten teklif oluşturma - formu otomatik doldur
+  useEffect(() => {
+    const fromOrderParam = searchParams?.get('fromOrder')
+    if (fromOrderParam === 'true') {
+      setFromOrder(true)
+      
+      // User bilgilerini form'a doldur
+      if (user) {
+        setFormData(prev => ({
+          ...prev,
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+        }))
+      }
+
+      // localStorage'dan sipariş bilgilerini al
+      try {
+        const orderDataStr = localStorage.getItem('quoteFromOrder')
+        if (orderDataStr) {
+          const orderData = JSON.parse(orderDataStr)
+          
+          // Ürün bilgilerini description'a ekle
+          if (orderData.items && Array.isArray(orderData.items) && orderData.items.length > 0) {
+            const itemsDescription = orderData.items.map((item: any, index: number) => {
+              return `${index + 1}. ${item.productName || 'Ürün'} - Adet: ${item.quantity || 1} - Fiyat: ${item.price || 0} TL`
+            }).join('\n')
+            
+            const totalQuantity = orderData.items.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0)
+            
+            setFormData(prev => ({
+              ...prev,
+              quantity: totalQuantity.toString(),
+              description: `Sipariş #${orderData.orderId} ürünlerinden oluşturulan teklif:\n\n${itemsDescription}\n\nToplam Tutar: ${orderData.totalAmount || 0} TL`,
+            }))
+          }
+          
+          // Budget'ı toplam tutar olarak ayarla
+          if (orderData.totalAmount) {
+            setFormData(prev => ({
+              ...prev,
+              budget: orderData.totalAmount.toString(),
+            }))
+          }
+
+          // localStorage'dan temizle
+          localStorage.removeItem('quoteFromOrder')
+        }
+      } catch (error) {
+        console.error('Sipariş bilgileri yüklenirken hata:', error)
+      }
+    }
+  }, [searchParams, user])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({
@@ -63,8 +123,11 @@ export default function TeklifAlPage() {
         body: JSON.stringify(formData),
       })
 
+      const data = await response.json().catch(() => ({ error: 'Sunucu hatası' }))
+      
       if (response.ok) {
         setSubmitStatus('success')
+        setErrorMessage('')
         setFormData({
           name: '',
           email: '',
@@ -83,10 +146,14 @@ export default function TeklifAlPage() {
         })
         setUploadedFile(null)
       } else {
+        const errorMsg = data.error || data.message || 'Bir hata oluştu. Lütfen tekrar deneyin.'
+        console.error('Form error:', errorMsg)
+        setErrorMessage(errorMsg)
         setSubmitStatus('error')
       }
     } catch (error) {
       console.error('Form submission error:', error)
+      setErrorMessage('Bağlantı hatası. Lütfen internet bağlantınızı kontrol edin.')
       setSubmitStatus('error')
     } finally {
       setIsSubmitting(false)
@@ -185,6 +252,22 @@ export default function TeklifAlPage() {
                     <h3 className="text-2xl font-black text-[#0d141b] dark:text-slate-50 mb-6">
                       Teklif Formu
                     </h3>
+
+                    {fromOrder && (
+                      <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-700 rounded-xl">
+                        <div className="flex items-start gap-3">
+                          <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-xl">info</span>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-1">
+                              Geçmiş Siparişten Oluşturuluyor
+                            </p>
+                            <p className="text-xs text-green-700 dark:text-green-400">
+                              Form, geçmiş siparişinizdeki bilgilerle otomatik dolduruldu. Gerekirse düzenleyebilirsiniz.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                       <div className="flex flex-col gap-2">
@@ -489,9 +572,17 @@ export default function TeklifAlPage() {
 
                       {submitStatus === 'error' && (
                         <div className="p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-xl">
-                          <p className="text-red-800 dark:text-red-300 text-sm font-semibold">
-                            ✗ Bir hata oluştu. Lütfen tekrar deneyin.
-                          </p>
+                          <div className="flex items-start gap-3">
+                            <span className="material-symbols-outlined text-red-600 dark:text-red-400">error</span>
+                            <div className="flex-1">
+                              <p className="text-red-800 dark:text-red-300 text-sm font-semibold mb-1">
+                                Hata oluştu
+                              </p>
+                              <p className="text-red-700 dark:text-red-400 text-sm">
+                                {errorMessage || 'Bir hata oluştu. Lütfen tekrar deneyin.'}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       )}
 

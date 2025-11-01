@@ -38,8 +38,6 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
     { href: '/panel/urunler', label: 'Ürünler', icon: 'shopping_bag' },
     { href: '/panel/profil', label: 'Profil', icon: 'person' },
     { href: '/panel/siparisler', label: 'Siparişlerim', icon: 'receipt_long' },
-    { href: '/panel/sepet', label: 'Sepetim', icon: 'shopping_cart' },
-    { href: '/panel/favoriler', label: 'Favorilerim', icon: 'favorite' },
     { href: '/panel/adresler', label: 'Adreslerim', icon: 'location_on' },
     { href: '/panel/teklifler', label: 'Tekliflerim', icon: 'description' },
     { href: '/panel/destek', label: 'Destek', icon: 'support_agent' },

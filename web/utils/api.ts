@@ -1,7 +1,7 @@
 // API Client for Backend Communication
 // UZAK SUNUCU: Tüm istekler https://api.plaxsy.com/api'ye gider
 
-import type { ApiResponse, User, Order, CartItem, UserAddress, LoginResponse } from '@/lib/types';
+import type { ApiResponse, User, Order, UserAddress, LoginResponse } from '@/lib/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
@@ -102,7 +102,15 @@ class ApiClient {
           };
         }
         const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
-        console.error(`❌ API Error [${endpoint}]:`, errorMessage, errorData);
+        
+        // Sadece kritik olmayan endpoint'ler için sessizce log'la (favorites gibi)
+        const silentEndpoints = ['/favorites/user/'];
+        const shouldSilence = silentEndpoints.some(ep => endpoint.includes(ep));
+        
+        if (!shouldSilence) {
+          console.error(`❌ API Error [${endpoint}]:`, errorMessage);
+        }
+        
         throw new Error(errorMessage);
       }
 
@@ -198,38 +206,6 @@ export const ordersApi = {
   },
 };
 
-// Cart API methods
-export const cartApi = {
-  getCart: async (userId: number): Promise<ApiResponse<CartItem[]>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.get<ApiResponse<CartItem[]>>(`/cart/user/${userId}`, { requiresAuth: true });
-  },
-
-  addToCart: async (cartData: {
-    userId: number;
-    productId: number;
-    quantity: number;
-  }): Promise<ApiResponse<CartItem>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.post<ApiResponse<CartItem>>('/cart', cartData, { requiresAuth: true });
-  },
-
-  updateCartItem: async (cartItemId: number, quantity: number): Promise<ApiResponse<CartItem>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.put<ApiResponse<CartItem>>(`/cart/${cartItemId}`, { quantity }, { requiresAuth: true });
-  },
-
-  removeFromCart: async (cartItemId: number): Promise<ApiResponse<void>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.delete<ApiResponse<void>>(`/cart/${cartItemId}`, { requiresAuth: true });
-  },
-
-  clearCart: async (userId: number): Promise<ApiResponse<void>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.delete<ApiResponse<void>>(`/cart/user/${userId}`, { requiresAuth: true });
-  },
-};
-
 // Address API methods
 export const addressApi = {
   getAddresses: async (userId: number, addressType?: 'shipping' | 'billing'): Promise<ApiResponse<UserAddress[]>> => {
@@ -277,29 +253,6 @@ export const addressApi = {
   setDefaultAddress: async (addressId: number): Promise<ApiResponse<void>> => {
     const client = new ApiClient(API_BASE_URL);
     return client.put<ApiResponse<void>>(`/user-addresses/${addressId}/set-default`, {}, { requiresAuth: true });
-  },
-};
-
-// Favorites API methods
-export const favoritesApi = {
-  getUserFavorites: async (userId: number): Promise<ApiResponse<any[]>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.get<ApiResponse<any[]>>(`/favorites/user/${userId}`, { requiresAuth: true });
-  },
-
-  addToFavorites: async (userId: number, productId: number): Promise<ApiResponse<{ id: number }>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.post<ApiResponse<{ id: number }>>('/favorites', { userId, productId }, { requiresAuth: true });
-  },
-
-  removeFromFavorites: async (favoriteId: number, userId: number): Promise<ApiResponse<void>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.delete<ApiResponse<void>>(`/favorites/${favoriteId}`, { params: { userId }, requiresAuth: true });
-  },
-
-  removeFromFavoritesByProduct: async (productId: number, userId: number): Promise<ApiResponse<void>> => {
-    const client = new ApiClient(API_BASE_URL);
-    return client.delete<ApiResponse<void>>(`/favorites/product/${productId}`, { params: { userId }, requiresAuth: true });
   },
 };
 

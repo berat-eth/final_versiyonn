@@ -66,6 +66,12 @@ export default function RootLayout({
   return (
     <html lang="tr" className="light">
       <head>
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
+        <link rel="icon" href="/assets/logo.png" type="image/png" />
+        <link rel="shortcut icon" href="/assets/logo.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/assets/logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -165,10 +171,34 @@ export default function RootLayout({
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').catch(function(err) {
-                  console.error('ServiceWorker registration failed:', err);
+                // Önce tüm service worker'ları unregister et (eski cache'leri temizlemek için)
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  for(let registration of registrations) {
+                    registration.unregister();
+                  }
+                  // Sonra yeni service worker'ı register et
+                  navigator.serviceWorker.register('/sw.js?v=' + Date.now(), {
+                    updateViaCache: 'none'
+                  }).then(function(registration) {
+                    console.log('ServiceWorker registered:', registration.scope);
+                    // Hemen güncelleme kontrolü yap
+                    registration.update();
+                  }).catch(function(err) {
+                    console.error('ServiceWorker registration failed:', err);
+                  });
                 });
               });
+              
+              // Sayfa yüklendiğinde cache'i temizle
+              if ('caches' in window) {
+                caches.keys().then(function(names) {
+                  names.forEach(function(name) {
+                    if (name !== 'huglu-tekstil-v3') {
+                      caches.delete(name);
+                    }
+                  });
+                });
+              }
             }
           `}
         </Script>

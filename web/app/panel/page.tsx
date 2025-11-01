@@ -1,47 +1,110 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ordersApi } from '@/utils/api'
 import Link from 'next/link'
 import type { Order } from '@/lib/types'
 
 export default function DashboardPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState({
     totalOrders: 0,
     pendingOrders: 0,
     completedOrders: 0,
   })
 
-  useEffect(() => {
-    if (user?.id) {
-      loadOrders()
+  const loadOrders = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false)
+      setOrders([])
+      setStats({
+        totalOrders: 0,
+        pendingOrders: 0,
+        completedOrders: 0,
+      })
+      return
     }
-  }, [user])
-
-  const loadOrders = async () => {
-    if (!user?.id) return
+    
     try {
       setLoading(true)
+      setError(null)
+      
       const response = await ordersApi.getUserOrders(user.id)
-      if (response.success && response.data) {
-        const ordersData = response.data as Order[]
+      
+      if (response && response.success) {
+        const ordersData = Array.isArray(response.data) ? response.data : []
         setOrders(ordersData)
         setStats({
           totalOrders: ordersData.length,
-          pendingOrders: ordersData.filter((o) => o.status === 'pending' || o.status === 'processing').length,
-          completedOrders: ordersData.filter((o) => o.status === 'completed' || o.status === 'delivered').length,
+          pendingOrders: ordersData.filter((o) => 
+            o.status === 'pending' || 
+            o.status === 'processing' ||
+            o.status === 'Pending' ||
+            o.status === 'Processing'
+          ).length,
+          completedOrders: ordersData.filter((o) => 
+            o.status === 'completed' || 
+            o.status === 'delivered' ||
+            o.status === 'Completed' ||
+            o.status === 'Delivered'
+          ).length,
         })
+      } else {
+        // Response başarısız ama data var olabilir (boş liste)
+        setOrders([])
+        setStats({
+          totalOrders: 0,
+          pendingOrders: 0,
+          completedOrders: 0,
+        })
+        // Uyarı verme, boş liste normal olabilir
       }
-    } catch (error) {
-      console.error('Siparişler yüklenemedi:', error)
+    } catch (err) {
+      console.error('Dashboard - Siparişler yüklenemedi:', err)
+      const errorMsg = err instanceof Error ? err.message : 'Siparişler yüklenirken bir hata oluştu'
+      setError(errorMsg)
+      setOrders([])
+      setStats({
+        totalOrders: 0,
+        pendingOrders: 0,
+        completedOrders: 0,
+      })
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.id])
+
+  useEffect(() => {
+    // User undefined ise henüz yükleniyor, bekle
+    if (user === undefined) {
+      return
+    }
+    
+    // User null ise giriş yapılmamış
+    if (user === null) {
+      setLoading(false)
+      setOrders([])
+      setStats({
+        totalOrders: 0,
+        pendingOrders: 0,
+        completedOrders: 0,
+      })
+      return
+    }
+    
+    // User var ve id varsa siparişleri yükle
+    if (user?.id) {
+      loadOrders()
+    } else {
+      setLoading(false)
+    }
+  }, [user, loadOrders])
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -67,6 +130,24 @@ export default function DashboardPage() {
       cancelled: 'İptal Edildi',
     }
     return statusMap[status.toLowerCase()] || status
+  }
+
+  const handleCreateQuoteFromOrder = (order: Order) => {
+    // Sipariş bilgilerini localStorage'a kaydet (teklif sayfasında kullanılacak)
+    const orderData = {
+      orderId: order.id,
+      items: order.items || [],
+      totalAmount: order.totalAmount,
+      createdAt: order.createdAt,
+      shippingAddress: order.shippingAddress || order.fullAddress || '',
+      city: order.city || '',
+      district: order.district || '',
+    }
+    
+    localStorage.setItem('quoteFromOrder', JSON.stringify(orderData))
+    
+    // Teklif sayfasına yönlendir
+    router.push('/teklif-al?fromOrder=true')
   }
 
   return (
@@ -112,13 +193,15 @@ export default function DashboardPage() {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Son Siparişlerim</h2>
-          <Link
-            href="/panel/siparisler"
-            className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-          >
-            Tümünü Gör
-            <span className="material-symbols-outlined text-lg">arrow_forward</span>
-          </Link>
+          {orders.length > 0 && (
+            <Link
+              href="/panel/siparisler"
+              className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+            >
+              Tümünü Gör
+              <span className="material-symbols-outlined text-lg">arrow_forward</span>
+            </Link>
+          )}
         </div>
 
         {loading ? (
@@ -127,6 +210,20 @@ export default function DashboardPage() {
               sync
             </span>
             <p className="text-gray-600 dark:text-gray-400">Siparişler yükleniyor...</p>
+          </div>
+        ) : error ? (
+          <div className="p-12 text-center">
+            <span className="material-symbols-outlined text-6xl text-red-400 dark:text-red-500 mb-4">
+              error
+            </span>
+            <p className="text-gray-600 dark:text-gray-400 mb-4 font-semibold">{error}</p>
+            <button
+              onClick={loadOrders}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:shadow-lg transition-all"
+            >
+              <span className="material-symbols-outlined">refresh</span>
+              Tekrar Dene
+            </button>
           </div>
         ) : orders.length === 0 ? (
           <div className="p-12 text-center">
@@ -148,29 +245,41 @@ export default function DashboardPage() {
               <div key={order.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-2">
+                    <div className="flex items-center gap-4 mb-2 flex-wrap">
                       <h3 className="font-bold text-gray-900 dark:text-white">Sipariş #{order.id}</h3>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
                         {getStatusText(order.status)}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {new Date(order.createdAt).toLocaleDateString('tr-TR', {
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString('tr-TR', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',
-                      })}
+                      }) : 'Tarih bilgisi yok'}
                     </p>
-                    {order.items && order.items.length > 0 && (
+                    {order.items && Array.isArray(order.items) && order.items.length > 0 && (
                       <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                         {order.items.length} ürün
                       </p>
                     )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-black text-gray-900 dark:text-white">
-                      {order.totalAmount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                    </p>
+                  <div className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4">
+                    <div className="text-right md:text-left">
+                      <p className="text-lg font-black text-gray-900 dark:text-white">
+                        {typeof order.totalAmount === 'number' 
+                          ? order.totalAmount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })
+                          : 'Fiyat bilgisi yok'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleCreateQuoteFromOrder(order)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:scale-105 transition-all whitespace-nowrap"
+                      title="Bu siparişten yeni teklif oluştur"
+                    >
+                      <span className="material-symbols-outlined text-lg">description</span>
+                      Teklif Oluştur
+                    </button>
                   </div>
                 </div>
               </div>
@@ -180,29 +289,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link
-          href="/panel/sepet"
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all hover:scale-105"
-        >
-          <span className="material-symbols-outlined text-4xl text-blue-600 dark:text-blue-400 mb-3 block">
-            shopping_cart
-          </span>
-          <h3 className="font-bold text-gray-900 dark:text-white mb-1">Sepetim</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Sepetinizi görüntüleyin</p>
-        </Link>
-
-        <Link
-          href="/panel/favoriler"
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all hover:scale-105"
-        >
-          <span className="material-symbols-outlined text-4xl text-pink-600 dark:text-pink-400 mb-3 block">
-            favorite
-          </span>
-          <h3 className="font-bold text-gray-900 dark:text-white mb-1">Favorilerim</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Favori ürünleriniz</p>
-        </Link>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link
           href="/panel/adresler"
           className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all hover:scale-105"
@@ -223,6 +310,17 @@ export default function DashboardPage() {
           </span>
           <h3 className="font-bold text-gray-900 dark:text-white mb-1">Tekliflerim</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">Teklif takibi</p>
+        </Link>
+
+        <Link
+          href="/panel/destek"
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all hover:scale-105"
+        >
+          <span className="material-symbols-outlined text-4xl text-blue-600 dark:text-blue-400 mb-3 block">
+            support_agent
+          </span>
+          <h3 className="font-bold text-gray-900 dark:text-white mb-1">Destek</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Yardım ve destek</p>
         </Link>
       </div>
     </div>

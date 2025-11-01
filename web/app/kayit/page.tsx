@@ -17,6 +17,11 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
   })
+  const [agreements, setAgreements] = useState({
+    terms: false,
+    privacy: false,
+    cookies: false,
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -32,6 +37,14 @@ export default function RegisterPage() {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
+    })
+    setError('')
+  }
+
+  const handleAgreementChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAgreements({
+      ...agreements,
+      [e.target.name]: e.target.checked,
     })
     setError('')
   }
@@ -68,6 +81,16 @@ export default function RegisterPage() {
 
     if (formData.password !== formData.confirmPassword) {
       setError('Şifreler eşleşmiyor')
+      return
+    }
+
+    if (!agreements.terms) {
+      setError('Kullanım koşullarını kabul etmelisiniz')
+      return
+    }
+
+    if (!agreements.privacy) {
+      setError('Gizlilik politikasını kabul etmelisiniz')
       return
     }
 
@@ -233,6 +256,68 @@ export default function RegisterPage() {
                     {showConfirmPassword ? 'visibility_off' : 'visibility'}
                   </span>
                 </button>
+              </div>
+            </div>
+
+            {/* Agreement Checkboxes */}
+            <div className="space-y-3 pt-2">
+              {/* Terms of Use */}
+              <div className="flex items-start gap-3">
+                <input
+                  id="terms"
+                  name="terms"
+                  type="checkbox"
+                  checked={agreements.terms}
+                  onChange={handleAgreementChange}
+                  className="mt-1 w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:focus:ring-blue-400"
+                  disabled={loading}
+                  required
+                />
+                <label htmlFor="terms" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <Link href="/kullanim-kosullari" target="_blank" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold">
+                    Kullanım Koşullarını
+                  </Link>
+                  {' '}okudum ve kabul ediyorum <span className="text-red-500">*</span>
+                </label>
+              </div>
+
+              {/* Privacy Policy */}
+              <div className="flex items-start gap-3">
+                <input
+                  id="privacy"
+                  name="privacy"
+                  type="checkbox"
+                  checked={agreements.privacy}
+                  onChange={handleAgreementChange}
+                  className="mt-1 w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:focus:ring-blue-400"
+                  disabled={loading}
+                  required
+                />
+                <label htmlFor="privacy" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <Link href="/gizlilik" target="_blank" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold">
+                    Gizlilik Politikasını
+                  </Link>
+                  {' '}okudum ve kabul ediyorum <span className="text-red-500">*</span>
+                </label>
+              </div>
+
+              {/* Cookie Policy */}
+              <div className="flex items-start gap-3">
+                <input
+                  id="cookies"
+                  name="cookies"
+                  type="checkbox"
+                  checked={agreements.cookies}
+                  onChange={handleAgreementChange}
+                  className="mt-1 w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:focus:ring-blue-400"
+                  disabled={loading}
+                />
+                <label htmlFor="cookies" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <Link href="/cerez-politikasi" target="_blank" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold">
+                    Çerez Politikasını
+                  </Link>
+                  {' '}okudum ve kabul ediyorum
+                </label>
               </div>
             </div>
 

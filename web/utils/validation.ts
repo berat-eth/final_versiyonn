@@ -76,8 +76,11 @@ export const sanitizeFileName = (fileName: string): string => {
     .substring(0, 255)
 }
 
-export const validateQuantity = (quantity: string): boolean => {
-  const num = parseInt(quantity, 10)
+export const validateQuantity = (quantity: string | number): boolean => {
+  if (quantity === '' || quantity === null || quantity === undefined) {
+    return false
+  }
+  const num = typeof quantity === 'number' ? quantity : parseInt(String(quantity).trim(), 10)
   return !isNaN(num) && num > 0 && num <= 100000
 }
 

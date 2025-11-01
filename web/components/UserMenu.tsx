@@ -98,14 +98,6 @@ export default function UserMenu() {
               <span className="material-symbols-outlined text-lg">shopping_bag</span>
               Siparişlerim
             </Link>
-            <Link
-              href="/panel/sepet"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <span className="material-symbols-outlined text-lg">shopping_cart</span>
-              Sepetim
-            </Link>
           </div>
 
           <div className="border-t border-gray-200 dark:border-gray-700 py-2">

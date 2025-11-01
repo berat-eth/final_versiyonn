@@ -86,9 +86,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!body.quantity || body.quantity.trim() === '') {
+      return NextResponse.json(
+        { error: 'Adet bilgisi gereklidir.' },
+        { status: 400 }
+      )
+    }
+
     if (!validateQuantity(body.quantity)) {
       return NextResponse.json(
-        { error: 'Geçersiz adet.' },
+        { error: 'Geçersiz adet. Lütfen 1 ile 100.000 arasında bir sayı girin.' },
         { status: 400 }
       )
     }
