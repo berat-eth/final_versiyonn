@@ -5855,7 +5855,7 @@ app.post('/api/users', async (req, res) => {
 
     // Return user data for web panel
     const [newUser] = await poolWrapper.execute(
-      'SELECT id, name, email, phone, address, createdAt FROM users WHERE id = ? AND tenantId = ?',
+      'SELECT id, name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt FROM users WHERE id = ? AND tenantId = ?',
       [result.insertId, tenantId]
     );
 
@@ -5988,6 +5988,11 @@ app.post('/api/users/login', async (req, res) => {
           email: user.email,
           phone: user.phone || '',
           address: user.address || '',
+          companyName: user.companyName || '',
+          taxOffice: user.taxOffice || '',
+          taxNumber: user.taxNumber || '',
+          tradeRegisterNumber: user.tradeRegisterNumber || '',
+          website: user.website || '',
           createdAt: user.createdAt
         };
 
@@ -6022,7 +6027,7 @@ app.post('/api/users/login', async (req, res) => {
 app.put('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, address, currentPassword, newPassword } = req.body;
+    const { name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, currentPassword, newPassword } = req.body;
 
     // Get current user
     const [userRows] = await poolWrapper.execute(
@@ -6038,6 +6043,35 @@ app.put('/api/users/:id', async (req, res) => {
     }
 
     const currentUser = userRows[0];
+
+    // Şirket bilgileri kolonlarını kontrol et ve ekle
+    const [cols] = await poolWrapper.execute(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
+    `);
+    const columnNames = cols.map(c => c.COLUMN_NAME);
+    const alters = [];
+
+    if (!columnNames.includes('companyName')) {
+      alters.push("ADD COLUMN companyName VARCHAR(255) NULL AFTER address");
+    }
+    if (!columnNames.includes('taxOffice')) {
+      alters.push("ADD COLUMN taxOffice VARCHAR(255) NULL AFTER companyName");
+    }
+    if (!columnNames.includes('taxNumber')) {
+      alters.push("ADD COLUMN taxNumber VARCHAR(50) NULL AFTER taxOffice");
+    }
+    if (!columnNames.includes('tradeRegisterNumber')) {
+      alters.push("ADD COLUMN tradeRegisterNumber VARCHAR(100) NULL AFTER taxNumber");
+    }
+    if (!columnNames.includes('website')) {
+      alters.push("ADD COLUMN website VARCHAR(255) NULL AFTER tradeRegisterNumber");
+    }
+
+    if (alters.length > 0) {
+      await poolWrapper.execute(`ALTER TABLE users ${alters.join(', ')}`);
+      console.log('✅ Şirket bilgileri kolonları eklendi');
+    }
 
     // If password change is requested
     if (newPassword) {
@@ -6072,24 +6106,48 @@ app.put('/api/users/:id', async (req, res) => {
       const plainPhone = phone || currentUser.phone;
       const plainAddress = address || currentUser.address;
 
+      const updateFields = ['name', 'email', 'phone', 'address', 'password'];
+      const updateValues = [name, email, plainPhone, plainAddress, hashedNewPassword];
+
+      if (columnNames.includes('companyName') || alters.length > 0) {
+        updateFields.push('companyName', 'taxOffice', 'taxNumber', 'tradeRegisterNumber', 'website');
+        updateValues.push(companyName || '', taxOffice || '', taxNumber || '', tradeRegisterNumber || '', website || '');
+      }
+
+      updateFields.push('id');
+      updateValues.push(id);
+      updateValues.push(req.tenant.id);
+
       await poolWrapper.execute(
-        'UPDATE users SET name = ?, email = ?, phone = ?, address = ?, password = ? WHERE id = ? AND tenantId = ?',
-        [name, email, plainPhone, plainAddress, hashedNewPassword, id, req.tenant.id]
+        `UPDATE users SET ${updateFields.slice(0, -2).map(f => `${f} = ?`).join(', ')} WHERE id = ? AND tenantId = ?`,
+        updateValues
       );
     } else {
       // Update user data (no encryption needed)
       const plainPhone = phone || currentUser.phone;
       const plainAddress = address || currentUser.address;
 
+      const updateFields = ['name', 'email', 'phone', 'address'];
+      const updateValues = [name, email, plainPhone, plainAddress];
+
+      if (columnNames.includes('companyName') || alters.length > 0) {
+        updateFields.push('companyName', 'taxOffice', 'taxNumber', 'tradeRegisterNumber', 'website');
+        updateValues.push(companyName || '', taxOffice || '', taxNumber || '', tradeRegisterNumber || '', website || '');
+      }
+
+      updateFields.push('id');
+      updateValues.push(id);
+      updateValues.push(req.tenant.id);
+
       await poolWrapper.execute(
-        'UPDATE users SET name = ?, email = ?, phone = ?, address = ? WHERE id = ? AND tenantId = ?',
-        [name, email, plainPhone, plainAddress, id, req.tenant.id]
+        `UPDATE users SET ${updateFields.slice(0, -2).map(f => `${f} = ?`).join(', ')} WHERE id = ? AND tenantId = ?`,
+        updateValues
       );
     }
 
     // Return updated user data
     const [updatedUser] = await poolWrapper.execute(
-      'SELECT id, name, email, phone, address, createdAt FROM users WHERE id = ? AND tenantId = ?',
+      'SELECT id, name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt FROM users WHERE id = ? AND tenantId = ?',
       [id, req.tenant.id]
     );
 
@@ -8622,9 +8680,9 @@ async function startServer() {
   app.put('/api/users/:userId/profile', async (req, res) => {
     try {
       const { userId } = req.params;
-      const { name, email, phone, address } = req.body;
+      const { name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website } = req.body;
 
-      console.log(`👤 Updating profile for user ${userId}:`, { name, email, phone, address });
+      console.log(`👤 Updating profile for user ${userId}:`, { name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website });
 
       // Validate required fields
       if (!name || !email) {
@@ -8647,16 +8705,63 @@ async function startServer() {
         });
       }
 
+      // Şirket bilgileri kolonlarını kontrol et ve ekle
+      const [cols] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
+      `);
+      const columnNames = cols.map(c => c.COLUMN_NAME);
+      const alters = [];
+
+      if (!columnNames.includes('companyName')) {
+        alters.push("ADD COLUMN companyName VARCHAR(255) NULL AFTER address");
+      }
+      if (!columnNames.includes('taxOffice')) {
+        alters.push("ADD COLUMN taxOffice VARCHAR(255) NULL AFTER companyName");
+      }
+      if (!columnNames.includes('taxNumber')) {
+        alters.push("ADD COLUMN taxNumber VARCHAR(50) NULL AFTER taxOffice");
+      }
+      if (!columnNames.includes('tradeRegisterNumber')) {
+        alters.push("ADD COLUMN tradeRegisterNumber VARCHAR(100) NULL AFTER taxNumber");
+      }
+      if (!columnNames.includes('website')) {
+        alters.push("ADD COLUMN website VARCHAR(255) NULL AFTER tradeRegisterNumber");
+      }
+
+      if (alters.length > 0) {
+        await poolWrapper.execute(`ALTER TABLE users ${alters.join(', ')}`);
+        console.log('✅ Şirket bilgileri kolonları eklendi');
+      }
+
       // Update user profile
+      const updateFields = ['name', 'email', 'phone', 'address'];
+      const updateValues = [name, email, phone || '', address || ''];
+
+      if (columnNames.includes('companyName') || alters.length > 0) {
+        updateFields.push('companyName', 'taxOffice', 'taxNumber', 'tradeRegisterNumber', 'website');
+        updateValues.push(companyName || '', taxOffice || '', taxNumber || '', tradeRegisterNumber || '', website || '');
+      }
+
+      updateFields.push('id');
+      updateValues.push(userId);
+
       await poolWrapper.execute(
-        'UPDATE users SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?',
-        [name, email, phone || '', address || '', userId]
+        `UPDATE users SET ${updateFields.slice(0, -1).map(f => `${f} = ?`).join(', ')} WHERE id = ?`,
+        updateValues
+      );
+
+      // Get updated user data
+      const [updatedUser] = await poolWrapper.execute(
+        'SELECT id, name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt, role FROM users WHERE id = ?',
+        [userId]
       );
 
       console.log(`✅ Profile updated successfully for user ${userId}`);
       res.json({
         success: true,
-        message: 'Profil başarıyla güncellendi'
+        message: 'Profil başarıyla güncellendi',
+        data: updatedUser[0] || null
       });
     } catch (error) {
       console.error('❌ Error updating profile:', error);

@@ -35,14 +35,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     try {
       const response = await authApi.login(email, password) as LoginResponse
+      console.log('Login response:', response)
       if (response.success && response.data) {
         authHelpers.saveUser(response.data)
         setUser(response.data)
       } else {
-        throw new Error(response.message || 'Giriş başarısız')
+        const errorMessage = response.message || 'Giriş başarısız. Email veya şifre hatalı olabilir.'
+        console.error('Login failed:', errorMessage)
+        throw new Error(errorMessage)
       }
-    } catch (error) {
-      throw error
+    } catch (error: any) {
+      console.error('Login error details:', error)
+      // API hatası ise mesajı direkt geçir, değilse genel mesaj
+      if (error instanceof Error) {
+        throw error
+      } else if (error?.message) {
+        throw new Error(error.message)
+      } else {
+        throw new Error('Bağlantı hatası. Lütfen internet bağlantınızı kontrol edin.')
+      }
     }
   }, [])
 

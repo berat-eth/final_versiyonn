@@ -4,29 +4,30 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 
 const Header = dynamic(() => import('@/components/Header'), { ssr: true })
 const Footer = dynamic(() => import('@/components/Footer'), { ssr: true })
 
 export default function Home() {
+  const pathname = usePathname()
   const [currentSlide, setCurrentSlide] = useState(0)
   const [showPopup, setShowPopup] = useState(false)
 
   useEffect(() => {
-    // Popup'ı sadece ilk ziyarette göster
-    const hasVisited = localStorage.getItem('hasVisited')
-    if (!hasVisited) {
+    // Popup'ı sadece ana sayfada ve her sayfa yenilendiğinde göster
+    if (pathname === '/') {
       setShowPopup(true)
+    } else {
+      setShowPopup(false)
     }
-  }, [])
+  }, [pathname])
 
   const handleRetailClick = () => {
-    localStorage.setItem('hasVisited', 'true')
     window.location.href = 'https://hugluoutdoor.com'
   }
 
   const handleCustomClick = () => {
-    localStorage.setItem('hasVisited', 'true')
     setShowPopup(false)
   }
 
@@ -115,14 +116,10 @@ export default function Home() {
                   className="group flex items-center justify-center gap-3 px-6 py-4 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl font-bold text-base hover:bg-gray-50 dark:hover:bg-gray-600 hover:scale-105 transition-all duration-300"
                 >
                   <span className="material-symbols-outlined">design_services</span>
-                  <span>Özel Üretim</span>
+                  <span>Toptan ve Özel Üretim</span>
                   <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
                 </button>
               </div>
-
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Bu seçim sadece bir kez gösterilecektir
-              </p>
             </div>
           </div>
         </div>

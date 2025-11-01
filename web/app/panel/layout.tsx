@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
@@ -63,11 +64,6 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
                 </span>
               </button>
               
-              <Link href="/" className="text-sm md:text-lg font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-                <span className="hidden sm:inline">←</span>
-                <span className="text-xs sm:text-base">Ana Sayfa</span>
-              </Link>
-              
               <div className="hidden sm:block">
                 <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Kullanıcı Paneli</h1>
               </div>
@@ -99,11 +95,26 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 
         {/* Sidebar - Desktop & Mobile */}
         <aside
-          className={`fixed lg:sticky top-[73px] left-0 h-[calc(100vh-73px)] w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 transform transition-transform duration-300 ease-in-out ${
+          className={`fixed lg:sticky top-[73px] left-0 h-[calc(100vh-73px)] w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
             mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
-          <nav className="p-4 space-y-1 overflow-y-auto h-full">
+          {/* Sidebar Logo */}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <Link href="/" className="flex items-center justify-center">
+              <Image
+                src="/assets/logo.png"
+                alt="Huğlu Tekstil Atölyesi Logo"
+                width={150}
+                height={60}
+                className="h-12 md:h-14 w-auto object-contain"
+                priority
+                unoptimized
+              />
+            </Link>
+          </div>
+          
+          <nav className="p-4 space-y-1 overflow-y-auto flex-1 min-h-0">
             {menuItems.map((item) => {
               const isActive = pathname === item.href || (item.href !== '/panel' && pathname?.startsWith(item.href))
               return (

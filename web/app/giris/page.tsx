@@ -89,8 +89,18 @@ export default function LoginPage() {
       setLoading(true)
       await login(email, password)
       router.push('/panel')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Giriş başarısız')
+    } catch (err: any) {
+      console.error('Login error:', err)
+      // Daha detaylı hata mesajı göster
+      let errorMessage = 'Giriş başarısız'
+      if (err instanceof Error) {
+        errorMessage = err.message
+      } else if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message
+      } else if (typeof err === 'string') {
+        errorMessage = err
+      }
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

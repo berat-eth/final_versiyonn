@@ -94,21 +94,44 @@ class ApiClient {
       if (!response.ok) {
         let errorData;
         try {
-          errorData = await response.json();
+          const text = await response.text();
+          try {
+            errorData = JSON.parse(text);
+          } catch {
+            errorData = {
+              success: false,
+              message: text || `HTTP ${response.status}: ${response.statusText}`,
+            };
+          }
         } catch {
           errorData = {
             success: false,
             message: `HTTP ${response.status}: ${response.statusText}`,
           };
         }
-        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        
+        // Türkçe hata mesajları için özel dönüşümler
+        let errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        
+        // İngilizce mesajları Türkçe'ye çevir
+        const errorTranslations: Record<string, string> = {
+          'Invalid credentials': 'Email veya şifre hatalı',
+          'Email and password are required': 'Email ve şifre gereklidir',
+          'User not found': 'Kullanıcı bulunamadı',
+          'Network error': 'Ağ hatası. Lütfen internet bağlantınızı kontrol edin.',
+          'Failed to fetch': 'Sunucuya bağlanılamadı. Lütfen daha sonra tekrar deneyin.'
+        };
+        
+        if (errorTranslations[errorMessage]) {
+          errorMessage = errorTranslations[errorMessage];
+        }
         
         // Sadece kritik olmayan endpoint'ler için sessizce log'la (favorites gibi)
         const silentEndpoints = ['/favorites/user/'];
         const shouldSilence = silentEndpoints.some(ep => endpoint.includes(ep));
         
         if (!shouldSilence) {
-          console.error(`❌ API Error [${endpoint}]:`, errorMessage);
+          console.error(`❌ API Error [${endpoint}]:`, errorMessage, 'Status:', response.status);
         }
         
         throw new Error(errorMessage);

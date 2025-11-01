@@ -5,7 +5,11 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 
-export default function UserMenu() {
+interface UserMenuProps {
+  isTransparent?: boolean
+}
+
+export default function UserMenu({ isTransparent = false }: UserMenuProps) {
   const { user, isAuthenticated, logout } = useAuth()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
@@ -37,7 +41,11 @@ export default function UserMenu() {
     return (
       <Link
         href="/giris"
-        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20`}
+        className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+          isTransparent 
+            ? 'text-white hover:text-purple-300 hover:bg-white/10' 
+            : 'text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+        }`}
       >
         <span className="flex items-center gap-2">
           <span className="material-symbols-outlined text-lg">login</span>
@@ -53,8 +61,12 @@ export default function UserMenu() {
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
           isOpen
-            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-            : 'text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+            ? isTransparent
+              ? 'bg-white/20 text-white'
+              : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+            : isTransparent
+              ? 'text-white hover:text-purple-300 hover:bg-white/10'
+              : 'text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'
         }`}
       >
         <span className="material-symbols-outlined text-lg">account_circle</span>

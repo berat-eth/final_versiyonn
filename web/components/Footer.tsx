@@ -272,7 +272,17 @@ export default function Footer() {
 
         {/* Brand Statement */}
         <div className="border-t border-gray-800/50 pt-8 pb-6">
-          <div className="flex flex-col items-center text-center">
+          <div className="flex flex-col items-center text-center gap-4">
+            <Link href="/" className="inline-block">
+              <Image
+                src="/assets/logo.png"
+                alt="Huğlu Tekstil Logo"
+                width={180}
+                height={72}
+                className="h-16 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                unoptimized
+              />
+            </Link>
             <p className="text-sm text-gray-500 font-medium">
               Huğlu Tekstil, bir{' '}
               <a

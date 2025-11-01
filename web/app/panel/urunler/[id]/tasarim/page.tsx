@@ -115,11 +115,11 @@ export default function DesignEditorPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [skipDesign, setSkipDesign] = useState(false)
-  const [invoiceInfo, setInvoiceInfo] = useState({
-    companyName: '',
-    taxNumber: '',
-    taxAddress: '',
-    companyAddress: ''
+  const [personalInfo, setPersonalInfo] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: ''
   })
   
   const { user } = useAuth()
@@ -163,6 +163,18 @@ export default function DesignEditorPage() {
       setHistoryIndex(0)
     }
   }, [productId])
+
+  // User bilgilerini personalInfo'ya otomatik doldur
+  useEffect(() => {
+    if (user) {
+      setPersonalInfo({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        address: user.address || ''
+      })
+    }
+  }, [user])
 
   useEffect(() => {
     // Keyboard shortcuts
@@ -561,14 +573,10 @@ export default function DesignEditorPage() {
           customizations: customizations,
           productPrice: product.price
         }],
-        customerName: user.name || '',
-        customerEmail: user.email || '',
-        customerPhone: user.phone || '',
-        companyName: invoiceInfo.companyName || undefined,
-        taxNumber: invoiceInfo.taxNumber || undefined,
-        taxAddress: invoiceInfo.taxAddress || undefined,
-        companyAddress: invoiceInfo.companyAddress || undefined,
-        notes: `Tasarım Editöründen Oluşturuldu. Bedenler: ${sizeQuantities.map(s => `${s.size}: ${s.quantity}`).join(', ')}`
+        customerName: personalInfo.name || user?.name || '',
+        customerEmail: personalInfo.email || user?.email || '',
+        customerPhone: personalInfo.phone || user?.phone || '',
+        notes: `Tasarım Editöründen Oluşturuldu. Bedenler: ${sizeQuantities.map(s => `${s.size}: ${s.quantity}`).join(', ')}${personalInfo.address ? `\nAdres: ${personalInfo.address}` : ''}`
       })
 
       if (response.success) {
@@ -1345,62 +1353,65 @@ export default function DesignEditorPage() {
                     </div>
                   )}
 
-                  {/* Invoice Information */}
+                  {/* Personal Information */}
                   <div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-green-600 dark:text-green-400">receipt</span>
-                      Fatura Bilgileri
+                      <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">person</span>
+                      Şahıs Bilgileri
                     </h3>
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Şirket İsmi
+                          Ad Soyad
                         </label>
                         <input
                           type="text"
-                          value={invoiceInfo.companyName}
-                          onChange={(e) => setInvoiceInfo({ ...invoiceInfo, companyName: e.target.value })}
+                          value={personalInfo.name}
+                          onChange={(e) => setPersonalInfo({ ...personalInfo, name: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Şirket adı (opsiyonel)"
+                          placeholder="Ad Soyad"
+                          required
                         />
                       </div>
                       
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Vergi Numarası
+                          Email
                         </label>
                         <input
-                          type="text"
-                          value={invoiceInfo.taxNumber}
-                          onChange={(e) => setInvoiceInfo({ ...invoiceInfo, taxNumber: e.target.value })}
+                          type="email"
+                          value={personalInfo.email}
+                          onChange={(e) => setPersonalInfo({ ...personalInfo, email: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Vergi numarası (opsiyonel)"
+                          placeholder="Email adresi"
+                          required
                         />
                       </div>
                       
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Vergi Dairesi Adresi
+                          Telefon
                         </label>
-                        <textarea
-                          value={invoiceInfo.taxAddress}
-                          onChange={(e) => setInvoiceInfo({ ...invoiceInfo, taxAddress: e.target.value })}
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                          placeholder="Vergi dairesi adresi (opsiyonel)"
+                        <input
+                          type="tel"
+                          value={personalInfo.phone}
+                          onChange={(e) => setPersonalInfo({ ...personalInfo, phone: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Telefon numarası"
+                          required
                         />
                       </div>
                       
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Şirket Adresi
+                          Adres
                         </label>
                         <textarea
-                          value={invoiceInfo.companyAddress}
-                          onChange={(e) => setInvoiceInfo({ ...invoiceInfo, companyAddress: e.target.value })}
+                          value={personalInfo.address}
+                          onChange={(e) => setPersonalInfo({ ...personalInfo, address: e.target.value })}
                           rows={3}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                          placeholder="Şirket adresi (opsiyonel)"
+                          placeholder="Adres bilgisi"
                         />
                       </div>
                     </div>

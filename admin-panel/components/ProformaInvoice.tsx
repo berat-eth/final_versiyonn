@@ -78,6 +78,9 @@ export default function ProformaInvoice() {
   const [selectedRequest, setSelectedRequest] = useState<ProformaRequest | null>(null)
   const [selectedItems, setSelectedItems] = useState<ProformaItem[]>([])
   
+  // Beden dağılımları - Her ürün için düzenlenebilir
+  const [itemSizeDistributions, setItemSizeDistributions] = useState<Record<number, SizeDistribution>>({})
+  
   // Maliyet girişi - Her ürün için ayrı
   const [itemCosts, setItemCosts] = useState<Record<number, CostInputs>>({})
   
@@ -109,7 +112,7 @@ export default function ProformaInvoice() {
   
   useEffect(() => {
     calculateCosts()
-  }, [itemCosts, profitMargin, selectedItems, sharedShippingCost, vatRate])
+  }, [itemCosts, profitMargin, selectedItems, sharedShippingCost, vatRate, itemSizeDistributions])
   
   useEffect(() => {
     if (calculation) {
@@ -218,10 +221,20 @@ export default function ProformaInvoice() {
         }
         
         setSelectedItems(items)
+        
+        // Beden dağılımlarını state'e kaydet
+        const sizeDistributions: Record<number, SizeDistribution> = {}
+        items.forEach(item => {
+          if (item.sizeDistribution) {
+            sizeDistributions[item.id] = { ...item.sizeDistribution }
+          }
+        })
+        setItemSizeDistributions(sizeDistributions)
       }
     } catch (e: any) {
       console.error('Talep detayları getirilemedi:', e)
       setSelectedItems([])
+      setItemSizeDistributions({})
     }
   }
 
@@ -242,10 +255,11 @@ export default function ProformaInvoice() {
   }
 
   const calculateCosts = () => {
-    // Toplam adet hesapla
+    // Toplam adet hesapla - Önce state'teki beden dağılımını kontrol et, yoksa item'dakini kullan
     const totalQuantity = selectedItems.reduce((sum, item) => {
-      if (item.sizeDistribution) {
-        return sum + Object.values(item.sizeDistribution).reduce((s: number, q: number) => s + q, 0)
+      const sizeDist = itemSizeDistributions[item.id] || item.sizeDistribution
+      if (sizeDist) {
+        return sum + Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
       }
       return sum + item.quantity
     }, 0)
@@ -270,8 +284,9 @@ export default function ProformaInvoice() {
         embroideryCost: 0
       }
       
-      const itemQuantity = item.sizeDistribution 
-        ? Object.values(item.sizeDistribution).reduce((s: number, q: number) => s + q, 0)
+      const sizeDist = itemSizeDistributions[item.id] || item.sizeDistribution
+      const itemQuantity = sizeDist 
+        ? Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
         : item.quantity
       
       if (itemQuantity === 0) return
@@ -378,6 +393,34 @@ export default function ProformaInvoice() {
   const handleSharedShippingChange = (value: string) => {
     const numValue = value === '' || isNaN(Number(value)) ? 0 : Number(value)
     setSharedShippingCost(numValue)
+  }
+  
+  // Beden dağılımı - Tek beden için sayı değiştirme
+  const handleSizeQuantityChange = (itemId: number, size: string, value: string) => {
+    const numValue = value === '' || isNaN(Number(value)) ? 0 : Number(value)
+    setItemSizeDistributions(prev => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] || {}),
+        [size]: numValue
+      }
+    }))
+  }
+  
+  // Beden dağılımı - Tüm bedenlere toplu sayı girme
+  const handleBulkSizeQuantity = (itemId: number, bulkValue: string) => {
+    const numValue = bulkValue === '' || isNaN(Number(bulkValue)) ? 0 : Number(bulkValue)
+    const currentSizeDist = itemSizeDistributions[itemId] || selectedItems.find(i => i.id === itemId)?.sizeDistribution || {}
+    
+    const newSizeDist: SizeDistribution = {}
+    Object.keys(currentSizeDist).forEach(size => {
+      newSizeDist[size] = numValue
+    })
+    
+    setItemSizeDistributions(prev => ({
+      ...prev,
+      [itemId]: newSizeDist
+    }))
   }
   
   const handleProfitMarginChange = (value: string) => {
@@ -1142,8 +1185,9 @@ export default function ProformaInvoice() {
   })
 
   const totalQuantity = selectedItems.reduce((sum, item) => {
-    if (item.sizeDistribution) {
-      return sum + Object.values(item.sizeDistribution).reduce((s: number, q: number) => s + q, 0)
+    const sizeDist = itemSizeDistributions[item.id] || item.sizeDistribution
+    if (sizeDist) {
+      return sum + Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
     }
     return sum + item.quantity
   }, 0)
@@ -1368,30 +1412,56 @@ export default function ProformaInvoice() {
                               </h4>
                               
                               {/* Beden Dağılım Tablosu */}
-                              {item.sizeDistribution && Object.keys(item.sizeDistribution).length > 0 ? (
-                                <div className="mt-3">
-                                  <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                    Beden Dağılımı:
-                                  </div>
-                                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                                    {Object.entries(item.sizeDistribution).map(([size, quantity]) => (
-                                      <div
-                                        key={size}
-                                        className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-center"
-                                      >
-                                        <div className="text-xs text-slate-600 dark:text-slate-400">{size}</div>
-                                        <div className="font-semibold text-blue-700 dark:text-blue-400">
-                                          {quantity}
+                              {(() => {
+                                const sizeDist = itemSizeDistributions[item.id] || item.sizeDistribution
+                                if (sizeDist && Object.keys(sizeDist).length > 0) {
+                                  return (
+                                    <div className="mt-3">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                          Beden Dağılımı:
+                                        </div>
+                                        {/* Toplu Sayı Girişi */}
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                            Toplu:
+                                          </label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            placeholder="0"
+                                            className="w-20 px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            onChange={(e) => handleBulkSizeQuantity(item.id, e.target.value)}
+                                          />
                                         </div>
                                       </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-sm text-slate-600 dark:text-slate-400">
-                                  Adet: <span className="font-semibold">{item.quantity}</span>
-                                </div>
-                              )}
+                                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                        {Object.entries(sizeDist).map(([size, quantity]) => (
+                                          <div
+                                            key={size}
+                                            className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-center"
+                                          >
+                                            <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">{size}</div>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={quantity || 0}
+                                              onChange={(e) => handleSizeQuantityChange(item.id, size, e.target.value)}
+                                              className="w-full px-1 py-0.5 text-xs text-center font-semibold text-blue-700 dark:text-blue-400 border border-transparent hover:border-blue-400 dark:hover:border-blue-600 rounded bg-transparent focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800"
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )
+                                } else {
+                                  return (
+                                    <div className="text-sm text-slate-600 dark:text-slate-400">
+                                      Adet: <span className="font-semibold">{item.quantity}</span>
+                                    </div>
+                                  )
+                                }
+                              })()}
                             </div>
                           </div>
                         </div>

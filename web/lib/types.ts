@@ -8,6 +8,12 @@ export interface User {
   address?: string;
   createdAt?: string;
   role?: string;
+  // Şirket bilgileri
+  companyName?: string;
+  taxOffice?: string;
+  taxNumber?: string;
+  tradeRegisterNumber?: string;
+  website?: string;
 }
 
 export interface LoginResponse {

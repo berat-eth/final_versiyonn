@@ -33,6 +33,10 @@ export default function ProductDetailPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [productImages, setProductImages] = useState<string[]>([])
+  const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([])
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false)
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+  const [itemsPerView, setItemsPerView] = useState(2) // Mobil için varsayılan
 
   const loadProduct = useCallback(async () => {
     if (!productId) return
@@ -95,11 +99,83 @@ export default function ProductDetailPage() {
     }
   }, [productId])
 
+  const loadRecommendedProducts = useCallback(async () => {
+    if (!productId) return
+    
+    try {
+      setLoadingRecommendations(true)
+      // Rastgele ürünler için geniş bir limit çekip rastgele seçelim
+      const response = await productsApi.getProducts(1, 50, undefined, true)
+      
+      if (response.success && response.data && response.data.products) {
+        // Mevcut ürünü hariç tut
+        const filteredProducts = response.data.products.filter(
+          (p: Product) => p.id !== productId
+        )
+        
+        // Rastgele 10 ürün seç (veya mevcut sayı kadar)
+        const shuffled = [...filteredProducts].sort(() => Math.random() - 0.5)
+        const selected = shuffled.slice(0, Math.min(10, shuffled.length))
+        
+        setRecommendedProducts(selected)
+      }
+    } catch (error) {
+      console.error('Önerilen ürünler yüklenemedi:', error)
+    } finally {
+      setLoadingRecommendations(false)
+    }
+  }, [productId])
+
+  // Responsive items per view hesaplama
+  useEffect(() => {
+    const updateItemsPerView = () => {
+      if (typeof window !== 'undefined') {
+        const width = window.innerWidth
+        if (width >= 1024) {
+          setItemsPerView(5) // Desktop: 5 ürün
+        } else if (width >= 768) {
+          setItemsPerView(3) // Tablet: 3 ürün
+        } else {
+          setItemsPerView(2) // Mobil: 2 ürün
+        }
+      }
+    }
+    
+    updateItemsPerView()
+    window.addEventListener('resize', updateItemsPerView)
+    return () => window.removeEventListener('resize', updateItemsPerView)
+  }, [])
+
   useEffect(() => {
     if (productId) {
       loadProduct()
+      loadRecommendedProducts()
+      setCurrentSlideIndex(0) // Slider'ı sıfırla
     }
-  }, [productId, loadProduct])
+  }, [productId, loadProduct, loadRecommendedProducts])
+
+  // currentSlideIndex'i maksimum değerle sınırla
+  useEffect(() => {
+    if (recommendedProducts.length === 0) return
+    const maxSlideIndex = Math.max(0, recommendedProducts.length - itemsPerView)
+    if (currentSlideIndex > maxSlideIndex) {
+      setCurrentSlideIndex(maxSlideIndex)
+    }
+  }, [recommendedProducts.length, itemsPerView, currentSlideIndex])
+
+  // Auto-scroll slider (opsiyonel)
+  useEffect(() => {
+    if (recommendedProducts.length <= itemsPerView) return
+    
+    const interval = setInterval(() => {
+      setCurrentSlideIndex((prev) => {
+        const maxSlideIndex = recommendedProducts.length - itemsPerView
+        return prev >= maxSlideIndex ? 0 : prev + 1
+      })
+    }, 5000) // Her 5 saniyede bir kaydır
+    
+    return () => clearInterval(interval)
+  }, [recommendedProducts.length, itemsPerView])
 
   const openLightbox = useCallback((index: number) => {
     setSelectedImageIndex(index)
@@ -391,6 +467,126 @@ export default function ProductDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Önerilen Ürünler - Slider */}
+        {recommendedProducts.length > 0 && (
+          <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8">
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 p-6 md:p-8 lg:p-12">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                  <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-3xl">auto_awesome</span>
+                  Size Özel Öneriler
+                </h2>
+                
+                {/* Slider Navigation */}
+                {recommendedProducts.length > itemsPerView && (() => {
+                  const maxSlideIndex = recommendedProducts.length - itemsPerView
+                  return (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))}
+                        disabled={currentSlideIndex === 0}
+                        className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        aria-label="Önceki"
+                      >
+                        <span className="material-symbols-outlined text-gray-700 dark:text-gray-300">chevron_left</span>
+                      </button>
+                      <button
+                        onClick={() => setCurrentSlideIndex(Math.min(maxSlideIndex, currentSlideIndex + 1))}
+                        disabled={currentSlideIndex >= maxSlideIndex}
+                        className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        aria-label="Sonraki"
+                      >
+                        <span className="material-symbols-outlined text-gray-700 dark:text-gray-300">chevron_right</span>
+                      </button>
+                    </div>
+                  )
+                })()}
+              </div>
+              
+              {loadingRecommendations ? (
+                <div className="flex items-center justify-center py-12">
+                  <span className="material-symbols-outlined animate-spin text-4xl text-blue-600 dark:text-blue-400">
+                    sync
+                  </span>
+                </div>
+              ) : (
+                <div className="relative overflow-hidden">
+                  <div 
+                    className="flex transition-transform duration-500 ease-in-out gap-4 md:gap-6"
+                    style={{ 
+                      transform: `translateX(calc(-${currentSlideIndex} * (100% / ${itemsPerView})))`
+                    }}
+                  >
+                    {recommendedProducts.map((recommended) => (
+                      <Link
+                        key={recommended.id}
+                        href={`/urunler/${recommended.id}`}
+                        className="group flex-shrink-0 bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-2xl hover:scale-105 transition-all duration-300"
+                        style={{
+                          width: `calc((100% - (${itemsPerView - 1} * 1.5rem)) / ${itemsPerView})`,
+                          minWidth: `calc((100% - (${itemsPerView - 1} * 1.5rem)) / ${itemsPerView})`
+                        }}
+                      >
+                        {/* Product Image */}
+                        <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
+                          {recommended.image ? (
+                            <Image
+                              src={recommended.image}
+                              alt={recommended.name}
+                              fill
+                              className="object-cover group-hover:scale-110 transition-transform duration-500"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <span className="material-symbols-outlined text-6xl text-gray-400">image</span>
+                            </div>
+                          )}
+                          
+                          {/* Hover Overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-4">
+                            <span className="text-white font-bold text-sm px-4 py-2 bg-blue-600 rounded-lg">
+                              Detayları Gör
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Product Info - Fiyat gösterilmiyor */}
+                        <div className="p-2">
+                          <h3 className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-2 text-xs group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            {recommended.name}
+                          </h3>
+                          {recommended.brand && (
+                            <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-xs font-medium inline-block">
+                              {recommended.brand}
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  
+                  {/* Mobile Swipe Indicators */}
+                  <div className="flex items-center justify-center gap-2 mt-6 md:hidden">
+                    {Array.from({ length: Math.ceil(recommendedProducts.length / 2) }).map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentSlideIndex(idx * 2)}
+                        className={`h-2 rounded-full transition-all ${
+                          Math.floor(currentSlideIndex / 2) === idx
+                            ? 'bg-blue-600 dark:bg-blue-400 w-8'
+                            : 'bg-gray-300 dark:bg-gray-600 w-2'
+                        }`}
+                        aria-label={`Sayfa ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       <Footer />

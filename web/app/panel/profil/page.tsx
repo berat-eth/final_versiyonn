@@ -11,6 +11,11 @@ export default function ProfilePage() {
     email: '',
     phone: '',
     address: '',
+    companyName: '',
+    taxOffice: '',
+    taxNumber: '',
+    tradeRegisterNumber: '',
+    website: '',
   })
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -29,6 +34,11 @@ export default function ProfilePage() {
         email: user.email || '',
         phone: user.phone || '',
         address: user.address || '',
+        companyName: user.companyName || '',
+        taxOffice: user.taxOffice || '',
+        taxNumber: user.taxNumber || '',
+        tradeRegisterNumber: user.tradeRegisterNumber || '',
+        website: user.website || '',
       })
     }
   }, [user])
@@ -198,6 +208,100 @@ export default function ProfilePage() {
               className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white resize-none"
               disabled={loading}
             />
+          </div>
+
+          {/* Company Information Section */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">business</span>
+              Şirket Bilgileri
+            </h3>
+            <div className="space-y-4">
+              {/* Company Name */}
+              <div>
+                <label htmlFor="companyName" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Şirket Adı
+                </label>
+                <input
+                  id="companyName"
+                  name="companyName"
+                  type="text"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white"
+                  placeholder="Şirket adınızı giriniz"
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Tax Office and Tax Number */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="taxOffice" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Vergi Dairesi
+                  </label>
+                  <input
+                    id="taxOffice"
+                    name="taxOffice"
+                    type="text"
+                    value={formData.taxOffice}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white"
+                    placeholder="Vergi dairesi adı"
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="taxNumber" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Vergi Numarası
+                  </label>
+                  <input
+                    id="taxNumber"
+                    name="taxNumber"
+                    type="text"
+                    value={formData.taxNumber}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white"
+                    placeholder="Vergi numaranız"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              {/* Trade Register Number */}
+              <div>
+                <label htmlFor="tradeRegisterNumber" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Ticari Sicil Numarası
+                </label>
+                <input
+                  id="tradeRegisterNumber"
+                  name="tradeRegisterNumber"
+                  type="text"
+                  value={formData.tradeRegisterNumber}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white"
+                  placeholder="Ticari sicil numaranız"
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Website */}
+              <div>
+                <label htmlFor="website" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Web Sitesi
+                </label>
+                <input
+                  id="website"
+                  name="website"
+                  type="url"
+                  value={formData.website}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white"
+                  placeholder="https://example.com"
+                  disabled={loading}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Password Change Section */}
