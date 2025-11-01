@@ -4451,8 +4451,11 @@ app.post('/api/admin/custom-production-requests/:id/proforma-quote', authenticat
     const names = cols.map(c => c.COLUMN_NAME);
     const alters = [];
     
+    // quoteValidUntil kolonu varsa ondan sonra, yoksa quotedAt'ten sonra ekle
+    const afterColumn = names.includes('quoteValidUntil') ? 'quoteValidUntil' : (names.includes('quotedAt') ? 'quotedAt' : 'status');
+    
     if (!names.includes('proformaQuoteData')) {
-      alters.push("ADD COLUMN proformaQuoteData JSON NULL AFTER quoteValidUntil");
+      alters.push(`ADD COLUMN proformaQuoteData JSON NULL AFTER ${afterColumn}`);
     }
     if (!names.includes('proformaItemCosts')) {
       alters.push("ADD COLUMN proformaItemCosts JSON NULL AFTER proformaQuoteData");
