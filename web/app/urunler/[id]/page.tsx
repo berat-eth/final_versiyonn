@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { productsApi } from '@/utils/api'
 import Image from 'next/image'
@@ -28,14 +28,11 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
+  const [productImages, setProductImages] = useState<string[]>([])
 
-  useEffect(() => {
-    if (productId) {
-      loadProduct()
-    }
-  }, [productId])
-
-  const loadProduct = async () => {
+  const loadProduct = useCallback(async () => {
     if (!productId) return
     
     try {
@@ -61,6 +58,30 @@ export default function ProductDetailPage() {
         }
         
         setProduct(productData)
+        
+        // Resimleri hazırla
+        let images: string[] = [];
+        if (productData.images) {
+          if (typeof productData.images === 'string') {
+            try {
+              const parsed = JSON.parse(productData.images);
+              images = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              images = [productData.images];
+            }
+          } else if (Array.isArray(productData.images)) {
+            images = productData.images;
+          }
+        }
+        
+        // Ana resmi ekle (eğer images'da yoksa)
+        if (productData.image && !images.includes(productData.image)) {
+          images.unshift(productData.image);
+        } else if (productData.image && !images.length) {
+          images = [productData.image];
+        }
+        
+        setProductImages(images);
       } else {
         setError('Ürün bulunamadı')
       }
@@ -70,7 +91,47 @@ export default function ProductDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [productId])
+
+  useEffect(() => {
+    if (productId) {
+      loadProduct()
+    }
+  }, [productId, loadProduct])
+
+  const openLightbox = useCallback((index: number) => {
+    setSelectedImageIndex(index)
+    setIsLightboxOpen(true)
+  }, [])
+
+  const closeLightbox = useCallback(() => {
+    setIsLightboxOpen(false)
+  }, [])
+
+  const nextImage = useCallback(() => {
+    setSelectedImageIndex((prev) => (prev + 1) % productImages.length)
+  }, [productImages.length])
+
+  const prevImage = useCallback(() => {
+    setSelectedImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length)
+  }, [productImages.length])
+
+  useEffect(() => {
+    if (!isLightboxOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeLightbox()
+      } else if (e.key === 'ArrowLeft') {
+        prevImage()
+      } else if (e.key === 'ArrowRight') {
+        nextImage()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isLightboxOpen, prevImage, nextImage, closeLightbox])
 
   if (loading) {
     return (
@@ -123,16 +184,31 @@ export default function ProductDetailPage() {
           {/* Product Images */}
           <div className="space-y-4">
             {/* Main Image */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div 
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer group"
+              onClick={() => productImages.length > 0 && openLightbox(selectedImageIndex)}
+            >
               <div className="relative aspect-square">
-                {product.image ? (
-                  <Image
-                    src={product.image}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
+                {productImages.length > 0 ? (
+                  <>
+                    <Image
+                      src={productImages[selectedImageIndex]}
+                      alt={product.name}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      unoptimized
+                    />
+                    {productImages.length > 1 && (
+                      <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-semibold">
+                        {selectedImageIndex + 1} / {productImages.length}
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white text-4xl opacity-0 group-hover:opacity-100 transition-opacity">
+                        zoom_in
+                      </span>
+                    </div>
+                  </>
                 ) : (
                   <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                     <span className="material-symbols-outlined text-6xl text-gray-400">image</span>
@@ -141,43 +217,53 @@ export default function ProductDetailPage() {
               </div>
             </div>
             
-            {/* Additional Images */}
-            {(() => {
-              let images: string[] = [];
-              if (product.images) {
-                if (typeof product.images === 'string') {
-                  try {
-                    const parsed = JSON.parse(product.images);
-                    images = Array.isArray(parsed) ? parsed : [parsed];
-                  } catch {
-                    images = [product.images];
-                  }
-                } else if (Array.isArray(product.images)) {
-                  images = product.images;
-                }
-              }
-              
-              // Ana resmi ekle (eğer images'da yoksa)
-              if (product.image && !images.includes(product.image)) {
-                images.unshift(product.image);
-              }
-              
-              return images.length > 1 ? (
-                <div className="grid grid-cols-4 gap-2">
-                  {images.slice(1, 5).map((img, idx) => (
-                    <div key={idx} className="relative aspect-square bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                      <Image
-                        src={img}
-                        alt={`${product.name} - Resim ${idx + 2}`}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : null;
-            })()}
+            {/* Thumbnail Images */}
+            {productImages.length > 1 && (
+              <div className="grid grid-cols-4 gap-2">
+                {productImages.slice(0, 8).map((img, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`relative aspect-square bg-white dark:bg-gray-800 rounded-lg border-2 overflow-hidden cursor-pointer transition-all ${
+                      selectedImageIndex === idx 
+                        ? 'border-blue-600 dark:border-blue-400 shadow-lg scale-105' 
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                    onClick={() => setSelectedImageIndex(idx)}
+                  >
+                    <Image
+                      src={img}
+                      alt={`${product.name} - Resim ${idx + 1}`}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Navigation Buttons (if more than 1 image) */}
+            {productImages.length > 1 && (
+              <div className="flex items-center justify-center gap-4">
+                <button
+                  onClick={prevImage}
+                  className="flex items-center justify-center w-12 h-12 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all shadow-md"
+                  aria-label="Önceki resim"
+                >
+                  <span className="material-symbols-outlined text-gray-700 dark:text-gray-300">chevron_left</span>
+                </button>
+                <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                  {selectedImageIndex + 1} / {productImages.length}
+                </span>
+                <button
+                  onClick={nextImage}
+                  className="flex items-center justify-center w-12 h-12 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all shadow-md"
+                  aria-label="Sonraki resim"
+                >
+                  <span className="material-symbols-outlined text-gray-700 dark:text-gray-300">chevron_right</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Product Info */}
@@ -270,6 +356,84 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Lightbox Modal */}
+      {isLightboxOpen && productImages.length > 0 && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center"
+          onClick={closeLightbox}
+        >
+          {/* Close Button */}
+          <button
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 z-10 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all"
+            aria-label="Kapat"
+          >
+            <span className="material-symbols-outlined text-2xl">close</span>
+          </button>
+
+          {/* Image Container */}
+          <div 
+            className="relative w-full h-full flex items-center justify-center p-4 md:p-16"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative max-w-7xl max-h-full">
+              <Image
+                src={productImages[selectedImageIndex]}
+                alt={`${product.name} - Resim ${selectedImageIndex + 1}`}
+                width={1200}
+                height={1200}
+                className="object-contain w-full h-full max-h-[90vh] rounded-lg"
+                unoptimized
+              />
+              
+              {/* Image Counter */}
+              {productImages.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold">
+                  {selectedImageIndex + 1} / {productImages.length}
+                </div>
+              )}
+            </div>
+
+            {/* Navigation Buttons */}
+            {productImages.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    prevImage()
+                  }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all"
+                  aria-label="Önceki resim"
+                >
+                  <span className="material-symbols-outlined text-3xl">chevron_left</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    nextImage()
+                  }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all"
+                  aria-label="Sonraki resim"
+                >
+                  <span className="material-symbols-outlined text-3xl">chevron_right</span>
+                </button>
+              </>
+            )}
+
+            {/* Keyboard Hint */}
+            <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-xs opacity-0 md:opacity-100 transition-opacity">
+              <div className="flex items-center gap-2">
+                <kbd className="px-2 py-1 bg-white/20 rounded">←</kbd>
+                <kbd className="px-2 py-1 bg-white/20 rounded">→</kbd>
+                <span className="ml-2">Geçiş</span>
+                <kbd className="ml-4 px-2 py-1 bg-white/20 rounded">ESC</kbd>
+                <span className="ml-2">Kapat</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

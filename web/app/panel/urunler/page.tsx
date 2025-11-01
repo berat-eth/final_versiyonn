@@ -223,20 +223,6 @@ export default function ProductsPage() {
                       {product.name}
                     </h3>
                   </Link>
-                  
-                  {product.rating !== null && product.rating !== undefined && !isNaN(Number(product.rating)) && (
-                    <div className="flex items-center gap-1 mb-2">
-                      <span className="material-symbols-outlined text-yellow-400 text-sm">star</span>
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        {Number(product.rating).toFixed(1)}
-                      </span>
-                      {product.reviewCount && (
-                        <span className="text-xs text-gray-500 dark:text-gray-500">
-                          ({product.reviewCount})
-                        </span>
-                      )}
-                    </div>
-                  )}
 
                   <div className="flex items-center justify-end mt-4">
                     <button
