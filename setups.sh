@@ -463,7 +463,7 @@ fi
 # --------------------------
 echo -e "${BLUE}N8N kuruluyor...${NC}"
 if ! command -v n8n &>/dev/null; then
-    npm install -g n8n
+    npm install -g --omit=dev n8n --ignore-scripts
 fi
 mkdir -p $N8N_DIR/logs
 chown -R $N8N_USER:$N8N_USER $N8N_DIR
