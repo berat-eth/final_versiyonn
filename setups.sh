@@ -66,6 +66,7 @@ ERRORS=0
 WARNINGS=0
 SKIP_ADMIN=false
 SKIP_MAIN=false
+SKIP_N8N=false
 
 # --------------------------
 # Root kontrolü
@@ -87,16 +88,17 @@ cleanup_and_fix() {
     pm2 delete $MAIN_PM2_NAME 2>/dev/null || true
     pm2 delete $API_PM2_NAME 2>/dev/null || true
     pm2 delete $ADMIN_PM2_NAME 2>/dev/null || true
-    pm2 delete n8n 2>/dev/null || true
+    # N8N'i temizleme - sadece çalışmıyorsa
+    if ! pm2 describe n8n &>/dev/null || ! pm2 list | grep -q "n8n.*online"; then
+        pm2 delete n8n 2>/dev/null || true
+    fi
 
     rm -f /etc/nginx/sites-enabled/$MAIN_DOMAIN
     rm -f /etc/nginx/sites-enabled/$API_DOMAIN
     rm -f /etc/nginx/sites-enabled/$ADMIN_DOMAIN
-    rm -f /etc/nginx/sites-enabled/n8n
     rm -f /etc/nginx/sites-available/$MAIN_DOMAIN
     rm -f /etc/nginx/sites-available/$API_DOMAIN
     rm -f /etc/nginx/sites-available/$ADMIN_DOMAIN
-    rm -f /etc/nginx/sites-available/n8n
     rm -f /etc/nginx/sites-enabled/default
 }
 
@@ -459,16 +461,50 @@ else
 fi
 
 # --------------------------
-# N8N Kurulumu
+# N8N Kurulum Kontrolü ve Kurulumu
 # --------------------------
-echo -e "${BLUE}N8N kuruluyor...${NC}"
-if ! command -v n8n &>/dev/null; then
-    npm install -g --omit=dev n8n --ignore-scripts
-fi
-mkdir -p $N8N_DIR/logs
-chown -R $N8N_USER:$N8N_USER $N8N_DIR
+echo -e "${BLUE}N8N kontrol ediliyor...${NC}"
 
-cat > $N8N_DIR/ecosystem.config.js << EOF
+# N8N'in zaten kurulu ve çalışır durumda olup olmadığını kontrol et
+N8N_INSTALLED=false
+N8N_RUNNING=false
+
+if command -v n8n &>/dev/null; then
+    echo -e "${GREEN}✅ N8N binary bulundu${NC}"
+    N8N_INSTALLED=true
+fi
+
+if pm2 describe n8n &>/dev/null; then
+    if pm2 list | grep -q "n8n.*online"; then
+        echo -e "${GREEN}✅ N8N PM2'de çalışıyor${NC}"
+        N8N_RUNNING=true
+    fi
+fi
+
+# N8N veritabanını kontrol et
+if [ -f "$N8N_DIR/.n8n/database.sqlite" ]; then
+    echo -e "${GREEN}✅ N8N veritabanı mevcut${NC}"
+fi
+
+# N8N kurulu VE çalışıyorsa atla
+if [ "$N8N_INSTALLED" = true ] && [ "$N8N_RUNNING" = true ]; then
+    echo -e "${YELLOW}⚠️  N8N zaten kurulu ve çalışıyor, kurulum atlanıyor...${NC}"
+    SKIP_N8N=true
+else
+    echo -e "${BLUE}N8N kuruluyor...${NC}"
+    
+    # N8N binary kurulu değilse kur
+    if [ "$N8N_INSTALLED" = false ]; then
+        echo -e "${YELLOW}N8N binary kuruluyor...${NC}"
+        npm install -g n8n --ignore-scripts
+    fi
+    
+    # N8N dizinlerini oluştur
+    mkdir -p $N8N_DIR/logs
+    chown -R $N8N_USER:$N8N_USER $N8N_DIR
+
+    # N8N ecosystem config dosyası oluştur
+    cat > $N8N_DIR/ecosystem.config.js << EOF
 module.exports = {
   apps: [{
     name: 'n8n',
@@ -506,9 +542,11 @@ module.exports = {
 };
 EOF
 
-su - $N8N_USER -c "cd $N8N_DIR && pm2 start ecosystem.config.js && pm2 save"
-env PATH=$PATH:/usr/bin pm2 startup systemd -u $N8N_USER --hp /home/$N8N_USER
-echo -e "${GREEN}✅ N8N başarıyla kuruldu (Redis entegrasyonu ile)${NC}"
+    # N8N'i başlat
+    su - $N8N_USER -c "cd $N8N_DIR && pm2 start ecosystem.config.js && pm2 save"
+    env PATH=$PATH:/usr/bin pm2 startup systemd -u $N8N_USER --hp /home/$N8N_USER
+    echo -e "${GREEN}✅ N8N başarıyla kuruldu (Redis entegrasyonu ile)${NC}"
+fi
 
 # --------------------------
 # APK Build İşlemi
@@ -646,7 +684,8 @@ EOF
 ln -sf /etc/nginx/sites-available/$ADMIN_DOMAIN /etc/nginx/sites-enabled/
 fi
 
-# N8N
+# N8N - Sadece yeni kurulumda veya mevcut config yoksa
+if [ "$SKIP_N8N" != true ] || [ ! -f "/etc/nginx/sites-available/n8n" ]; then
 cat > /etc/nginx/sites-available/n8n << 'EOF'
 server {
     listen 80;
@@ -667,6 +706,7 @@ server {
 }
 EOF
 ln -sf /etc/nginx/sites-available/n8n /etc/nginx/sites-enabled/
+fi
 
 # Nginx test ve reload
 nginx -t && systemctl reload nginx
@@ -689,109 +729,10 @@ if [ "$SKIP_ADMIN" != true ]; then
     certbot --nginx -d $ADMIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
 fi
 
-# N8N SSL
-certbot --nginx -d $N8N_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+# N8N SSL - Sadece yeni kurulumda
+if [ "$SKIP_N8N" != true ]; then
+    certbot --nginx -d $N8N_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+fi
 
 # Otomatik yenileme
-(crontab -l 2>/dev/null | grep -F "certbot renew") || (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | crontab -
-
-# --------------------------
-# Firewall
-# --------------------------
-echo -e "${BLUE}Firewall yapılandırılıyor...${NC}"
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw --force enable
-
-# --------------------------
-# PM2 startup
-# --------------------------
-pm2 startup systemd -u root --hp /root
-pm2 save
-
-# --------------------------
-# Redis Test ve Bilgi
-# --------------------------
-echo -e "${BLUE}Redis bağlantısı test ediliyor...${NC}"
-if redis-cli ping > /dev/null 2>&1; then
-    REDIS_VERSION=$(redis-cli info server 2>/dev/null | grep "redis_version" | cut -d: -f2 | tr -d '\r')
-    REDIS_MEMORY=$(redis-cli info memory 2>/dev/null | grep "used_memory_human" | cut -d: -f2 | tr -d '\r')
-    echo -e "${GREEN}✅ Redis çalışıyor - Version: $REDIS_VERSION | Memory: $REDIS_MEMORY${NC}"
-else
-    echo -e "${YELLOW}⚠️  Redis bağlantı testi başarısız${NC}"
-fi
-
-# --------------------------
-# APK Build Script Çalıştırma
-# --------------------------
-APK_BUILD_SCRIPT="/root/final_versiyonn/build-apk.sh"
-
-if [ -f "$APK_BUILD_SCRIPT" ]; then
-    echo -e "${BLUE}APK Build Script bulundu, çalıştırılıyor...${NC}"
-    chmod +x "$APK_BUILD_SCRIPT"
-    
-    # Script'i çalıştır
-    bash "$APK_BUILD_SCRIPT"
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ APK Build Script başarıyla tamamlandı${NC}"
-    else
-        echo -e "${YELLOW}⚠️  APK Build Script hata ile sonlandı (kod: $?)${NC}"
-    fi
-else
-    echo -e "${YELLOW}⚠️  APK Build Script bulunamadı: $APK_BUILD_SCRIPT${NC}"
-fi
-
-# --------------------------
-# Tamamlama Özeti
-# --------------------------
-echo ""
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}✅ Deployment Tamamlandı!${NC}"
-echo -e "${GREEN}========================================${NC}"
-echo ""
-echo -e "${BLUE}🌐 Servisler:${NC}"
-if [ "$SKIP_MAIN" != true ]; then
-    echo -e "  Ana Site: https://$MAIN_DOMAIN (Port: $MAIN_PORT)"
-fi
-echo -e "  API:      https://$API_DOMAIN (Port: $API_PORT)"
-if [ "$SKIP_ADMIN" != true ]; then
-    echo -e "  Admin:    https://$ADMIN_DOMAIN (Port: $ADMIN_PORT)"
-fi
-echo -e "  N8N:      https://$N8N_DOMAIN (Port: $N8N_PORT)"
-echo ""
-echo -e "${BLUE}🗄️  Redis:${NC}"
-echo -e "  Host:     127.0.0.1"
-echo -e "  Port:     $REDIS_PORT"
-echo -e "  Auth:     ${GREEN}Şifresiz (Localhost only)${NC}"
-echo -e "  Config:   /etc/redis/redis.conf"
-echo -e "  Data:     /var/lib/redis"
-echo -e "  Logs:     /var/log/redis/redis-server.log"
-echo ""
-echo -e "${BLUE}📱 APK Build:${NC}"
-if [ -d "$APK_OUTPUT_DIR" ] && [ "$(ls -A $APK_OUTPUT_DIR 2>/dev/null)" ]; then
-    echo -e "  Output: $APK_OUTPUT_DIR"
-    ls -lh $APK_OUTPUT_DIR/*.apk 2>/dev/null || echo "  APK bulunamadı"
-else
-    echo -e "  ${YELLOW}APK build edilmedi veya dizin bulunamadı${NC}"
-fi
-echo ""
-echo -e "${BLUE}📊 Yönetim Komutları:${NC}"
-echo -e "  pm2 status              - Servisleri görüntüle"
-echo -e "  pm2 logs                - Logları izle"
-echo -e "  pm2 logs $MAIN_PM2_NAME     - Ana site logları"
-echo -e "  pm2 logs $API_PM2_NAME      - API logları"
-echo -e "  pm2 restart all         - Tüm servisleri yeniden başlat"
-echo -e "  pm2 restart $MAIN_PM2_NAME  - Ana siteyi yeniden başlat"
-echo -e "  nginx -t                - Nginx config test"
-echo -e "  systemctl status nginx  - Nginx durumu"
-echo -e "  redis-cli ping          - Redis bağlantı testi"
-echo -e "  redis-cli info          - Redis bilgileri"
-echo -e "  systemctl status redis-server - Redis durumu"
-echo ""
-echo -e "${BLUE}🔐 SSL Sertifikaları:${NC}"
-echo -e "  certbot certificates    - Sertifikaları listele"
-echo -e "  certbot renew --dry-run - Yenileme testi"
-echo ""
-echo -e "${GREEN}Kurulum başarıyla tamamlandı! 🚀${NC}"
+(crontab -l 2>/dev/null | grep -F "certbot renew") || (crontab -l
