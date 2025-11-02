@@ -5,7 +5,7 @@ import {
   Users, TrendingUp, Target, CheckCircle2, Clock, X, Plus, Search, Filter, 
   Mail, Phone, Calendar, MapPin, Building2, DollarSign, ArrowRight, 
   Edit, Trash2, Eye, ArrowUpDown, MoreVertical, FileText, MessageSquare,
-  Briefcase, UserPlus, Activity, BarChart3, PieChart, Zap, AlertCircle,
+  Briefcase, UserPlus, Activity as ActivityIcon, BarChart3, PieChart, Zap, AlertCircle,
   Star, RefreshCw, Download, ChevronRight, ChevronLeft, Save, Tag
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
