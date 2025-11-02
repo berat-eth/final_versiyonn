@@ -5130,22 +5130,29 @@ app.get('/api/admin/crm/leads', authenticateAdmin, async (req, res) => {
       where.push('status = ?');
       params.push(status);
     }
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const countParams = [...params];
     params.push(parseInt(limit), parseInt(offset));
     const [rows] = await poolWrapper.execute(
       `SELECT id, name, email, phone, company, title, status, source, value, notes, assignedTo, createdAt, updatedAt
        FROM crm_leads
-       WHERE ${where.join(' AND ')}
+       ${whereClause}
        ORDER BY createdAt DESC
        LIMIT ? OFFSET ?`, params
     );
     const [countRows] = await poolWrapper.execute(
-      `SELECT COUNT(*) as total FROM crm_leads WHERE ${where.slice(0, -1).join(' AND ')}`, 
-      params.slice(0, -2)
+      `SELECT COUNT(*) as total FROM crm_leads ${whereClause}`, 
+      countParams
     );
     res.json({ success: true, data: { leads: rows, total: countRows[0].total } });
   } catch (error) {
     console.error('❌ Error fetching CRM leads:', error);
-    res.status(500).json({ success: false, message: 'Error fetching leads' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching leads',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -5293,6 +5300,8 @@ app.get('/api/admin/crm/opportunities', authenticateAdmin, async (req, res) => {
       where.push('(s.name LIKE ? OR d.status = ?)');
       params.push(`%${stage}%`, stage);
     }
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const countParams = [...params];
     params.push(parseInt(limit), parseInt(offset));
     const [rows] = await poolWrapper.execute(
       `SELECT d.id, d.title as name, d.contactId, c.name as contactName, 
@@ -5301,7 +5310,7 @@ app.get('/api/admin/crm/opportunities', authenticateAdmin, async (req, res) => {
        FROM crm_deals d
        LEFT JOIN crm_contacts c ON c.id = d.contactId
        LEFT JOIN crm_pipeline_stages s ON s.id = d.stageId
-       WHERE ${where.join(' AND ')}
+       ${whereClause}
        ORDER BY d.createdAt DESC
        LIMIT ? OFFSET ?`, params
     );
@@ -5321,13 +5330,21 @@ app.get('/api/admin/crm/opportunities', authenticateAdmin, async (req, res) => {
       updatedAt: r.updatedAt
     }));
     const [countRows] = await poolWrapper.execute(
-      `SELECT COUNT(*) as total FROM crm_deals d WHERE ${where.slice(0, -1).join(' AND ')}`,
-      params.slice(0, -2)
+      `SELECT COUNT(*) as total FROM crm_deals d
+       LEFT JOIN crm_contacts c ON c.id = d.contactId
+       LEFT JOIN crm_pipeline_stages s ON s.id = d.stageId
+       ${whereClause}`,
+      countParams
     );
     res.json({ success: true, data: { opportunities, total: countRows[0].total } });
   } catch (error) {
     console.error('❌ Error fetching CRM opportunities:', error);
-    res.status(500).json({ success: false, message: 'Error fetching opportunities' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching opportunities',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -5480,21 +5497,28 @@ app.get('/api/admin/crm/tasks', authenticateAdmin, async (req, res) => {
       where.push('relatedType = ?');
       params.push(relatedType);
     }
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const countParams = [...params];
     params.push(parseInt(limit), parseInt(offset));
     const [rows] = await poolWrapper.execute(
       `SELECT * FROM crm_tasks
-       WHERE ${where.join(' AND ')}
+       ${whereClause}
        ORDER BY createdAt DESC
        LIMIT ? OFFSET ?`, params
     );
     const [countRows] = await poolWrapper.execute(
-      `SELECT COUNT(*) as total FROM crm_tasks WHERE ${where.slice(0, -1).join(' AND ')}`,
-      params.slice(0, -2)
+      `SELECT COUNT(*) as total FROM crm_tasks ${whereClause}`,
+      countParams
     );
     res.json({ success: true, data: { tasks: rows, total: countRows[0].total } });
   } catch (error) {
     console.error('❌ Error fetching CRM tasks:', error);
-    res.status(500).json({ success: false, message: 'Error fetching tasks' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching tasks',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
