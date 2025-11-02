@@ -4985,16 +4985,19 @@ app.delete('/api/admin/opportunities/:id', authenticateAdmin, async (req, res) =
 });
 app.get('/api/admin/activities', authenticateAdmin, async (req, res) => {
   try {
-    const { page = 1, limit = 50, q = '', type = '' } = req.query;
+    const { contactId, leadId, opportunityId, page = 1, limit = 50, q = '', type = '' } = req.query;
     const tenantId = req.tenant?.id || 1;
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    const where = ['tenantId = ?'];
+    const where = ['a.tenantId = ?'];
     const params = [tenantId];
-    if (q) { where.push('(title LIKE ? OR notes LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
-    if (type) { where.push('type = ?'); params.push(type); }
+    if (contactId) { where.push('a.contactId = ?'); params.push(parseInt(contactId)); }
+    if (leadId) { where.push('a.leadId = ?'); params.push(parseInt(leadId)); }
+    if (opportunityId) { where.push('a.opportunityId = ?'); params.push(parseInt(opportunityId)); }
+    if (q) { where.push('(a.title LIKE ? OR a.notes LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
+    if (type) { where.push('a.type = ?'); params.push(type); }
     params.push(parseInt(limit), parseInt(offset));
     const [rows] = await poolWrapper.execute(
-      `SELECT a.id, a.contactId, a.type, a.title, a.notes, a.status, a.activityAt, a.createdAt,
+      `SELECT a.id, a.contactId, a.leadId, a.opportunityId, a.type, a.title, a.notes, a.status, a.activityAt, a.duration, a.createdAt,
               c.name AS contactName
        FROM crm_activities a
        LEFT JOIN crm_contacts c ON c.id = a.contactId
@@ -5011,13 +5014,15 @@ app.get('/api/admin/activities', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/activities', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
-    const { contactId = null, type = 'call', title, notes = '', status = 'planned', activityAt = null } = req.body || {};
+    const { contactId = null, leadId = null, opportunityId = null, type = 'call', title, notes = '', status = 'planned', activityAt = null, duration = 0 } = req.body || {};
     if (!title) return res.status(400).json({ success: false, message: 'Title required' });
     const [result] = await poolWrapper.execute(
-      `INSERT INTO crm_activities (tenantId, contactId, type, title, notes, status, activityAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`, [tenantId, contactId, type, title, notes, status, activityAt]
+      `INSERT INTO crm_activities (tenantId, contactId, leadId, opportunityId, type, title, notes, status, activityAt, duration)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+      [tenantId, contactId, leadId, opportunityId, type, title, notes, status, activityAt, duration]
     );
-    res.json({ success: true, data: { id: result.insertId } });
+    const [newActivity] = await poolWrapper.execute('SELECT * FROM crm_activities WHERE id = ?', [result.insertId]);
+    res.json({ success: true, data: newActivity[0] });
   } catch (error) {
     console.error('❌ Error creating activity:', error);
     res.status(500).json({ success: false, message: 'Error creating activity' });
@@ -5027,14 +5032,15 @@ app.put('/api/admin/activities/:id', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
     const id = parseInt(req.params.id);
-    const allowed = ['contactId', 'type', 'title', 'notes', 'status', 'activityAt'];
+    const allowed = ['contactId', 'leadId', 'opportunityId', 'type', 'title', 'notes', 'status', 'activityAt', 'duration'];
     const fields = [];
     const params = [];
     for (const k of allowed) if (k in (req.body || {})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
     if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
     params.push(id, tenantId);
     await poolWrapper.execute(`UPDATE crm_activities SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
-    res.json({ success: true });
+    const [updated] = await poolWrapper.execute('SELECT * FROM crm_activities WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true, data: updated[0] });
   } catch (error) {
     console.error('❌ Error updating activity:', error);
     res.status(500).json({ success: false, message: 'Error updating activity' });
@@ -5105,6 +5111,622 @@ app.delete('/api/admin/pipeline/:id', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('❌ Error deleting pipeline stage:', error);
     res.status(500).json({ success: false, message: 'Error deleting pipeline stage' });
+  }
+});
+
+// =========================
+// CRM FULL ENDPOINTS - Frontend API compatibility
+// =========================
+
+// CRM Leads endpoints - /admin/crm/leads
+app.get('/api/admin/crm/leads', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const where = ['tenantId = ?'];
+    const params = [tenantId];
+    if (status && status !== 'all') {
+      where.push('status = ?');
+      params.push(status);
+    }
+    params.push(parseInt(limit), parseInt(offset));
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, name, email, phone, company, title, status, source, value, notes, assignedTo, createdAt, updatedAt
+       FROM crm_leads
+       WHERE ${where.join(' AND ')}
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`, params
+    );
+    const [countRows] = await poolWrapper.execute(
+      `SELECT COUNT(*) as total FROM crm_leads WHERE ${where.slice(0, -1).join(' AND ')}`, 
+      params.slice(0, -2)
+    );
+    res.json({ success: true, data: { leads: rows, total: countRows[0].total } });
+  } catch (error) {
+    console.error('❌ Error fetching CRM leads:', error);
+    res.status(500).json({ success: false, message: 'Error fetching leads' });
+  }
+});
+
+app.get('/api/admin/crm/leads/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const [rows] = await poolWrapper.execute(
+      'SELECT * FROM crm_leads WHERE id = ? AND tenantId = ?', [id, tenantId]
+    );
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Lead not found' });
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('❌ Error fetching lead:', error);
+    res.status(500).json({ success: false, message: 'Error fetching lead' });
+  }
+});
+
+app.post('/api/admin/crm/leads', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { name, email, phone, company, title, status = 'new', source, value = 0, notes, assignedTo } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: 'Name required' });
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_leads (tenantId, name, email, phone, company, title, status, source, value, notes, assignedTo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [tenantId, name, email || null, phone || null, company || null, title || null, status, source || null, value, notes || null, assignedTo || null]
+    );
+    const [newLead] = await poolWrapper.execute('SELECT * FROM crm_leads WHERE id = ?', [result.insertId]);
+    res.json({ success: true, data: newLead[0] });
+  } catch (error) {
+    console.error('❌ Error creating CRM lead:', error);
+    res.status(500).json({ success: false, message: 'Error creating lead' });
+  }
+});
+
+app.put('/api/admin/crm/leads/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['name', 'email', 'phone', 'company', 'title', 'status', 'source', 'value', 'notes', 'assignedTo'];
+    const fields = [];
+    const params = [];
+    for (const k of allowed) if (k in (req.body || {})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_leads SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    const [updated] = await poolWrapper.execute('SELECT * FROM crm_leads WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true, data: updated[0] });
+  } catch (error) {
+    console.error('❌ Error updating CRM lead:', error);
+    res.status(500).json({ success: false, message: 'Error updating lead' });
+  }
+});
+
+app.delete('/api/admin/crm/leads/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_leads WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting CRM lead:', error);
+    res.status(500).json({ success: false, message: 'Error deleting lead' });
+  }
+});
+
+app.post('/api/admin/crm/leads/:id/convert', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const leadId = parseInt(req.params.id);
+    const opportunityData = req.body || {};
+    
+    // Get lead
+    const [leadRows] = await poolWrapper.execute('SELECT * FROM crm_leads WHERE id = ? AND tenantId = ?', [leadId, tenantId]);
+    if (leadRows.length === 0) return res.status(404).json({ success: false, message: 'Lead not found' });
+    const lead = leadRows[0];
+
+    // Create contact
+    const [contactResult] = await poolWrapper.execute(
+      `INSERT INTO crm_contacts (tenantId, name, email, phone, company, title)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [tenantId, lead.name, lead.email, lead.phone, lead.company, lead.title || null]
+    );
+    const contactId = contactResult.insertId;
+
+    // Update lead status
+    await poolWrapper.execute('UPDATE crm_leads SET status = "converted", updatedAt = CURRENT_TIMESTAMP WHERE id = ?', [leadId]);
+
+    // Create opportunity if data provided
+    let opportunity = null;
+    if (opportunityData.name || opportunityData.value) {
+      const [oppResult] = await poolWrapper.execute(
+        `INSERT INTO crm_deals (tenantId, title, contactId, value, currency, status, expectedCloseDate)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          tenantId,
+          opportunityData.name || `${lead.name} - Opportunity`,
+          contactId,
+          opportunityData.value || lead.value || 0,
+          opportunityData.currency || 'TRY',
+          'open',
+          opportunityData.expectedCloseDate || null
+        ]
+      );
+      const [oppRows] = await poolWrapper.execute('SELECT * FROM crm_deals WHERE id = ?', [oppResult.insertId]);
+      opportunity = oppRows[0];
+    }
+
+    const [contactRows] = await poolWrapper.execute('SELECT * FROM crm_contacts WHERE id = ?', [contactId]);
+    res.json({ success: true, data: { contact: contactRows[0], opportunity } });
+  } catch (error) {
+    console.error('❌ Error converting lead:', error);
+    res.status(500).json({ success: false, message: 'Error converting lead' });
+  }
+});
+
+app.get('/api/admin/crm/leads/search', authenticateAdmin, async (req, res) => {
+  try {
+    const { q } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    if (!q || q.length < 2) return res.json({ success: true, data: [] });
+    const [rows] = await poolWrapper.execute(
+      `SELECT * FROM crm_leads 
+       WHERE tenantId = ? AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR company LIKE ?)
+       ORDER BY createdAt DESC LIMIT 20`,
+      [tenantId, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error searching leads:', error);
+    res.status(500).json({ success: false, message: 'Error searching leads' });
+  }
+});
+
+// CRM Opportunities endpoints - /admin/crm/opportunities
+app.get('/api/admin/crm/opportunities', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, stage } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const where = ['d.tenantId = ?'];
+    const params = [tenantId];
+    if (stage && stage !== 'all') {
+      where.push('(s.name LIKE ? OR d.status = ?)');
+      params.push(`%${stage}%`, stage);
+    }
+    params.push(parseInt(limit), parseInt(offset));
+    const [rows] = await poolWrapper.execute(
+      `SELECT d.id, d.title as name, d.contactId, c.name as contactName, 
+              d.value, d.currency, d.status, d.stageId, COALESCE(s.name, 'prospecting') as stage, COALESCE(s.probability, 0) as probability,
+              d.expectedCloseDate, d.description, d.assignedTo, d.createdAt, d.updatedAt
+       FROM crm_deals d
+       LEFT JOIN crm_contacts c ON c.id = d.contactId
+       LEFT JOIN crm_pipeline_stages s ON s.id = d.stageId
+       WHERE ${where.join(' AND ')}
+       ORDER BY d.createdAt DESC
+       LIMIT ? OFFSET ?`, params
+    );
+    // Map to frontend format
+    const opportunities = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      contactId: r.contactId,
+      contactName: r.contactName,
+      stage: r.stage || 'prospecting',
+      value: parseFloat(r.value || 0),
+      probability: r.probability || 0,
+      expectedCloseDate: r.expectedCloseDate,
+      description: r.description,
+      assignedTo: r.assignedTo,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt
+    }));
+    const [countRows] = await poolWrapper.execute(
+      `SELECT COUNT(*) as total FROM crm_deals d WHERE ${where.slice(0, -1).join(' AND ')}`,
+      params.slice(0, -2)
+    );
+    res.json({ success: true, data: { opportunities, total: countRows[0].total } });
+  } catch (error) {
+    console.error('❌ Error fetching CRM opportunities:', error);
+    res.status(500).json({ success: false, message: 'Error fetching opportunities' });
+  }
+});
+
+app.get('/api/admin/crm/opportunities/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const [rows] = await poolWrapper.execute(
+      `SELECT d.*, c.name as contactName, s.name as stageName, s.probability
+       FROM crm_deals d
+       LEFT JOIN crm_contacts c ON c.id = d.contactId
+       LEFT JOIN crm_pipeline_stages s ON s.id = d.stageId
+       WHERE d.id = ? AND d.tenantId = ?`, [id, tenantId]
+    );
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Opportunity not found' });
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('❌ Error fetching opportunity:', error);
+    res.status(500).json({ success: false, message: 'Error fetching opportunity' });
+  }
+});
+
+app.post('/api/admin/crm/opportunities', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { name, contactId, stage, value = 0, probability = 0, expectedCloseDate, description, assignedTo } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: 'Name required' });
+    
+    // Get or create stage
+    let stageId = null;
+    if (stage) {
+      const [stageRows] = await poolWrapper.execute(
+        'SELECT id FROM crm_pipeline_stages WHERE tenantId = ? AND name LIKE ?',
+        [tenantId, `%${stage}%`]
+      );
+      if (stageRows.length > 0) {
+        stageId = stageRows[0].id;
+      }
+    }
+
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_deals (tenantId, title, contactId, value, currency, stageId, status, expectedCloseDate, description, assignedTo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [tenantId, name, contactId || null, value, 'TRY', stageId, 'open', expectedCloseDate || null, description || null, assignedTo || null]
+    );
+    const [newOpp] = await poolWrapper.execute(
+      `SELECT d.*, c.name as contactName, s.name as stage, s.probability
+       FROM crm_deals d
+       LEFT JOIN crm_contacts c ON c.id = d.contactId
+       LEFT JOIN crm_pipeline_stages s ON s.id = d.stageId
+       WHERE d.id = ?`, [result.insertId]
+    );
+    res.json({ success: true, data: newOpp[0] });
+  } catch (error) {
+    console.error('❌ Error creating CRM opportunity:', error);
+    res.status(500).json({ success: false, message: 'Error creating opportunity' });
+  }
+});
+
+app.put('/api/admin/crm/opportunities/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['name', 'title', 'contactId', 'value', 'stage', 'probability', 'expectedCloseDate', 'description', 'assignedTo', 'status'];
+    const fields = [];
+    const params = [];
+    
+    for (const k of allowed) {
+      if (k in (req.body || {})) {
+        if (k === 'name') {
+          fields.push('title = ?');
+          params.push(req.body[k]);
+        } else if (k === 'stage') {
+          const [stageRows] = await poolWrapper.execute(
+            'SELECT id FROM crm_pipeline_stages WHERE tenantId = ? AND name LIKE ?',
+            [tenantId, `%${req.body[k]}%`]
+          );
+          if (stageRows.length > 0) {
+            fields.push('stageId = ?');
+            params.push(stageRows[0].id);
+          }
+        } else {
+          fields.push(`${k} = ?`);
+          params.push(req.body[k]);
+        }
+      }
+    }
+    
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_deals SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    const [updated] = await poolWrapper.execute(
+      `SELECT d.*, c.name as contactName, s.name as stage, s.probability
+       FROM crm_deals d
+       LEFT JOIN crm_contacts c ON c.id = d.contactId
+       LEFT JOIN crm_pipeline_stages s ON s.id = d.stageId
+       WHERE d.id = ? AND d.tenantId = ?`, [id, tenantId]
+    );
+    res.json({ success: true, data: updated[0] });
+  } catch (error) {
+    console.error('❌ Error updating CRM opportunity:', error);
+    res.status(500).json({ success: false, message: 'Error updating opportunity' });
+  }
+});
+
+app.delete('/api/admin/crm/opportunities/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_deals WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting CRM opportunity:', error);
+    res.status(500).json({ success: false, message: 'Error deleting opportunity' });
+  }
+});
+
+app.get('/api/admin/crm/opportunities/search', authenticateAdmin, async (req, res) => {
+  try {
+    const { q } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    if (!q || q.length < 2) return res.json({ success: true, data: [] });
+    const [rows] = await poolWrapper.execute(
+      `SELECT d.*, c.name as contactName FROM crm_deals d
+       LEFT JOIN crm_contacts c ON c.id = d.contactId
+       WHERE d.tenantId = ? AND (d.title LIKE ? OR c.name LIKE ?)
+       ORDER BY d.createdAt DESC LIMIT 20`,
+      [tenantId, `%${q}%`, `%${q}%`]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error searching opportunities:', error);
+    res.status(500).json({ success: false, message: 'Error searching opportunities' });
+  }
+});
+
+// CRM Tasks endpoints - /admin/crm/tasks
+app.get('/api/admin/crm/tasks', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status, relatedType } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const where = ['tenantId = ?'];
+    const params = [tenantId];
+    if (status && status !== 'all') {
+      where.push('status = ?');
+      params.push(status);
+    }
+    if (relatedType) {
+      where.push('relatedType = ?');
+      params.push(relatedType);
+    }
+    params.push(parseInt(limit), parseInt(offset));
+    const [rows] = await poolWrapper.execute(
+      `SELECT * FROM crm_tasks
+       WHERE ${where.join(' AND ')}
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`, params
+    );
+    const [countRows] = await poolWrapper.execute(
+      `SELECT COUNT(*) as total FROM crm_tasks WHERE ${where.slice(0, -1).join(' AND ')}`,
+      params.slice(0, -2)
+    );
+    res.json({ success: true, data: { tasks: rows, total: countRows[0].total } });
+  } catch (error) {
+    console.error('❌ Error fetching CRM tasks:', error);
+    res.status(500).json({ success: false, message: 'Error fetching tasks' });
+  }
+});
+
+app.get('/api/admin/crm/tasks/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const [rows] = await poolWrapper.execute(
+      'SELECT * FROM crm_tasks WHERE id = ? AND tenantId = ?', [id, tenantId]
+    );
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Task not found' });
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('❌ Error fetching task:', error);
+    res.status(500).json({ success: false, message: 'Error fetching task' });
+  }
+});
+
+app.post('/api/admin/crm/tasks', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { title, description, relatedType = 'other', relatedId, status = 'pending', priority = 'medium', dueDate, assignedTo } = req.body || {};
+    if (!title) return res.status(400).json({ success: false, message: 'Title required' });
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_tasks (tenantId, title, description, relatedType, relatedId, status, priority, dueDate, assignedTo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [tenantId, title, description || null, relatedType, relatedId || null, status, priority, dueDate || null, assignedTo || null]
+    );
+    const [newTask] = await poolWrapper.execute('SELECT * FROM crm_tasks WHERE id = ?', [result.insertId]);
+    res.json({ success: true, data: newTask[0] });
+  } catch (error) {
+    console.error('❌ Error creating CRM task:', error);
+    res.status(500).json({ success: false, message: 'Error creating task' });
+  }
+});
+
+app.put('/api/admin/crm/tasks/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['title', 'description', 'relatedType', 'relatedId', 'status', 'priority', 'dueDate', 'assignedTo'];
+    const fields = [];
+    const params = [];
+    for (const k of allowed) if (k in (req.body || {})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_tasks SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    const [updated] = await poolWrapper.execute('SELECT * FROM crm_tasks WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true, data: updated[0] });
+  } catch (error) {
+    console.error('❌ Error updating CRM task:', error);
+    res.status(500).json({ success: false, message: 'Error updating task' });
+  }
+});
+
+app.delete('/api/admin/crm/tasks/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_tasks WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting CRM task:', error);
+    res.status(500).json({ success: false, message: 'Error deleting task' });
+  }
+});
+
+// CRM Contacts endpoints - /admin/crm/contacts
+app.get('/api/admin/crm/contacts', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const [rows] = await poolWrapper.execute(
+      `SELECT * FROM crm_contacts
+       WHERE tenantId = ?
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`, [tenantId, parseInt(limit), offset]
+    );
+    const [countRows] = await poolWrapper.execute('SELECT COUNT(*) as total FROM crm_contacts WHERE tenantId = ?', [tenantId]);
+    res.json({ success: true, data: { contacts: rows, total: countRows[0].total } });
+  } catch (error) {
+    console.error('❌ Error fetching CRM contacts:', error);
+    res.status(500).json({ success: false, message: 'Error fetching contacts' });
+  }
+});
+
+app.get('/api/admin/crm/contacts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const [rows] = await poolWrapper.execute(
+      'SELECT * FROM crm_contacts WHERE id = ? AND tenantId = ?', [id, tenantId]
+    );
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Contact not found' });
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('❌ Error fetching contact:', error);
+    res.status(500).json({ success: false, message: 'Error fetching contact' });
+  }
+});
+
+app.post('/api/admin/crm/contacts', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { name, email, phone, company, title, address, city, notes, tags } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, message: 'Name required' });
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_contacts (tenantId, name, email, phone, company, title, address, city, notes, tags)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [tenantId, name, email || null, phone || null, company || null, title || null, address || null, city || null, notes || null, tags ? JSON.stringify(tags) : null]
+    );
+    const [newContact] = await poolWrapper.execute('SELECT * FROM crm_contacts WHERE id = ?', [result.insertId]);
+    res.json({ success: true, data: newContact[0] });
+  } catch (error) {
+    console.error('❌ Error creating CRM contact:', error);
+    res.status(500).json({ success: false, message: 'Error creating contact' });
+  }
+});
+
+app.put('/api/admin/crm/contacts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const allowed = ['name', 'email', 'phone', 'company', 'title', 'address', 'city', 'notes', 'tags'];
+    const fields = [];
+    const params = [];
+    for (const k of allowed) {
+      if (k in (req.body || {})) {
+        fields.push(`${k} = ?`);
+        if (k === 'tags') {
+          params.push(req.body[k] ? JSON.stringify(req.body[k]) : null);
+        } else {
+          params.push(req.body[k]);
+        }
+      }
+    }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    params.push(id, tenantId);
+    await poolWrapper.execute(`UPDATE crm_contacts SET ${fields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND tenantId = ?`, params);
+    const [updated] = await poolWrapper.execute('SELECT * FROM crm_contacts WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true, data: updated[0] });
+  } catch (error) {
+    console.error('❌ Error updating CRM contact:', error);
+    res.status(500).json({ success: false, message: 'Error updating contact' });
+  }
+});
+
+app.delete('/api/admin/crm/contacts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM crm_contacts WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting CRM contact:', error);
+    res.status(500).json({ success: false, message: 'Error deleting contact' });
+  }
+});
+
+app.get('/api/admin/crm/contacts/search', authenticateAdmin, async (req, res) => {
+  try {
+    const { q } = req.query;
+    const tenantId = req.tenant?.id || 1;
+    if (!q || q.length < 2) return res.json({ success: true, data: [] });
+    const [rows] = await poolWrapper.execute(
+      `SELECT * FROM crm_contacts 
+       WHERE tenantId = ? AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR company LIKE ?)
+       ORDER BY createdAt DESC LIMIT 20`,
+      [tenantId, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error searching contacts:', error);
+    res.status(500).json({ success: false, message: 'Error searching contacts' });
+  }
+});
+
+// CRM Stats endpoint
+app.get('/api/admin/crm/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    
+    const [leadCount] = await poolWrapper.execute('SELECT COUNT(*) as count FROM crm_leads WHERE tenantId = ?', [tenantId]);
+    const [oppCount] = await poolWrapper.execute('SELECT COUNT(*) as count FROM crm_deals WHERE tenantId = ? AND status = "open"', [tenantId]);
+    const [contactCount] = await poolWrapper.execute('SELECT COUNT(*) as count FROM crm_contacts WHERE tenantId = ?', [tenantId]);
+    const [taskCount] = await poolWrapper.execute('SELECT COUNT(*) as count FROM crm_tasks WHERE tenantId = ? AND status IN ("pending", "in-progress")', [tenantId]);
+    const [pipelineValue] = await poolWrapper.execute('SELECT COALESCE(SUM(value), 0) as total FROM crm_deals WHERE tenantId = ? AND status = "open"', [tenantId]);
+    
+    // Conversion rate: converted leads / total leads
+    const [convertedCount] = await poolWrapper.execute('SELECT COUNT(*) as count FROM crm_leads WHERE tenantId = ? AND status = "converted"', [tenantId]);
+    const totalLeads = leadCount[0].count;
+    const conversionRate = totalLeads > 0 ? (convertedCount[0].count / totalLeads) * 100 : 0;
+    
+    // Average deal size
+    const [avgDeal] = await poolWrapper.execute('SELECT COALESCE(AVG(value), 0) as avg FROM crm_deals WHERE tenantId = ? AND status = "open"', [tenantId]);
+    
+    res.json({
+      success: true,
+      data: {
+        totalLeads: leadCount[0].count,
+        totalOpportunities: oppCount[0].count,
+        totalContacts: contactCount[0].count,
+        activeTasks: taskCount[0].count,
+        pipelineValue: parseFloat(pipelineValue[0].total || 0),
+        conversionRate: parseFloat(conversionRate.toFixed(2)),
+        averageDealSize: parseFloat(avgDeal[0].avg || 0)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching CRM stats:', error);
+    res.status(500).json({ success: false, message: 'Error fetching CRM stats' });
+  }
+});
+
+// CRM Pipeline endpoint - /admin/crm/pipeline
+app.get('/api/admin/crm/pipeline', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const [rows] = await poolWrapper.execute(
+      `SELECT s.name as stage, COUNT(d.id) as count, COALESCE(SUM(d.value), 0) as value
+       FROM crm_pipeline_stages s
+       LEFT JOIN crm_deals d ON d.stageId = s.id AND d.tenantId = ? AND d.status = 'open'
+       WHERE s.tenantId = ?
+       GROUP BY s.id, s.name
+       ORDER BY s.sequence ASC, s.id ASC`,
+      [tenantId, tenantId]
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error fetching CRM pipeline:', error);
+    res.status(500).json({ success: false, message: 'Error fetching pipeline' });
   }
 });
 

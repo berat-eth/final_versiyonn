@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain, Briefcase } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface SidebarProps {
@@ -83,6 +83,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
       items: [
         { id: 'customers', label: 'Müşteriler', icon: Users },
         { id: 'segments', label: 'Müşteri Segmentleri', icon: UsersRound },
+        { id: 'crm', label: 'CRM', icon: Briefcase },
       ]
     },
     // CRM grubu kaldırıldı
@@ -152,7 +153,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
         { id: 'bulk-custom-production', label: 'Özel Toptan Üretim', icon: Crown },
         { id: 'quote-form-requests', label: 'Gelen Form Verileri', icon: FileText },
         { id: 'proforma-invoice', label: 'Proforma Fatura', icon: FileText },
-        { id: 'google-maps-scraper', label: 'Google Maps Data Scrapper', icon: Link },
       ]
     },
   ]

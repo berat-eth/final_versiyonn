@@ -1487,7 +1487,159 @@ async function createDatabaseSchema(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-      // CRM tabloları kaldırıldı
+      // =========================
+      // CRM TABLES
+      // =========================
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_leads (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      company VARCHAR(255),
+      title VARCHAR(100),
+      status ENUM('new', 'contacted', 'qualified', 'converted', 'lost') DEFAULT 'new',
+      source VARCHAR(100),
+      value DECIMAL(12,2) DEFAULT 0.00,
+      notes TEXT,
+      assignedTo INT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (assignedTo) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX idx_tenant_leads (tenantId),
+      INDEX idx_status (status),
+      INDEX idx_source (source),
+      INDEX idx_assigned (assignedTo),
+      INDEX idx_created (createdAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ CRM leads table ready');
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_contacts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      userId INT NULL,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      company VARCHAR(255),
+      title VARCHAR(100),
+      address TEXT,
+      city VARCHAR(100),
+      notes TEXT,
+      tags JSON,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX idx_tenant_contacts (tenantId),
+      INDEX idx_user_contacts (userId),
+      INDEX idx_email (email),
+      INDEX idx_company (company)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ CRM contacts table ready');
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_pipeline_stages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      probability INT DEFAULT 0,
+      sequence INT DEFAULT 1,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      INDEX idx_tenant_stages (tenantId),
+      INDEX idx_sequence (sequence)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ CRM pipeline stages table ready');
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_deals (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      contactId INT NULL,
+      value DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      currency VARCHAR(3) DEFAULT 'TRY',
+      stageId INT NULL,
+      status ENUM('open', 'won', 'lost') DEFAULT 'open',
+      expectedCloseDate DATE,
+      description TEXT,
+      assignedTo INT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (contactId) REFERENCES crm_contacts(id) ON DELETE SET NULL,
+      FOREIGN KEY (stageId) REFERENCES crm_pipeline_stages(id) ON DELETE SET NULL,
+      FOREIGN KEY (assignedTo) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX idx_tenant_deals (tenantId),
+      INDEX idx_contact_deals (contactId),
+      INDEX idx_stage_deals (stageId),
+      INDEX idx_status_deals (status),
+      INDEX idx_assigned_deals (assignedTo)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ CRM deals (opportunities) table ready');
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_activities (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      contactId INT NULL,
+      leadId INT NULL,
+      opportunityId INT NULL,
+      type ENUM('call', 'email', 'meeting', 'note', 'task') NOT NULL DEFAULT 'call',
+      title VARCHAR(255) NOT NULL,
+      notes TEXT,
+      status ENUM('planned', 'completed', 'cancelled') DEFAULT 'planned',
+      activityAt DATETIME,
+      duration INT DEFAULT 0,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (contactId) REFERENCES crm_contacts(id) ON DELETE SET NULL,
+      FOREIGN KEY (leadId) REFERENCES crm_leads(id) ON DELETE SET NULL,
+      FOREIGN KEY (opportunityId) REFERENCES crm_deals(id) ON DELETE SET NULL,
+      INDEX idx_tenant_activities (tenantId),
+      INDEX idx_contact_activities (contactId),
+      INDEX idx_lead_activities (leadId),
+      INDEX idx_opportunity_activities (opportunityId),
+      INDEX idx_type_activities (type),
+      INDEX idx_status_activities (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ CRM activities table ready');
+
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS crm_tasks (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      relatedType ENUM('lead', 'opportunity', 'contact', 'other') DEFAULT 'other',
+      relatedId INT NULL,
+      status ENUM('pending', 'in-progress', 'completed', 'cancelled') DEFAULT 'pending',
+      priority ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
+      dueDate DATETIME,
+      assignedTo INT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (assignedTo) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX idx_tenant_tasks (tenantId),
+      INDEX idx_status_tasks (status),
+      INDEX idx_priority_tasks (priority),
+      INDEX idx_due_date_tasks (dueDate),
+      INDEX idx_assigned_tasks (assignedTo),
+      INDEX idx_related_tasks (relatedType, relatedId)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ CRM tasks table ready');
 
       // =========================
       // CUSTOMER SEGMENTS

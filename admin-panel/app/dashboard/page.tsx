@@ -53,8 +53,8 @@ import ReferralEarnings from '@/components/ReferralEarnings'
 import DiscountWheelSpins from '@/components/DiscountWheelSpins'
 import Recommendations from '@/components/Recommendations'
 // CustomProductionMessages merged into BulkCustomProduction
-import GoogleMapsScraper from '@/components/GoogleMapsScraper'
 import AIInsights from '@/components/AIInsights'
+import CRM from '@/components/CRM'
 
 
 export default function DashboardPage() {
@@ -227,6 +227,7 @@ export default function DashboardPage() {
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'ai-insights' && <AIInsights />}
           {activeTab === 'customers' && <Customers />}
+          {activeTab === 'crm' && <CRM />}
           {activeTab === 'orders' && <Orders />}
           {activeTab === 'cart' && <Cart />}
           {activeTab === 'products' && <Products />}
@@ -270,7 +271,6 @@ export default function DashboardPage() {
           {activeTab === 'referral-earnings' && <ReferralEarnings />}
           {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
           {activeTab === 'recommendations' && <Recommendations />}
-          {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
         </main>
       </div>
     </div>
