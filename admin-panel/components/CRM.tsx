@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   Users, TrendingUp, Target, CheckCircle2, Clock, X, Plus, Search, Filter, 
   Mail, Phone, Calendar, MapPin, Building2, DollarSign, ArrowRight, 
@@ -42,8 +42,10 @@ export default function CRM() {
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('')
+  const [googleMapsSearchQuery, setGoogleMapsSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Modals
   const [showLeadModal, setShowLeadModal] = useState(false)
@@ -73,6 +75,15 @@ export default function CRM() {
     else if (activeView === 'pipeline') loadPipeline()
     else if (activeView === 'google-maps') loadGoogleMapsData()
   }, [activeView, filterStatus, currentPage])
+
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const loadDashboard = async () => {
     try {
@@ -883,32 +894,68 @@ export default function CRM() {
   )
 
   // Google Maps Scraped Data View
-  const renderGoogleMaps = () => (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex-1 flex gap-2">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="İşletme ara..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                loadGoogleMapsData(1, e.target.value);
-              }}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
-            />
+  const renderGoogleMaps = () => {
+    const handleSearchChange = (value: string) => {
+      setGoogleMapsSearchQuery(value);
+      
+      // Clear previous timeout
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      
+      // Debounce search - wait 500ms after user stops typing
+      searchTimeoutRef.current = setTimeout(() => {
+        loadGoogleMapsData(1, value);
+      }, 500);
+    };
+
+    const handleSearchSubmit = () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      loadGoogleMapsData(1, googleMapsSearchQuery);
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex-1 flex gap-2">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-gray-500" />
+              <input
+                type="text"
+                placeholder="İşletme ara..."
+                value={googleMapsSearchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSearchSubmit();
+                  }
+                }}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white placeholder-slate-400 dark:placeholder-gray-400 transition-all"
+              />
+            </div>
+            <button
+              onClick={handleSearchSubmit}
+              disabled={loading}
+              className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+            >
+              <Search className="w-4 h-4" />
+              Ara
+            </button>
           </div>
+          <button
+            onClick={() => {
+              setGoogleMapsSearchQuery('');
+              loadGoogleMapsData(1, '');
+            }}
+            disabled={loading}
+            className="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Yenile
+          </button>
         </div>
-        <button
-          onClick={() => loadGoogleMapsData()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Yenile
-        </button>
-      </div>
 
       <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-slate-200 dark:border-dark-border overflow-hidden">
         <div className="overflow-x-auto">
@@ -996,8 +1043,9 @@ export default function CRM() {
           Toplam {googleMapsTotal} kayıt
         </div>
       )}
-    </div>
-  )
+      </div>
+    );
+  };
 
   // Pipeline View
   const renderPipeline = () => {

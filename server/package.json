@@ -28,6 +28,7 @@
     "axios": "^1.12.2",
     "basic-ftp": "5.0.5",
     "bcrypt": "5.1.1",
+    "cheerio": "^1.0.0-rc.12",
     "compression": "^1.8.1",
     "concurrently": "8.2.2",
     "cors": "2.8.5",
