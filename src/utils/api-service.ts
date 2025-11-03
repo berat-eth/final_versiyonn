@@ -699,9 +699,46 @@ class ApiService {
   }
 
   // Product variations endpoints
-  async getProductVariations(productId: number): Promise<ApiResponse<any[]>> {
-    // Variations disabled
-    return { success: true, data: [] } as any;
+  async getProductVariations(productId: number): Promise<ApiResponse<any>> {
+    try {
+      const cacheKey = this.getCacheKey(`/products/${productId}/variations`);
+      const cached = await this.getFromCache<ApiResponse<any>>(cacheKey);
+
+      // SWR: Eğer cache varsa hemen onu döndür; arkaplanda yenile
+      if (cached && cached.success && cached.data) {
+        // Arkaplanda yenile (sessiz)
+        this.request<any>(`/products/${productId}/variations`)
+          .then(async (fresh) => {
+            if (fresh && fresh.success) {
+              await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
+            }
+          })
+          .catch(() => { });
+        // Cache'den variations array'ini döndür
+        const variationsData = cached.data.variations || cached.data;
+        return { 
+          success: true, 
+          data: Array.isArray(variationsData) ? variationsData : (variationsData?.variations || [])
+        } as ApiResponse<any>;
+      }
+
+      const result = await this.request<any>(`/products/${productId}/variations`);
+      if (result.success && result.data) {
+        // Server response format: { success: true, data: { variations: [...], sizeStocks: {} } }
+        const variations = result.data.variations || result.data;
+        const normalizedResult = {
+          success: true,
+          data: Array.isArray(variations) ? variations : (variations?.variations || [])
+        };
+        await CacheService.set(cacheKey, result, PRODUCT_CACHE_DURATION);
+        return normalizedResult;
+      }
+      
+      return { success: false, data: [] } as ApiResponse<any>;
+    } catch (error) {
+      console.error('Error fetching product variations:', error);
+      return { success: false, data: [], error: String(error) } as ApiResponse<any>;
+    }
   }
 
   async saveProductVariations(tenantId: number, productId: number, variations: any[]): Promise<ApiResponse<boolean>> {

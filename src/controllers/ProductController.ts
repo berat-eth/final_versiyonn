@@ -72,59 +72,46 @@ export class ProductController {
   static async getProductById(id: number): Promise<Product | null> {
     try {
       
+      // ✅ OPTIMIZASYON: Ürün ve varyasyonları paralel çek
+      const [productResponse, variationsResponse] = await Promise.allSettled([
+        apiService.getProductById(id),
+        // Varyasyonları da paralel çek - API'den gelecek
+        apiService.getProductVariations(id)
+      ]);
+      
       // Try API first
-      const response = await apiService.getProductById(id);
-      if (response.success && response.data) {
-        let product = this.mapApiProductToAppProduct(response.data);
+      if (productResponse.status === 'fulfilled' && productResponse.value.success && productResponse.value.data) {
+        let product = this.mapApiProductToAppProduct(productResponse.value.data);
         
-        // Varyasyonları veritabanından çek (varsa), aksi halde API/xmlOptions üzerinden türetilmiş olanları koru
-        if (product.hasVariations) {
-          try {
-            const dbVariations = await this.getProductVariationsFromDB(id);
-            if (Array.isArray(dbVariations) && dbVariations.length > 0) {
-              product.variations = dbVariations as any;
-            }
-          } catch {}
-        }
-
-        // Enrichment: API ürünü yetersiz görsel/varyasyon içeriyorsa XML'den zenginleştir
-        try {
-          const needsImageEnrichment = !product.images || (Array.isArray(product.images) && product.images.filter((i: any) => i && String(i).trim() !== '').length <= 1);
-          const needsVariationEnrichment = !product.hasVariations || !product.variations || (Array.isArray(product.variations) && product.variations.length === 0);
-          if (needsImageEnrichment || needsVariationEnrichment) {
-            const xmlProducts = await XmlProductService.fetchProducts();
-            const xmlMatch = xmlProducts.find(p => parseInt(p.UrunKartiID) === id) ||
-                             xmlProducts.find(p => (p.UrunAdi || '').trim() === (product.name || '').trim());
-            if (xmlMatch) {
-              const xmlConverted = XmlProductService.convertXmlProductToAppProduct(xmlMatch);
-              // Görselleri birleştir
-              if (needsImageEnrichment) {
-                product = {
-                  ...product,
-                  image: xmlConverted.image || product.image,
-                  images: Array.from(new Set([...(product.images || []), ...(xmlConverted.images || [])])),
-                  image1: xmlConverted.image1 || product.image1,
-                  image2: xmlConverted.image2 || product.image2,
-                  image3: xmlConverted.image3 || product.image3,
-                  image4: xmlConverted.image4 || product.image4,
-                  image5: xmlConverted.image5 || product.image5,
-                } as Product;
+        // Varyasyonları paralel çekilen response'tan al
+        if (variationsResponse.status === 'fulfilled' && variationsResponse.value.success && variationsResponse.value.data) {
+          const variations = Array.isArray(variationsResponse.value.data) 
+            ? variationsResponse.value.data 
+            : (variationsResponse.value.data.variations || []);
+          
+          if (variations.length > 0) {
+            product.variations = variations as any;
+            product.hasVariations = true;
+          }
+        } else {
+          // Varyasyonlar yüklenemedi, hasVariations kontrolü yap
+          if (product.hasVariations) {
+            try {
+              const dbVariations = await this.getProductVariationsFromDB(id);
+              if (Array.isArray(dbVariations) && dbVariations.length > 0) {
+                product.variations = dbVariations as any;
+              } else {
+                // Varyasyon yoksa hasVariations'ı false yap
+                product.hasVariations = false;
               }
-              // Varyasyonları birleştir
-              if (needsVariationEnrichment && xmlConverted.hasVariations) {
-                product = {
-                  ...product,
-                  variations: xmlConverted.variations,
-                  hasVariations: true,
-                  // XML toplam stok daha doğru olabilir; stok boşsa güncelle
-                  stock: typeof product.stock === 'number' && product.stock > 0 ? product.stock : xmlConverted.stock
-                } as Product;
-              }
+            } catch {
+              product.hasVariations = false;
             }
           }
-        } catch (_) {
-          // enrichment hatalarını sessiz geç
         }
+        
+        // ✅ XML Enrichment KALDIRILDI - Performans sorunu yaratıyordu (tüm ürünleri çekiyordu)
+        // Varyasyonlar artık API'den geliyor, XML'e gerek yok
         
         // Detaylı ürün görüntüleme logu - async (non-blocking)
         detailedActivityLogger.logProductDetailViewed({
@@ -144,14 +131,9 @@ export class ProductController {
         return product;
       }
       
-      // Fallback to XML service
-      const xmlProducts = await XmlProductService.fetchProducts();
-      const xmlProduct = xmlProducts.find(p => parseInt(p.UrunKartiID) === id);
-      
-      if (xmlProduct) {
-        const product = XmlProductService.convertXmlProductToAppProduct(xmlProduct);
-        return product;
-      }
+      // ✅ OPTIMIZASYON: XML fallback'i de kaldır veya sadece tek ürünü çek (çok yavaş)
+      // XML fallback artık kullanılmıyor - API başarısız olursa null döndür
+      // Eğer XML gerekirse, XmlProductService'e tek ürün çekme metodu eklenebilir
       
       return null;
     } catch (error) {
@@ -316,7 +298,12 @@ export class ProductController {
     try {
       const response = await apiService.getProductVariations(productId);
       if (response.success && response.data) {
-        return response.data;
+        // API response format: { success: true, data: { variations: [...], sizeStocks: {} } }
+        // veya direkt variations array
+        const variations = Array.isArray(response.data) 
+          ? response.data 
+          : (response.data.variations || []);
+        return variations as ProductVariation[];
       }
       return [];
     } catch (error) {
