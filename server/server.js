@@ -5473,6 +5473,195 @@ app.post('/api/admin/google-maps/scraped-data/:id/convert-to-lead', authenticate
   }
 });
 
+// SEO Analysis Endpoint - Analyze a website's SEO status
+app.post('/api/admin/seo/analyze', authenticateAdmin, async (req, res) => {
+  try {
+    const { url } = req.body;
+    
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ success: false, message: 'URL is required' });
+    }
+
+    // Use axios to fetch the webpage (already imported at top)
+    let cheerio;
+    try {
+      cheerio = require('cheerio');
+    } catch (e) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Cheerio package is required. Please install it: npm install cheerio' 
+      });
+    }
+    
+    const startTime = Date.now();
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      maxRedirects: 5
+    });
+    
+    const loadTime = Date.now() - startTime;
+    const html = response.data;
+    const $ = cheerio.load(html);
+    
+    // Extract basic SEO data
+    const title = $('title').text().trim() || '';
+    const metaDescription = $('meta[name="description"]').attr('content') || '';
+    const metaKeywords = $('meta[name="keywords"]').attr('content') || '';
+    const canonicalUrl = $('link[rel="canonical"]').attr('href') || '';
+    const robots = $('meta[name="robots"]').attr('content') || '';
+    
+    // Open Graph
+    const ogTitle = $('meta[property="og:title"]').attr('content') || '';
+    const ogDescription = $('meta[property="og:description"]').attr('content') || '';
+    const ogImage = $('meta[property="og:image"]').attr('content') || '';
+    const ogType = $('meta[property="og:type"]').attr('content') || '';
+    
+    // Headings
+    const h1Tags = $('h1').map((i, el) => $(el).text().trim()).get();
+    const h2Tags = $('h2').map((i, el) => $(el).text().trim()).get();
+    
+    // Images
+    const images = $('img');
+    const imagesCount = images.length;
+    const imagesWithoutAlt = images.filter((i, el) => !$(el).attr('alt') || $(el).attr('alt').trim() === '').length;
+    
+    // Links
+    const links = $('a[href]');
+    const linksCount = links.length;
+    let internalLinks = 0;
+    let externalLinks = 0;
+    const baseUrl = new URL(url);
+    
+    links.each((i, el) => {
+      const href = $(el).attr('href');
+      if (!href) return;
+      
+      try {
+        const linkUrl = new URL(href, url);
+        if (linkUrl.hostname === baseUrl.hostname) {
+          internalLinks++;
+        } else {
+          externalLinks++;
+        }
+      } catch {
+        // Relative link
+        internalLinks++;
+      }
+    });
+    
+    // Word count (approximate)
+    const bodyText = $('body').text();
+    const wordCount = bodyText.trim().split(/\s+/).filter(word => word.length > 0).length;
+    
+    // Schema markup
+    const schemaMarkup = $('script[type="application/ld+json"]').length > 0;
+    
+    // Mobile friendly check (simple check for viewport meta)
+    const viewport = $('meta[name="viewport"]').attr('content') || '';
+    const mobileFriendly = viewport.includes('width=device-width');
+    
+    // Calculate SEO score
+    let score = 100;
+    const issues = [];
+    
+    if (!title) {
+      score -= 10;
+      issues.push('Sayfa başlığı (title) bulunamadı');
+    } else if (title.length < 30 || title.length > 60) {
+      score -= 5;
+      issues.push(`Sayfa başlığı ideal uzunlukta değil (${title.length} karakter, ideal: 30-60)`);
+    }
+    
+    if (!metaDescription) {
+      score -= 10;
+      issues.push('Meta açıklama bulunamadı');
+    } else if (metaDescription.length < 120 || metaDescription.length > 160) {
+      score -= 5;
+      issues.push(`Meta açıklama ideal uzunlukta değil (${metaDescription.length} karakter, ideal: 120-160)`);
+    }
+    
+    if (h1Tags.length === 0) {
+      score -= 10;
+      issues.push('H1 etiketi bulunamadı');
+    } else if (h1Tags.length > 1) {
+      score -= 5;
+      issues.push(`Sayfada birden fazla H1 etiketi var (${h1Tags.length} adet, ideal: 1)`);
+    }
+    
+    if (imagesWithoutAlt > 0) {
+      score -= 5;
+      issues.push(`${imagesWithoutAlt} görselde alt text eksik`);
+    }
+    
+    if (!ogTitle && !ogDescription) {
+      score -= 5;
+      issues.push('Open Graph meta etiketleri eksik');
+    }
+    
+    if (!canonicalUrl) {
+      score -= 5;
+      issues.push('Canonical URL bulunamadı');
+    }
+    
+    if (!mobileFriendly) {
+      score -= 10;
+      issues.push('Sayfa mobil uyumlu görünmüyor (viewport meta tag eksik veya yanlış)');
+    }
+    
+    if (loadTime > 3000) {
+      score -= 5;
+      issues.push(`Sayfa yükleme süresi yüksek (${loadTime}ms)`);
+    }
+    
+    if (wordCount < 300) {
+      score -= 5;
+      issues.push(`Sayfa içeriği çok kısa (${wordCount} kelime, ideal: 300+)`);
+    }
+    
+    score = Math.max(0, score);
+    
+    const analysis = {
+      url,
+      title,
+      metaDescription,
+      metaKeywords,
+      h1Count: h1Tags.length,
+      h1Tags: h1Tags.slice(0, 5),
+      h2Count: h2Tags.length,
+      h2Tags: h2Tags.slice(0, 5),
+      imagesCount,
+      imagesWithoutAlt,
+      linksCount,
+      internalLinks,
+      externalLinks,
+      canonicalUrl,
+      robots,
+      ogTitle,
+      ogDescription,
+      ogImage,
+      ogType,
+      schemaMarkup,
+      mobileFriendly,
+      loadTime,
+      statusCode: response.status,
+      wordCount,
+      issues,
+      score
+    };
+    
+    res.json({ success: true, data: analysis });
+  } catch (error) {
+    console.error('❌ Error analyzing SEO:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'SEO analizi yapılamadı. URL erişilebilir mi kontrol edin.' 
+    });
+  }
+});
+
 // CRM Opportunities endpoints - /admin/crm/opportunities
 app.get('/api/admin/crm/opportunities', authenticateAdmin, async (req, res) => {
   try {

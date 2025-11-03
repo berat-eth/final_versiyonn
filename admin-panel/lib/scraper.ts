@@ -87,12 +87,18 @@ async function searchGoogleMaps(page: Page, searchTerm: string): Promise<void> {
 }
 
 /**
- * Check if business is in textile/clothing category
+ * Check if business matches the excluded sector
  * @param page Puppeteer page instance
- * @returns True if business is in textile/clothing category
+ * @param excludeSector Sector/category to exclude (optional)
+ * @returns True if business matches the excluded sector
  */
-async function isTextileOrClothingCategory(page: Page): Promise<boolean> {
+async function isMatchingSector(page: Page, excludeSector?: string): Promise<boolean> {
     try {
+        // If no sector to exclude, return false (don't skip)
+        if (!excludeSector || excludeSector.trim().length === 0) {
+            return false;
+        }
+
         // Wait a bit for categories to load
         await delay(1000);
         
@@ -116,26 +122,23 @@ async function isTextileOrClothingCategory(page: Page): Promise<boolean> {
             return false;
         }
         
-        // Check all category buttons for textile/clothing keywords
+        // Normalize the exclude sector for comparison (lowercase, trim)
+        const normalizedExcludeSector = excludeSector.toLowerCase().trim();
+        const excludeKeywords = normalizedExcludeSector.split(/\s+/).filter(k => k.length > 2); // Split into keywords
+        
+        // Check all category buttons for matching sector
         for (const button of categoryButtons) {
             try {
                 const buttonText = await page.evaluate(el => el.textContent || '', button);
                 const lowerText = buttonText.toLowerCase().trim();
                 
-                // Check for textile/clothing related keywords
-                if (
-                    lowerText.includes('giyim') ||
-                    lowerText.includes('tekstil') ||
-                    lowerText.includes('kıyafet') ||
-                    lowerText.includes('moda') ||
-                    (lowerText.includes('mağaza') && (lowerText.includes('erkek') || lowerText.includes('kadın') || lowerText.includes('çocuk'))) ||
-                    lowerText.includes('gömlek') ||
-                    lowerText.includes('pantolon') ||
-                    lowerText.includes('elbise') ||
-                    lowerText.includes('ayakkabı') ||
-                    lowerText.includes('çanta')
-                ) {
-                    console.log(`Found textile/clothing category: "${buttonText}"`);
+                // Check if the button text contains any of the exclude keywords
+                // Also check for exact or partial match with the full exclude sector
+                const matchesFullSector = lowerText.includes(normalizedExcludeSector);
+                const matchesKeywords = excludeKeywords.some(keyword => lowerText.includes(keyword));
+                
+                if (matchesFullSector || matchesKeywords) {
+                    console.log(`Found matching sector: "${buttonText}" (exclude: "${excludeSector}")`);
                     return true;
                 }
             } catch (e) {
@@ -435,7 +438,8 @@ async function processSearchResults(
     page: Page,
     maxResults: number = 10000,
     onResultFound?: (business: BusinessData) => void,
-    onStatusUpdate?: (message: string, current: number, total: number) => void
+    onStatusUpdate?: (message: string, current: number, total: number) => void,
+    excludeSector?: string
 ): Promise<{ results: BusinessData[]; totalFound: number }> {
     const results: BusinessData[] = [];
     let totalFound = 0;
@@ -521,10 +525,10 @@ async function processSearchResults(
                 // Wait for details to load - increased wait time
                 await delay(3000);
 
-                // Check if business is in textile/clothing category - skip if true
-                const isTextileClothing = await isTextileOrClothingCategory(page);
-                if (isTextileClothing) {
-                    console.log(`Skipping ${i + 1}/${itemsToProcess}: Textile/Clothing category detected`);
+                // Check if business matches excluded sector - skip if true
+                const matchesExcludedSector = await isMatchingSector(page, excludeSector);
+                if (matchesExcludedSector) {
+                    console.log(`Skipping ${i + 1}/${itemsToProcess}: Excluded sector detected (${excludeSector})`);
                     // Close the details panel and continue with next result
                     try {
                         await page.keyboard.press('Escape');
@@ -608,7 +612,8 @@ async function scrapeGoogleMaps(
     searchTerm: string,
     maxResults: number = 20,
     onResultFound?: (business: BusinessData) => void,
-    onStatusUpdate?: (message: string, current: number, total: number) => void
+    onStatusUpdate?: (message: string, current: number, total: number) => void,
+    excludeSector?: string
 ): Promise<{ results: BusinessData[]; totalFound: number }> {
     let browser: Browser | null = null;
 
@@ -632,7 +637,7 @@ async function scrapeGoogleMaps(
         await searchGoogleMaps(page, searchTerm);
 
         // Process results
-        const { results, totalFound } = await processSearchResults(page, maxResults, onResultFound, onStatusUpdate);
+        const { results, totalFound } = await processSearchResults(page, maxResults, onResultFound, onStatusUpdate, excludeSector);
 
         return { results, totalFound };
 

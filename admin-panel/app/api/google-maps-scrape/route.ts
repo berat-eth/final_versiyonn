@@ -125,6 +125,7 @@ export async function POST(request: NextRequest) {
     // Sanitize input
     const sanitizedSearchTerm = sanitizeSearchTerm(body.searchTerm);
     const maxResults = body.maxResults || 10000;
+    const excludeSector = body.excludeSector ? sanitizeSearchTerm(body.excludeSector) : undefined;
 
     // Create streaming response
     const stream = new ReadableStream({
@@ -176,7 +177,8 @@ export async function POST(request: NextRequest) {
                 total: total,
                 totalFound: finalTotalFound || 0,
               });
-            }
+            },
+            excludeSector
           );
 
           totalFound = finalTotalFoundValue;

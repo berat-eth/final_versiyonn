@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain, Briefcase, Map } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain, Briefcase, Map, Search } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface SidebarProps {
@@ -141,6 +141,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
         { id: 'backup', label: 'Veri Yedekleme', icon: Settings },
         { id: 'file-manager', label: 'Dosya Yöneticisi', icon: FolderTree },
         { id: 'security', label: 'Güvenlik', icon: Shield },
+        { id: 'seo', label: 'SEO Panel', icon: Search },
         { id: 'admin-logs', label: 'Yönetici Logları', icon: FileText },
         { id: 'snort-logs', label: 'Snort IDS Logları', icon: AlertTriangle },
         { id: 'sql-query', label: 'SQL Sorgu Penceresi', icon: Database },

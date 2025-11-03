@@ -56,6 +56,7 @@ import Recommendations from '@/components/Recommendations'
 import AIInsights from '@/components/AIInsights'
 import CRM from '@/components/CRM'
 import GoogleMapsScraper from '@/components/GoogleMapsScraper'
+import SEO from '@/components/SEO'
 
 
 export default function DashboardPage() {
@@ -273,6 +274,7 @@ export default function DashboardPage() {
           {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
           {activeTab === 'recommendations' && <Recommendations />}
           {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
+          {activeTab === 'seo' && <SEO />}
         </main>
       </div>
     </div>

@@ -19,6 +19,7 @@ export interface BusinessData {
 export interface ScrapeRequest {
   searchTerm: string;            // Arama terimi
   maxResults?: number;           // Maksimum sonuç sayısı (default: 20)
+  excludeSector?: string;         // Hariç tutulacak sektör/kategori (opsiyonel)
 }
 
 /**

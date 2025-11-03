@@ -35,7 +35,7 @@ export default function GoogleMapsResultsTable({ data, onClear }: GoogleMapsResu
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-[98vw]">
       {/* Header with count and clear button */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
@@ -57,19 +57,19 @@ export default function GoogleMapsResultsTable({ data, onClear }: GoogleMapsResu
       {/* Table container */}
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+          <table className="w-full min-w-[1200px] divide-y divide-slate-200 dark:divide-slate-700">
             <thead className="bg-slate-50 dark:bg-slate-800">
               <tr>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-600 dark:text-gray-400 uppercase tracking-wider">
+                <th scope="col" className="px-8 py-4 text-left text-xs font-medium text-slate-600 dark:text-gray-400 uppercase tracking-wider w-[25%]">
                   Şirket İsmi
                 </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-600 dark:text-gray-400 uppercase tracking-wider">
+                <th scope="col" className="px-8 py-4 text-left text-xs font-medium text-slate-600 dark:text-gray-400 uppercase tracking-wider w-[35%]">
                   Web Sitesi
                 </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-600 dark:text-gray-400 uppercase tracking-wider">
+                <th scope="col" className="px-8 py-4 text-left text-xs font-medium text-slate-600 dark:text-gray-400 uppercase tracking-wider w-[25%]">
                   Telefon
                 </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-600 dark:text-gray-400 uppercase tracking-wider">
+                <th scope="col" className="px-8 py-4 text-left text-xs font-medium text-slate-600 dark:text-gray-400 uppercase tracking-wider w-[15%]">
                   Durum
                 </th>
               </tr>
@@ -89,23 +89,23 @@ export default function GoogleMapsResultsTable({ data, onClear }: GoogleMapsResu
                 
                 return (
                   <tr key={business.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                    <td className="px-6 py-4">
+                    <td className="px-8 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-700 dark:text-white font-semibold text-sm">
+                        <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-700 dark:text-white font-semibold text-sm flex-shrink-0">
                           {business.businessName.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium text-slate-900 dark:text-white">
+                        <span className="text-sm font-medium text-slate-900 dark:text-white break-words">
                           {business.businessName}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-8 py-4 text-sm">
                       {business.website ? (
                         <a
                           href={business.website}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline break-all"
                         >
                           {business.website}
                         </a>
@@ -113,11 +113,11 @@ export default function GoogleMapsResultsTable({ data, onClear }: GoogleMapsResu
                         <span className="text-slate-400 dark:text-gray-500">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-8 py-4 text-sm">
                       {business.phoneNumber ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-700 dark:text-gray-300">{business.phoneNumber}</span>
-                          <div className="flex items-center gap-1">
+                          <span className="text-slate-700 dark:text-gray-300 break-words">{business.phoneNumber}</span>
+                          <div className="flex items-center gap-1 flex-shrink-0">
                             {/* Copy Button */}
                             <button
                               onClick={() => handleCopyPhone(business.phoneNumber!)}
@@ -159,7 +159,7 @@ export default function GoogleMapsResultsTable({ data, onClear }: GoogleMapsResu
                         <span className="text-slate-400 dark:text-gray-500">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-8 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColor}`}>
                         <span className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: 'currentColor' }}></span>
                         {status}
