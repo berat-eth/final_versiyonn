@@ -44,19 +44,40 @@ export default function Popups() {
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPopup, setEditingPopup] = useState<Popup | null>(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string
+    content: string
+    imageUrl: string
+    type: Popup['type']
+    position: Popup['position']
+    isActive: boolean
+    isDismissible: boolean
+    isRequired: boolean
+    priority: number
+    startDate: string
+    endDate: string
+    clickAction: { type: 'product' | 'category' | 'url' | 'none'; value: string }
+    buttonText: string
+    buttonColor: string
+    backgroundColor: string
+    textColor: string
+    width: string
+    height: string
+    autoClose: number
+    showDelay: number
+  }>({
     title: '',
     content: '',
     imageUrl: '',
-    type: 'modal' as Popup['type'],
-    position: 'center' as Popup['position'],
+    type: 'modal',
+    position: 'center',
     isActive: true,
     isDismissible: true,
     isRequired: false,
     priority: 1,
     startDate: '',
     endDate: '',
-    clickAction: { type: 'none' as const, value: '' },
+    clickAction: { type: 'none', value: '' },
     buttonText: '',
     buttonColor: '#3B82F6',
     backgroundColor: '',
