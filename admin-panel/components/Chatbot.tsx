@@ -36,7 +36,11 @@ export default function Chatbot() {
 
   // Yeni mesaj simülasyonu - Her 30 saniyede bir rastgele müşteriden mesaj gelir
   useEffect(() => {
+    if (conversations.length === 0) return
+
     const interval = setInterval(() => {
+      if (conversations.length === 0) return
+      
       const randomConvIndex = Math.floor(Math.random() * conversations.length)
       const randomMessages = [
         'Merhaba, yardım alabilir miyim?',
@@ -51,8 +55,13 @@ export default function Chatbot() {
       const randomMessage = randomMessages[Math.floor(Math.random() * randomMessages.length)]
 
       setConversations(prev => {
+        if (prev.length === 0) return prev
+        
         const newConvs = [...prev]
         const conv = newConvs[randomConvIndex]
+        
+        if (!conv || !conv.messages) return prev
+
         const newMessageId = conv.messages.length + 1
 
         conv.messages.push({
@@ -122,7 +131,7 @@ export default function Chatbot() {
     if (!messageText.trim() || selectedChat === null) return
 
     const conv = conversations.find(c => c.id === selectedChat)
-    if (!conv) return
+    if (!conv || !conv.messages) return
 
     const messageToSend = messageText.trim()
     setMessageText('') // Hemen input'u temizle
@@ -138,7 +147,7 @@ export default function Chatbot() {
     setConversations(prev => {
       const newConvs = [...prev]
       const convIndex = newConvs.findIndex(c => c.id === selectedChat)
-      if (convIndex !== -1) {
+      if (convIndex !== -1 && newConvs[convIndex] && newConvs[convIndex].messages) {
         newConvs[convIndex].messages.push(newMessage)
         newConvs[convIndex].lastMessage = messageToSend
         newConvs[convIndex].time = 'Şimdi'
@@ -274,8 +283,10 @@ export default function Chatbot() {
                   setConversations(prev => {
                     const newConvs = [...prev]
                     const convIndex = newConvs.findIndex(c => c.id === conv.id)
-                    newConvs[convIndex].unread = 0
-                    newConvs[convIndex].messages.forEach(m => m.read = true)
+                    if (convIndex !== -1 && newConvs[convIndex] && newConvs[convIndex].messages) {
+                      newConvs[convIndex].unread = 0
+                      newConvs[convIndex].messages.forEach(m => m.read = true)
+                    }
                     return newConvs
                   })
                 }}
@@ -347,7 +358,7 @@ export default function Chatbot() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 dark:bg-slate-900">
-                {selectedConversation.messages.map((message, index) => (
+                {selectedConversation.messages && selectedConversation.messages.map((message, index) => (
                   <motion.div
                     key={message.id}
                     initial={{ opacity: 0, y: 10 }}

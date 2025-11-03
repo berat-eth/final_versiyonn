@@ -39,7 +39,13 @@ async function createDatabaseSchema(pool) {
           // Production
           'bill_of_materials', 'bom_items', 'workstations', 'production_orders', 'production_order_items', 'production_steps', 'material_issues', 'finished_goods_receipts',
           // CRM
-          'crm_leads', 'crm_contacts', 'crm_pipeline_stages', 'crm_deals', 'crm_activities'
+          'crm_leads', 'crm_contacts', 'crm_pipeline_stages', 'crm_deals', 'crm_activities',
+          // Stories
+          'stories',
+          // Sliders
+          'sliders',
+          // Popups
+          'popups'
       ];
       const missingTables = requiredTables.filter(table => !existingTables.includes(table));
 
@@ -1778,6 +1784,92 @@ async function createDatabaseSchema(pool) {
       } catch (error) {
         console.log('⚠️ Could not create segment triggers:', error.message);
       }
+
+      // Stories table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS stories (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          imageUrl VARCHAR(500) NOT NULL,
+          thumbnailUrl VARCHAR(500),
+          videoUrl VARCHAR(500),
+          isActive BOOLEAN DEFAULT true,
+          \`order\` INT DEFAULT 1,
+          expiresAt TIMESTAMP NULL,
+          clickAction JSON,
+          views INT DEFAULT 0,
+          clicks INT DEFAULT 0,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_active_order (isActive, \`order\`),
+          INDEX idx_expires (expiresAt)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ Stories table ready');
+
+      // Sliders table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS sliders (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          imageUrl VARCHAR(500) NOT NULL,
+          thumbnailUrl VARCHAR(500),
+          videoUrl VARCHAR(500),
+          isActive BOOLEAN DEFAULT true,
+          \`order\` INT DEFAULT 1,
+          autoPlay BOOLEAN DEFAULT true,
+          duration INT DEFAULT 5,
+          clickAction JSON,
+          buttonText VARCHAR(100) DEFAULT 'Keşfet',
+          buttonColor VARCHAR(20) DEFAULT '#3B82F6',
+          textColor VARCHAR(20) DEFAULT '#FFFFFF',
+          overlayOpacity DECIMAL(3,2) DEFAULT 0.3,
+          views INT DEFAULT 0,
+          clicks INT DEFAULT 0,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_active_order (isActive, \`order\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ Sliders table ready');
+
+      // Popups table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS popups (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          content TEXT,
+          imageUrl VARCHAR(500),
+          type ENUM('modal', 'banner', 'toast', 'slide-in') DEFAULT 'modal',
+          position ENUM('center', 'top', 'bottom', 'top-right', 'bottom-right') DEFAULT 'center',
+          isActive BOOLEAN DEFAULT true,
+          isDismissible BOOLEAN DEFAULT true,
+          isRequired BOOLEAN DEFAULT false,
+          priority INT DEFAULT 1,
+          startDate TIMESTAMP NULL,
+          endDate TIMESTAMP NULL,
+          targetAudience JSON,
+          clickAction JSON,
+          buttonText VARCHAR(100),
+          buttonColor VARCHAR(20) DEFAULT '#3B82F6',
+          backgroundColor VARCHAR(20),
+          textColor VARCHAR(20) DEFAULT '#000000',
+          width VARCHAR(50) DEFAULT '500px',
+          height VARCHAR(50),
+          autoClose INT DEFAULT 0,
+          showDelay INT DEFAULT 0,
+          views INT DEFAULT 0,
+          clicks INT DEFAULT 0,
+          dismissals INT DEFAULT 0,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_active_priority (isActive, priority),
+          INDEX idx_dates (startDate, endDate)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ Popups table ready');
 
       // Migration: Add importance_level to production_orders if not exists
       try {

@@ -57,6 +57,7 @@ import AIInsights from '@/components/AIInsights'
 import CRM from '@/components/CRM'
 import GoogleMapsScraper from '@/components/GoogleMapsScraper'
 import SEO from '@/components/SEO'
+import Popups from '@/components/Popups'
 
 
 export default function DashboardPage() {
@@ -237,6 +238,7 @@ export default function DashboardPage() {
           {activeTab === 'coupons' && <Coupons />}
           {activeTab === 'stories' && <Stories />}
           {activeTab === 'sliders' && <Sliders />}
+          {activeTab === 'popups' && <Popups />}
           {activeTab === 'push-notifications' && <PushNotifications />}
           {activeTab === 'reviews' && <Reviews />}
           {activeTab === 'applications' && <Applications />}

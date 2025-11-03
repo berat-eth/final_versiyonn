@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   StatusBar,
   BackHandler,
 } from 'react-native';
-import { Video } from 'expo-av';
+import { Video, ResizeMode } from 'expo-av';
 import { Colors } from '../theme/colors';
 import { Spacing, Shadows } from '../theme/theme';
 import { AdminStoryItem } from '../services/AdminStoryService';
@@ -35,14 +35,31 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
 }) => {
   const [currentStoryIndex, setCurrentStoryIndex] = useState(currentIndex);
   const [progress, setProgress] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     setCurrentStoryIndex(currentIndex);
     setProgress(0);
   }, [currentIndex, visible]);
 
+  const handleNext = useCallback(() => {
+    if (currentStoryIndex < stories.length - 1) {
+      setCurrentStoryIndex(currentStoryIndex + 1);
+      setProgress(0);
+    } else {
+      onClose();
+    }
+  }, [currentStoryIndex, stories.length, onClose]);
+
+  const handlePrevious = useCallback(() => {
+    if (currentStoryIndex > 0) {
+      setCurrentStoryIndex(currentStoryIndex - 1);
+      setProgress(0);
+    }
+  }, [currentStoryIndex]);
+
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || isPaused) return;
 
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -55,7 +72,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
     }, 100);
 
     return () => clearInterval(timer);
-  }, [visible, currentStoryIndex]);
+  }, [visible, currentStoryIndex, isPaused, handleNext]);
 
   // Android geri tuşu ile kapatma
   useEffect(() => {
@@ -68,22 +85,6 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
 
     return () => backHandler.remove();
   }, [visible, onClose]);
-
-  const handleNext = () => {
-    if (currentStoryIndex < stories.length - 1) {
-      setCurrentStoryIndex(currentStoryIndex + 1);
-      setProgress(0);
-    } else {
-      onClose();
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentStoryIndex > 0) {
-      setCurrentStoryIndex(currentStoryIndex - 1);
-      setProgress(0);
-    }
-  };
 
   const handleStoryPress = () => {
     const currentStory = stories[currentStoryIndex];
@@ -106,6 +107,14 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
         console.log('URL\'ye yönlendiriliyor:', currentStory.clickAction.value);
       }
     }
+  };
+
+  const handlePressIn = () => {
+    setIsPaused(true);
+  };
+
+  const handlePressOut = () => {
+    setIsPaused(false);
   };
 
   if (!visible || !stories.length) return null;
@@ -152,6 +161,8 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
         <TouchableOpacity
           style={styles.storyContainer}
           onPress={handleStoryPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
           activeOpacity={1}
         >
           {/* Top Close Area */}
@@ -164,7 +175,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
             <Video
               source={{ uri: currentStory.videoUrl }}
               style={styles.storyImage}
-              resizeMode="cover"
+              resizeMode={ResizeMode.COVER}
               shouldPlay
               isLooping
               isMuted
@@ -207,11 +218,15 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
           <TouchableOpacity
             style={[styles.navigationArea, styles.leftArea]}
             onPress={handlePrevious}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
             activeOpacity={1}
           />
           <TouchableOpacity
             style={[styles.navigationArea, styles.rightArea]}
             onPress={handleNext}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
             activeOpacity={1}
           />
         </View>
@@ -221,29 +236,6 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
           <Text style={styles.counterText}>
             {currentStoryIndex + 1} / {stories.length}
           </Text>
-        </View>
-
-        {/* Story Navigation Buttons */}
-        <View style={styles.storyNavigationContainer}>
-          <TouchableOpacity 
-            style={[styles.navButton, currentStoryIndex === 0 && styles.navButtonDisabled]}
-            onPress={handlePrevious}
-            disabled={currentStoryIndex === 0}
-          >
-            <Text style={[styles.navButtonText, currentStoryIndex === 0 && styles.navButtonTextDisabled]}>
-              ← Önceki
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.navButton, currentStoryIndex === stories.length - 1 && styles.navButtonDisabled]}
-            onPress={handleNext}
-            disabled={currentStoryIndex === stories.length - 1}
-          >
-            <Text style={[styles.navButtonText, currentStoryIndex === stories.length - 1 && styles.navButtonTextDisabled]}>
-              Sonraki →
-            </Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     </Modal>
@@ -319,7 +311,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: Spacing.lg,
-    paddingBottom: 120, // Navigation butonları için yer bırak
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   storyInfo: {
@@ -386,32 +377,6 @@ const styles = StyleSheet.create({
     color: '#333',
     fontSize: 14,
     fontWeight: '600',
-  },
-  storyNavigationContainer: {
-    position: 'absolute',
-    bottom: 100,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-  },
-  navButton: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: 20,
-  },
-  navButtonDisabled: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  navButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  navButtonTextDisabled: {
-    color: 'rgba(255, 255, 255, 0.5)',
   },
 });
 

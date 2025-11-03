@@ -322,11 +322,43 @@ export class XmlProductService {
           };
 
           const getOzellik = () => {
-            const ozellikRegex = /<Ozellik\s+Tanim="([^"]+)"\s+Deger="([^"]+)"/i;
-            const match = secenekContent.match(ozellikRegex);
+            // Önce attribute'leri yakala: <Ozellik Tanim="Beden" Deger="S">
+            let ozellikRegex = /<Ozellik\s+Tanim="([^"]+)"\s+Deger="([^"]+)"/i;
+            let match = secenekContent.match(ozellikRegex);
+            
+            let tanim = match ? match[1] : '';
+            let deger = match ? match[2] : '';
+            
+            // Eğer attribute'lerde deger yoksa, içeriği oku: <Ozellik ...>S</Ozellik>
+            if (!deger) {
+              const contentRegex = /<Ozellik[^>]*>([^<]+)<\/Ozellik>/i;
+              const contentMatch = secenekContent.match(contentRegex);
+              if (contentMatch) {
+                deger = contentMatch[1].trim();
+              }
+            }
+            
+            // Eğer tanim yoksa ama deger bir beden formatındaysa, "Beden" olarak ayarla
+            if (!tanim && deger) {
+              const sizePattern = /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+)$/i;
+              if (sizePattern.test(deger.trim())) {
+                tanim = 'Beden';
+              }
+            }
+            
+            // Alternatif format: Tanim ve Deger farklı sırada olabilir
+            if (!tanim || !deger) {
+              const altRegex = /<Ozellik\s+Deger="([^"]+)"\s+Tanim="([^"]+)"/i;
+              const altMatch = secenekContent.match(altRegex);
+              if (altMatch && (!tanim || !deger)) {
+                if (!deger) deger = altMatch[1];
+                if (!tanim) tanim = altMatch[2];
+              }
+            }
+            
             return {
-              Tanim: match ? match[1] : '',
-              Deger: match ? match[2] : ''
+              Tanim: tanim.trim(),
+              Deger: deger.trim()
             };
           };
 

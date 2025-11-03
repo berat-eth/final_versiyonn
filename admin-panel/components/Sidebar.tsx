@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain, Briefcase, Map, Search } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain, Briefcase, Map, Search, SquareStack } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface SidebarProps {
@@ -106,7 +106,8 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
         { id: 'push-notifications', label: 'Push Bildirimler', icon: Bell },
         { id: 'stories', label: "Story'ler", icon: Image },
         { id: 'sliders', label: 'Slider Yönetimi', icon: Image },
-            { id: 'google-maps-scraper', label: 'AI Müşteri Bulucu', icon: Map },
+        { id: 'popups', label: 'Popup Yönetimi', icon: SquareStack },
+        { id: 'google-maps-scraper', label: 'AI Müşteri Bulucu', icon: Map },
       ]
     },
     {

@@ -186,8 +186,44 @@ class XmlSyncService {
               const attrs = Array.isArray(ozellik) ? ozellik : (ozellik ? [ozellik] : []);
               attrs.forEach(entry => {
                 // XML yapısı: <Ozellik Tanim="Beden" Deger="S">S</Ozellik>
-                const name = (entry?.Tanim || entry?.$?.Tanim || '').toString().trim();
-                const value = (entry?.Deger || entry?.$?.Deger || entry?._ || '').toString().trim();
+                // XML2JS parser farklı formatlarda döndürebilir:
+                // 1. { $: { Tanim: "Beden", Deger: "S" }, _: "S" } (explicitArray: false, ignoreAttrs: false)
+                // 2. { Tanim: "Beden", Deger: "S", _: "S" } (ignoreAttrs: true ile attribute'ler direkt property olur)
+                // 3. { "@Tanim": "Beden", "@Deger": "S" } (bazı parser ayarları)
+                let name = '';
+                let value = '';
+                
+                // Önce attribute objesi ($) kontrolü
+                if (entry?.$ && typeof entry.$ === 'object') {
+                  name = (entry.$.Tanim || entry.$['@Tanim'] || '').toString().trim();
+                  value = (entry.$.Deger || entry.$['@Deger'] || '').toString().trim();
+                }
+                
+                // Eğer $ objesinde bulamadıysak direkt property'leri kontrol et
+                if (!name || !value) {
+                  name = (entry?.Tanim || entry?.['@Tanim'] || entry?.$?.Tanim || '').toString().trim();
+                  value = (entry?.Deger || entry?.['@Deger'] || entry?.$?.Deger || '').toString().trim();
+                }
+                
+                // Eğer hala bulamadıysak içeriği (_) kontrol et (fallback)
+                if (name && !value) {
+                  value = (entry?._ || entry?.$?._ || '').toString().trim();
+                }
+                
+                // Değer yoksa ama içerik varsa, içeriği kullan (XML'de sadece içerik olabilir)
+                if (!value && entry?._) {
+                  value = entry._.toString().trim();
+                }
+                
+                // Name yoksa ama value varsa, value'yu name olarak da kullanabiliriz (bazı XML formatlarında)
+                if (!name && value) {
+                  // Eğer value bir beden gibi görünüyorsa, "Beden" olarak ayarla
+                  const sizePattern = /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+)$/i;
+                  if (sizePattern.test(value)) {
+                    name = 'Beden';
+                  }
+                }
+                
                 if (name && value) {
                   attributes[name] = value;
                   hasVariationAttributes = true;
@@ -196,11 +232,13 @@ class XmlSyncService {
                   if (name.toLowerCase() === 'beden' || name.toLowerCase() === 'size') {
                     console.log(`📏 Beden bilgisi bulundu: ${value} (Varyasyon ID: ${variation.VaryasyonID})`);
                   }
+                } else {
+                  console.warn(`⚠️ Ozellik parse edilemedi - entry:`, JSON.stringify(entry));
                 }
               });
             }
           } catch(error) {
-            console.error('XML attributes parse hatası:', error);
+            console.error('XML attributes parse hatası:', error, 'Variation:', variation.VaryasyonID);
             hasVariationAttributes = false;
           }
 

@@ -634,6 +634,10 @@ const poolWrapper = {
   },
 
   async getConnection() {
+    return await pool.getConnection();
+  },
+
+  async getConnection() {
     try {
       const connection = await pool.getConnection();
 
@@ -1079,21 +1083,54 @@ try {
 
 // Stories Routes
 try {
-  const storiesRoutes = require('./routes/stories');
-  app.use('/api/admin/stories', storiesRoutes);
-  console.log('✅ Stories routes mounted at /api/admin/stories');
+  const storiesRoutesFactory = require('./routes/stories');
+  // Delay init until after poolWrapper is defined
+  process.nextTick(() => {
+    try {
+      const storiesRouter = storiesRoutesFactory(poolWrapper);
+      app.use('/api/admin/stories', storiesRouter);
+      console.log('✅ Stories routes mounted at /api/admin/stories');
+    } catch (e) {
+      console.warn('⚠️ Failed to mount stories routes:', e.message);
+    }
+  });
 } catch (e) {
-  console.warn('⚠️ Stories routes could not be mounted:', e.message);
+  console.warn('⚠️ Stories routes could not be required:', e.message);
 }
 
 
 // Sliders Routes
 try {
-  const slidersRoutes = require('./routes/sliders');
-  app.use('/api/admin/sliders', slidersRoutes);
-  console.log('✅ Sliders routes mounted at /api/admin/sliders');
+  const slidersRoutesFactory = require('./routes/sliders');
+  // Delay init until after poolWrapper is defined
+  process.nextTick(() => {
+    try {
+      const slidersRouter = slidersRoutesFactory(poolWrapper);
+      app.use('/api/admin/sliders', slidersRouter);
+      console.log('✅ Sliders routes mounted at /api/admin/sliders');
+    } catch (e) {
+      console.warn('⚠️ Failed to mount sliders routes:', e.message);
+    }
+  });
 } catch (e) {
-  console.warn('⚠️ Sliders routes could not be mounted:', e.message);
+  console.warn('⚠️ Sliders routes could not be required:', e.message);
+}
+
+// Popups Routes
+try {
+  const popupsRoutesFactory = require('./routes/popups');
+  // Delay init until after poolWrapper is defined
+  process.nextTick(() => {
+    try {
+      const popupsRouter = popupsRoutesFactory(poolWrapper);
+      app.use('/api/admin/popups', popupsRouter);
+      console.log('✅ Popups routes mounted at /api/admin/popups');
+    } catch (e) {
+      console.warn('⚠️ Failed to mount popups routes:', e.message);
+    }
+  });
+} catch (e) {
+  console.warn('⚠️ Popups routes could not be required:', e.message);
 }
 
 // Flash Deals Routes
@@ -8606,38 +8643,6 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       }
     }
 
-    // XML varyasyonlarından beden stoklarını çıkar
-    const sizeStocks = {};
-    xmlVariations.forEach(variation => {
-      if (variation.attributes && variation.stok !== undefined) {
-        const attributes = variation.attributes;
-        if (attributes && typeof attributes === 'object') {
-          // Beden bilgisini bul (Beden, Size, etc.)
-          const sizeKeys = Object.keys(attributes).filter(key =>
-            key.toLowerCase().includes('beden') ||
-            key.toLowerCase().includes('size')
-          );
-
-          if (sizeKeys.length > 0) {
-            const size = attributes[sizeKeys[0]];
-            if (size && typeof size === 'string') {
-              sizeStocks[size] = parseInt(variation.stok) || 0;
-              console.log(`📏 Beden stok bilgisi: ${size} = ${variation.stok} adet`);
-            }
-          }
-        }
-      } else if (variation.stok !== undefined) {
-        // Attributes yoksa ama stok varsa, varyasyon ID'sini beden olarak kullan
-        const bedenIsimleri = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL'];
-        const index = xmlVariations.indexOf(variation);
-        if (index < bedenIsimleri.length) {
-          const bedenAdi = bedenIsimleri[index];
-          sizeStocks[bedenAdi] = parseInt(variation.stok) || 0;
-          console.log(`📏 Varyasyon ID ${variation.varyasyonId} -> ${bedenAdi} = ${variation.stok} adet`);
-        }
-      }
-    });
-
     // Varyasyonları ve seçeneklerini birlikte çek
     const [variations] = await poolWrapper.execute(`
       SELECT v.*, 
@@ -8661,7 +8666,7 @@ app.get('/api/products/:productId/variations', async (req, res) => {
     `, [numericId, req.tenant.id]);
 
     // JSON formatını düzelt
-    const formattedVariations = variations.map(variation => ({
+    let formattedVariations = variations.map(variation => ({
       id: variation.id,
       productId: variation.productId,
       name: variation.name,
@@ -8669,11 +8674,96 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       options: variation.options && variation.options.length > 0 ? variation.options : []
     }));
 
+    // Eğer product_variations tablosunda varyasyon yoksa ama variationDetails varsa, oradan türet
+    if ((!formattedVariations || formattedVariations.length === 0 || formattedVariations.every(v => !v.options || v.options.length === 0)) && xmlVariations.length > 0) {
+      console.log(`📦 Varyasyonlar tabloda yok, variationDetails'tan türetiliyor...`);
+      
+      // variationDetails'tan varyasyonları grupla
+      const variationMap = new Map(); // variationName -> options[]
+      
+      xmlVariations.forEach(variation => {
+        if (variation.attributes && typeof variation.attributes === 'object') {
+          // Her attribute için varyasyon oluştur
+          Object.keys(variation.attributes).forEach(attrName => {
+            const attrValue = String(variation.attributes[attrName] || '').trim();
+            if (!attrValue) return;
+            
+            if (!variationMap.has(attrName)) {
+              variationMap.set(attrName, new Map()); // value -> option
+            }
+            
+            const optionsMap = variationMap.get(attrName);
+            if (!optionsMap.has(attrValue)) {
+              // Aynı değere sahip varyasyonları birleştir (stokları topla)
+              optionsMap.set(attrValue, {
+                id: `${numericId}-${attrName}-${attrValue}`,
+                variationId: `${numericId}-${attrName}`,
+                value: attrValue,
+                priceModifier: variation.fiyat || variation.priceModifier || 0,
+                stock: 0,
+                sku: variation.stokKodu || variation.sku || '',
+                image: null,
+                isActive: true
+              });
+            }
+            
+            // Stokları topla
+            const option = optionsMap.get(attrValue);
+            option.stock = (option.stock || 0) + (parseInt(variation.stok) || 0);
+            // Fiyat en düşük olanı kullan (indirimli fiyat varsa)
+            if (variation.fiyat && variation.fiyat < option.priceModifier) {
+              option.priceModifier = variation.fiyat;
+            }
+          });
+        }
+      });
+      
+      // Map'ten array formatına dönüştür
+      formattedVariations = [];
+      let displayOrder = 0;
+      variationMap.forEach((optionsMap, variationName) => {
+        const options = Array.from(optionsMap.values());
+        if (options.length > 0) {
+          formattedVariations.push({
+            id: `${numericId}-${variationName}`,
+            productId: numericId,
+            name: variationName,
+            displayOrder: displayOrder++,
+            options: options
+          });
+        }
+      });
+      
+      console.log(`✅ ${formattedVariations.length} varyasyon variationDetails'tan türetildi`);
+    }
+
+    // XML varyasyonlarından beden stoklarını çıkar (geriye dönük uyumluluk için)
+    const sizeStocks = {};
+    xmlVariations.forEach(variation => {
+      if (variation.attributes && variation.stok !== undefined) {
+        const attributes = variation.attributes;
+        if (attributes && typeof attributes === 'object') {
+          // Beden bilgisini bul (Beden, Size, etc.)
+          const sizeKeys = Object.keys(attributes).filter(key =>
+            key.toLowerCase().includes('beden') ||
+            key.toLowerCase().includes('size')
+          );
+
+          if (sizeKeys.length > 0) {
+            const size = attributes[sizeKeys[0]];
+            if (size && typeof size === 'string') {
+              sizeStocks[size] = parseInt(variation.stok) || 0;
+            }
+          }
+        }
+      }
+    });
+
     res.json({
       success: true,
       data: {
         variations: formattedVariations,
-        sizeStocks: sizeStocks // XML'den çekilen beden stokları
+        sizeStocks: sizeStocks // XML'den çekilen beden stokları (geriye dönük uyumluluk)
       }
     });
   } catch (error) {
