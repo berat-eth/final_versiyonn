@@ -5288,6 +5288,191 @@ app.get('/api/admin/crm/leads/search', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Google Maps Scraped Data Endpoints
+app.post('/api/admin/google-maps/scraped-data', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { data, searchTerm } = req.body || {};
+    
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ success: false, message: 'Data array is required' });
+    }
+
+    const insertResults = [];
+    const errors = [];
+
+    for (const item of data) {
+      try {
+        // Check if already exists (by business name and phone)
+        const [existing] = await poolWrapper.execute(
+          `SELECT id FROM google_maps_scraped_data 
+           WHERE tenantId = ? AND businessName = ? 
+           AND (phoneNumber = ? OR (phoneNumber IS NULL AND ? IS NULL))`,
+          [tenantId, item.businessName, item.phoneNumber || null, item.phoneNumber || null]
+        );
+
+        if (existing.length > 0) {
+          // Update existing record
+          await poolWrapper.execute(
+            `UPDATE google_maps_scraped_data 
+             SET website = ?, phoneNumber = ?, searchTerm = ?, updatedAt = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [item.website || null, item.phoneNumber || null, searchTerm || null, existing[0].id]
+          );
+          insertResults.push({ id: existing[0].id, action: 'updated', businessName: item.businessName });
+        } else {
+          // Insert new record
+          const [result] = await poolWrapper.execute(
+            `INSERT INTO google_maps_scraped_data (tenantId, businessName, website, phoneNumber, searchTerm, scrapedAt)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              tenantId,
+              item.businessName,
+              item.website || null,
+              item.phoneNumber || null,
+              searchTerm || null,
+              item.scrapedAt ? new Date(item.scrapedAt) : new Date()
+            ]
+          );
+          insertResults.push({ id: result.insertId, action: 'created', businessName: item.businessName });
+        }
+      } catch (itemError) {
+        errors.push({ businessName: item.businessName, error: itemError.message });
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      data: { 
+        saved: insertResults.length,
+        errors: errors.length,
+        results: insertResults,
+        errorsList: errors
+      } 
+    });
+  } catch (error) {
+    console.error('❌ Error saving Google Maps scraped data:', error);
+    res.status(500).json({ success: false, message: 'Error saving scraped data' });
+  }
+});
+
+app.get('/api/admin/google-maps/scraped-data', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { page = 1, limit = 50, search = '', searchTerm = '' } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let query = `SELECT * FROM google_maps_scraped_data WHERE tenantId = ?`;
+    const params = [tenantId];
+
+    if (search) {
+      query += ` AND (businessName LIKE ? OR phoneNumber LIKE ? OR website LIKE ?)`;
+      const searchParam = `%${search}%`;
+      params.push(searchParam, searchParam, searchParam);
+    }
+
+    if (searchTerm) {
+      query += ` AND searchTerm LIKE ?`;
+      params.push(`%${searchTerm}%`);
+    }
+
+    query += ` ORDER BY scrapedAt DESC LIMIT ? OFFSET ?`;
+    params.push(parseInt(limit), offset);
+
+    const [rows] = await poolWrapper.execute(query, params);
+    
+    // Get total count
+    let countQuery = `SELECT COUNT(*) as total FROM google_maps_scraped_data WHERE tenantId = ?`;
+    const countParams = [tenantId];
+    
+    if (search) {
+      countQuery += ` AND (businessName LIKE ? OR phoneNumber LIKE ? OR website LIKE ?)`;
+      const searchParam = `%${search}%`;
+      countParams.push(searchParam, searchParam, searchParam);
+    }
+    
+    if (searchTerm) {
+      countQuery += ` AND searchTerm LIKE ?`;
+      countParams.push(`%${searchTerm}%`);
+    }
+    
+    const [countRows] = await poolWrapper.execute(countQuery, countParams);
+    const total = countRows[0].total;
+
+    res.json({ 
+      success: true, 
+      data: { 
+        items: rows, 
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit))
+      } 
+    });
+  } catch (error) {
+    console.error('❌ Error fetching Google Maps scraped data:', error);
+    res.status(500).json({ success: false, message: 'Error fetching scraped data' });
+  }
+});
+
+app.delete('/api/admin/google-maps/scraped-data/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    
+    await poolWrapper.execute(
+      'DELETE FROM google_maps_scraped_data WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+    
+    res.json({ success: true, message: 'Record deleted' });
+  } catch (error) {
+    console.error('❌ Error deleting scraped data:', error);
+    res.status(500).json({ success: false, message: 'Error deleting record' });
+  }
+});
+
+// Convert Google Maps scraped data to CRM Lead
+app.post('/api/admin/google-maps/scraped-data/:id/convert-to-lead', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    
+    // Get scraped data
+    const [scrapedRows] = await poolWrapper.execute(
+      'SELECT * FROM google_maps_scraped_data WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+    
+    if (scrapedRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Scraped data not found' });
+    }
+    
+    const scraped = scrapedRows[0];
+    
+    // Create CRM lead
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO crm_leads (tenantId, name, email, phone, company, status, source, notes)
+       VALUES (?, ?, ?, ?, ?, 'new', 'Google Maps', ?)`,
+      [
+        tenantId,
+        scraped.businessName,
+        null,
+        scraped.phoneNumber,
+        scraped.businessName,
+        `Website: ${scraped.website || 'N/A'}\nArama Terimi: ${scraped.searchTerm || 'N/A'}`
+      ]
+    );
+    
+    const [newLead] = await poolWrapper.execute('SELECT * FROM crm_leads WHERE id = ?', [result.insertId]);
+    
+    res.json({ success: true, data: newLead[0] });
+  } catch (error) {
+    console.error('❌ Error converting to lead:', error);
+    res.status(500).json({ success: false, message: 'Error converting to lead' });
+  }
+});
+
 // CRM Opportunities endpoints - /admin/crm/opportunities
 app.get('/api/admin/crm/opportunities', authenticateAdmin, async (req, res) => {
   try {

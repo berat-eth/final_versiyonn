@@ -234,5 +234,26 @@ export const crmService = {
   searchContacts: async (query: string) => {
     return api.get<ApiResponse<Contact[]>>('/admin/crm/contacts/search', { q: query });
   },
+
+  // === SCRAPED BUSINESS DATA ===
+  getGoogleMapsScrapedData: async (page = 1, limit = 50, search = '', searchTerm = '') => {
+    const params: Record<string, any> = { page, limit };
+    if (search) params.search = search;
+    if (searchTerm) params.searchTerm = searchTerm;
+    return api.get<ApiResponse<{ items: any[]; total: number; page: number; limit: number; totalPages: number }>>(
+      '/admin/google-maps/scraped-data',
+      params
+    );
+  },
+
+  convertScrapedDataToLead: async (scrapedDataId: number) => {
+    return api.post<ApiResponse<any>>(
+      `/admin/google-maps/scraped-data/${scrapedDataId}/convert-to-lead`
+    );
+  },
+
+  deleteScrapedData: async (scrapedDataId: number) => {
+    return api.delete<ApiResponse<void>>(`/admin/google-maps/scraped-data/${scrapedDataId}`);
+  },
 };
 

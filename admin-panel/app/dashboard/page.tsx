@@ -55,6 +55,7 @@ import Recommendations from '@/components/Recommendations'
 // CustomProductionMessages merged into BulkCustomProduction
 import AIInsights from '@/components/AIInsights'
 import CRM from '@/components/CRM'
+import GoogleMapsScraper from '@/components/GoogleMapsScraper'
 
 
 export default function DashboardPage() {
@@ -271,6 +272,7 @@ export default function DashboardPage() {
           {activeTab === 'referral-earnings' && <ReferralEarnings />}
           {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
           {activeTab === 'recommendations' && <Recommendations />}
+          {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
         </main>
       </div>
     </div>

@@ -1586,6 +1586,28 @@ async function createDatabaseSchema(pool) {
   `);
       console.log('✅ CRM deals (opportunities) table ready');
 
+      // Google Maps Scraped Data Table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS google_maps_scraped_data (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      businessName VARCHAR(255) NOT NULL,
+      website VARCHAR(500),
+      phoneNumber VARCHAR(50),
+      searchTerm VARCHAR(255),
+      scrapedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      INDEX idx_tenant_scraped (tenantId),
+      INDEX idx_business_name (businessName),
+      INDEX idx_phone (phoneNumber),
+      INDEX idx_search_term (searchTerm),
+      INDEX idx_scraped_at (scrapedAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Google Maps scraped data table ready');
+
       await pool.execute(`
     CREATE TABLE IF NOT EXISTS crm_activities (
       id INT AUTO_INCREMENT PRIMARY KEY,

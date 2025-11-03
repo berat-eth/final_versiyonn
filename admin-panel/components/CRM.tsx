@@ -15,7 +15,7 @@ import { api } from '@/lib/api'
 import { BarChart, Bar, LineChart, Line, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts'
 import { useTheme } from '@/lib/ThemeContext'
 
-type ViewMode = 'dashboard' | 'leads' | 'opportunities' | 'tasks' | 'contacts' | 'pipeline' | 'kanban' | 'reports'
+type ViewMode = 'dashboard' | 'leads' | 'opportunities' | 'tasks' | 'contacts' | 'pipeline' | 'kanban' | 'reports' | 'google-maps'
 
 export default function CRM() {
   const { theme } = useTheme()
@@ -37,6 +37,8 @@ export default function CRM() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [googleMapsData, setGoogleMapsData] = useState<any[]>([])
+  const [googleMapsTotal, setGoogleMapsTotal] = useState(0)
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('')
@@ -69,6 +71,7 @@ export default function CRM() {
     else if (activeView === 'tasks') loadTasks()
     else if (activeView === 'contacts') loadContacts()
     else if (activeView === 'pipeline') loadPipeline()
+    else if (activeView === 'google-maps') loadGoogleMapsData()
   }, [activeView, filterStatus, currentPage])
 
   const loadDashboard = async () => {
@@ -158,6 +161,48 @@ export default function CRM() {
       }
     } catch (err: any) {
       setError(err?.message || 'Pipeline yüklenirken hata oluştu')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadGoogleMapsData = async (page = 1, search = '', searchTerm = '') => {
+    try {
+      setLoading(true)
+      const res = await crmService.getGoogleMapsScrapedData(page, 50, search, searchTerm)
+      if ((res as any)?.success) {
+        setGoogleMapsData((res as any).data?.items || [])
+        setGoogleMapsTotal((res as any).data?.total || 0)
+      }
+    } catch (err: any) {
+      setError(err?.message || 'AI Müşteri Bulucu verileri yüklenirken hata oluştu')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConvertToLead = async (id: number) => {
+    try {
+      setLoading(true)
+      await crmService.convertScrapedDataToLead(id)
+      await loadGoogleMapsData()
+      await loadLeads()
+      alert('Lead başarıyla oluşturuldu!')
+    } catch (err: any) {
+      alert(err?.message || 'Lead oluşturulamadı')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteScrapedData = async (id: number) => {
+    if (!confirm('Bu kaydı silmek istediğinizden emin misiniz?')) return
+    try {
+      setLoading(true)
+      await crmService.deleteScrapedData(id)
+      await loadGoogleMapsData()
+    } catch (err: any) {
+      alert(err?.message || 'Kayıt silinemedi')
     } finally {
       setLoading(false)
     }
@@ -832,6 +877,123 @@ export default function CRM() {
         <div className="text-center py-12 text-slate-500">
           <Users className="w-12 h-12 mx-auto mb-4 text-slate-300" />
           <p>Henüz kişi eklenmemiş</p>
+        </div>
+      )}
+    </div>
+  )
+
+  // Google Maps Scraped Data View
+  const renderGoogleMaps = () => (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex-1 flex gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="İşletme ara..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                loadGoogleMapsData(1, e.target.value);
+              }}
+              className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
+            />
+          </div>
+        </div>
+        <button
+          onClick={() => loadGoogleMapsData()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Yenile
+        </button>
+      </div>
+
+      <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-slate-200 dark:border-dark-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50 dark:bg-slate-800">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">İşletme Adı</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Telefon</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Web Sitesi</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Arama Terimi</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Kazıma Tarihi</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">İşlemler</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {googleMapsData.map((item: any) => (
+                <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-slate-900 dark:text-slate-100">{item.businessName}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {item.phoneNumber ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-600 dark:text-slate-300">{item.phoneNumber}</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {item.website ? (
+                      <a
+                        href={item.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {item.website}
+                      </a>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">{item.searchTerm || '—'}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">
+                      {item.scrapedAt ? formatDDMMYYYY(new Date(item.scrapedAt)) : '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleConvertToLead(item.id)}
+                        className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+                        title="CRM Lead'e dönüştür"
+                      >
+                        Lead Yap
+                      </button>
+                      <button
+                        onClick={() => handleDeleteScrapedData(item.id)}
+                        className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                        title="Sil"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {googleMapsData.length === 0 && !loading && (
+        <div className="text-center py-12 text-slate-500">
+          <MapPin className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+          <p>Henüz AI Müşteri Bulucu verisi bulunmuyor</p>
+          <p className="text-sm mt-2">AI Müşteri Bulucu'dan veri kazıyın</p>
+        </div>
+      )}
+      {googleMapsTotal > 0 && (
+        <div className="text-center text-sm text-slate-500 dark:text-slate-400">
+          Toplam {googleMapsTotal} kayıt
         </div>
       )}
     </div>
@@ -1893,7 +2055,7 @@ export default function CRM() {
 
       {/* Navigation Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-dark-border">
-        {(['dashboard', 'leads', 'opportunities', 'tasks', 'contacts', 'pipeline', 'kanban', 'reports'] as ViewMode[]).map((view) => (
+        {(['dashboard', 'leads', 'opportunities', 'tasks', 'contacts', 'google-maps', 'pipeline', 'kanban', 'reports'] as ViewMode[]).map((view) => (
           <button
             key={view}
             onClick={() => setActiveView(view)}
@@ -1908,6 +2070,7 @@ export default function CRM() {
             {view === 'opportunities' && 'Fırsatlar'}
             {view === 'tasks' && 'Görevler'}
             {view === 'contacts' && 'Kişiler'}
+            {view === 'google-maps' && 'AI Müşteri Bulucu'}
             {view === 'pipeline' && 'Pipeline'}
             {view === 'kanban' && 'Kanban'}
             {view === 'reports' && 'Raporlar'}
@@ -1935,6 +2098,7 @@ export default function CRM() {
           {activeView === 'opportunities' && renderOpportunities()}
           {activeView === 'tasks' && renderTasks()}
           {activeView === 'contacts' && renderContacts()}
+          {activeView === 'google-maps' && renderGoogleMaps()}
           {activeView === 'pipeline' && renderPipeline()}
           {activeView === 'kanban' && renderKanban()}
           {activeView === 'reports' && renderReports()}
