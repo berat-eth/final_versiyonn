@@ -112,28 +112,29 @@ export class ProductController {
             console.log(`⚠️ Product ${id}: Varyasyon yok veya boş`);
           }
         } else {
-          // Varyasyonlar yüklenemedi, fallback dene
-          console.log(`⚠️ Product ${id}: Varyasyon API çağrısı başarısız, fallback deneniyor...`);
+          // Varyasyonlar yüklenemedi, detaylı hata loglama
           if (variationsResponse.status === 'rejected') {
-            console.error(`❌ Product ${id}: Variations API error:`, variationsResponse.reason);
+            console.error(`❌ Product ${id}: Variations API promise rejected:`, variationsResponse.reason);
+            console.error(`❌ Product ${id}: Error details:`, {
+              message: variationsResponse.reason?.message,
+              stack: variationsResponse.reason?.stack?.substring(0, 500),
+              error: String(variationsResponse.reason)
+            });
+          } else if (variationsResponse.status === 'fulfilled') {
+            // Promise başarılı ama response.success false veya data yok
+            console.error(`❌ Product ${id}: Variations API response failed:`, {
+              success: variationsResponse.value.success,
+              hasData: !!variationsResponse.value.data,
+              dataType: typeof variationsResponse.value.data,
+              message: variationsResponse.value.message,
+              error: variationsResponse.value.error
+            });
           }
           
-          try {
-            const dbVariations = await this.getProductVariationsFromDB(id);
-            if (Array.isArray(dbVariations) && dbVariations.length > 0) {
-              product.variations = dbVariations as any;
-              product.hasVariations = true;
-              console.log(`✅ Product ${id}: Fallback ile ${dbVariations.length} varyasyon yüklendi`);
-            } else {
-              product.variations = [];
-              product.hasVariations = false;
-              console.log(`⚠️ Product ${id}: Fallback de varyasyon bulunamadı`);
-            }
-          } catch (fallbackError) {
-            console.error(`❌ Product ${id}: Fallback error:`, fallbackError);
-            product.variations = [];
-            product.hasVariations = false;
-          }
+          // Varyasyonlar yüklenemedi, boş array olarak set et
+          product.variations = [];
+          product.hasVariations = false;
+          console.log(`⚠️ Product ${id}: Varyasyon yüklenemedi, boş array set edildi`);
         }
         
         // ✅ XML Enrichment KALDIRILDI - Performans sorunu yaratıyordu (tüm ürünleri çekiyordu)

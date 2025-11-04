@@ -757,7 +757,15 @@ class ApiService {
         return normalizedResult;
       }
       
-      return { success: false, data: [] } as ApiResponse<any>;
+      // Hata durumunda detaylı log
+      console.error(`❌ getProductVariations failed for product ${productId}:`, {
+        success: result.success,
+        hasData: !!result.data,
+        message: result.message,
+        error: result.error
+      });
+      
+      return { success: false, data: [], error: result.error || result.message } as ApiResponse<any>;
     } catch (error) {
       console.error('Error fetching product variations:', error);
       return { success: false, data: [], error: String(error) } as ApiResponse<any>;

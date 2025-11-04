@@ -8868,8 +8868,18 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching product variations:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    console.error(`❌ Error fetching product variations for product ${req.params.productId}:`, error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage
+    });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
