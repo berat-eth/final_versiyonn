@@ -8284,7 +8284,8 @@ app.get('/api/admin/flash-deals/all', authenticateAdmin, async (req, res) => {
     // Her flash deal için ürün ve kategori bilgilerini getir
     const dealsWithTargets = await Promise.all(rows.map(async (deal) => {
       const [products] = await poolWrapper.execute(`
-        SELECT p.id, p.name, p.price, p.imageUrl, p.category
+        SELECT p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
+               p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_products fdp
         JOIN products p ON fdp.product_id = p.id
         WHERE fdp.flash_deal_id = ?
@@ -8320,10 +8321,26 @@ app.post('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
     console.log('⚡ Creating flash deal:', { name, discount_type, discount_value, product_ids, category_ids });
 
     // Validate required fields
-    if (!name || !discount_type || !discount_value || !start_date || !end_date) {
+    if (!name || !discount_type || discount_value === undefined || discount_value === null || !start_date || !end_date) {
+      console.log('❌ Validation failed:', { name, discount_type, discount_value, start_date, end_date });
       return res.status(400).json({
         success: false,
-        message: 'Gerekli alanlar eksik'
+        message: 'Gerekli alanlar eksik: ' + JSON.stringify({
+          name: !name ? 'eksik' : 'var',
+          discount_type: !discount_type ? 'eksik' : 'var',
+          discount_value: (discount_value === undefined || discount_value === null) ? 'eksik' : 'var',
+          start_date: !start_date ? 'eksik' : 'var',
+          end_date: !end_date ? 'eksik' : 'var'
+        })
+      });
+    }
+    
+    // Validate discount value
+    const discountValueNum = parseFloat(discount_value);
+    if (isNaN(discountValueNum) || discountValueNum <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'İndirim değeri 0\'dan büyük bir sayı olmalıdır'
       });
     }
 
@@ -8541,7 +8558,8 @@ app.get('/api/flash-deals', async (req, res) => {
     const dealsWithProducts = await Promise.all(rows.map(async (deal) => {
       // Seçili ürünler
       const [products] = await poolWrapper.execute(`
-        SELECT DISTINCT p.*
+        SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
+               p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_products fdp
         JOIN products p ON fdp.product_id = p.id
         WHERE fdp.flash_deal_id = ?
@@ -8549,7 +8567,8 @@ app.get('/api/flash-deals', async (req, res) => {
 
       // Seçili kategorilerdeki ürünler
       const [categoryProducts] = await poolWrapper.execute(`
-        SELECT DISTINCT p.*
+        SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description,
+               p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_categories fdc
         JOIN categories c ON fdc.category_id = c.id
         JOIN products p ON p.category = c.name

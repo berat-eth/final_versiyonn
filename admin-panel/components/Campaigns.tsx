@@ -130,28 +130,71 @@ export default function Campaigns() {
       const response = await api.get('/admin/flash-deals/all') as any
       if (response.success) {
         // Backend'den gelen snake_case verilerini camelCase'e dönüştür
-        const mappedDeals = (response.data || []).map((deal: any) => ({
-          id: deal.id,
-          name: deal.name || '',
-          description: deal.description || '',
-          discountType: deal.discount_type || deal.discountType || 'percentage',
-          discountValue: deal.discount_value || deal.discountValue || 0,
-          targetType: (deal.products && deal.products.length > 0) ? 'product' : 'category',
-          targetId: undefined,
-          startDate: deal.start_date || deal.startDate || '',
-          endDate: deal.end_date || deal.endDate || '',
-          isActive: deal.is_active !== undefined ? deal.is_active : deal.isActive !== undefined ? deal.isActive : true,
-          createdAt: deal.created_at || deal.createdAt || '',
-          updatedAt: deal.updated_at || deal.updatedAt || '',
-          products: deal.products || [],
-          categories: deal.categories || []
-        }))
-        setFlashDeals(mappedDeals)
+        const mappedDeals = (response.data || []).map((deal: any) => {
+          // Tarih formatını datetime-local input için dönüştür
+          const startDateStr = deal.start_date || deal.startDate || '';
+          const endDateStr = deal.end_date || deal.endDate || '';
+          
+          let startDateFormatted = '';
+          let endDateFormatted = '';
+          
+          if (startDateStr) {
+            try {
+              const startDate = new Date(startDateStr);
+              if (!isNaN(startDate.getTime())) {
+                // datetime-local format: YYYY-MM-DDTHH:mm
+                const year = startDate.getFullYear();
+                const month = String(startDate.getMonth() + 1).padStart(2, '0');
+                const day = String(startDate.getDate()).padStart(2, '0');
+                const hours = String(startDate.getHours()).padStart(2, '0');
+                const minutes = String(startDate.getMinutes()).padStart(2, '0');
+                startDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+              }
+            } catch (error) {
+              console.error('Start date parse hatası:', error);
+            }
+          }
+          
+          if (endDateStr) {
+            try {
+              const endDate = new Date(endDateStr);
+              if (!isNaN(endDate.getTime())) {
+                const year = endDate.getFullYear();
+                const month = String(endDate.getMonth() + 1).padStart(2, '0');
+                const day = String(endDate.getDate()).padStart(2, '0');
+                const hours = String(endDate.getHours()).padStart(2, '0');
+                const minutes = String(endDate.getMinutes()).padStart(2, '0');
+                endDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+              }
+            } catch (error) {
+              console.error('End date parse hatası:', error);
+            }
+          }
+          
+          return {
+            id: deal.id,
+            name: deal.name || '',
+            description: deal.description || '',
+            discountType: deal.discount_type || deal.discountType || 'percentage',
+            discountValue: parseFloat(deal.discount_value || deal.discountValue || 0),
+            targetType: (deal.products && deal.products.length > 0) ? 'product' : 
+                       (deal.categories && deal.categories.length > 0) ? 'category' : 'category',
+            targetId: undefined,
+            startDate: startDateFormatted,
+            endDate: endDateFormatted,
+            isActive: deal.is_active !== undefined ? deal.is_active : deal.isActive !== undefined ? deal.isActive : true,
+            createdAt: deal.created_at || deal.createdAt || '',
+            updatedAt: deal.updated_at || deal.updatedAt || '',
+            products: deal.products || [],
+            categories: deal.categories || []
+          };
+        });
+        setFlashDeals(mappedDeals);
       }
     } catch (error) {
-      console.error('Flash deals yükleme hatası:', error)
+      console.error('Flash deals yükleme hatası:', error);
     } finally {
-      setFlashLoading(false)
+      setFlashLoading(false);
     }
   }
 
@@ -198,7 +241,8 @@ export default function Campaigns() {
       return
     }
     
-    if (flashFormData.discountValue <= 0) {
+    const discountValue = parseFloat(flashFormData.discountValue?.toString() || '0');
+    if (isNaN(discountValue) || discountValue <= 0) {
       alert('İndirim değeri 0\'dan büyük olmalıdır!')
       return
     }
@@ -219,27 +263,74 @@ export default function Campaigns() {
     }
     
     try {
+      // Tarih formatını kontrol et ve dönüştür
+      // datetime-local input'u "YYYY-MM-DDTHH:mm" formatında verir
+      let startDateISO = '';
+      let endDateISO = '';
+      
+      if (flashFormData.startDate) {
+        try {
+          // datetime-local formatını ISO'ya dönüştür
+          const startDate = new Date(flashFormData.startDate);
+          if (!isNaN(startDate.getTime())) {
+            startDateISO = startDate.toISOString();
+          } else {
+            // Eğer parse edilemezse, direkt kullan
+            startDateISO = flashFormData.startDate;
+          }
+        } catch (error) {
+          console.error('Start date parse hatası:', error);
+          startDateISO = flashFormData.startDate;
+        }
+      }
+      
+      if (flashFormData.endDate) {
+        try {
+          const endDate = new Date(flashFormData.endDate);
+          if (!isNaN(endDate.getTime())) {
+            endDateISO = endDate.toISOString();
+          } else {
+            endDateISO = flashFormData.endDate;
+          }
+        } catch (error) {
+          console.error('End date parse hatası:', error);
+          endDateISO = flashFormData.endDate;
+        }
+      }
+      
+      const discountValue = parseFloat(flashFormData.discountValue?.toString() || '0');
+      
       const submitData = {
-        name: flashFormData.name,
-        description: flashFormData.description,
-        discount_type: flashFormData.discountType,
-        discount_value: flashFormData.discountValue,
-        start_date: flashFormData.startDate,
-        end_date: flashFormData.endDate,
-        is_active: flashFormData.isActive,
+        name: flashFormData.name?.trim() || '',
+        description: flashFormData.description?.trim() || '',
+        discount_type: flashFormData.discountType || 'percentage',
+        discount_value: discountValue,
+        start_date: startDateISO,
+        end_date: endDateISO,
+        is_active: flashFormData.isActive !== undefined ? flashFormData.isActive : true,
         product_ids: selectedProducts.map(p => p.id),
         category_ids: selectedCategories.map(c => c.id)
       }
       
+      console.log('📤 Flash deal gönderiliyor:', submitData);
+      
       if (editingFlashDeal) {
         const response = await api.put(`/admin/flash-deals/${editingFlashDeal.id}`, submitData) as any
+        console.log('📥 Flash deal güncelleme yanıtı:', response);
         if (response.success) {
           await loadFlashDeals()
+          alert('Flash deal başarıyla güncellendi!')
+        } else {
+          alert('Flash deal güncellenemedi: ' + (response.message || 'Bilinmeyen hata'))
         }
       } else {
         const response = await api.post('/admin/flash-deals', submitData) as any
+        console.log('📥 Flash deal oluşturma yanıtı:', response);
         if (response.success) {
           await loadFlashDeals()
+          alert('Flash deal başarıyla oluşturuldu!')
+        } else {
+          alert('Flash deal oluşturulamadı: ' + (response.message || 'Bilinmeyen hata'))
         }
       }
       
@@ -267,33 +358,75 @@ export default function Campaigns() {
   }
 
   const handleFlashEdit = (deal: FlashDeal) => {
-    setEditingFlashDeal(deal)
-    setFlashFormData({
-      name: deal.name,
-      description: deal.description || '',
-      discountType: deal.discountType,
-      discountValue: deal.discountValue,
-      targetType: deal.targetType || 'category',
-      targetId: deal.targetId,
-      startDate: deal.startDate,
-      endDate: deal.endDate,
-      isActive: deal.isActive
-    })
+    console.log('📝 Flash deal düzenleniyor:', deal);
+    setEditingFlashDeal(deal);
     
-    // Load selected products and categories from deal
-    if ((deal as any).products && Array.isArray((deal as any).products)) {
-      setSelectedProducts((deal as any).products.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        category: p.category || ''
-      })))
+    // Tarih formatını kontrol et ve düzelt
+    let startDateFormatted = deal.startDate || '';
+    let endDateFormatted = deal.endDate || '';
+    
+    // Eğer tarih ISO formatında geliyorsa, datetime-local formatına dönüştür
+    if (startDateFormatted && startDateFormatted.includes('T') && startDateFormatted.includes('Z')) {
+      try {
+        const date = new Date(startDateFormatted);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        startDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+      } catch (error) {
+        console.error('Start date format hatası:', error);
+      }
     }
     
-    if ((deal as any).categories && Array.isArray((deal as any).categories)) {
-      setSelectedCategories((deal as any).categories.map((c: any) => ({
+    if (endDateFormatted && endDateFormatted.includes('T') && endDateFormatted.includes('Z')) {
+      try {
+        const date = new Date(endDateFormatted);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        endDateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+      } catch (error) {
+        console.error('End date format hatası:', error);
+      }
+    }
+    
+    setFlashFormData({
+      name: deal.name || '',
+      description: deal.description || '',
+      discountType: deal.discountType || 'percentage',
+      discountValue: deal.discountValue || 0,
+      targetType: deal.targetType || 'category',
+      targetId: deal.targetId,
+      startDate: startDateFormatted,
+      endDate: endDateFormatted,
+      isActive: deal.isActive !== undefined ? deal.isActive : true
+    });
+    
+    // Load selected products and categories from deal
+    const dealWithExtras = deal as any;
+    if (dealWithExtras.products && Array.isArray(dealWithExtras.products) && dealWithExtras.products.length > 0) {
+      console.log('📦 Ürünler yükleniyor:', dealWithExtras.products);
+      setSelectedProducts(dealWithExtras.products.map((p: any) => ({
+        id: p.id,
+        name: p.name || '',
+        category: p.category || ''
+      })));
+    } else {
+      setSelectedProducts([]);
+    }
+    
+    if (dealWithExtras.categories && Array.isArray(dealWithExtras.categories) && dealWithExtras.categories.length > 0) {
+      console.log('📁 Kategoriler yükleniyor:', dealWithExtras.categories);
+      setSelectedCategories(dealWithExtras.categories.map((c: any) => ({
         id: c.id,
-        name: c.name
-      })))
+        name: c.name || ''
+      })));
+    } else {
+      setSelectedCategories([]);
     }
     
     setSearchTerm('')
@@ -1453,11 +1586,15 @@ export default function Campaigns() {
                     <input
                       type="number"
                       required
-                      value={flashFormData.discountValue}
-                      onChange={(e) => setFlashFormData({ ...flashFormData, discountValue: parseFloat(e.target.value) || 0 })}
+                      value={flashFormData.discountValue || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFlashFormData({ ...flashFormData, discountValue: value ? parseFloat(value) : 0 })
+                      }}
                       className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                       min="0"
                       step="0.01"
+                      placeholder="0"
                     />
                   </div>
                 </div>
