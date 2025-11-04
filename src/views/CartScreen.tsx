@@ -56,6 +56,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   } | null>(null);
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   
 
   useEffect(() => {
@@ -72,6 +73,10 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     try {
       setLoading(true);
       const userIdValue = await UserController.getCurrentUserId(); // Get current user ID
+      
+      // Giriş durumunu kontrol et
+      const loggedIn = await UserController.isLoggedIn();
+      setIsAuthenticated(loggedIn);
       
       // Giriş yapmamış kullanıcılar için boş sepet göster
       if (!userIdValue || userIdValue <= 0) {
@@ -570,17 +575,26 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             </View>
             <Text style={styles.emptyTitle}>Sepetiniz Boş</Text>
             <Text style={styles.emptyMessage}>
-              Alışveriş yapabilmek için lütfen giriş yapın veya üye olun.{'\n'}
-              Sepetinize ürün eklemek için önce hesabınıza giriş yapmalısınız.
+              {isAuthenticated 
+                ? 'Sepetinizde henüz ürün bulunmuyor.\nAlışverişe başlamak için ürünleri inceleyebilirsiniz.'
+                : 'Alışveriş yapabilmek için lütfen giriş yapın veya üye olun.\nSepetinize ürün eklemek için önce hesabınıza giriş yapmalısınız.'}
             </Text>
+            {!isAuthenticated && (
+              <TouchableOpacity
+                style={styles.shopButton}
+                onPress={() => navigation.navigate('Profile')}
+              >
+                <Text style={styles.shopButtonText}>Giriş Yap / Üye Ol</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={styles.shopButton}
-              onPress={() => navigation.navigate('Profile')}
-            >
-              <Text style={styles.shopButtonText}>Giriş Yap / Üye Ol</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.shopButton, { backgroundColor: '#6c757d', marginTop: 12 }]}
+              style={[
+                styles.shopButton, 
+                { 
+                  backgroundColor: isAuthenticated ? Colors.primary : '#6c757d', 
+                  marginTop: isAuthenticated ? 0 : 12 
+                }
+              ]}
               onPress={() => navigation.navigate('Products')}
             >
               <Text style={styles.shopButtonText}>Ürünleri İncele</Text>

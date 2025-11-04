@@ -193,10 +193,16 @@ export class SecureStorage {
    */
   static generateSessionToken(): string {
     const timestamp = Date.now().toString();
-    // GÜVENLİK: Math.random yerine CryptoJS.lib.WordArray.random kullan
-    const randomBytes = CryptoJS.lib.WordArray.random(32);
-    const random = randomBytes.toString(CryptoJS.enc.Hex);
-    return CryptoJS.SHA256(timestamp + random).toString();
+    // React Native'de CryptoJS native crypto kullanamaz, alternatif yöntem kullan
+    try {
+      const randomBytes = CryptoJS.lib.WordArray.random(32);
+      const random = randomBytes.toString(CryptoJS.enc.Hex);
+      return CryptoJS.SHA256(timestamp + random).toString();
+    } catch (error) {
+      // Fallback: timestamp ve Math.random kombinasyonu
+      const fallbackRandom = timestamp + Math.random().toString(36) + Date.now().toString(36);
+      return CryptoJS.SHA256(fallbackRandom).toString();
+    }
   }
 
   /**
