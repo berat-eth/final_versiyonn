@@ -242,13 +242,30 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     try {
       const variationsArray: any[] = Array.isArray((product as any)?.variations) ? ((product as any).variations as any[]) : [];
       const ids: string[] = [];
-      const sizeLike = (name: string = '') => {
-        const n = (name || '').toLowerCase();
-        return n.includes('beden') || n.includes('size') || n.includes('numara');
+      
+      // Geliştirilmiş beden algılama fonksiyonu
+      const isSizeVariation = (variation: any): boolean => {
+        if (!variation) return false;
+        
+        // Backend'den gelen isSizeVariation flag'ini kontrol et
+        if (variation.isSizeVariation === true) return true;
+        
+        // Varyasyon ismini normalize et ve kontrol et
+        const name = String(variation.name || '').trim().toLowerCase();
+        if (!name) return false;
+        
+        // Daha kapsamlı beden anahtar kelimeleri
+        const sizeKeywords = ['beden', 'size', 'numara', 'ölçü', 'boyut', 'bedenler', 'sizes'];
+        return sizeKeywords.some(keyword => name.includes(keyword));
       };
+      
       variationsArray.forEach((v: any) => {
-        const vid = String(v.id ?? v.name ?? 'var');
-        if (sizeLike(v.name || '')) ids.push(vid);
+        // Sadece options'ı olan varyasyonları ekle
+        const options = Array.isArray(v.options) ? v.options : [];
+        if (options.length > 0 && isSizeVariation(v)) {
+          const vid = String(v.id ?? v.name ?? 'var');
+          ids.push(vid);
+        }
       });
       return ids;
     } catch { return []; }
@@ -648,23 +665,84 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
           {/* Mevcut Bedenler (seçim zorunlu, stokta olmayanlar kırmızı çarpı ile) */}
           {Array.isArray(product.variations) && product.variations.length > 0 && (() => {
-            const sizeLike = (name: string = '') => {
-              const n = (name || '').toLowerCase();
-              return n.includes('beden') || n.includes('size') || n.includes('numara');
+            // Debug: Varyasyonları logla
+            console.log(`🔍 ProductDetail: Toplam ${product.variations.length} varyasyon var`, 
+              product.variations.map((v: any) => ({ 
+                name: v.name, 
+                optionsCount: v.options?.length || 0,
+                isSizeVariation: v.isSizeVariation 
+              }))
+            );
+            
+            // Geliştirilmiş beden algılama fonksiyonu
+            const isSizeVariation = (variation: any): boolean => {
+              if (!variation) return false;
+              
+              // Backend'den gelen isSizeVariation flag'ini kontrol et
+              if (variation.isSizeVariation === true) return true;
+              
+              // Varyasyon ismini normalize et ve kontrol et
+              const name = String(variation.name || '').trim().toLowerCase();
+              if (!name) return false;
+              
+              // Daha kapsamlı beden anahtar kelimeleri
+              const sizeKeywords = ['beden', 'size', 'numara', 'ölçü', 'boyut', 'bedenler', 'sizes'];
+              const isSize = sizeKeywords.some(keyword => name.includes(keyword));
+              
+              if (isSize) {
+                console.log(`✅ Beden varyasyonu bulundu: "${variation.name}"`);
+              }
+              
+              return isSize;
             };
-            const sizeVariations: any[] = (product.variations as any[]).filter(v => sizeLike(v.name || '')) as any[];
-            if (!sizeVariations || sizeVariations.length === 0) return null;
+            
+            // Beden varyasyonlarını filtrele
+            const sizeVariations: any[] = (product.variations as any[])
+              .filter(v => {
+                const isSize = isSizeVariation(v);
+                if (isSize) {
+                  console.log(`📏 Beden varyasyonu: "${v.name}", options: ${v.options?.length || 0}`);
+                }
+                return isSize;
+              })
+              .filter(v => {
+                // Options kontrolü - en az 1 option olmalı
+                const options = Array.isArray(v.options) ? v.options : [];
+                const hasOptions = options.length > 0;
+                if (!hasOptions && isSizeVariation(v)) {
+                  console.warn(`⚠️ Beden varyasyonu "${v.name}" options'ı boş!`);
+                }
+                return hasOptions;
+              }) as any[];
+            
+            console.log(`📊 Beden varyasyonları: ${sizeVariations.length} adet`);
+            
+            // Eğer beden varyasyonu yoksa, hiçbir şey render etme
+            if (!sizeVariations || sizeVariations.length === 0) {
+              console.warn(`⚠️ ProductDetail: Beden varyasyonu bulunamadı! Toplam varyasyon: ${product.variations.length}`);
+              return null;
+            }
+            
             return (
               <View style={{ marginBottom: 16 }}>
                 <Text style={styles.variationLabel}>Mevcut Bedenler</Text>
                 {sizeVariations.map((variation: any) => {
                   const variationId = String(variation.id ?? variation.name ?? 'var');
                   const options: any[] = Array.isArray(variation.options) ? variation.options : [];
+                  
+                  // Options yoksa bu varyasyonu atla
+                  if (options.length === 0) return null;
+                  
                   return (
                     <View key={variationId} style={styles.availableSizes}>
                       {options.map((opt: any, idx: number) => {
+                        // Option değerlerini normalize et
+                        const optValue = String(opt?.value || '').trim();
+                        if (!optValue) return null;
+                        
                         const disabled = Number(opt?.stock || 0) <= 0;
-                        const isSelected = String(selectedOptions[variationId]?.value) === String(opt.value);
+                        const isSelected = String(selectedOptions[variationId]?.value) === optValue;
+                        
                         return (
                           <TouchableOpacity
                             key={`${variationId}-${idx}`}
@@ -678,7 +756,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
                               const next: any = { ...selectedOptions };
                               next[variationId] = {
                                 ...(opt as ProductVariationOption),
-                                value: String(opt.value || ''),
+                                value: optValue,
                                 stock: Number(opt.stock || 0)
                               } as any;
                               setSelectedOptions(next);
@@ -687,7 +765,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
                             activeOpacity={0.8}
                           >
                             <Text style={[styles.sizeText, isSelected && { color: '#FFFFFF' }]}>
-                              {String(opt.value || '-')}
+                              {optValue}
                             </Text>
                             {disabled && (
                               <View style={{ position: 'absolute', right: -6, top: -8 }}>

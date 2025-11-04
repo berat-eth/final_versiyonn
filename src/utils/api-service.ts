@@ -704,6 +704,24 @@ class ApiService {
       const cacheKey = this.getCacheKey(`/products/${productId}/variations`);
       const cached = await this.getFromCache<ApiResponse<any>>(cacheKey);
 
+      // Response normalize helper fonksiyonu
+      const normalizeVariationsResponse = (responseData: any): any[] => {
+        if (!responseData) return [];
+        
+        // Eğer direkt array ise, döndür
+        if (Array.isArray(responseData)) {
+          return responseData;
+        }
+        
+        // Eğer object ise ve variations property'si varsa
+        if (typeof responseData === 'object' && responseData.variations) {
+          return Array.isArray(responseData.variations) ? responseData.variations : [];
+        }
+        
+        // Eğer hiçbiri değilse boş array döndür
+        return [];
+      };
+
       // SWR: Eğer cache varsa hemen onu döndür; arkaplanda yenile
       if (cached && cached.success && cached.data) {
         // Arkaplanda yenile (sessiz)
@@ -714,22 +732,27 @@ class ApiService {
             }
           })
           .catch(() => { });
-        // Cache'den variations array'ini döndür
-        const variationsData = cached.data.variations || cached.data;
+        
+        // Cache'den variations array'ini normalize et ve döndür
+        const variations = normalizeVariationsResponse(cached.data);
         return { 
           success: true, 
-          data: Array.isArray(variationsData) ? variationsData : (variationsData?.variations || [])
+          data: variations
         } as ApiResponse<any>;
       }
 
       const result = await this.request<any>(`/products/${productId}/variations`);
       if (result.success && result.data) {
         // Server response format: { success: true, data: { variations: [...], sizeStocks: {} } }
-        const variations = result.data.variations || result.data;
+        // veya direkt variations array: { success: true, data: [...] }
+        const variations = normalizeVariationsResponse(result.data);
+        
         const normalizedResult = {
           success: true,
-          data: Array.isArray(variations) ? variations : (variations?.variations || [])
+          data: variations
         };
+        
+        // Cache'e tam response'u kaydet (sizeStocks da dahil)
         await CacheService.set(cacheKey, result, PRODUCT_CACHE_DURATION);
         return normalizedResult;
       }

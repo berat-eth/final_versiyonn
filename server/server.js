@@ -8665,98 +8665,186 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       ORDER BY v.displayOrder, v.name
     `, [numericId, req.tenant.id]);
 
-    // JSON formatını düzelt
-    let formattedVariations = variations.map(variation => ({
-      id: variation.id,
-      productId: variation.productId,
-      name: variation.name,
-      displayOrder: variation.displayOrder,
-      options: variation.options && variation.options.length > 0 ? variation.options : []
-    }));
+    // JSON formatını düzelt ve normalize et
+    let formattedVariations = variations.map(variation => {
+      // Varyasyon ismini normalize et (trim, boşlukları temizle)
+      const normalizedName = variation.name ? String(variation.name).trim() : '';
+      return {
+        id: variation.id,
+        productId: variation.productId,
+        name: normalizedName,
+        displayOrder: variation.displayOrder,
+        options: variation.options && variation.options.length > 0 ? variation.options : []
+      };
+    });
 
-    // Eğer product_variations tablosunda varyasyon yoksa ama variationDetails varsa, oradan türet
-    if ((!formattedVariations || formattedVariations.length === 0 || formattedVariations.every(v => !v.options || v.options.length === 0)) && xmlVariations.length > 0) {
-      console.log(`📦 Varyasyonlar tabloda yok, variationDetails'tan türetiliyor...`);
-      
-      // variationDetails'tan varyasyonları grupla
-      const variationMap = new Map(); // variationName -> options[]
-      
-      xmlVariations.forEach(variation => {
-        if (variation.attributes && typeof variation.attributes === 'object') {
-          // Her attribute için varyasyon oluştur
-          Object.keys(variation.attributes).forEach(attrName => {
-            const attrValue = String(variation.attributes[attrName] || '').trim();
-            if (!attrValue) return;
-            
-            if (!variationMap.has(attrName)) {
-              variationMap.set(attrName, new Map()); // value -> option
+    // XML'den varyasyon türetme mantığı - her zaman çalışsın (tabloda yoksa veya options boşsa)
+    const hasValidVariations = formattedVariations.length > 0 && 
+                               formattedVariations.some(v => v.options && v.options.length > 0);
+    
+    if (xmlVariations.length > 0) {
+      // Eğer tabloda geçerli varyasyon yoksa veya XML'de daha fazla bilgi varsa, XML'den türet
+      if (!hasValidVariations || xmlVariations.length > 0) {
+        console.log(`📦 XML'den varyasyonlar türetiliyor (tabloda: ${formattedVariations.length}, XML'de: ${xmlVariations.length} varyasyon)...`);
+        
+        // variationDetails'tan varyasyonları grupla
+        const variationMap = new Map(); // variationName -> options[]
+        
+        xmlVariations.forEach(variation => {
+          try {
+            // Attributes kontrolü - null, undefined veya boş objeleri atla
+            if (!variation.attributes || typeof variation.attributes !== 'object') {
+              return;
             }
+
+            // Stok bilgisi kontrolü - stok yoksa veya 0 ise yine de ekle (stok 0 olabilir)
+            const stock = parseInt(variation.stok) || 0;
             
-            const optionsMap = variationMap.get(attrName);
-            if (!optionsMap.has(attrValue)) {
-              // Aynı değere sahip varyasyonları birleştir (stokları topla)
-              optionsMap.set(attrValue, {
-                id: `${numericId}-${attrName}-${attrValue}`,
-                variationId: `${numericId}-${attrName}`,
-                value: attrValue,
-                priceModifier: variation.fiyat || variation.priceModifier || 0,
-                stock: 0,
-                sku: variation.stokKodu || variation.sku || '',
-                image: null,
-                isActive: true
-              });
-            }
-            
-            // Stokları topla
-            const option = optionsMap.get(attrValue);
-            option.stock = (option.stock || 0) + (parseInt(variation.stok) || 0);
-            // Fiyat en düşük olanı kullan (indirimli fiyat varsa)
-            if (variation.fiyat && variation.fiyat < option.priceModifier) {
-              option.priceModifier = variation.fiyat;
+            // Her attribute için varyasyon oluştur
+            Object.keys(variation.attributes).forEach(attrName => {
+              const rawAttrValue = variation.attributes[attrName];
+              
+              // Değer kontrolü - null, undefined, boş string kontrolü
+              if (rawAttrValue === null || rawAttrValue === undefined) {
+                return;
+              }
+              
+              const attrValue = String(rawAttrValue).trim();
+              if (!attrValue) {
+                return;
+              }
+              
+              // Varyasyon ismini normalize et
+              const normalizedAttrName = String(attrName).trim();
+              
+              if (!variationMap.has(normalizedAttrName)) {
+                variationMap.set(normalizedAttrName, new Map()); // value -> option
+              }
+              
+              const optionsMap = variationMap.get(normalizedAttrName);
+              if (!optionsMap.has(attrValue)) {
+                // Aynı değere sahip varyasyonları birleştir (stokları topla)
+                optionsMap.set(attrValue, {
+                  id: `${numericId}-${normalizedAttrName}-${attrValue}`,
+                  variationId: `${numericId}-${normalizedAttrName}`,
+                  value: attrValue,
+                  priceModifier: variation.fiyat || variation.priceModifier || 0,
+                  stock: 0,
+                  sku: variation.stokKodu || variation.sku || '',
+                  image: null,
+                  isActive: true
+                });
+              }
+              
+              // Stokları topla
+              const option = optionsMap.get(attrValue);
+              option.stock = (option.stock || 0) + stock;
+              
+              // Fiyat en düşük olanı kullan (indirimli fiyat varsa)
+              if (variation.fiyat && variation.fiyat < option.priceModifier) {
+                option.priceModifier = variation.fiyat;
+              }
+            });
+          } catch (variationError) {
+            console.error(`⚠️ Varyasyon parse hatası (Product ID: ${numericId}):`, variationError, 'Variation:', JSON.stringify(variation));
+            // Hata olsa bile devam et
+          }
+        });
+        
+        // Map'ten array formatına dönüştür
+        const xmlDerivedVariations = [];
+        let displayOrder = 0;
+        variationMap.forEach((optionsMap, variationName) => {
+          const options = Array.from(optionsMap.values());
+          // En az 1 option varsa ekle
+          if (options.length > 0) {
+            xmlDerivedVariations.push({
+              id: `${numericId}-${variationName}`,
+              productId: numericId,
+              name: variationName,
+              displayOrder: displayOrder++,
+              options: options
+            });
+          }
+        });
+        
+        // Eğer tabloda geçerli varyasyon yoksa, XML'den türetilenleri kullan
+        if (!hasValidVariations) {
+          formattedVariations = xmlDerivedVariations;
+          console.log(`✅ ${formattedVariations.length} varyasyon variationDetails'tan türetildi (tabloda yoktu)`);
+        } else {
+          // Tabloda varyasyon var ama XML'de daha fazla bilgi varsa, birleştir
+          // Öncelik tabloda olanlara verilir, XML'den gelenler sadece eksikleri tamamlar
+          const existingVariationNames = new Set(formattedVariations.map(v => v.name.toLowerCase()));
+          xmlDerivedVariations.forEach(xmlVar => {
+            if (!existingVariationNames.has(xmlVar.name.toLowerCase())) {
+              formattedVariations.push(xmlVar);
             }
           });
+          console.log(`✅ XML'den ${xmlDerivedVariations.length} varyasyon türetildi, toplam ${formattedVariations.length} varyasyon`);
         }
-      });
-      
-      // Map'ten array formatına dönüştür
-      formattedVariations = [];
-      let displayOrder = 0;
-      variationMap.forEach((optionsMap, variationName) => {
-        const options = Array.from(optionsMap.values());
-        if (options.length > 0) {
-          formattedVariations.push({
-            id: `${numericId}-${variationName}`,
-            productId: numericId,
-            name: variationName,
-            displayOrder: displayOrder++,
-            options: options
-          });
-        }
-      });
-      
-      console.log(`✅ ${formattedVariations.length} varyasyon variationDetails'tan türetildi`);
+      }
     }
+
+    // Beden algılama helper fonksiyonu
+    const isSizeVariation = (name) => {
+      if (!name || typeof name !== 'string') return false;
+      const normalizedName = name.toLowerCase().trim();
+      const sizeKeywords = ['beden', 'size', 'numara', 'ölçü', 'boyut', 'bedenler', 'sizes'];
+      return sizeKeywords.some(keyword => normalizedName.includes(keyword));
+    };
+
+    // Varyasyon isimlerini normalize et ve beden varyasyonlarını işaretle
+    formattedVariations = formattedVariations.map(variation => ({
+      ...variation,
+      name: variation.name ? String(variation.name).trim() : '',
+      isSizeVariation: isSizeVariation(variation.name)
+    }));
 
     // XML varyasyonlarından beden stoklarını çıkar (geriye dönük uyumluluk için)
     const sizeStocks = {};
     xmlVariations.forEach(variation => {
-      if (variation.attributes && variation.stok !== undefined) {
-        const attributes = variation.attributes;
-        if (attributes && typeof attributes === 'object') {
-          // Beden bilgisini bul (Beden, Size, etc.)
-          const sizeKeys = Object.keys(attributes).filter(key =>
-            key.toLowerCase().includes('beden') ||
-            key.toLowerCase().includes('size')
-          );
+      try {
+        if (variation.attributes && variation.stok !== undefined) {
+          const attributes = variation.attributes;
+          if (attributes && typeof attributes === 'object') {
+            // Beden bilgisini bul - daha kapsamlı pattern
+            const sizeKeys = Object.keys(attributes).filter(key => {
+              if (!key || typeof key !== 'string') return false;
+              const normalizedKey = key.toLowerCase().trim();
+              const sizeKeywords = ['beden', 'size', 'numara', 'ölçü', 'boyut', 'bedenler', 'sizes'];
+              return sizeKeywords.some(keyword => normalizedKey.includes(keyword));
+            });
 
-          if (sizeKeys.length > 0) {
-            const size = attributes[sizeKeys[0]];
-            if (size && typeof size === 'string') {
-              sizeStocks[size] = parseInt(variation.stok) || 0;
+            if (sizeKeys.length > 0) {
+              const size = attributes[sizeKeys[0]];
+              if (size && typeof size === 'string') {
+                const normalizedSize = size.trim();
+                if (normalizedSize) {
+                  // Aynı beden için stokları topla
+                  if (!sizeStocks[normalizedSize]) {
+                    sizeStocks[normalizedSize] = 0;
+                  }
+                  sizeStocks[normalizedSize] += parseInt(variation.stok) || 0;
+                }
+              }
             }
           }
         }
+      } catch (error) {
+        console.error(`⚠️ Beden stok parse hatası (Product ID: ${numericId}):`, error);
       }
+    });
+
+    // Debug logları
+    console.log(`📦 Product ${numericId} variations endpoint:`);
+    console.log(`  - XML variations: ${xmlVariations.length}`);
+    console.log(`  - Formatted variations: ${formattedVariations.length}`);
+    console.log(`  - Size stocks: ${Object.keys(sizeStocks).length} beden`);
+    
+    formattedVariations.forEach(v => {
+      const sizeCount = v.isSizeVariation ? '✅ BEDEN' : '';
+      console.log(`  - Variation: "${v.name}" (${v.options?.length || 0} options) ${sizeCount}`);
     });
 
     res.json({

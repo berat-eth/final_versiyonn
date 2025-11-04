@@ -83,30 +83,56 @@ export class ProductController {
       if (productResponse.status === 'fulfilled' && productResponse.value.success && productResponse.value.data) {
         let product = this.mapApiProductToAppProduct(productResponse.value.data);
         
+        // Varyasyonları başlangıçta boş array olarak set et
+        product.variations = [];
+        
         // Varyasyonları paralel çekilen response'tan al
         if (variationsResponse.status === 'fulfilled' && variationsResponse.value.success && variationsResponse.value.data) {
-          const variations = Array.isArray(variationsResponse.value.data) 
-            ? variationsResponse.value.data 
-            : (variationsResponse.value.data.variations || []);
+          // API response zaten normalizeVariationsResponse ile normalize edilmiş olmalı
+          // Ama yine de kontrol edelim
+          let variations: any[] = [];
+          
+          if (Array.isArray(variationsResponse.value.data)) {
+            variations = variationsResponse.value.data;
+          } else if (variationsResponse.value.data && typeof variationsResponse.value.data === 'object') {
+            // Eğer object ise variations property'sini kontrol et
+            if (Array.isArray(variationsResponse.value.data.variations)) {
+              variations = variationsResponse.value.data.variations;
+            }
+          }
+          
+          // Varyasyonları her zaman set et (boş bile olsa)
+          product.variations = variations as any;
           
           if (variations.length > 0) {
-            product.variations = variations as any;
             product.hasVariations = true;
+            console.log(`✅ Product ${id}: ${variations.length} varyasyon yüklendi`, variations.map(v => ({ name: v.name, options: v.options?.length || 0 })));
+          } else {
+            product.hasVariations = false;
+            console.log(`⚠️ Product ${id}: Varyasyon yok veya boş`);
           }
         } else {
-          // Varyasyonlar yüklenemedi, hasVariations kontrolü yap
-          if (product.hasVariations) {
-            try {
-              const dbVariations = await this.getProductVariationsFromDB(id);
-              if (Array.isArray(dbVariations) && dbVariations.length > 0) {
-                product.variations = dbVariations as any;
-              } else {
-                // Varyasyon yoksa hasVariations'ı false yap
-                product.hasVariations = false;
-              }
-            } catch {
+          // Varyasyonlar yüklenemedi, fallback dene
+          console.log(`⚠️ Product ${id}: Varyasyon API çağrısı başarısız, fallback deneniyor...`);
+          if (variationsResponse.status === 'rejected') {
+            console.error(`❌ Product ${id}: Variations API error:`, variationsResponse.reason);
+          }
+          
+          try {
+            const dbVariations = await this.getProductVariationsFromDB(id);
+            if (Array.isArray(dbVariations) && dbVariations.length > 0) {
+              product.variations = dbVariations as any;
+              product.hasVariations = true;
+              console.log(`✅ Product ${id}: Fallback ile ${dbVariations.length} varyasyon yüklendi`);
+            } else {
+              product.variations = [];
               product.hasVariations = false;
+              console.log(`⚠️ Product ${id}: Fallback de varyasyon bulunamadı`);
             }
+          } catch (fallbackError) {
+            console.error(`❌ Product ${id}: Fallback error:`, fallbackError);
+            product.variations = [];
+            product.hasVariations = false;
           }
         }
         
