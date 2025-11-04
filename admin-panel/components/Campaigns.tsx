@@ -300,6 +300,9 @@ export default function Campaigns() {
       
       const discountValue = parseFloat(flashFormData.discountValue?.toString() || '0');
       
+      const productIds = selectedProducts.map(p => p.id).filter(id => id !== undefined && id !== null);
+      const categoryIds = selectedCategories.map(c => c.id).filter(id => id !== undefined && id !== null);
+      
       const submitData = {
         name: flashFormData.name?.trim() || '',
         description: flashFormData.description?.trim() || '',
@@ -308,11 +311,13 @@ export default function Campaigns() {
         start_date: startDateISO,
         end_date: endDateISO,
         is_active: flashFormData.isActive !== undefined ? flashFormData.isActive : true,
-        product_ids: selectedProducts.map(p => p.id),
-        category_ids: selectedCategories.map(c => c.id)
+        product_ids: productIds.length > 0 ? productIds : [],
+        category_ids: categoryIds.length > 0 ? categoryIds : []
       }
       
       console.log('📤 Flash deal gönderiliyor:', submitData);
+      console.log('📦 Seçili ürünler:', selectedProducts);
+      console.log('📁 Seçili kategoriler:', selectedCategories);
       
       if (editingFlashDeal) {
         const response = await api.put(`/admin/flash-deals/${editingFlashDeal.id}`, submitData) as any
