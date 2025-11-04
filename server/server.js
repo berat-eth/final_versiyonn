@@ -2900,7 +2900,7 @@ app.get('/api/admin/analytics/customer-behavior', authenticateAdmin, async (req,
     `);
 
     // Radar chart için normalize edilmiş değerler (0-100 arası)
-    const behaviorData = customerMetrics.map((item: any) => ({
+    const behaviorData = customerMetrics.map((item) => ({
       category: item.category,
       value: Math.min(100, Math.max(0, parseFloat(item.value || 0)))
     }));
@@ -2996,7 +2996,7 @@ app.get('/api/admin/analytics/customer-segments', authenticateAdmin, async (req,
       'from-indigo-500 to-indigo-600'
     ];
 
-    const segmentsWithColors = segments.map((segment: any, index: number) => ({
+    const segmentsWithColors = segments.map((segment, index) => ({
       ...segment,
       color: colors[index % colors.length]
     }));
@@ -8282,7 +8282,7 @@ app.get('/api/admin/flash-deals/all', authenticateAdmin, async (req, res) => {
     `);
 
     // Her flash deal için ürün ve kategori bilgilerini getir
-    const dealsWithTargets = await Promise.all(rows.map(async (deal: any) => {
+    const dealsWithTargets = await Promise.all(rows.map(async (deal) => {
       const [products] = await poolWrapper.execute(`
         SELECT p.id, p.name, p.price, p.imageUrl, p.category
         FROM flash_deal_products fdp
@@ -8372,7 +8372,7 @@ app.post('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
 
       // Insert products
       if (productIds.length > 0) {
-        const productValues = productIds.map((productId: number) => [flashDealId, productId]);
+        const productValues = productIds.map((productId) => [flashDealId, productId]);
         await connection.query(`
           INSERT INTO flash_deal_products (flash_deal_id, product_id)
           VALUES ?
@@ -8381,7 +8381,7 @@ app.post('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
 
       // Insert categories
       if (categoryIds.length > 0) {
-        const categoryValues = categoryIds.map((categoryId: number) => [flashDealId, categoryId]);
+        const categoryValues = categoryIds.map((categoryId) => [flashDealId, categoryId]);
         await connection.query(`
           INSERT INTO flash_deal_categories (flash_deal_id, category_id)
           VALUES ?
@@ -8454,7 +8454,7 @@ app.put('/api/admin/flash-deals/:id', authenticateAdmin, async (req, res) => {
         await connection.execute('DELETE FROM flash_deal_products WHERE flash_deal_id = ?', [flashDealId]);
         const productIds = Array.isArray(product_ids) ? product_ids.filter(Boolean) : [];
         if (productIds.length > 0) {
-          const productValues = productIds.map((productId: number) => [flashDealId, productId]);
+          const productValues = productIds.map((productId) => [flashDealId, productId]);
           await connection.query(`
             INSERT INTO flash_deal_products (flash_deal_id, product_id)
             VALUES ?
@@ -8467,7 +8467,7 @@ app.put('/api/admin/flash-deals/:id', authenticateAdmin, async (req, res) => {
         await connection.execute('DELETE FROM flash_deal_categories WHERE flash_deal_id = ?', [flashDealId]);
         const categoryIds = Array.isArray(category_ids) ? category_ids.filter(Boolean) : [];
         if (categoryIds.length > 0) {
-          const categoryValues = categoryIds.map((categoryId: number) => [flashDealId, categoryId]);
+          const categoryValues = categoryIds.map((categoryId) => [flashDealId, categoryId]);
           await connection.query(`
             INSERT INTO flash_deal_categories (flash_deal_id, category_id)
             VALUES ?
@@ -8538,7 +8538,7 @@ app.get('/api/flash-deals', async (req, res) => {
     `, [now, now]);
 
     // Her flash deal için ürünleri getir (kategori bazlı ürünler dahil)
-    const dealsWithProducts = await Promise.all(rows.map(async (deal: any) => {
+    const dealsWithProducts = await Promise.all(rows.map(async (deal) => {
       // Seçili ürünler
       const [products] = await poolWrapper.execute(`
         SELECT DISTINCT p.*
@@ -8558,8 +8558,8 @@ app.get('/api/flash-deals', async (req, res) => {
 
       // Birleştir ve duplicate'leri kaldır
       const allProducts = [...products, ...categoryProducts];
-      const uniqueProducts = allProducts.filter((product: any, index: number, self: any[]) =>
-        index === self.findIndex((p: any) => p.id === product.id)
+      const uniqueProducts = allProducts.filter((product, index, self) =>
+        index === self.findIndex((p) => p.id === product.id)
       );
 
       return {
