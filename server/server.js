@@ -8466,29 +8466,33 @@ app.put('/api/admin/flash-deals/:id', authenticateAdmin, async (req, res) => {
         }
       }
 
-      // Update products if provided
+      // Update products if provided (her zaman güncelle - boş array de olabilir)
       if (product_ids !== undefined) {
         await connection.execute('DELETE FROM flash_deal_products WHERE flash_deal_id = ?', [flashDealId]);
         const productIds = Array.isArray(product_ids) ? product_ids.filter(Boolean) : [];
+        console.log('📦 Güncellenecek ürünler:', productIds);
         if (productIds.length > 0) {
           const productValues = productIds.map((productId) => [flashDealId, productId]);
           await connection.query(`
             INSERT INTO flash_deal_products (flash_deal_id, product_id)
             VALUES ?
           `, [productValues]);
+          console.log('✅ Ürünler eklendi:', productIds.length);
         }
       }
 
-      // Update categories if provided
+      // Update categories if provided (her zaman güncelle - boş array de olabilir)
       if (category_ids !== undefined) {
         await connection.execute('DELETE FROM flash_deal_categories WHERE flash_deal_id = ?', [flashDealId]);
         const categoryIds = Array.isArray(category_ids) ? category_ids.filter(Boolean) : [];
+        console.log('📁 Güncellenecek kategoriler:', categoryIds);
         if (categoryIds.length > 0) {
           const categoryValues = categoryIds.map((categoryId) => [flashDealId, categoryId]);
           await connection.query(`
             INSERT INTO flash_deal_categories (flash_deal_id, category_id)
             VALUES ?
           `, [categoryValues]);
+          console.log('✅ Kategoriler eklendi:', categoryIds.length);
         }
       }
 
