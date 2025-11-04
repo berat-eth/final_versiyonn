@@ -8679,7 +8679,7 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       // Debug: Çok fazla option varsa uyarı ver
       if (options.length > 50) {
         console.warn(`⚠️ Product ${numericId}: "${normalizedName}" varyasyonunda ${options.length} option var (normal: 5-20). İlk 5 option:`, 
-          options.slice(0, 5).map((o: any) => ({ value: o.value, stock: o.stock })));
+          options.slice(0, 5).map((o) => ({ value: o.value, stock: o.stock })));
       }
       
       return {
