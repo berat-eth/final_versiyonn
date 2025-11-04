@@ -129,7 +129,24 @@ export default function Campaigns() {
       setFlashLoading(true)
       const response = await api.get('/admin/flash-deals/all') as any
       if (response.success) {
-        setFlashDeals(response.data || [])
+        // Backend'den gelen snake_case verilerini camelCase'e dönüştür
+        const mappedDeals = (response.data || []).map((deal: any) => ({
+          id: deal.id,
+          name: deal.name || '',
+          description: deal.description || '',
+          discountType: deal.discount_type || deal.discountType || 'percentage',
+          discountValue: deal.discount_value || deal.discountValue || 0,
+          targetType: (deal.products && deal.products.length > 0) ? 'product' : 'category',
+          targetId: undefined,
+          startDate: deal.start_date || deal.startDate || '',
+          endDate: deal.end_date || deal.endDate || '',
+          isActive: deal.is_active !== undefined ? deal.is_active : deal.isActive !== undefined ? deal.isActive : true,
+          createdAt: deal.created_at || deal.createdAt || '',
+          updatedAt: deal.updated_at || deal.updatedAt || '',
+          products: deal.products || [],
+          categories: deal.categories || []
+        }))
+        setFlashDeals(mappedDeals)
       }
     } catch (error) {
       console.error('Flash deals yükleme hatası:', error)
@@ -811,19 +828,26 @@ export default function Campaigns() {
                       <span className="text-slate-500 dark:text-slate-400 text-sm">İndirim</span>
                       <span className="font-bold text-orange-600">
                         {deal.discountType === 'percentage' 
-                          ? `%${deal.discountValue}` 
-                          : `${deal.discountValue}₺`
+                          ? `%${deal.discountValue || 0}` 
+                          : `${deal.discountValue || 0}₺`
                         }
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500 dark:text-slate-400 text-sm">Hedef</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-100">{getTargetName(deal)}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">{getTargetName(deal) || 'Seçim yapılmamış'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500 dark:text-slate-400 text-sm">Bitiş</span>
                       <span className="font-semibold text-slate-800 dark:text-slate-100">
-                        {new Date(deal.endDate).toLocaleDateString('tr-TR')}
+                        {deal.endDate ? (() => {
+                          try {
+                            const date = new Date(deal.endDate);
+                            return isNaN(date.getTime()) ? 'Geçersiz Tarih' : date.toLocaleDateString('tr-TR');
+                          } catch {
+                            return 'Geçersiz Tarih';
+                          }
+                        })() : 'Tarih belirtilmemiş'}
                       </span>
                     </div>
                   </div>

@@ -1134,10 +1134,27 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.offerList}
         >
-          {flashDeals.map((deal, index) => {
-            const discountText = deal.discount_type === 'percentage' 
-              ? `%${deal.discount_value}` 
-              : `${deal.discount_value}₺`;
+          {flashDeals
+            .filter(deal => {
+              const isActive = deal.is_active !== undefined ? deal.is_active : deal.isActive !== undefined ? deal.isActive : true;
+              const endDateStr = deal.end_date || deal.endDate || '';
+              if (!endDateStr) return false;
+              try {
+                const endDate = new Date(endDateStr);
+                return isActive && !isNaN(endDate.getTime()) && endDate > new Date();
+              } catch {
+                return false;
+              }
+            })
+            .map((deal, index) => {
+            // Backend'den gelen veriler snake_case veya camelCase olabilir
+            const discountType = deal.discount_type || deal.discountType || 'percentage';
+            const discountValue = deal.discount_value || deal.discountValue || 0;
+            const endDateStr = deal.end_date || deal.endDate || '';
+            
+            const discountText = discountType === 'percentage' 
+              ? `%${discountValue}` 
+              : `${discountValue}₺`;
             
             const productCount = deal.products?.length || 0;
             const description = deal.description || (productCount > 0 
@@ -1145,11 +1162,24 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
               : `${discountText} indirim`);
             
             const colors = gradientColors[index % gradientColors.length];
-            const endDate = new Date(deal.end_date);
-            const now = new Date();
-            const remainingMs = endDate.getTime() - now.getTime();
-            const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
-            const remainingMins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+            
+            // Tarih kontrolü
+            let endDate: Date;
+            let remainingMs = 0;
+            let remainingHours = 0;
+            let remainingMins = 0;
+            
+            try {
+              endDate = new Date(endDateStr);
+              if (!isNaN(endDate.getTime())) {
+                const now = new Date();
+                remainingMs = endDate.getTime() - now.getTime();
+                remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
+                remainingMins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+              }
+            } catch (error) {
+              console.error('Tarih parse hatası:', error);
+            }
 
             return (
               <TouchableOpacity
@@ -1166,11 +1196,11 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
                         price: p.price,
                         imageUrl: p.imageUrl,
                         category: p.category,
-                        flashDiscount: deal.discount_type === 'percentage' 
-                          ? deal.discount_value 
+                        flashDiscount: discountType === 'percentage' 
+                          ? discountValue 
                           : undefined,
-                        flashDiscountFixed: deal.discount_type === 'fixed' 
-                          ? deal.discount_value 
+                        flashDiscountFixed: discountType === 'fixed' 
+                          ? discountValue 
                           : undefined
                       }))
                     });
@@ -1199,7 +1229,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
                     
                     <View style={styles.modernOfferDiscount}>
                       <Text style={styles.modernDiscountText}>
-                        {deal.discount_type === 'percentage' ? `%${deal.discount_value}` : `${deal.discount_value}₺`} İndirim
+                        {discountType === 'percentage' ? `%${discountValue}` : `${discountValue}₺`} İndirim
                       </Text>
                     </View>
                     
