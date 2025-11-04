@@ -31,11 +31,13 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { Chatbot } from '../components/Chatbot';
 import { VariationModal } from '../components/VariationModal';
 import { InstagramStories } from '../components/InstagramStories';
+import { PopupManager } from '../components/PopupManager';
 import { useAppContext } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getTranslatedProductName, getTranslatedProductBrand, getTranslatedVariationName } from '../utils/translationUtils';
 import { useTheme } from '../contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AdminSliderService, { AdminSliderItem } from '../services/AdminSliderService';
 
 interface HomeScreenProps {
   navigation: {
@@ -68,6 +70,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const [variationModalVisible, setVariationModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedVariations, setSelectedVariations] = useState<{ [key: string]: ProductVariationOption }>({});
+  const [sliderData, setSliderData] = useState<AdminSliderItem[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const nowIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -85,41 +88,19 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
     return () => { mounted = false };
   }, []);
 
-  // Modern slider data - memoized to prevent re-renders
-  const sliderData = useMemo(() => [
-    {
-      id: 1,
-      title: 'Yeni Sezon',
-      subtitle: 'Outdoor Koleksiyonu',
-      description: '%50\'ye varan indirimler',
-      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800',
-      gradient: Gradients.primary,
-    },
-    {
-      id: 2,
-      title: 'Kamp Sezonu',
-      subtitle: 'Doğa ile Buluşun',
-      description: 'En iyi kamp ekipmanları',
-      image: 'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=800',
-      gradient: Gradients.ocean,
-    },
-    {
-      id: 3,
-      title: 'Avcılık',
-      subtitle: 'Profesyonel Avcılık',
-      description: 'Av sezonu için hazır olun',
-      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800',
-      gradient: Gradients.purple,
-    },
-    {
-      id: 4,
-      title: 'Balıkçılık',
-      subtitle: 'Su Sporları',
-      description: 'Olta takımları ve aksesuarlar',
-      image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800',
-      gradient: Gradients.primary,
-    },
-  ], []);
+  // Load sliders from API
+  const loadSliders = useCallback(async () => {
+    try {
+      const sliders = await AdminSliderService.getSliders(10);
+      if (sliders && sliders.length > 0) {
+        setSliderData(sliders);
+      }
+    } catch (error) {
+      console.error('Slider yükleme hatası:', error);
+      // Fallback: eğer API'den veri gelmezse boş array kullan
+      setSliderData([]);
+    }
+  }, []);
 
   // Category icons mapping - memoized to prevent re-renders
   const categoryIcons = useMemo(() => ({
@@ -162,6 +143,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       // Paralel başlat; render'ı bekletme
       loadData();
       loadFavorites();
+      loadSliders();
       restoreCountdownAndStart();
     };
     const cleanupSlider = setupSliderTimer();
@@ -191,6 +173,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   }, [currentSlide]);
 
   const setupSliderTimer = () => {
+    if (sliderData.length === 0) return () => {};
     const timer = setInterval(() => {
         setCurrentSlide((prev: number) => (prev + 1) % sliderData.length);
     }, 4000);
@@ -620,7 +603,9 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
     return icons[type] || 'gift';
   };
 
-  const renderHeroSlider = () => (
+  const renderHeroSlider = () => {
+    if (sliderData.length === 0) return null;
+    return (
     <View style={styles.sliderContainer}>
       <ScrollView
         ref={scrollRef}
@@ -633,24 +618,40 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         }}
         scrollEventThrottle={16}
       >
-        {sliderData.map((slide: any) => (
+        {sliderData.map((slide: AdminSliderItem) => (
           <View key={`slide-${slide.id}`} style={styles.slide}>
-            <Image source={{ uri: slide.image }} style={styles.slideImage} />
+            <Image source={{ uri: slide.imageUrl }} style={styles.slideImage} />
             <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.8)']}
+              colors={['transparent', `rgba(0,0,0,${slide.overlayOpacity || 0.8})`]}
               style={styles.slideOverlay}
             >
               <View style={styles.slideContent}>
-                <Text style={styles.slideSubtitle}>{slide.subtitle}</Text>
                 <Text style={styles.slideTitle}>{slide.title}</Text>
-                <Text style={styles.slideDescription}>{slide.description}</Text>
-                <ModernButton
-                  title="Keşfet"
-                  onPress={() => navigation.navigate('ProductList')}
-                  variant="gradient"
-                  size="medium"
-                  style={{ marginTop: Spacing.md }}
-                />
+                {slide.description && (
+                  <Text style={styles.slideDescription}>{slide.description}</Text>
+                )}
+                {slide.buttonText && (
+                  <ModernButton
+                    title={slide.buttonText}
+                    onPress={() => {
+                      if (slide.clickAction?.type === 'product' && slide.clickAction.value) {
+                        navigation.navigate('ProductDetail', { productId: parseInt(slide.clickAction.value) });
+                      } else if (slide.clickAction?.type === 'category' && slide.clickAction.value) {
+                        navigation.navigate('ProductList', { category: slide.clickAction.value });
+                      } else if (slide.clickAction?.type === 'url' && slide.clickAction.value) {
+                        Linking.openURL(slide.clickAction.value);
+                      } else {
+                        navigation.navigate('ProductList');
+                      }
+                    }}
+                    variant="gradient"
+                    size="medium"
+                    style={{ 
+                      marginTop: Spacing.md,
+                      backgroundColor: slide.buttonColor || undefined,
+                    }}
+                  />
+                )}
               </View>
             </LinearGradient>
           </View>
@@ -668,7 +669,8 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         ))}
       </View>
     </View>
-  );
+    );
+  };
 
   const renderCategories = useMemo(() => (
     <View style={styles.sectionContainer}>
@@ -1333,6 +1335,9 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         {renderNewProducts()}
         <View style={{ height: Spacing.xxl }} />
       </ScrollView>
+      
+      {/* Popup Manager */}
+      <PopupManager navigation={navigation} />
       
       {/* Chatbot */}
       <Chatbot navigation={navigation} />

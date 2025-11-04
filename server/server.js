@@ -1089,7 +1089,8 @@ try {
     try {
       const storiesRouter = storiesRoutesFactory(poolWrapper);
       app.use('/api/admin/stories', storiesRouter);
-      console.log('✅ Stories routes mounted at /api/admin/stories');
+      app.use('/api/stories', storiesRouter); // Public endpoint for mobile app
+      console.log('✅ Stories routes mounted at /api/admin/stories and /api/stories');
     } catch (e) {
       console.warn('⚠️ Failed to mount stories routes:', e.message);
     }
@@ -1107,7 +1108,8 @@ try {
     try {
       const slidersRouter = slidersRoutesFactory(poolWrapper);
       app.use('/api/admin/sliders', slidersRouter);
-      console.log('✅ Sliders routes mounted at /api/admin/sliders');
+      app.use('/api/sliders', slidersRouter); // Public endpoint for mobile app
+      console.log('✅ Sliders routes mounted at /api/admin/sliders and /api/sliders');
     } catch (e) {
       console.warn('⚠️ Failed to mount sliders routes:', e.message);
     }
@@ -1124,7 +1126,8 @@ try {
     try {
       const popupsRouter = popupsRoutesFactory(poolWrapper);
       app.use('/api/admin/popups', popupsRouter);
-      console.log('✅ Popups routes mounted at /api/admin/popups');
+      app.use('/api/popups', popupsRouter); // Public endpoint for mobile app
+      console.log('✅ Popups routes mounted at /api/admin/popups and /api/popups');
     } catch (e) {
       console.warn('⚠️ Failed to mount popups routes:', e.message);
     }

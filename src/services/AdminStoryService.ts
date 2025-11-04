@@ -36,9 +36,9 @@ export interface CreateStoryData {
 export class AdminStoryService {
   static async getStories(limit: number = 20): Promise<AdminStoryItem[]> {
     try {
-      const query = `?limit=${limit}&active=true`;
-      console.log('Story API çağrısı:', `/admin/stories${query}`);
-      const res: ApiResponse<AdminStoryItem[]> = await apiService.get(`/admin/stories${query}`);
+      const query = `?limit=${limit}`;
+      console.log('Story API çağrısı:', `/stories${query}`);
+      const res: ApiResponse<AdminStoryItem[]> = await apiService.get(`/stories${query}`);
       console.log('Story API yanıtı:', res);
       if (res && res.success && Array.isArray(res.data)) {
         return res.data as AdminStoryItem[];
