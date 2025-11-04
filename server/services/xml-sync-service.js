@@ -477,7 +477,7 @@ class XmlSyncService {
       let productId;
               // Önce external ID ile mevcut ürünü kontrol et
         const [existing] = await this.pool.execute(
-          'SELECT id, name, price, stock, image, images, image1, image2, image3, image4, image5, hasVariations, sku, categoryTree, productUrl, salesUnit, totalImages, xmlOptions FROM products WHERE externalId = ? AND tenantId = ?',
+          'SELECT id, name, price, stock, image, images, image1, image2, image3, image4, image5, hasVariations, sku, categoryTree, productUrl, salesUnit, totalImages, xmlOptions, variationDetails FROM products WHERE externalId = ? AND tenantId = ?',
           [product.externalId, tenantId]
         );
 
@@ -553,8 +553,28 @@ class XmlSyncService {
           updates.push('xmlOptions = ?');
           hasChanges = true;
         }
+        
+        // variationDetails her zaman güncellenmeli (XML'den gelen yeni veriler için)
+        const existingVariationDetails = existingProduct.variationDetails || null;
+        const newVariationDetails = product.variationDetails || null;
+        let variationDetailsChanged = false;
+        
+        if (existingVariationDetails !== newVariationDetails) {
+          updates.push('variationDetails = ?');
+          hasChanges = true;
+          variationDetailsChanged = true;
+          
+          try {
+            const details = typeof newVariationDetails === 'string' ? JSON.parse(newVariationDetails || '[]') : (newVariationDetails || []);
+            const count = Array.isArray(details) ? details.length : 0;
+            console.log(`📦 Product ${product.name}: variationDetails güncelleniyor (${count} varyasyon)`);
+          } catch (e) {
+            console.log(`📦 Product ${product.name}: variationDetails güncelleniyor`);
+          }
+        }
 
-        if (hasChanges) {
+        // Eğer sadece variationDetails değiştiyse bile UPDATE yap
+        if (hasChanges || variationDetailsChanged) {
           await this.pool.execute(
             `UPDATE products SET ${updates.join(', ')}, lastUpdated = ? WHERE id = ?`,
             [
@@ -574,6 +594,7 @@ class XmlSyncService {
               ...(updates.includes('salesUnit = ?') ? [product.salesUnit] : []),
               ...(updates.includes('totalImages = ?') ? [product.totalImages] : []),
               ...(updates.includes('xmlOptions = ?') ? [product.xmlOptions] : []),
+              ...(updates.includes('variationDetails = ?') ? [product.variationDetails] : []),
               product.lastUpdated,
               existingProduct.id
             ]
@@ -585,8 +606,8 @@ class XmlSyncService {
       } else {
         // Yeni ürün ekle
         const [insertResult] = await this.pool.execute(
-          `INSERT INTO products (tenantId, name, description, price, category, image, images, image1, image2, image3, image4, image5, stock, brand, rating, reviewCount, externalId, source, hasVariations, sku, lastUpdated, categoryTree, productUrl, salesUnit, totalImages, xmlOptions, xmlRaw) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO products (tenantId, name, description, price, category, image, images, image1, image2, image3, image4, image5, stock, brand, rating, reviewCount, externalId, source, hasVariations, sku, lastUpdated, categoryTree, productUrl, salesUnit, totalImages, xmlOptions, xmlRaw, variationDetails) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             tenantId,
             product.name,
@@ -614,9 +635,15 @@ class XmlSyncService {
             product.salesUnit,
             product.totalImages,
             product.xmlOptions,
-            product.xmlRaw
+            product.xmlRaw,
+            product.variationDetails
           ]
         );
+        
+        if (product.variationDetails) {
+          const details = typeof product.variationDetails === 'string' ? JSON.parse(product.variationDetails) : product.variationDetails;
+          console.log(`📦 Yeni ürün ${product.name}: variationDetails kaydedildi (${Array.isArray(details) ? details.length : 0} varyasyon)`);
+        }
         productId = insertResult.insertId;
         
         this.syncStats.newProducts++;

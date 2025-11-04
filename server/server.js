@@ -8637,10 +8637,15 @@ app.get('/api/products/:productId/variations', async (req, res) => {
 
         if (Array.isArray(variationDetails)) {
           xmlVariations = variationDetails;
+          console.log(`📦 Product ${numericId}: variationDetails'ten ${xmlVariations.length} varyasyon parse edildi`);
+        } else {
+          console.log(`⚠️ Product ${numericId}: variationDetails array değil, type: ${typeof variationDetails}`);
         }
       } catch (parseError) {
-        console.error('Error parsing variationDetails:', parseError);
+        console.error(`❌ Product ${numericId}: variationDetails parse hatası:`, parseError);
       }
+    } else {
+      console.log(`⚠️ Product ${numericId}: variationDetails boş/null - XML'den türetme yapılamaz`);
     }
 
     // Varyasyonları ve seçeneklerini birlikte çek
@@ -8669,12 +8674,20 @@ app.get('/api/products/:productId/variations', async (req, res) => {
     let formattedVariations = variations.map(variation => {
       // Varyasyon ismini normalize et (trim, boşlukları temizle)
       const normalizedName = variation.name ? String(variation.name).trim() : '';
+      const options = variation.options && variation.options.length > 0 ? variation.options : [];
+      
+      // Debug: Çok fazla option varsa uyarı ver
+      if (options.length > 50) {
+        console.warn(`⚠️ Product ${numericId}: "${normalizedName}" varyasyonunda ${options.length} option var (normal: 5-20). İlk 5 option:`, 
+          options.slice(0, 5).map((o: any) => ({ value: o.value, stock: o.stock })));
+      }
+      
       return {
         id: variation.id,
         productId: variation.productId,
         name: normalizedName,
         displayOrder: variation.displayOrder,
-        options: variation.options && variation.options.length > 0 ? variation.options : []
+        options: options
       };
     });
 
