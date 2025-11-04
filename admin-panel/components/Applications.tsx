@@ -35,7 +35,7 @@ export default function Applications() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
           <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Bekleyen</p>
-          <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{applications.filter(a => a.status === 'pending').length}</p>
+          <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{applications.filter(a => a.status === 'pending' || a.status === 'new').length}</p>
         </div>
         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
           <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Onaylanan</p>
@@ -77,11 +77,11 @@ export default function Applications() {
                   <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{app.createdAt}</td>
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                      app.status === 'new' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                      app.status === 'pending' || app.status === 'new' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
                       app.status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
                       'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                     }`}>
-                      {app.status === 'new' ? 'Bekliyor' :
+                      {app.status === 'pending' || app.status === 'new' ? 'Bekliyor' :
                        app.status === 'approved' ? 'Onaylandı' : 'Reddedildi'}
                     </span>
                   </td>

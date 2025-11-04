@@ -43,7 +43,7 @@ router.post('/applications', express.json(), (req, res) => {
       message: message || null,
       source: source || 'mobile-app',
       estimatedMonthlyRevenue: typeof estimatedMonthlyRevenue === 'number' ? estimatedMonthlyRevenue : null,
-      status: 'new',
+      status: 'pending',
       note: null,
       createdAt: new Date().toISOString()
     };
@@ -57,8 +57,8 @@ router.post('/applications', express.json(), (req, res) => {
   }
 });
 
-// Admin: list applications
-router.get('/applications', (req, res) => {
+// Admin: list applications (requires authentication)
+router.get('/applications', require('../middleware/auth').authenticateAdmin, (req, res) => {
   try {
     const min = parseFloat(req.query.minRevenue);
     const max = parseFloat(req.query.maxRevenue);

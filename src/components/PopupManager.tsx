@@ -39,25 +39,38 @@ export const PopupManager: React.FC<PopupManagerProps> = ({ navigation }) => {
 
   const loadPopups = async () => {
     try {
+      console.log('🔔 PopupManager: Popup\'lar yükleniyor...');
       const data = await AdminPopupService.getPopups();
+      console.log('🔔 PopupManager: Yüklenen popup sayısı:', data.length);
+      
       // Önceliğe göre sırala ve en yüksek öncelikli popup'ı göster
       const sortedPopups = data.sort((a, b) => (b.priority || 0) - (a.priority || 0));
       setPopups(sortedPopups);
       
       if (sortedPopups.length > 0) {
         const popup = sortedPopups[0];
+        console.log('🔔 PopupManager: Popup gösterilecek:', popup.title, 'Show delay:', popup.showDelay);
+        
         // Show delay varsa bekle
         if (popup.showDelay && popup.showDelay > 0) {
+          console.log(`🔔 PopupManager: ${popup.showDelay} saniye sonra gösterilecek`);
           const timer = setTimeout(() => {
+            console.log('🔔 PopupManager: Popup gösteriliyor:', popup.title);
             showPopup(popup);
           }, popup.showDelay * 1000);
           setShowDelayTimer(timer);
         } else {
-          showPopup(popup);
+          console.log('🔔 PopupManager: Popup hemen gösteriliyor:', popup.title);
+          // Kısa bir gecikme ekle (uygulama render'ının tamamlanması için)
+          setTimeout(() => {
+            showPopup(popup);
+          }, 500);
         }
+      } else {
+        console.log('🔔 PopupManager: Gösterilecek popup yok');
       }
     } catch (error) {
-      console.error('Popup yükleme hatası:', error);
+      console.error('❌ Popup yükleme hatası:', error);
     }
   };
 
