@@ -38,6 +38,7 @@ import { getTranslatedProductName, getTranslatedProductBrand, getTranslatedVaria
 import { useTheme } from '../contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AdminSliderService, { AdminSliderItem } from '../services/AdminSliderService';
+import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 
 interface HomeScreenProps {
   navigation: {
@@ -71,6 +72,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedVariations, setSelectedVariations] = useState<{ [key: string]: ProductVariationOption }>({});
   const [sliderData, setSliderData] = useState<AdminSliderItem[]>([]);
+  const [flashDeals, setFlashDeals] = useState<FlashDeal[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const nowIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -99,6 +101,17 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       console.error('Slider yükleme hatası:', error);
       // Fallback: eğer API'den veri gelmezse boş array kullan
       setSliderData([]);
+    }
+  }, []);
+
+  // Load flash deals from API
+  const loadFlashDeals = useCallback(async () => {
+    try {
+      const deals = await FlashDealService.getActiveFlashDeals();
+      setFlashDeals(deals || []);
+    } catch (error) {
+      console.error('Flash deal yükleme hatası:', error);
+      setFlashDeals([]);
     }
   }, []);
 
@@ -207,6 +220,9 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         // Kullanıcıya özel kampanyalar (sadece giriş yapılmışsa)
         userId ? CampaignController.getAvailableCampaigns(userId) : Promise.resolve(null)
       ]);
+
+      // Flash deals yükle
+      await loadFlashDeals();
 
       // Homepage products işle
       let homepagePayload: any | null = null;
@@ -1092,103 +1108,117 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
     );
   };
 
-  const renderDiscountOffers = () => (
-    <View style={styles.sectionContainer}>
-      <View style={styles.sectionHeader}>
-        <View>
-          <Text style={styles.sectionTitle}>🔥 Özel İndirimler</Text>
-          <Text style={styles.sectionSubtitle}>Kaçırılmayacak fırsatlar</Text>
-        </View>
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.offerList}
-      >
-        {/* Kış İndirimi */}
-        <TouchableOpacity
-          style={styles.modernOfferCard}
-          onPress={() => handleOfferPress({
-            id: 'winter-discount',
-            title: 'Kış İndirimi',
-            description: 'Tüm ürünlerde %10 indirim',
-            type: 'seasonal',
-            discountAmount: 10,
-            discountType: 'percentage'
-          })}
-        >
-          <LinearGradient
-            colors={['#20c997', '#28a745']}
-            style={styles.offerGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={styles.offerGlow} />
-            <View style={styles.offerContent}>
-              <View style={styles.offerHeader}>
-                <View style={styles.modernOfferIcon}>
-                  <Icon name="ac-unit" size={24} color="white" />
-                </View>
-                <View style={styles.offerInfo}>
-                  <Text style={styles.modernOfferTitle} numberOfLines={2}>Kış İndirimi</Text>
-                  <Text style={styles.modernOfferDescription} numberOfLines={2}>Tüm ürünlerde %10 indirim</Text>
-                </View>
-              </View>
-              
-              <View style={styles.modernOfferDiscount}>
-                <Text style={styles.modernDiscountText}>%10 İndirim</Text>
-              </View>
-              
-              <View style={styles.offerBadge}>
-                <Text style={styles.badgeText}>Kış</Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
+  const renderDiscountOffers = () => {
+    if (!flashDeals || flashDeals.length === 0) {
+      return null;
+    }
 
-        {/* Yeni Kullanıcı İndirimi */}
-        <TouchableOpacity
-          style={styles.modernOfferCard}
-          onPress={() => handleOfferPress({
-            id: 'new-user-discount',
-            title: 'Yeni Kullanıcı İndirimi',
-            description: 'İlk alışverişinizde %15 indirim',
-            type: 'discount',
-            discountAmount: 15,
-            discountType: 'percentage'
-          })}
+    const gradientColors = [
+      ['#20c997', '#28a745'],
+      ['#e83e8c', '#fd7e14'],
+      ['#667eea', '#764ba2'],
+      ['#f093fb', '#f5576c'],
+      ['#4facfe', '#00f2fe']
+    ];
+
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>🔥 Özel İndirimler</Text>
+            <Text style={styles.sectionSubtitle}>Kaçırılmayacak fırsatlar</Text>
+          </View>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.offerList}
         >
-          <LinearGradient
-            colors={['#e83e8c', '#fd7e14']}
-            style={styles.offerGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={styles.offerGlow} />
-            <View style={styles.offerContent}>
-              <View style={styles.offerHeader}>
-                <View style={styles.modernOfferIcon}>
-                  <Icon name="person-add" size={24} color="white" />
-                </View>
-                <View style={styles.offerInfo}>
-                  <Text style={styles.modernOfferTitle} numberOfLines={2}>Yeni Kullanıcı</Text>
-                  <Text style={styles.modernOfferDescription} numberOfLines={2}>İlk alışverişinizde %15 indirim</Text>
-                </View>
-              </View>
-              
-              <View style={styles.modernOfferDiscount}>
-                <Text style={styles.modernDiscountText}>%15 İndirim</Text>
-              </View>
-              
-              <View style={styles.offerBadge}>
-                <Text style={styles.badgeText}>YENİ</Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
-  );
+          {flashDeals.map((deal, index) => {
+            const discountText = deal.discount_type === 'percentage' 
+              ? `%${deal.discount_value}` 
+              : `${deal.discount_value}₺`;
+            
+            const productCount = deal.products?.length || 0;
+            const description = deal.description || (productCount > 0 
+              ? `${productCount} üründe ${discountText} indirim` 
+              : `${discountText} indirim`);
+            
+            const colors = gradientColors[index % gradientColors.length];
+            const endDate = new Date(deal.end_date);
+            const now = new Date();
+            const remainingMs = endDate.getTime() - now.getTime();
+            const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
+            const remainingMins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+
+            return (
+              <TouchableOpacity
+                key={deal.id}
+                style={styles.modernOfferCard}
+                onPress={() => {
+                  // Flash deal'daki ürünleri listele
+                  if (deal.products && deal.products.length > 0) {
+                    navigation.navigate('ProductList', {
+                      title: deal.name,
+                      products: deal.products.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        price: p.price,
+                        imageUrl: p.imageUrl,
+                        category: p.category,
+                        flashDiscount: deal.discount_type === 'percentage' 
+                          ? deal.discount_value 
+                          : undefined,
+                        flashDiscountFixed: deal.discount_type === 'fixed' 
+                          ? deal.discount_value 
+                          : undefined
+                      }))
+                    });
+                  } else {
+                    navigation.navigate('Products');
+                  }
+                }}
+              >
+                <LinearGradient
+                  colors={colors}
+                  style={styles.offerGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.offerGlow} />
+                  <View style={styles.offerContent}>
+                    <View style={styles.offerHeader}>
+                      <View style={styles.modernOfferIcon}>
+                        <Icon name="flash-on" size={24} color="white" />
+                      </View>
+                      <View style={styles.offerInfo}>
+                        <Text style={styles.modernOfferTitle} numberOfLines={2}>{deal.name}</Text>
+                        <Text style={styles.modernOfferDescription} numberOfLines={2}>{description}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.modernOfferDiscount}>
+                      <Text style={styles.modernDiscountText}>
+                        {deal.discount_type === 'percentage' ? `%${deal.discount_value}` : `${deal.discount_value}₺`} İndirim
+                      </Text>
+                    </View>
+                    
+                    {remainingMs > 0 && (
+                      <View style={styles.offerBadge}>
+                        <Text style={styles.badgeText}>
+                          {remainingHours > 0 ? `${remainingHours}s ` : ''}{remainingMins}dk
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  };
 
   const renderPersonalizedOffers = () => {
     if (!personalizedContent || personalizedContent.personalizedOffers.length === 0) {

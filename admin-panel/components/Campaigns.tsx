@@ -195,24 +195,34 @@ export default function Campaigns() {
       alert('Bitiş tarihi başlangıç tarihinden sonra olmalıdır!')
       return
     }
+
+    if (selectedProducts.length === 0 && selectedCategories.length === 0) {
+      alert('En az bir ürün veya kategori seçmelisiniz!')
+      return
+    }
     
     try {
       const submitData = {
-        ...flashFormData,
-        targetIds: flashFormData.targetType === 'product' 
-          ? selectedProducts.map(p => p.id)
-          : selectedCategories.map(c => c.id)
+        name: flashFormData.name,
+        description: flashFormData.description,
+        discount_type: flashFormData.discountType,
+        discount_value: flashFormData.discountValue,
+        start_date: flashFormData.startDate,
+        end_date: flashFormData.endDate,
+        is_active: flashFormData.isActive,
+        product_ids: selectedProducts.map(p => p.id),
+        category_ids: selectedCategories.map(c => c.id)
       }
       
       if (editingFlashDeal) {
         const response = await api.put(`/admin/flash-deals/${editingFlashDeal.id}`, submitData) as any
         if (response.success) {
-          setFlashDeals(flashDeals.map(d => d.id === editingFlashDeal.id ? response.data : d))
+          await loadFlashDeals()
         }
       } else {
         const response = await api.post('/admin/flash-deals', submitData) as any
         if (response.success) {
-          setFlashDeals([...flashDeals, response.data])
+          await loadFlashDeals()
         }
       }
       
@@ -246,22 +256,30 @@ export default function Campaigns() {
       description: deal.description || '',
       discountType: deal.discountType,
       discountValue: deal.discountValue,
-      targetType: deal.targetType,
+      targetType: deal.targetType || 'category',
       targetId: deal.targetId,
       startDate: deal.startDate,
       endDate: deal.endDate,
       isActive: deal.isActive
     })
     
-    if (deal.targetId) {
-      const targetItem = deal.targetType === 'category' 
-        ? categories.find(c => c.id === deal.targetId)
-        : products.find(p => p.id === deal.targetId)
-      setSearchTerm(targetItem ? targetItem.name : '')
-    } else {
-      setSearchTerm('')
+    // Load selected products and categories from deal
+    if ((deal as any).products && Array.isArray((deal as any).products)) {
+      setSelectedProducts((deal as any).products.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category || ''
+      })))
     }
     
+    if ((deal as any).categories && Array.isArray((deal as any).categories)) {
+      setSelectedCategories((deal as any).categories.map((c: any) => ({
+        id: c.id,
+        name: c.name
+      })))
+    }
+    
+    setSearchTerm('')
     setShowSearchResults(false)
     setIsFlashModalOpen(true)
   }
@@ -281,14 +299,25 @@ export default function Campaigns() {
   }
 
   const getTargetName = (deal: FlashDeal) => {
-    if (deal.targetType === 'category') {
-      const category = categories.find(c => c.id === deal.targetId)
-      return category ? category.name : 'Tüm Kategoriler'
-    } else if (deal.targetType === 'product') {
-      const product = products.find(p => p.id === deal.targetId)
-      return product ? product.name : 'Tüm Ürünler'
+    const dealWithExtras = deal as any
+    if (dealWithExtras.products && Array.isArray(dealWithExtras.products) && dealWithExtras.products.length > 0) {
+      const productNames = dealWithExtras.products.slice(0, 3).map((p: any) => p.name).join(', ')
+      const remaining = dealWithExtras.products.length - 3
+      return `${productNames}${remaining > 0 ? ` +${remaining} ürün` : ''}`
     }
-    return 'Tüm Ürünler'
+    if (dealWithExtras.categories && Array.isArray(dealWithExtras.categories) && dealWithExtras.categories.length > 0) {
+      const categoryNames = dealWithExtras.categories.slice(0, 3).map((c: any) => c.name).join(', ')
+      const remaining = dealWithExtras.categories.length - 3
+      return `${categoryNames}${remaining > 0 ? ` +${remaining} kategori` : ''}`
+    }
+    if (deal.targetType === 'category' && deal.targetId) {
+      const category = categories.find(c => c.id === deal.targetId)
+      return category ? category.name : 'Kategori'
+    } else if (deal.targetType === 'product' && deal.targetId) {
+      const product = products.find(p => p.id === deal.targetId)
+      return product ? product.name : 'Ürün'
+    }
+    return 'Seçim yapılmamış'
   }
 
   const isExpired = (endDate: string) => {
@@ -322,18 +351,10 @@ export default function Campaigns() {
 
   const selectItem = (item: Product | Category) => {
     if (flashFormData.targetType === 'product') {
-      if (selectedProducts.length >= 5) {
-        alert('Maksimum 5 ürün seçebilirsiniz!')
-        return
-      }
       if (!selectedProducts.find(p => p.id === item.id)) {
         setSelectedProducts([...selectedProducts, item as Product])
       }
     } else {
-      if (selectedCategories.length >= 5) {
-        alert('Maksimum 5 kategori seçebilirsiniz!')
-        return
-      }
       if (!selectedCategories.find(c => c.id === item.id)) {
         setSelectedCategories([...selectedCategories, item as Category])
       }
@@ -1416,60 +1437,41 @@ export default function Campaigns() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Ürün ve Kategori Seçimi</h4>
+                  
+                  {/* Ürün Seçimi */}
                   <div>
-                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Hedef Türü *</label>
-                    <select
-                      value={flashFormData.targetType}
-                      onChange={(e) => {
-                        setFlashFormData({ ...flashFormData, targetType: e.target.value as 'category' | 'product', targetId: undefined })
-                        setSearchTerm('')
-                        setShowSearchResults(false)
-                      }}
-                      className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
-                    >
-                      <option value="category">Kategori</option>
-                      <option value="product">Ürün</option>
-                    </select>
-                  </div>
-                  <div className="space-y-4">
+                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
+                      Ürünler
+                      <span className="text-xs text-gray-500 dark:text-slate-400 ml-2">
+                        {selectedProducts.length} ürün seçildi
+                      </span>
+                    </label>
                     <div className="relative">
-                      <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                        Hedef Seç (Maksimum 5)
-                        <span className="text-xs text-gray-500 dark:text-slate-400 ml-2">
-                          {flashFormData.targetType === 'product' 
-                            ? `${selectedProducts.length}/5 ürün seçildi`
-                            : `${selectedCategories.length}/5 kategori seçildi`
-                          }
-                        </span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={searchTerm}
-                          onChange={(e) => handleSearch(e.target.value)}
-                          onFocus={() => setShowSearchResults(true)}
-                          className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
-                          placeholder={`${flashFormData.targetType === 'category' ? 'Kategori' : 'Ürün'} ara...`}
-                        />
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                        </div>
-                      </div>
-                      
-                      {/* Arama Sonuçları */}
-                      {showSearchResults && (
+                      <input
+                        type="text"
+                        value={flashFormData.targetType === 'product' ? searchTerm : ''}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value)
+                          setFlashFormData({ ...flashFormData, targetType: 'product' })
+                          setShowSearchResults(true)
+                        }}
+                        onFocus={() => {
+                          setFlashFormData({ ...flashFormData, targetType: 'product' })
+                          setShowSearchResults(true)
+                        }}
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
+                        placeholder="Ürün ara..."
+                      />
+                      {showSearchResults && flashFormData.targetType === 'product' && (
                         <div className="absolute z-10 w-full mt-1 bg-white dark:bg-dark-card border border-gray-300 dark:border-slate-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                           {getFilteredItems().map(item => {
-                            const isSelected = flashFormData.targetType === 'product' 
-                              ? selectedProducts.find(p => p.id === item.id) !== undefined
-                              : selectedCategories.find(c => c.id === item.id) !== undefined
-                            
+                            const isSelected = selectedProducts.find(p => p.id === item.id) !== undefined
                             return (
                               <div key={item.id} className="p-2">
                                 <button
+                                  type="button"
                                   onClick={() => selectItem(item)}
                                   disabled={isSelected}
                                   className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${
@@ -1482,59 +1484,139 @@ export default function Campaigns() {
                                     <span>{item.name}</span>
                                     {isSelected && <span className="text-xs">✓ Seçildi</span>}
                                   </div>
-                                  {flashFormData.targetType === 'product' && (
-                                    <div className="text-xs text-gray-500 dark:text-slate-400">{(item as Product).category}</div>
-                                  )}
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">{(item as Product).category}</div>
                                 </button>
                               </div>
                             )
                           })}
                           {getFilteredItems().length === 0 && (
                             <div className="p-3 text-sm text-gray-500 dark:text-slate-400 text-center">
-                              {flashFormData.targetType === 'category' ? 'Kategori' : 'Ürün'} bulunamadı
+                              Ürün bulunamadı
                             </div>
                           )}
                         </div>
                       )}
                     </div>
-
-                    {/* Seçilen Öğeler */}
-                    {(selectedProducts.length > 0 || selectedCategories.length > 0) && (
-                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium text-gray-800 dark:text-slate-100">
-                            Seçilen {flashFormData.targetType === 'product' ? 'Ürünler' : 'Kategoriler'}
-                          </h4>
-                          <button
-                            type="button"
-                            onClick={clearAllSelections}
-                            className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                          >
-                            Tümünü Temizle
-                          </button>
-                        </div>
-                        <div className="space-y-2">
-                          {(flashFormData.targetType === 'product' ? selectedProducts : selectedCategories).map(item => (
-                            <div key={item.id} className="flex items-center justify-between bg-white dark:bg-dark-card rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-                              <div className="flex-1">
-                                <div className="font-medium text-sm text-slate-800 dark:text-slate-100">{item.name}</div>
-                                {flashFormData.targetType === 'product' && (
-                                  <div className="text-xs text-gray-500 dark:text-slate-400">{(item as Product).category}</div>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removeSelectedItem(item)}
-                                className="ml-2 text-red-500 hover:text-red-700"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
+
+                  {/* Kategori Seçimi */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
+                      Kategoriler
+                      <span className="text-xs text-gray-500 dark:text-slate-400 ml-2">
+                        {selectedCategories.length} kategori seçildi
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={flashFormData.targetType === 'category' ? searchTerm : ''}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value)
+                          setFlashFormData({ ...flashFormData, targetType: 'category' })
+                          setShowSearchResults(true)
+                        }}
+                        onFocus={() => {
+                          setFlashFormData({ ...flashFormData, targetType: 'category' })
+                          setShowSearchResults(true)
+                        }}
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
+                        placeholder="Kategori ara..."
+                      />
+                      {showSearchResults && flashFormData.targetType === 'category' && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-dark-card border border-gray-300 dark:border-slate-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                          {getFilteredItems().map(item => {
+                            const isSelected = selectedCategories.find(c => c.id === item.id) !== undefined
+                            return (
+                              <div key={item.id} className="p-2">
+                                <button
+                                  type="button"
+                                  onClick={() => selectItem(item)}
+                                  disabled={isSelected}
+                                  className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${
+                                    isSelected 
+                                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 cursor-not-allowed' 
+                                      : 'hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100'
+                                  }`}
+                                >
+                                  <div className="font-medium flex items-center justify-between">
+                                    <span>{item.name}</span>
+                                    {isSelected && <span className="text-xs">✓ Seçildi</span>}
+                                  </div>
+                                </button>
+                              </div>
+                            )
+                          })}
+                          {getFilteredItems().length === 0 && (
+                            <div className="p-3 text-sm text-gray-500 dark:text-slate-400 text-center">
+                              Kategori bulunamadı
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Seçilen Öğeler */}
+                  {(selectedProducts.length > 0 || selectedCategories.length > 0) && (
+                    <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-gray-800 dark:text-slate-100">Seçilenler</h4>
+                        <button
+                          type="button"
+                          onClick={clearAllSelections}
+                          className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                        >
+                          Tümünü Temizle
+                        </button>
+                      </div>
+                      
+                      {selectedProducts.length > 0 && (
+                        <div>
+                          <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Ürünler ({selectedProducts.length})</div>
+                          <div className="space-y-2">
+                            {selectedProducts.map(item => (
+                              <div key={item.id} className="flex items-center justify-between bg-white dark:bg-dark-card rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+                                <div className="flex-1">
+                                  <div className="font-medium text-sm text-slate-800 dark:text-slate-100">{item.name}</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">{item.category}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeSelectedItem(item)}
+                                  className="ml-2 text-red-500 hover:text-red-700"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {selectedCategories.length > 0 && (
+                        <div>
+                          <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Kategoriler ({selectedCategories.length})</div>
+                          <div className="space-y-2">
+                            {selectedCategories.map(item => (
+                              <div key={item.id} className="flex items-center justify-between bg-white dark:bg-dark-card rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+                                <div className="flex-1">
+                                  <div className="font-medium text-sm text-slate-800 dark:text-slate-100">{item.name}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeSelectedItem(item)}
+                                  className="ml-2 text-red-500 hover:text-red-700"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

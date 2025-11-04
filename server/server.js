@@ -2817,6 +2817,271 @@ app.get('/api/admin/charts', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin Analytics - Monthly Revenue & Expenses
+app.get('/api/admin/analytics/monthly', authenticateAdmin, async (req, res) => {
+  try {
+    const months = parseInt(req.query.months || '12');
+    
+    // Son N ayın gelir ve gider verileri
+    const [monthlyData] = await poolWrapper.execute(`
+      SELECT 
+        DATE_FORMAT(createdAt, '%Y-%m') as month,
+        DATE_FORMAT(createdAt, '%b %Y') as monthLabel,
+        COALESCE(SUM(CASE WHEN status != 'cancelled' THEN totalAmount ELSE 0 END), 0) as gelir,
+        COALESCE(SUM(CASE WHEN status = 'cancelled' THEN totalAmount ELSE 0 END), 0) as gider,
+        COALESCE(SUM(CASE WHEN status != 'cancelled' THEN totalAmount ELSE 0 END), 0) - 
+        COALESCE(SUM(CASE WHEN status = 'cancelled' THEN totalAmount ELSE 0 END), 0) as kar,
+        COUNT(CASE WHEN status != 'cancelled' THEN 1 END) as orders,
+        COUNT(DISTINCT userId) as customers
+      FROM orders
+      WHERE createdAt >= DATE_SUB(NOW(), INTERVAL ? MONTH)
+      GROUP BY DATE_FORMAT(createdAt, '%Y-%m'), DATE_FORMAT(createdAt, '%b %Y')
+      ORDER BY month ASC
+    `, [months]);
+
+    res.json({
+      success: true,
+      data: monthlyData || []
+    });
+  } catch (error) {
+    console.error('❌ Error getting monthly analytics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting monthly analytics',
+      error: error.message
+    });
+  }
+});
+
+// Admin Analytics - Customer Behavior
+app.get('/api/admin/analytics/customer-behavior', authenticateAdmin, async (req, res) => {
+  try {
+    // Müşteri davranış metrikleri
+    const [customerMetrics] = await poolWrapper.execute(`
+      SELECT 
+        'Alışveriş Sıklığı' as category,
+        AVG(CASE WHEN orderCount > 0 THEN orderCount ELSE 0 END) as value
+      FROM (
+        SELECT userId, COUNT(*) as orderCount
+        FROM orders
+        WHERE status != 'cancelled'
+        GROUP BY userId
+      ) as userOrders
+      UNION ALL
+      SELECT 
+        'Ortalama Sepet Değeri' as category,
+        AVG(totalAmount) as value
+      FROM orders
+      WHERE status != 'cancelled'
+      UNION ALL
+      SELECT 
+        'Tekrar Alım Oranı' as category,
+        (COUNT(DISTINCT CASE WHEN orderCount > 1 THEN userId END) * 100.0 / 
+         NULLIF(COUNT(DISTINCT userId), 0)) as value
+      FROM (
+        SELECT userId, COUNT(*) as orderCount
+        FROM orders
+        WHERE status != 'cancelled'
+        GROUP BY userId
+      ) as userOrders
+      UNION ALL
+      SELECT 
+        'Memnuniyet Puanı' as category,
+        AVG(rating) * 20 as value
+      FROM reviews
+      WHERE rating IS NOT NULL
+      UNION ALL
+      SELECT 
+        'İndirim Kullanımı' as category,
+        (COUNT(CASE WHEN discountAmount > 0 THEN 1 END) * 100.0 / 
+         NULLIF(COUNT(*), 0)) as value
+      FROM orders
+      WHERE status != 'cancelled'
+    `);
+
+    // Radar chart için normalize edilmiş değerler (0-100 arası)
+    const behaviorData = customerMetrics.map((item: any) => ({
+      category: item.category,
+      value: Math.min(100, Math.max(0, parseFloat(item.value || 0)))
+    }));
+
+    res.json({
+      success: true,
+      data: behaviorData
+    });
+  } catch (error) {
+    console.error('❌ Error getting customer behavior:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting customer behavior',
+      error: error.message
+    });
+  }
+});
+
+// Admin Analytics - Category Performance
+app.get('/api/admin/analytics/category-performance', authenticateAdmin, async (req, res) => {
+  try {
+    const months = parseInt(req.query.months || '6');
+    
+    // Kategori bazlı performans (son N ay)
+    const [categoryData] = await poolWrapper.execute(`
+      SELECT 
+        p.category as name,
+        COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN oi.quantity * oi.price ELSE 0 END), 0) as satis,
+        COUNT(DISTINCT CASE WHEN o.status != 'cancelled' THEN o.id END) as siparisler,
+        COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN oi.quantity * oi.price ELSE 0 END) - 
+                 SUM(CASE WHEN o.status != 'cancelled' THEN oi.quantity * p.cost ELSE 0 END), 0) as kar,
+        COALESCE(SUM(p.stock), 0) as stok
+      FROM products p
+      LEFT JOIN order_items oi ON p.id = oi.productId
+      LEFT JOIN orders o ON oi.orderId = o.id AND o.createdAt >= DATE_SUB(NOW(), INTERVAL ? MONTH)
+      GROUP BY p.category
+      HAVING satis > 0 OR stok > 0
+      ORDER BY satis DESC
+      LIMIT 10
+    `, [months]);
+
+    res.json({
+      success: true,
+      data: categoryData || []
+    });
+  } catch (error) {
+    console.error('❌ Error getting category performance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting category performance',
+      error: error.message
+    });
+  }
+});
+
+// Admin Analytics - Customer Segments
+app.get('/api/admin/analytics/customer-segments', authenticateAdmin, async (req, res) => {
+  try {
+    // Müşteri segmentleri (VIP, Normal, Yeni, vb.)
+    const [segments] = await poolWrapper.execute(`
+      SELECT 
+        CASE 
+          WHEN totalSpent >= 10000 THEN 'VIP Müşteriler'
+          WHEN totalSpent >= 5000 THEN 'Premium Müşteriler'
+          WHEN totalSpent >= 1000 THEN 'Aktif Müşteriler'
+          WHEN orderCount >= 3 THEN 'Sadık Müşteriler'
+          WHEN orderCount = 1 THEN 'Yeni Müşteriler'
+          ELSE 'Potansiyel Müşteriler'
+        END as segment,
+        COUNT(*) as count,
+        SUM(totalSpent) as revenue,
+        AVG(totalSpent) as avgOrder,
+        'from-blue-500 to-blue-600' as color
+      FROM (
+        SELECT 
+          o.userId,
+          COUNT(DISTINCT o.id) as orderCount,
+          COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.totalAmount ELSE 0 END), 0) as totalSpent
+        FROM orders o
+        GROUP BY o.userId
+      ) as customerStats
+      GROUP BY segment
+      ORDER BY revenue DESC
+    `);
+
+    // Renkleri dinamik olarak ata
+    const colors = [
+      'from-blue-500 to-blue-600',
+      'from-purple-500 to-purple-600',
+      'from-green-500 to-green-600',
+      'from-orange-500 to-orange-600',
+      'from-pink-500 to-pink-600',
+      'from-indigo-500 to-indigo-600'
+    ];
+
+    const segmentsWithColors = segments.map((segment: any, index: number) => ({
+      ...segment,
+      color: colors[index % colors.length]
+    }));
+
+    res.json({
+      success: true,
+      data: segmentsWithColors
+    });
+  } catch (error) {
+    console.error('❌ Error getting customer segments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting customer segments',
+      error: error.message
+    });
+  }
+});
+
+// Admin Analytics - Conversion Metrics
+app.get('/api/admin/analytics/conversion', authenticateAdmin, async (req, res) => {
+  try {
+    // Dönüşüm oranı, sepet ortalaması, CLV
+    const [conversionData] = await poolWrapper.execute(`
+      SELECT 
+        (COUNT(DISTINCT CASE WHEN o.status != 'cancelled' THEN o.userId END) * 100.0 / 
+         NULLIF(COUNT(DISTINCT u.id), 0)) as conversionRate,
+        AVG(CASE WHEN o.status != 'cancelled' THEN o.totalAmount ELSE NULL END) as avgCartValue,
+        AVG(CASE WHEN o.status != 'cancelled' THEN customerLifetimeValue ELSE NULL END) as avgCLV
+      FROM users u
+      LEFT JOIN orders o ON u.id = o.userId
+      LEFT JOIN (
+        SELECT 
+          userId,
+          SUM(totalAmount) as customerLifetimeValue
+        FROM orders
+        WHERE status != 'cancelled'
+        GROUP BY userId
+      ) as clv ON u.id = clv.userId
+    `);
+
+    // Geçen ay ile karşılaştırma
+    const [lastMonthData] = await poolWrapper.execute(`
+      SELECT 
+        (COUNT(DISTINCT CASE WHEN o.status != 'cancelled' THEN o.userId END) * 100.0 / 
+         NULLIF(COUNT(DISTINCT u.id), 0)) as conversionRate,
+        AVG(CASE WHEN o.status != 'cancelled' THEN o.totalAmount ELSE NULL END) as avgCartValue,
+        AVG(CASE WHEN o.status != 'cancelled' THEN customerLifetimeValue ELSE NULL END) as avgCLV
+      FROM users u
+      LEFT JOIN orders o ON u.id = o.userId AND o.createdAt >= DATE_SUB(NOW(), INTERVAL 1 MONTH) 
+        AND o.createdAt < DATE_SUB(NOW(), INTERVAL 0 MONTH)
+      LEFT JOIN (
+        SELECT 
+          userId,
+          SUM(totalAmount) as customerLifetimeValue
+        FROM orders
+        WHERE status != 'cancelled' AND createdAt >= DATE_SUB(NOW(), INTERVAL 1 MONTH) 
+          AND createdAt < DATE_SUB(NOW(), INTERVAL 0 MONTH)
+        GROUP BY userId
+      ) as clv ON u.id = clv.userId
+    `);
+
+    const current = conversionData[0] || {};
+    const lastMonth = lastMonthData[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        conversionRate: parseFloat(current.conversionRate || 0).toFixed(1),
+        lastMonthConversionRate: parseFloat(lastMonth.conversionRate || 0).toFixed(1),
+        avgCartValue: parseFloat(current.avgCartValue || 0).toFixed(0),
+        lastMonthAvgCartValue: parseFloat(lastMonth.avgCartValue || 0).toFixed(0),
+        avgCLV: parseFloat(current.avgCLV || 0).toFixed(0),
+        lastMonthAvgCLV: parseFloat(lastMonth.avgCLV || 0).toFixed(0)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting conversion metrics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting conversion metrics',
+      error: error.message
+    });
+  }
+});
+
 // Admin - Google Maps Data Scraper (placeholder)
 // POST /api/admin/scrapers/google-maps { query, city }
 app.post('/api/admin/scrapers/google-maps', authenticateAdmin, async (req, res) => {
@@ -7957,19 +8222,47 @@ async function createFlashDealsTable() {
         description TEXT,
         discount_type ENUM('percentage', 'fixed') NOT NULL,
         discount_value DECIMAL(10,2) NOT NULL,
-        target_type ENUM('category', 'product') NOT NULL,
-        target_id INT,
         start_date DATETIME NOT NULL,
         end_date DATETIME NOT NULL,
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_active (is_active),
-        INDEX idx_dates (start_date, end_date),
-        INDEX idx_target (target_type, target_id)
+        INDEX idx_dates (start_date, end_date)
       )
     `);
-    console.log('✅ Flash deals table created/verified');
+    
+    // Flash deal products junction table
+    await poolWrapper.execute(`
+      CREATE TABLE IF NOT EXISTS flash_deal_products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        flash_deal_id INT NOT NULL,
+        product_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (flash_deal_id) REFERENCES flash_deals(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_flash_deal_product (flash_deal_id, product_id),
+        INDEX idx_flash_deal (flash_deal_id),
+        INDEX idx_product (product_id)
+      )
+    `);
+    
+    // Flash deal categories junction table
+    await poolWrapper.execute(`
+      CREATE TABLE IF NOT EXISTS flash_deal_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        flash_deal_id INT NOT NULL,
+        category_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (flash_deal_id) REFERENCES flash_deals(id) ON DELETE CASCADE,
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_flash_deal_category (flash_deal_id, category_id),
+        INDEX idx_flash_deal (flash_deal_id),
+        INDEX idx_category (category_id)
+      )
+    `);
+    
+    console.log('✅ Flash deals tables created/verified');
   } catch (error) {
     console.error('❌ Error creating flash deals table:', error);
   }
@@ -7978,25 +8271,41 @@ async function createFlashDealsTable() {
 // Initialize flash deals table - moved to startServer function
 
 // Admin - Get all flash deals
-app.get('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
+app.get('/api/admin/flash-deals/all', authenticateAdmin, async (req, res) => {
   try {
     console.log('⚡ Admin requesting flash deals');
 
     const [rows] = await poolWrapper.execute(`
-      SELECT fd.*, 
-             CASE 
-               WHEN fd.target_type = 'category' THEN c.name
-               WHEN fd.target_type = 'product' THEN p.name
-               ELSE 'Tüm Ürünler'
-             END as target_name
+      SELECT fd.*
       FROM flash_deals fd
-      LEFT JOIN categories c ON fd.target_type = 'category' AND fd.target_id = c.id
-      LEFT JOIN products p ON fd.target_type = 'product' AND fd.target_id = p.id
       ORDER BY fd.created_at DESC
     `);
 
-    console.log('⚡ Flash deals found:', rows.length);
-    res.json({ success: true, data: rows });
+    // Her flash deal için ürün ve kategori bilgilerini getir
+    const dealsWithTargets = await Promise.all(rows.map(async (deal: any) => {
+      const [products] = await poolWrapper.execute(`
+        SELECT p.id, p.name, p.price, p.imageUrl, p.category
+        FROM flash_deal_products fdp
+        JOIN products p ON fdp.product_id = p.id
+        WHERE fdp.flash_deal_id = ?
+      `, [deal.id]);
+
+      const [categories] = await poolWrapper.execute(`
+        SELECT c.id, c.name
+        FROM flash_deal_categories fdc
+        JOIN categories c ON fdc.category_id = c.id
+        WHERE fdc.flash_deal_id = ?
+      `, [deal.id]);
+
+      return {
+        ...deal,
+        products: products || [],
+        categories: categories || []
+      };
+    }));
+
+    console.log('⚡ Flash deals found:', dealsWithTargets.length);
+    res.json({ success: true, data: dealsWithTargets });
   } catch (error) {
     console.error('❌ Error getting flash deals:', error);
     res.status(500).json({ success: false, message: 'Error getting flash deals' });
@@ -8006,12 +8315,12 @@ app.get('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
 // Admin - Create flash deal
 app.post('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
   try {
-    const { name, description, discount_type, discount_value, target_type, target_id, start_date, end_date } = req.body;
+    const { name, description, discount_type, discount_value, start_date, end_date, product_ids, category_ids } = req.body;
 
-    console.log('⚡ Creating flash deal:', { name, discount_type, discount_value, target_type, target_id });
+    console.log('⚡ Creating flash deal:', { name, discount_type, discount_value, product_ids, category_ids });
 
     // Validate required fields
-    if (!name || !discount_type || !discount_value || !target_type || !start_date || !end_date) {
+    if (!name || !discount_type || !discount_value || !start_date || !end_date) {
       return res.status(400).json({
         success: false,
         message: 'Gerekli alanlar eksik'
@@ -8026,11 +8335,14 @@ app.post('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Validate target type
-    if (!['category', 'product'].includes(target_type)) {
+    // Validate at least one product or category selected
+    const productIds = Array.isArray(product_ids) ? product_ids.filter(Boolean) : [];
+    const categoryIds = Array.isArray(category_ids) ? category_ids.filter(Boolean) : [];
+    
+    if (productIds.length === 0 && categoryIds.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Geçersiz hedef türü'
+        message: 'En az bir ürün veya kategori seçilmelidir'
       });
     }
 
@@ -8045,39 +8357,50 @@ app.post('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Check if target exists
-    if (target_type === 'category' && target_id) {
-      const [categoryRows] = await poolWrapper.execute('SELECT id FROM categories WHERE id = ?', [target_id]);
-      if (categoryRows.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Kategori bulunamadı'
-        });
+    // Start transaction
+    const connection = await poolWrapper.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Insert flash deal
+      const [result] = await connection.execute(`
+        INSERT INTO flash_deals (name, description, discount_type, discount_value, start_date, end_date)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [name, description, discount_type, discount_value, start_date, end_date]);
+
+      const flashDealId = result.insertId;
+
+      // Insert products
+      if (productIds.length > 0) {
+        const productValues = productIds.map((productId: number) => [flashDealId, productId]);
+        await connection.query(`
+          INSERT INTO flash_deal_products (flash_deal_id, product_id)
+          VALUES ?
+        `, [productValues]);
       }
-    }
 
-    if (target_type === 'product' && target_id) {
-      const [productRows] = await poolWrapper.execute('SELECT id FROM products WHERE id = ?', [target_id]);
-      if (productRows.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Ürün bulunamadı'
-        });
+      // Insert categories
+      if (categoryIds.length > 0) {
+        const categoryValues = categoryIds.map((categoryId: number) => [flashDealId, categoryId]);
+        await connection.query(`
+          INSERT INTO flash_deal_categories (flash_deal_id, category_id)
+          VALUES ?
+        `, [categoryValues]);
       }
+
+      await connection.commit();
+      console.log('⚡ Flash deal created with ID:', flashDealId);
+      res.json({
+        success: true,
+        message: 'Flash indirim başarıyla oluşturuldu',
+        data: { id: flashDealId }
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
-
-    // Insert flash deal
-    const [result] = await poolWrapper.execute(`
-      INSERT INTO flash_deals (name, description, discount_type, discount_value, target_type, target_id, start_date, end_date)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [name, description, discount_type, discount_value, target_type, target_id, start_date, end_date]);
-
-    console.log('⚡ Flash deal created with ID:', result.insertId);
-    res.json({
-      success: true,
-      message: 'Flash indirim başarıyla oluşturuldu',
-      data: { id: result.insertId }
-    });
   } catch (error) {
     console.error('❌ Error creating flash deal:', error);
     res.status(500).json({ success: false, message: 'Error creating flash deal' });
@@ -8088,51 +8411,82 @@ app.post('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
 app.put('/api/admin/flash-deals/:id', authenticateAdmin, async (req, res) => {
   try {
     const flashDealId = req.params.id;
-    const { name, description, discount_type, discount_value, target_type, target_id, start_date, end_date, is_active } = req.body;
+    const { name, description, discount_type, discount_value, start_date, end_date, is_active, product_ids, category_ids } = req.body;
 
     console.log('⚡ Updating flash deal:', flashDealId);
 
-    // Build update query dynamically
-    const updateFields = [];
-    const updateValues = [];
+    // Start transaction
+    const connection = await poolWrapper.getConnection();
+    await connection.beginTransaction();
 
-    if (name !== undefined) { updateFields.push('name = ?'); updateValues.push(name); }
-    if (description !== undefined) { updateFields.push('description = ?'); updateValues.push(description); }
-    if (discount_type !== undefined) { updateFields.push('discount_type = ?'); updateValues.push(discount_type); }
-    if (discount_value !== undefined) { updateFields.push('discount_value = ?'); updateValues.push(discount_value); }
-    if (target_type !== undefined) { updateFields.push('target_type = ?'); updateValues.push(target_type); }
-    if (target_id !== undefined) { updateFields.push('target_id = ?'); updateValues.push(target_id); }
-    if (start_date !== undefined) { updateFields.push('start_date = ?'); updateValues.push(start_date); }
-    if (end_date !== undefined) { updateFields.push('end_date = ?'); updateValues.push(end_date); }
-    if (is_active !== undefined) { updateFields.push('is_active = ?'); updateValues.push(is_active); }
+    try {
+      // Build update query dynamically
+      const updateFields = [];
+      const updateValues = [];
 
-    if (updateFields.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Güncellenecek alan bulunamadı'
+      if (name !== undefined) { updateFields.push('name = ?'); updateValues.push(name); }
+      if (description !== undefined) { updateFields.push('description = ?'); updateValues.push(description); }
+      if (discount_type !== undefined) { updateFields.push('discount_type = ?'); updateValues.push(discount_type); }
+      if (discount_value !== undefined) { updateFields.push('discount_value = ?'); updateValues.push(discount_value); }
+      if (start_date !== undefined) { updateFields.push('start_date = ?'); updateValues.push(start_date); }
+      if (end_date !== undefined) { updateFields.push('end_date = ?'); updateValues.push(end_date); }
+      if (is_active !== undefined) { updateFields.push('is_active = ?'); updateValues.push(is_active); }
+
+      if (updateFields.length > 0) {
+        updateValues.push(flashDealId);
+        const [result] = await connection.execute(`
+          UPDATE flash_deals 
+          SET ${updateFields.join(', ')}
+          WHERE id = ?
+        `, updateValues);
+
+        if (result.affectedRows === 0) {
+          await connection.rollback();
+          return res.status(404).json({
+            success: false,
+            message: 'Flash indirim bulunamadı'
+          });
+        }
+      }
+
+      // Update products if provided
+      if (product_ids !== undefined) {
+        await connection.execute('DELETE FROM flash_deal_products WHERE flash_deal_id = ?', [flashDealId]);
+        const productIds = Array.isArray(product_ids) ? product_ids.filter(Boolean) : [];
+        if (productIds.length > 0) {
+          const productValues = productIds.map((productId: number) => [flashDealId, productId]);
+          await connection.query(`
+            INSERT INTO flash_deal_products (flash_deal_id, product_id)
+            VALUES ?
+          `, [productValues]);
+        }
+      }
+
+      // Update categories if provided
+      if (category_ids !== undefined) {
+        await connection.execute('DELETE FROM flash_deal_categories WHERE flash_deal_id = ?', [flashDealId]);
+        const categoryIds = Array.isArray(category_ids) ? category_ids.filter(Boolean) : [];
+        if (categoryIds.length > 0) {
+          const categoryValues = categoryIds.map((categoryId: number) => [flashDealId, categoryId]);
+          await connection.query(`
+            INSERT INTO flash_deal_categories (flash_deal_id, category_id)
+            VALUES ?
+          `, [categoryValues]);
+        }
+      }
+
+      await connection.commit();
+      console.log('⚡ Flash deal updated:', flashDealId);
+      res.json({
+        success: true,
+        message: 'Flash indirim başarıyla güncellendi'
       });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
-
-    updateValues.push(flashDealId);
-
-    const [result] = await poolWrapper.execute(`
-      UPDATE flash_deals 
-      SET ${updateFields.join(', ')}
-      WHERE id = ?
-    `, updateValues);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Flash indirim bulunamadı'
-      });
-    }
-
-    console.log('⚡ Flash deal updated:', flashDealId);
-    res.json({
-      success: true,
-      message: 'Flash indirim başarıyla güncellendi'
-    });
   } catch (error) {
     console.error('❌ Error updating flash deal:', error);
     res.status(500).json({ success: false, message: 'Error updating flash deal' });
@@ -8169,29 +8523,53 @@ app.delete('/api/admin/flash-deals/:id', authenticateAdmin, async (req, res) => 
   }
 });
 
-// Get active flash deals (for mobile app)
+// Get active flash deals with products (for mobile app)
 app.get('/api/flash-deals', async (req, res) => {
   try {
     const now = new Date();
 
     const [rows] = await poolWrapper.execute(`
-      SELECT fd.*, 
-             CASE 
-               WHEN fd.target_type = 'category' THEN c.name
-               WHEN fd.target_type = 'product' THEN p.name
-               ELSE 'Tüm Ürünler'
-             END as target_name
+      SELECT fd.*
       FROM flash_deals fd
-      LEFT JOIN categories c ON fd.target_type = 'category' AND fd.target_id = c.id
-      LEFT JOIN products p ON fd.target_type = 'product' AND fd.target_id = p.id
       WHERE fd.is_active = true 
         AND fd.start_date <= ? 
         AND fd.end_date >= ?
       ORDER BY fd.created_at DESC
     `, [now, now]);
 
-    console.log('⚡ Active flash deals found:', rows.length);
-    res.json({ success: true, data: rows });
+    // Her flash deal için ürünleri getir (kategori bazlı ürünler dahil)
+    const dealsWithProducts = await Promise.all(rows.map(async (deal: any) => {
+      // Seçili ürünler
+      const [products] = await poolWrapper.execute(`
+        SELECT DISTINCT p.*
+        FROM flash_deal_products fdp
+        JOIN products p ON fdp.product_id = p.id
+        WHERE fdp.flash_deal_id = ?
+      `, [deal.id]);
+
+      // Seçili kategorilerdeki ürünler
+      const [categoryProducts] = await poolWrapper.execute(`
+        SELECT DISTINCT p.*
+        FROM flash_deal_categories fdc
+        JOIN categories c ON fdc.category_id = c.id
+        JOIN products p ON p.category = c.name
+        WHERE fdc.flash_deal_id = ?
+      `, [deal.id]);
+
+      // Birleştir ve duplicate'leri kaldır
+      const allProducts = [...products, ...categoryProducts];
+      const uniqueProducts = allProducts.filter((product: any, index: number, self: any[]) =>
+        index === self.findIndex((p: any) => p.id === product.id)
+      );
+
+      return {
+        ...deal,
+        products: uniqueProducts
+      };
+    }));
+
+    console.log('⚡ Active flash deals found:', dealsWithProducts.length);
+    res.json({ success: true, data: dealsWithProducts });
   } catch (error) {
     console.error('❌ Error getting active flash deals:', error);
     res.status(500).json({ success: false, message: 'Error getting flash deals' });

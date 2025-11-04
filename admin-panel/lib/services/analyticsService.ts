@@ -12,9 +12,42 @@ export interface AnalyticsStats {
 
 export interface MonthlyData {
   month: string;
+  monthLabel?: string;
+  gelir: number;
+  gider: number;
+  kar: number;
+  orders?: number;
+  customers?: number;
+}
+
+export interface CustomerBehavior {
+  category: string;
+  value: number;
+}
+
+export interface CategoryPerformance {
+  name: string;
+  satis: number;
+  siparisler: number;
+  kar: number;
+  stok: number;
+}
+
+export interface CustomerSegment {
+  segment: string;
+  count: number;
   revenue: number;
-  orders: number;
-  customers: number;
+  avgOrder: number;
+  color: string;
+}
+
+export interface ConversionMetrics {
+  conversionRate: string;
+  lastMonthConversionRate: string;
+  avgCartValue: string;
+  lastMonthAvgCartValue: string;
+  avgCLV: string;
+  lastMonthAvgCLV: string;
 }
 
 export const analyticsService = {
@@ -57,17 +90,93 @@ export const analyticsService = {
     }
   },
 
-  // Get monthly data
-  getMonthlyData: async () => {
+  // Get monthly revenue and expenses data
+  getMonthlyData: async (months: number = 12) => {
     try {
-      // Varsayılan bir analytics endpoint'i denenir; yoksa boş döner
-      const res = await api.get<ApiResponse<MonthlyData[]>>('/analytics/monthly');
+      const res = await api.get<ApiResponse<MonthlyData[]>>(`/admin/analytics/monthly?months=${months}`);
       if (res && res.success && res.data) {
         return { success: true, data: res.data };
       }
       return { success: true, data: [] };
-    } catch {
+    } catch (error) {
+      console.error('Error getting monthly data:', error);
       return { success: true, data: [] };
+    }
+  },
+
+  // Get customer behavior analytics
+  getCustomerBehavior: async () => {
+    try {
+      const res = await api.get<ApiResponse<CustomerBehavior[]>>('/admin/analytics/customer-behavior');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting customer behavior:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Get category performance
+  getCategoryPerformance: async (months: number = 6) => {
+    try {
+      const res = await api.get<ApiResponse<CategoryPerformance[]>>(`/admin/analytics/category-performance?months=${months}`);
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting category performance:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Get customer segments
+  getCustomerSegments: async () => {
+    try {
+      const res = await api.get<ApiResponse<CustomerSegment[]>>('/admin/analytics/customer-segments');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting customer segments:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Get conversion metrics
+  getConversionMetrics: async () => {
+    try {
+      const res = await api.get<ApiResponse<ConversionMetrics>>('/admin/analytics/conversion');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { 
+        success: true, 
+        data: {
+          conversionRate: '0',
+          lastMonthConversionRate: '0',
+          avgCartValue: '0',
+          lastMonthAvgCartValue: '0',
+          avgCLV: '0',
+          lastMonthAvgCLV: '0'
+        }
+      };
+    } catch (error) {
+      console.error('Error getting conversion metrics:', error);
+      return { 
+        success: true, 
+        data: {
+          conversionRate: '0',
+          lastMonthConversionRate: '0',
+          avgCartValue: '0',
+          lastMonthAvgCartValue: '0',
+          avgCLV: '0',
+          lastMonthAvgCLV: '0'
+        }
+      };
     }
   },
 };
