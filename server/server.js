@@ -8615,11 +8615,19 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid product id' });
     }
 
+    // Tenant kontrolü
+    if (!req.tenant || !req.tenant.id) {
+      console.error(`❌ Product ${numericId}: Tenant not found in request`);
+      return res.status(401).json({ success: false, message: 'Tenant authentication required' });
+    }
+
+    const tenantId = req.tenant.id;
+
     // Önce ürünün variationDetails JSON'ını çek
     const [productRows] = await poolWrapper.execute(`
       SELECT variationDetails FROM products 
       WHERE id = ? AND tenantId = ?
-    `, [numericId, req.tenant.id]);
+    `, [numericId, tenantId]);
 
     if (productRows.length === 0) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -8651,45 +8659,68 @@ app.get('/api/products/:productId/variations', async (req, res) => {
     // Varyasyonları ve seçeneklerini birlikte çek
     const [variations] = await poolWrapper.execute(`
       SELECT v.*, 
-             JSON_ARRAYAGG(
-               JSON_OBJECT(
-                 'id', o.id,
-                 'variationId', o.variationId,
-                 'value', o.value,
-                 'priceModifier', o.priceModifier,
-                 'stock', o.stock,
-                 'sku', o.sku,
-                 'image', o.image,
-                 'isActive', o.isActive
-               )
+             COALESCE(
+               JSON_ARRAYAGG(
+                 JSON_OBJECT(
+                   'id', o.id,
+                   'variationId', o.variationId,
+                   'value', o.value,
+                   'priceModifier', o.priceModifier,
+                   'stock', o.stock,
+                   'sku', o.sku,
+                   'image', o.image,
+                   'isActive', o.isActive
+                 )
+               ),
+               JSON_ARRAY()
              ) as options
       FROM product_variations v
       LEFT JOIN product_variation_options o ON v.id = o.variationId AND o.isActive = true
       WHERE v.productId = ? AND v.tenantId = ?
       GROUP BY v.id
       ORDER BY v.displayOrder, v.name
-    `, [numericId, req.tenant.id]);
+    `, [numericId, tenantId]);
 
-    // JSON formatını düzelt ve normalize et
-    let formattedVariations = variations.map(variation => {
-      // Varyasyon ismini normalize et (trim, boşlukları temizle)
-      const normalizedName = variation.name ? String(variation.name).trim() : '';
-      const options = variation.options && variation.options.length > 0 ? variation.options : [];
-      
-      // Debug: Çok fazla option varsa uyarı ver
-      if (options.length > 50) {
-        console.warn(`⚠️ Product ${numericId}: "${normalizedName}" varyasyonunda ${options.length} option var (normal: 5-20). İlk 5 option:`, 
-          options.slice(0, 5).map((o) => ({ value: o.value, stock: o.stock })));
-      }
-      
-      return {
-        id: variation.id,
-        productId: variation.productId,
-        name: normalizedName,
-        displayOrder: variation.displayOrder,
-        options: options
-      };
-    });
+    // variations null/undefined kontrolü ve JSON parse
+    let formattedVariations = [];
+    if (!variations || !Array.isArray(variations)) {
+      console.warn(`⚠️ Product ${numericId}: variations is not an array, using empty array`);
+    } else {
+      // JSON formatını düzelt ve normalize et
+      formattedVariations = variations.map(variation => {
+        // Varyasyon ismini normalize et (trim, boşlukları temizle)
+        const normalizedName = variation.name ? String(variation.name).trim() : '';
+        
+        // Options null kontrolü ve JSON parse
+        let parsedOptions = [];
+        if (variation.options) {
+          try {
+            if (typeof variation.options === 'string') {
+              parsedOptions = JSON.parse(variation.options);
+            } else if (Array.isArray(variation.options)) {
+              parsedOptions = variation.options;
+            }
+          } catch (parseError) {
+            console.error(`⚠️ Product ${numericId}: Options parse error for variation ${variation.id}:`, parseError);
+            parsedOptions = [];
+          }
+        }
+        
+        // Debug: Çok fazla option varsa uyarı ver
+        if (parsedOptions.length > 50) {
+          console.warn(`⚠️ Product ${numericId}: "${normalizedName}" varyasyonunda ${parsedOptions.length} option var (normal: 5-20). İlk 5 option:`, 
+            parsedOptions.slice(0, 5).map((o) => ({ value: o.value, stock: o.stock })));
+        }
+        
+        return {
+          id: variation.id,
+          productId: variation.productId,
+          name: normalizedName,
+          displayOrder: variation.displayOrder,
+          options: Array.isArray(parsedOptions) ? parsedOptions : []
+        };
+      });
+    }
 
     // XML'den varyasyon türetme mantığı - her zaman çalışsın (tabloda yoksa veya options boşsa)
     const hasValidVariations = formattedVariations.length > 0 && 
