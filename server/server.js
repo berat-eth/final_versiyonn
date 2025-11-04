@@ -9278,7 +9278,13 @@ app.post('/api/sync/import-xml', async (req, res) => {
     }
 
     const xml2js = require('xml2js');
-    const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: true, trim: true });
+    const parser = new xml2js.Parser({ 
+      explicitArray: false, 
+      ignoreAttrs: false, // ✅ Attribute'leri koru (Tanim, Deger gibi)
+      attrkey: '$', // Attribute'leri $ objesine koy
+      charkey: '_', // Text içeriği _ property'sine koy
+      trim: true 
+    });
     const parsed = await parser.parseStringPromise(rawBody);
 
     const source = xmlSyncService.getXmlSources()[0] || { name: 'Manual', type: 'ticimax' };

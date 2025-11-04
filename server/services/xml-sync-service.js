@@ -50,7 +50,9 @@ class XmlSyncService {
       const xmlData = response.data;
       const parser = new xml2js.Parser({
         explicitArray: false,
-        ignoreAttrs: true,
+        ignoreAttrs: false, // ✅ Attribute'leri koru (Tanim, Deger gibi)
+        attrkey: '$', // Attribute'leri $ objesine koy
+        charkey: '_', // Text içeriği _ property'sine koy
         trim: true
       });
 
@@ -184,44 +186,87 @@ class XmlSyncService {
               hasVariationAttributes = false;
             } else {
               const attrs = Array.isArray(ozellik) ? ozellik : (ozellik ? [ozellik] : []);
+              
+              // Debug: Ozellik yapısını logla
+              if (attrs.length > 0) {
+                console.log(`🔍 Parsing Ozellik for variation ${variation.VaryasyonID}:`, JSON.stringify(attrs[0], null, 2));
+              }
+              
               attrs.forEach(entry => {
                 // XML yapısı: <Ozellik Tanim="Beden" Deger="S">S</Ozellik>
                 // XML2JS parser farklı formatlarda döndürebilir:
-                // 1. { $: { Tanim: "Beden", Deger: "S" }, _: "S" } (explicitArray: false, ignoreAttrs: false)
-                // 2. { Tanim: "Beden", Deger: "S", _: "S" } (ignoreAttrs: true ile attribute'ler direkt property olur)
-                // 3. { "@Tanim": "Beden", "@Deger": "S" } (bazı parser ayarları)
+                // 1. { $: { Tanim: "Beden", Deger: "S" }, _: "S" } (ignoreAttrs: false, attrkey: '$')
+                // 2. String: "S" (eğer parser attribute'leri yok sayıyorsa veya sadece içeriği alıyorsa)
+                // 3. Object: { Tanim: "Beden", Deger: "S" } (eski format)
                 let name = '';
                 let value = '';
                 
-                // Önce attribute objesi ($) kontrolü
-                if (entry?.$ && typeof entry.$ === 'object') {
-                  name = (entry.$.Tanim || entry.$['@Tanim'] || '').toString().trim();
-                  value = (entry.$.Deger || entry.$['@Deger'] || '').toString().trim();
-                }
-                
-                // Eğer $ objesinde bulamadıysak direkt property'leri kontrol et
-                if (!name || !value) {
-                  name = (entry?.Tanim || entry?.['@Tanim'] || entry?.$?.Tanim || '').toString().trim();
-                  value = (entry?.Deger || entry?.['@Deger'] || entry?.$?.Deger || '').toString().trim();
-                }
-                
-                // Eğer hala bulamadıysak içeriği (_) kontrol et (fallback)
-                if (name && !value) {
-                  value = (entry?._ || entry?.$?._ || '').toString().trim();
-                }
-                
-                // Değer yoksa ama içerik varsa, içeriği kullan (XML'de sadece içerik olabilir)
-                if (!value && entry?._) {
-                  value = entry._.toString().trim();
-                }
-                
-                // Name yoksa ama value varsa, value'yu name olarak da kullanabiliriz (bazı XML formatlarında)
-                if (!name && value) {
+                // Eğer entry bir string ise (parser sadece içeriği almışsa)
+                if (typeof entry === 'string') {
+                  value = entry.trim();
                   // Eğer value bir beden gibi görünüyorsa, "Beden" olarak ayarla
-                  const sizePattern = /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+)$/i;
+                  const sizePattern = /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|4XL|\d+)$/i;
                   if (sizePattern.test(value)) {
                     name = 'Beden';
+                    console.log(`✅ String entry'den beden bulundu: "${value}" -> name="Beden"`);
+                  } else {
+                    // Beden değilse, value'yu hem name hem value olarak kullan (genel özellik)
+                    name = value;
+                    console.log(`✅ String entry'den özellik bulundu: "${value}"`);
                   }
+                }
+                // Eğer entry bir obje ise
+                else if (entry && typeof entry === 'object') {
+                  // Önce attribute objesi ($) kontrolü - ignoreAttrs: false ile attribute'ler $ objesinde olur
+                  if (entry.$ && typeof entry.$ === 'object') {
+                    name = (entry.$.Tanim || entry.$['@Tanim'] || '').toString().trim();
+                    value = (entry.$.Deger || entry.$['@Deger'] || '').toString().trim();
+                    
+                    if (name || value) {
+                      console.log(`✅ Attribute objesinden bulundu: name="${name}", value="${value}"`);
+                    }
+                  }
+                  
+                  // Eğer $ objesinde bulamadıysak direkt property'leri kontrol et (eski format uyumluluğu için)
+                  if (!name || !value) {
+                    name = (entry?.Tanim || entry?.['@Tanim'] || entry?.$?.Tanim || '').toString().trim();
+                    value = (entry?.Deger || entry?.['@Deger'] || entry?.$?.Deger || '').toString().trim();
+                    
+                    if (name || value) {
+                      console.log(`✅ Property'lerden bulundu: name="${name}", value="${value}"`);
+                    }
+                  }
+                  
+                  // Eğer hala bulamadıysak içeriği (_) kontrol et (fallback)
+                  if (name && !value && entry?._) {
+                    value = entry._.toString().trim();
+                    if (value) {
+                      console.log(`✅ İçerikten bulundu: value="${value}"`);
+                    }
+                  }
+                  
+                  // Değer yoksa ama içerik varsa, içeriği kullan (XML'de sadece içerik olabilir)
+                  if (!value && entry?._) {
+                    value = entry._.toString().trim();
+                    if (value) {
+                      console.log(`✅ İçerikten (fallback) bulundu: value="${value}"`);
+                    }
+                  }
+                  
+                  // Name yoksa ama value varsa, value'yu name olarak da kullanabiliriz (bazı XML formatlarında)
+                  if (!name && value) {
+                    // Eğer value bir beden gibi görünüyorsa, "Beden" olarak ayarla
+                    const sizePattern = /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+)$/i;
+                    if (sizePattern.test(value)) {
+                      name = 'Beden';
+                      console.log(`✅ Beden pattern match: "${value}" -> name="Beden"`);
+                    }
+                  }
+                }
+                
+                // Son kontrol: eğer hala name yoksa ama value varsa, value'yu name olarak kullan
+                if (!name && value) {
+                  name = value;
                 }
                 
                 if (name && value) {
@@ -230,10 +275,17 @@ class XmlSyncService {
                   
                   // Beden bilgisini özel olarak işle
                   if (name.toLowerCase() === 'beden' || name.toLowerCase() === 'size') {
-                    console.log(`📏 Beden bilgisi bulundu: ${value} (Varyasyon ID: ${variation.VaryasyonID})`);
+                    console.log(`📏 ✅ Beden bilgisi bulundu ve kaydedildi: ${name}="${value}" (Varyasyon ID: ${variation.VaryasyonID})`);
+                  } else {
+                    console.log(`📋 Özellik bulundu: ${name}="${value}" (Varyasyon ID: ${variation.VaryasyonID})`);
                   }
                 } else {
-                  console.warn(`⚠️ Ozellik parse edilemedi - entry:`, JSON.stringify(entry));
+                  console.warn(`⚠️ ⚠️ Ozellik parse edilemedi - entry type: ${typeof entry}, entry:`, JSON.stringify(entry, null, 2));
+                  if (entry && typeof entry === 'object') {
+                    console.warn(`   Entry keys:`, Object.keys(entry || {}));
+                    console.warn(`   Entry.$:`, entry?.$);
+                    console.warn(`   Entry._:`, entry?._);
+                  }
                 }
               });
             }
@@ -1193,7 +1245,9 @@ class XmlSyncService {
 
       const parser = new xml2js.Parser({
         explicitArray: false,
-        ignoreAttrs: true,
+        ignoreAttrs: false, // ✅ Attribute'leri koru (Tanim, Deger gibi)
+        attrkey: '$', // Attribute'leri $ objesine koy
+        charkey: '_', // Text içeriği _ property'sine koy
         trim: true
       });
 
