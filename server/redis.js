@@ -134,18 +134,16 @@ async function delPattern(pattern) {
     let deletedCount = 0;
     
     do {
-      const [nextCursor, keys] = await client.scan(cursor, {
-        MATCH: pattern,
-        COUNT: 100
-      });
+      // ioredis scan API: scan(cursor, 'MATCH', pattern, 'COUNT', count)
+      const [nextCursor, keys] = await client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
       
       if (keys && keys.length > 0) {
-        const deleted = await client.del(keys);
+        const deleted = await client.del(...keys);
         deletedCount += deleted;
       }
       
       cursor = nextCursor;
-    } while (cursor !== 0);
+    } while (cursor !== '0' && cursor !== 0);
     
     return deletedCount;
   } catch (error) {
@@ -195,15 +193,16 @@ async function withLock(lockKey, ttlSeconds, fn, options = {}) {
   let extendTimer = null;
   
   try {
-    const ok = await client.set(lockKey, lockId, { NX: true, EX: ttlSeconds });
-    if (!ok) {
+    // ioredis API: set(key, value, 'EX', seconds, 'NX')
+    const ok = await client.set(lockKey, lockId, 'EX', ttlSeconds, 'NX');
+    if (!ok || ok !== 'OK') {
       // Lock already held
       if (options.waitForLock && options.maxWait) {
         const startTime = Date.now();
         while (Date.now() - startTime < options.maxWait) {
           await new Promise(resolve => setTimeout(resolve, 100));
-          const acquired = await client.set(lockKey, lockId, { NX: true, EX: ttlSeconds });
-          if (acquired) break;
+          const acquired = await client.set(lockKey, lockId, 'EX', ttlSeconds, 'NX');
+          if (acquired === 'OK') break;
         }
       } else {
         return null; // Lock not acquired

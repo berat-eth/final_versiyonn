@@ -10342,25 +10342,31 @@ async function startServer() {
   
   async function connectRedis() {
     try {
-      const { createClient } = require('redis');
+      const Redis = require('ioredis');
       const url = process.env.REDIS_URL || 'redis://localhost:6379';
       
-      // ✅ OPTIMIZASYON: Enhanced Redis client configuration
-      const client = createClient({ 
-        url,
-        socket: {
-          reconnectStrategy: (retries) => {
-            if (retries > 10) {
-              console.error('❌ Redis: Max reconnection attempts reached');
-              return new Error('Max reconnection attempts reached');
-            }
-            // Exponential backoff: 50ms, 100ms, 200ms, 400ms, 800ms, 1600ms, 3200ms, 6400ms, 12800ms, 25600ms
-            return Math.min(retries * 50, 30000);
-          },
-          connectTimeout: 5000
+      // ✅ OPTIMIZASYON: Enhanced Redis client configuration with ioredis
+      const client = new Redis(url, {
+        maxRetriesPerRequest: 3,
+        enableReadyCheck: true,
+        lazyConnect: false,
+        retryStrategy: (times) => {
+          if (times > 10) {
+            console.error('❌ Redis: Max reconnection attempts reached');
+            return null; // Stop retrying
+          }
+          // Exponential backoff: 50ms, 100ms, 200ms, 400ms, 800ms, 1600ms, 3200ms, 6400ms, 12800ms, 25600ms
+          return Math.min(times * 50, 30000);
         },
-        // Connection pooling
-        pingInterval: 30000 // Keep connection alive
+        reconnectOnError: (err) => {
+          const targetError = 'READONLY';
+          if (err.message.includes(targetError)) {
+            return true; // Reconnect on READONLY error
+          }
+          return false;
+        },
+        connectTimeout: 5000,
+        keepAlive: 30000
       });
       
       client.on('error', (err) => {
@@ -10380,7 +10386,27 @@ async function startServer() {
         console.log('🔄 Redis: Reconnecting...');
       });
       
-      await client.connect();
+      // ioredis otomatik bağlanır, ancak ready event'ini bekleyelim
+      await new Promise((resolve, reject) => {
+        if (client.status === 'ready') {
+          resolve();
+        } else {
+          const timeout = setTimeout(() => {
+            reject(new Error('Redis connection timeout'));
+          }, 10000);
+          
+          client.once('ready', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          
+          client.once('error', (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        }
+      });
+      
       global.redis = client;
       
       // ✅ OPTIMIZASYON: Health check after connection

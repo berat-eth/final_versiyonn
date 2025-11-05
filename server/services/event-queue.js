@@ -26,13 +26,12 @@ class EventQueueService {
       }
 
       // Consumer group oluştur (yoksa)
+      // ioredis API: xgroup('CREATE', stream, group, id, 'MKSTREAM')
       try {
-        await this.client.xGroup('CREATE', this.streamName, this.consumerGroup, '0', {
-          MKSTREAM: true
-        });
+        await this.client.xgroup('CREATE', this.streamName, this.consumerGroup, '0', 'MKSTREAM');
       } catch (error) {
         // Group zaten varsa hata verme
-        if (!error.message.includes('BUSYGROUP')) {
+        if (!error.message.includes('BUSYGROUP') && !error.message.includes('BUSY GROUP')) {
           throw error;
         }
       }
@@ -69,14 +68,17 @@ class EventQueueService {
       };
 
       // Redis Stream'e ekle
-      const messageId = await this.client.xAdd(
+      // ioredis API: xadd(stream, '*', field1, value1, field2, value2, ...)
+      const fields = [];
+      Object.entries(eventPayload).forEach(([key, value]) => {
+        fields.push(key, String(value));
+      });
+      
+      const messageId = await this.client.xadd(
         this.streamName,
         '*',
-        eventPayload,
-        {
-          MAXLEN: this.maxLen,
-          APPROX: true // Yaklaşık uzunluk (performans için)
-        }
+        ...fields,
+        'MAXLEN', '~', this.maxLen.toString() // ~ = approximate
       );
 
       return { success: true, messageId };
@@ -96,73 +98,88 @@ class EventQueueService {
       }
 
       // Stream'den event'leri al
-      const messages = await this.client.xReadGroup(
-        this.consumerGroup,
+      // ioredis API: xreadgroup('GROUP', group, consumer, 'COUNT', count, 'BLOCK', ms, 'STREAMS', stream, id)
+      const messages = await this.client.xreadgroup(
+        'GROUP', this.consumerGroup,
         'worker-1', // Consumer name
-        [
-          {
-            key: this.streamName,
-            id: '>'
-          }
-        ],
-        {
-          COUNT: count,
-          BLOCK: 1000 // 1 saniye block
-        }
+        'COUNT', count,
+        'BLOCK', 1000, // 1 saniye block
+        'STREAMS', this.streamName, '>'
       );
 
       if (!messages || messages.length === 0) {
         return { success: true, processed: 0 };
       }
 
-      const streamMessages = messages[0]?.messages || [];
+      // ioredis xreadgroup formatı: [[streamName, [[id, [field1, value1, field2, value2, ...]]]]]
+      const streamMessages = messages[0]?.[1] || [];
       let processed = 0;
       let failed = 0;
 
       // Her event'i işle
       for (const message of streamMessages) {
         try {
+          // ioredis message formatı: [id, [field1, value1, field2, value2, ...]]
+          const messageId = message[0];
+          const fields = message[1];
+          
+          // Field array'ini object'e çevir
+          const messageData = {};
+          for (let i = 0; i < fields.length; i += 2) {
+            messageData[fields[i]] = fields[i + 1];
+          }
+          
           const eventData = {
-            userId: message.message.userId ? parseInt(message.message.userId) : null,
-            deviceId: message.message.deviceId,
-            eventType: message.message.eventType,
-            screenName: message.message.screenName || null,
-            eventData: JSON.parse(message.message.eventData || '{}'),
-            sessionId: message.message.sessionId || null,
-            ipAddress: message.message.ipAddress || null,
-            userAgent: message.message.userAgent || null,
-            timestamp: message.message.timestamp
+            userId: messageData.userId ? parseInt(messageData.userId) : null,
+            deviceId: messageData.deviceId,
+            eventType: messageData.eventType,
+            screenName: messageData.screenName || null,
+            eventData: JSON.parse(messageData.eventData || '{}'),
+            sessionId: messageData.sessionId || null,
+            ipAddress: messageData.ipAddress || null,
+            userAgent: messageData.userAgent || null,
+            timestamp: messageData.timestamp
           };
+          
+          // Message ID'yi sakla
+          eventData._messageId = messageId;
 
           // Processor'a gönder
           const result = await processor.processEvent(eventData);
 
           if (result.success) {
-            // Başarılı - mesajı sil
-            await this.client.xAck(this.streamName, this.consumerGroup, message.id);
+            // Başarılı - mesajı ack et
+            // ioredis API: xack(stream, group, ...ids)
+            await this.client.xack(this.streamName, this.consumerGroup, eventData._messageId);
             processed++;
           } else {
             // Başarısız - retry logic
-            const retries = parseInt(message.message.retries || 0);
+            const retries = parseInt(messageData.retries || 0);
             if (retries < this.maxRetries) {
               // Retry için event'i tekrar ekle
               await this.enqueue({
                 ...eventData,
                 retries: retries + 1
               });
-              await this.client.xAck(this.streamName, this.consumerGroup, message.id);
+              await this.client.xack(this.streamName, this.consumerGroup, eventData._messageId);
             } else {
               // Max retry aşıldı - dead letter queue'ya gönder
-              await this.moveToDeadLetterQueue(message);
-              await this.client.xAck(this.streamName, this.consumerGroup, message.id);
+              await this.moveToDeadLetterQueue({ id: eventData._messageId, message: messageData });
+              await this.client.xack(this.streamName, this.consumerGroup, eventData._messageId);
               failed++;
             }
           }
         } catch (error) {
           console.error('❌ Event processing error:', error);
           // Dead letter queue'ya gönder
-          await this.moveToDeadLetterQueue(message).catch(() => {});
-          await this.client.xAck(this.streamName, this.consumerGroup, message.id).catch(() => {});
+          const messageId = message[0];
+          const fields = message[1] || [];
+          const failedMessageData = {};
+          for (let i = 0; i < fields.length; i += 2) {
+            failedMessageData[fields[i]] = fields[i + 1];
+          }
+          await this.moveToDeadLetterQueue({ id: messageId, message: failedMessageData }).catch(() => {});
+          await this.client.xack(this.streamName, this.consumerGroup, messageId).catch(() => {});
           failed++;
         }
       }
@@ -182,11 +199,14 @@ class EventQueueService {
       if (!this.client) return;
 
       const dlqStreamName = `${this.streamName}:dlq`;
-      await this.client.xAdd(dlqStreamName, '*', {
-        ...message.message,
-        failedAt: new Date().toISOString(),
-        originalId: message.id
+      const dlqFields = [];
+      Object.entries(message.message).forEach(([key, value]) => {
+        dlqFields.push(key, String(value));
       });
+      dlqFields.push('failedAt', new Date().toISOString());
+      dlqFields.push('originalId', message.id);
+      
+      await this.client.xadd(dlqStreamName, '*', ...dlqFields);
     } catch (error) {
       console.error('❌ Dead letter queue error:', error);
     }
@@ -199,8 +219,11 @@ class EventQueueService {
     try {
       if (!this.client) return 0;
 
-      const info = await this.client.xInfo('STREAM', this.streamName);
-      return info.length || 0;
+      // ioredis API: xinfo('STREAM', stream) - array döner, length field'ı var
+      const info = await this.client.xinfo('STREAM', this.streamName);
+      // info formatı: ['length', 5, 'first-entry', ...]
+      const lengthIndex = info.indexOf('length');
+      return lengthIndex >= 0 && lengthIndex + 1 < info.length ? info[lengthIndex + 1] : 0;
     } catch (error) {
       return 0;
     }
@@ -213,7 +236,8 @@ class EventQueueService {
     try {
       if (!this.client) return [];
 
-      const pending = await this.client.xPending(this.streamName, this.consumerGroup);
+      // ioredis API: xpending(stream, group)
+      const pending = await this.client.xpending(this.streamName, this.consumerGroup);
       return pending || [];
     } catch (error) {
       return [];
