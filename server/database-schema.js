@@ -1045,7 +1045,7 @@ async function createDatabaseSchema(pool) {
             AND COLUMN_NAME IN ('productId', 'productName', 'productPrice', 'productImage')
         `);
         
-        const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+        const existingColumns = columns.map((c) => c.COLUMN_NAME);
         
         if (!existingColumns.includes('productId')) {
           await pool.execute(`ALTER TABLE chatbot_analytics ADD COLUMN productId INT NULL`);
@@ -1063,7 +1063,7 @@ async function createDatabaseSchema(pool) {
         // Index ekle (eğer yoksa)
         try {
           await pool.execute(`ALTER TABLE chatbot_analytics ADD INDEX idx_product_analytics (productId)`);
-        } catch (idxError: any) {
+        } catch (idxError) {
           if (!idxError.message.includes('Duplicate key name')) {
             console.warn('⚠️ Index eklenemedi:', idxError.message);
           }
@@ -1072,12 +1072,12 @@ async function createDatabaseSchema(pool) {
         // Foreign key ekle (eğer yoksa)
         try {
           await pool.execute(`ALTER TABLE chatbot_analytics ADD FOREIGN KEY (productId) REFERENCES products(id) ON DELETE SET NULL`);
-        } catch (fkError: any) {
+        } catch (fkError) {
           if (!fkError.message.includes('Duplicate foreign key') && !fkError.message.includes('already exists')) {
             console.warn('⚠️ Foreign key eklenemedi:', fkError.message);
           }
         }
-      } catch (e: any) {
+      } catch (e) {
         console.warn('⚠️ Chatbot analytics table update warning:', e.message);
       }
 
