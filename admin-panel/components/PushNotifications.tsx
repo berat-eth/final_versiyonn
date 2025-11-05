@@ -366,7 +366,10 @@ export default function PushNotifications() {
                         type="radio"
                         name="targetType"
                         checked={formData.targetType === 'user'}
-                        onChange={() => setFormData({ ...formData, targetType: 'user', userId: '', selectedUsers: [] })}
+                        onChange={() => {
+                          setFormData({ ...formData, targetType: 'user', userId: '' })
+                          setSelectedUsers([])
+                        }}
                         className="mr-2"
                       />
                       Tek Kullanıcı
