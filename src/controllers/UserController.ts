@@ -35,6 +35,12 @@ export class UserController {
   private static cachedUser: User | null = null;
   private static cachedUserAt: number = 0;
   private static readonly CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+  
+  // Cache for user ID to avoid repeated checks and logs
+  private static cachedUserId: number | null = null;
+  private static cachedUserIdAt: number = 0;
+  private static readonly USER_ID_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private static lastLoggedUserIdState: number | null = null; // Track state changes for logging
 
   static async setUserPreference(key: string, value: any): Promise<void> {
     if (value === undefined) {
@@ -219,6 +225,11 @@ export class UserController {
           console.warn('⚠️ Kullanıcı verisi sunucuya kaydedilemedi:', dataError);
         }
         
+        // Update cache after successful registration
+        this.cachedUserId = response.data.userId;
+        this.cachedUserIdAt = Date.now();
+        this.lastLoggedUserIdState = response.data.userId;
+        
         return { success: true, message: 'Kayıt başarılı', userId: response.data.userId };
       } else {
         console.log(`❌ Registration failed: ${response.message}`);
@@ -290,6 +301,11 @@ export class UserController {
           console.warn('⚠️ Kullanıcı verisi sunucuya kaydedilemedi:', dataError);
         }
         
+        // Update cache after successful login
+        this.cachedUserId = user.id;
+        this.cachedUserIdAt = Date.now();
+        this.lastLoggedUserIdState = user.id;
+        
         return { success: true, message: 'Giriş başarılı', user };
       } else {
         console.log(`❌ Login failed: ${response.message}`);
@@ -339,6 +355,11 @@ export class UserController {
       await this.setUserPreference('user_phone', null);
       await this.setUserPreference('user_address', null);
       await this.setUserPreference('last_login', null);
+      
+      // Clear user ID cache
+      this.clearUserIdCache();
+      this.cachedUser = null;
+      this.cachedUserAt = 0;
       
       console.log('✅ User logged out successfully');
       return true;
@@ -430,29 +451,71 @@ export class UserController {
 
   /**
    * Get current user ID or return 0 if not logged in
+   * Optimized with caching to reduce repeated checks and logs
    */
   static async getCurrentUserId(): Promise<number> {
     try {
+      // Check cache first (avoid repeated async operations)
+      const now = Date.now();
+      if (this.cachedUserId !== null && (now - this.cachedUserIdAt) < this.USER_ID_CACHE_TTL_MS) {
+        return this.cachedUserId;
+      }
+
       // Try to get user ID directly from preferences first
       const userId = await this.getUserPreference('user_id');
       if (userId && userId > 0) {
-        console.log(`👤 Direct user ID from storage: ${userId}`);
+        // Only log if state changed
+        if (this.lastLoggedUserIdState !== userId) {
+          if (__DEV__) {
+            console.log(`👤 Direct user ID from storage: ${userId}`);
+          }
+          this.lastLoggedUserIdState = userId;
+        }
+        this.cachedUserId = userId;
+        this.cachedUserIdAt = now;
         return userId;
       }
 
       // Fallback to in-memory cache (no network)
       const currentUser = this.cachedUser || await this.getCurrentUser(false);
       if (currentUser && currentUser.id) {
-        console.log(`👤 Current user ID from getCurrentUser: ${currentUser.id} (${currentUser.name})`);
+        // Only log if state changed
+        if (this.lastLoggedUserIdState !== currentUser.id) {
+          if (__DEV__) {
+            console.log(`👤 Current user ID from getCurrentUser: ${currentUser.id} (${currentUser.name})`);
+          }
+          this.lastLoggedUserIdState = currentUser.id;
+        }
+        this.cachedUserId = currentUser.id;
+        this.cachedUserIdAt = now;
         return currentUser.id;
       } else {
-        console.log('👤 No logged in user - user must login to shop');
+        // Only log if state changed (from logged in to not logged in)
+        if (this.lastLoggedUserIdState !== 0) {
+          if (__DEV__) {
+            console.log('👤 No logged in user - user must login to shop');
+          }
+          this.lastLoggedUserIdState = 0;
+        }
+        this.cachedUserId = 0;
+        this.cachedUserIdAt = now;
         return 0; // No user logged in
       }
     } catch (error) {
       console.error('❌ Error getting current user ID:', error);
+      this.cachedUserId = 0;
+      this.cachedUserIdAt = Date.now();
       return 0; // No user logged in
     }
+  }
+  
+  /**
+   * Clear user ID cache (call after login/logout)
+   */
+  static clearUserIdCache(): void {
+    this.cachedUserId = null;
+    this.cachedUserIdAt = 0;
+    this.lastLoggedUserIdState = null;
   }
 
   static async updateProfile(userId: number, data: {

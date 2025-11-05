@@ -157,6 +157,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       loadData();
       loadFavorites();
       loadSliders();
+      loadFlashDeals();
       restoreCountdownAndStart();
     };
     const cleanupSlider = setupSliderTimer();
@@ -419,8 +420,12 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
-    await loadFavorites();
+    await Promise.all([
+      loadData(),
+      loadFavorites(),
+      loadFlashDeals(),
+      loadSliders()
+    ]);
     setRefreshing(false);
   };
 
@@ -989,12 +994,53 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
 
   const renderFlashDeals = () => {
     const now = nowTs;
-    const flash = (campaigns || []).filter((c: any) => c.isActive && c.status === 'active' && c.endDate);
     
-    // Flash deals API'sinden gelen veriler kullanılacak
-    const allFlashItems = [...flash];
+    // Flash deals API'sinden gelen tüm ürünleri topla
+    const allFlashProducts: Product[] = [];
     
-    if (allFlashItems.length === 0) return null;
+    if (flashDeals && flashDeals.length > 0) {
+      flashDeals.forEach((deal: FlashDeal) => {
+        if (deal.products && Array.isArray(deal.products) && deal.products.length > 0) {
+          deal.products.forEach((product: any) => {
+            // Duplicate kontrolü
+            if (!allFlashProducts.find(p => p.id === product.id)) {
+              // İndirim hesapla
+              const discountType = deal.discount_type || 'percentage';
+              const discountValue = deal.discount_value || 0;
+              let discountedPrice = product.price;
+              
+              if (discountType === 'percentage') {
+                discountedPrice = product.price * (1 - discountValue / 100);
+              } else if (discountType === 'fixed') {
+                discountedPrice = Math.max(0, product.price - discountValue);
+              }
+              
+              // Bitiş zamanını hesapla
+              const endDate = deal.end_date ? new Date(deal.end_date).getTime() : 0;
+              const remainSec = Math.max(0, Math.floor((endDate - now) / 1000));
+              
+              const productWithDiscount: Product = {
+                ...product,
+                image: product.image || product.imageUrl || 'https://via.placeholder.com/300x300?text=No+Image',
+                flashDiscount: discountType === 'percentage' ? discountValue : (discountValue / product.price * 100),
+                flashDiscountFixed: discountType === 'fixed' ? discountValue : 0,
+                originalPrice: product.price,
+                price: discountedPrice,
+                flashDealEndTime: remainSec,
+                flashDealName: deal.name
+              };
+              
+              allFlashProducts.push(productWithDiscount);
+            }
+          });
+        }
+      });
+    }
+    
+    if (allFlashProducts.length === 0) return null;
+    
+    // İlk 5 ürünü göster
+    const displayProducts = allFlashProducts.slice(0, 5);
     
     return (
       <View style={styles.sectionContainer}>
@@ -1003,105 +1049,90 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
             <Icon name="flash-on" size={18} color={Colors.secondary} />
             <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Flash İndirimler</Text>
           </View>
+          <TouchableOpacity onPress={() => {
+            navigation.navigate('ProductList', {
+              title: 'Flash İndirimler',
+              showFlashDeals: true
+            });
+          }}>
+            <Text style={styles.seeAll}>Tümü →</Text>
+          </TouchableOpacity>
         </View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.productList}
         >
-          {allFlashItems.slice(0, 8).map((item: any, index: number) => {
-            const isPolarProduct = 'flashDiscount' in item;
+          {displayProducts.map((item: Product, index: number) => {
+            const flashDiscount = (item as any).flashDiscount || 0;
+            const remainSec = (item as any).flashDealEndTime || 0;
             
-            if (isPolarProduct) {
-              // Polar ürün kartı
-              return (
-                <ModernCard
-                  key={`flash-polar-${item.id}`}
-                  onPress={() => handleProductPress(item)}
-                  style={[styles.productCard, styles.flashProductCard] as any}
-                  noPadding
-                  variant="outlined"
-                  gradientBorder={false}
-                >
-                  <View style={styles.productImageContainer}>
-                    <Image 
-                      source={{ uri: item.image || 'https://via.placeholder.com/300x300?text=No+Image' }} 
-                      style={styles.productImage} 
+            return (
+              <ModernCard
+                key={`flash-product-${item.id}-${index}`}
+                onPress={() => handleProductPress(item)}
+                style={[styles.productCard, styles.flashProductCard] as any}
+                noPadding
+                variant="outlined"
+                gradientBorder={false}
+              >
+                <View style={styles.productImageContainer}>
+                  <Image 
+                    source={{ uri: item.image || 'https://via.placeholder.com/300x300?text=No+Image' }} 
+                    style={styles.productImage} 
+                  />
+                  <View style={styles.flashDiscountBadge}>
+                    <Text style={styles.flashDiscountText}>
+                      %{flashDiscount.toFixed(0)} İndirim
+                    </Text>
+                  </View>
+                  <View style={styles.flashTimerBadge}>
+                    <Icon name="timer" size={12} color="white" />
+                    <Text style={styles.flashTimerText}>{formatHMS(remainSec)}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.favoriteButton}
+                    onPress={() => handleToggleFavorite(item)}
+                  >
+                    <Icon 
+                      name={favoriteProducts.includes(item.id) ? "favorite" : "favorite-border"} 
+                      size={20} 
+                      color={favoriteProducts.includes(item.id) ? Colors.secondary : Colors.text} 
                     />
-                    <View style={styles.flashDiscountBadge}>
-                      <Text style={styles.flashDiscountText}>%{item.flashDiscount} İndirim</Text>
-                    </View>
-                    <View style={styles.flashTimerBadge}>
-                      <Icon name="timer" size={12} color="white" />
-                      <Text style={styles.flashTimerText}>24:00:00</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.productInfo}>
+                  <Text style={styles.productBrand}>{item.brand}</Text>
+                  <Text style={styles.productName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <View style={styles.productFooter}>
+                    <View>
+                      <Text style={styles.flashOriginalPrice}>
+                        {ProductController.formatPrice((item as any).originalPrice || item.price)}
+                      </Text>
+                      <Text style={styles.flashDiscountedPrice}>
+                        {ProductController.formatPrice(item.price)}
+                      </Text>
+                      {item.rating > 0 && (
+                        <View style={styles.ratingContainer}>
+                          <Icon name="star" size={14} color={Colors.warning} />
+                          <Text style={styles.ratingText}>
+                            {item.rating.toFixed(1)} ({item.reviewCount || 0})
+                          </Text>
+                        </View>
+                      )}
                     </View>
                     <TouchableOpacity 
-                      style={styles.favoriteButton}
-                      onPress={() => handleToggleFavorite(item)}
+                      style={styles.addToCartButton}
+                      onPress={() => handleAddToCart(item)}
                     >
-                      <Icon 
-                        name={favoriteProducts.includes(item.id) ? "favorite" : "favorite-border"} 
-                        size={20} 
-                        color={favoriteProducts.includes(item.id) ? Colors.secondary : Colors.text} 
-                      />
+                      <Icon name="add-shopping-cart" size={18} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productBrand}>{item.brand}</Text>
-                    <Text style={styles.productName} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-                    <View style={styles.productFooter}>
-                      <View>
-                        <Text style={styles.flashOriginalPrice}>
-                          {ProductController.formatPrice(item.price)}
-                        </Text>
-                        <Text style={styles.flashDiscountedPrice}>
-                          {ProductController.formatPrice(item.price * 0.9)}
-                        </Text>
-                        {item.rating > 0 && (
-                          <View style={styles.ratingContainer}>
-                            <Icon name="star" size={14} color={Colors.warning} />
-                            <Text style={styles.ratingText}>
-                              {item.rating.toFixed(1)} ({item.reviewCount})
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <TouchableOpacity 
-                        style={styles.addToCartButton}
-                        onPress={() => handleAddToCart(item)}
-                      >
-                        <Icon name="add-shopping-cart" size={18} color={Colors.primary} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </ModernCard>
-              );
-            } else {
-              // Kampanya kartı (eski stil)
-              const end = new Date(item.endDate as string).getTime();
-              const remainSec = Math.max(0, Math.floor((end - now) / 1000));
-              
-              return (
-                <View key={`flash-${item.id}`} style={[styles.offerCard, { backgroundColor: '#dc3545' }]}>
-                  <View style={styles.offerHeader}>
-                    <View style={styles.offerIcon}>
-                      <Icon name="bolt" size={20} color="white" />
-                    </View>
-                    <View style={styles.offerInfo}>
-                      <Text style={styles.offerTitle} numberOfLines={2}>{item.name}</Text>
-                      <Text style={styles.offerDescription} numberOfLines={2}>
-                        {item.description || 'Süre dolmadan yakalayın!'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={[styles.offerDiscount, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
-                    <Text style={styles.discountText}>Bitişe Kalan: {formatHMS(remainSec)}</Text>
-                  </View>
                 </View>
-              );
-            }
+              </ModernCard>
+            );
           })}
         </ScrollView>
       </View>

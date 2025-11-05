@@ -33,6 +33,7 @@ import { ProductListHeader } from '../components/ProductListHeader';
 import { CategoriesSection } from '../components/CategoriesSection';
 import { ProductListControls } from '../components/ProductListControls';
 import { FlashDealsHeader } from '../components/FlashDealsHeader';
+import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 
 interface ProductListScreenProps {
   navigation: any;
@@ -80,7 +81,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [nowTs, setNowTs] = useState<number>(Date.now());
   const nowIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [showFlashDeals, setShowFlashDeals] = useState(false);
+  const [showFlashDeals, setShowFlashDeals] = useState(route.params?.showFlashDeals || false);
+  const [flashDeals, setFlashDeals] = useState<FlashDeal[]>([]);
   const [showHeaderSection, setShowHeaderSection] = useState(true);
   // Pagination state
   const [currentPageNum, setCurrentPageNum] = useState(1);
@@ -97,6 +99,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     loadData();
     loadFavorites();
     loadCampaigns();
+    loadFlashDeals();
     if (mounted && !nowIntervalRef.current) {
       nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
     }
@@ -135,7 +138,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     if (route.params?.category !== undefined) {
       setSelectedCategory(route.params.category);
     }
-  }, [route.params?.category]);
+    if (route.params?.showFlashDeals !== undefined) {
+      setShowFlashDeals(route.params.showFlashDeals);
+    }
+  }, [route.params?.category, route.params?.showFlashDeals]);
 
   useEffect(() => {
     applyFiltersAndSort();
@@ -195,6 +201,16 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
   };
 
+  const loadFlashDeals = async () => {
+    try {
+      const deals = await FlashDealService.getActiveFlashDeals();
+      setFlashDeals(deals || []);
+    } catch (error) {
+      console.error('Flash deal yükleme hatası:', error);
+      setFlashDeals([]);
+    }
+  };
+
   const isFlashCampaign = (c: Campaign) => {
     if (!c.isActive || c.status !== 'active' || !c.endDate) return false;
     const end = new Date(c.endDate).getTime();
@@ -203,21 +219,49 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   };
 
   const getFlashDealProducts = (): Product[] => {
-    const flashCamps = (campaigns || []).filter(isFlashCampaign);
-    const productIds = new Set<number>();
+    const allFlashProducts: Product[] = [];
     
-    // Kampanyalardaki ürünleri ekle
-    for (const c of flashCamps) {
-      if (Array.isArray(c.applicableProducts) && c.applicableProducts.length > 0) {
-        c.applicableProducts.forEach(id => productIds.add(Number(id)));
-      }
+    // Flash deals API'sinden gelen ürünleri topla
+    if (flashDeals && flashDeals.length > 0) {
+      flashDeals.forEach((deal: FlashDeal) => {
+        if (deal.products && Array.isArray(deal.products) && deal.products.length > 0) {
+          deal.products.forEach((product: any) => {
+            // Duplicate kontrolü
+            if (!allFlashProducts.find(p => p.id === product.id)) {
+              // İndirim hesapla
+              const discountType = deal.discount_type || 'percentage';
+              const discountValue = deal.discount_value || 0;
+              let discountedPrice = product.price;
+              
+              if (discountType === 'percentage') {
+                discountedPrice = product.price * (1 - discountValue / 100);
+              } else if (discountType === 'fixed') {
+                discountedPrice = Math.max(0, product.price - discountValue);
+              }
+              
+              // Bitiş zamanını hesapla
+              const endDate = deal.end_date ? new Date(deal.end_date).getTime() : 0;
+              const remainSec = Math.max(0, Math.floor((endDate - nowTs) / 1000));
+              
+              const productWithDiscount: Product = {
+                ...product,
+                image: product.image || product.imageUrl || 'https://via.placeholder.com/300x300?text=No+Image',
+                flashDiscount: discountType === 'percentage' ? discountValue : (discountValue / product.price * 100),
+                flashDiscountFixed: discountType === 'fixed' ? discountValue : 0,
+                originalPrice: product.price,
+                price: discountedPrice,
+                flashDealEndTime: remainSec,
+                flashDealName: deal.name
+              };
+              
+              allFlashProducts.push(productWithDiscount);
+            }
+          });
+        }
+      });
     }
     
-    // Flash deals API'sinden gelen veriler kullanılacak
-    const pool = selectedCategory ? products : (filteredProducts.length ? filteredProducts : products);
-    const campaignProducts = pool.filter(p => productIds.has(p.id));
-    
-    return campaignProducts;
+    return allFlashProducts;
   };
 
   const formatHMS = (totalSeconds: number) => {
@@ -229,16 +273,17 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   };
 
   const getFlashHeaderData = () => {
-    const flashCampaigns = (campaigns || []).filter(isFlashCampaign);
-    const ends = flashCampaigns
-      .map(c => new Date(c.endDate as string).getTime())
+    // Flash deals API'sinden gelen en yakın bitiş zamanını bul
+    const ends = flashDeals
+      .filter(deal => deal.end_date)
+      .map(deal => new Date(deal.end_date).getTime())
       .sort((a, b) => a - b);
     const soonestEnd = ends[0];
     const remainSec = soonestEnd ? Math.max(0, Math.floor((soonestEnd - nowTs) / 1000)) : 0;
     
     return {
       remainingTime: remainSec,
-      campaignCount: flashCampaigns.length,
+      campaignCount: flashDeals.length,
     };
   };
 
@@ -246,7 +291,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     setRefreshing(true);
     setCurrentPageNum(1);
     setHasMore(true);
-    await loadData(1, false);
+    await Promise.all([
+      loadData(1, false),
+      loadFlashDeals()
+    ]);
     setRefreshing(false);
   };
 

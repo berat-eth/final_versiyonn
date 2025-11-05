@@ -268,7 +268,7 @@ class ApiService {
   // Enhanced request method with better error handling
   private async request<T>(
     endpoint: string,
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
     body?: any,
     retryCount: number = 0,
     isOfflineRetry: boolean = false
@@ -1341,6 +1341,10 @@ class ApiService {
 
   async put<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, 'PUT', data);
+  }
+
+  async patch<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, 'PATCH', data);
   }
 
   async delete<T = any>(endpoint: string): Promise<ApiResponse<T>> {
