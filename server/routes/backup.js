@@ -1,24 +1,63 @@
 const express = require('express');
 const router = express.Router();
 const { poolWrapper } = require('../orm/sequelize');
+const { authenticateAdmin } = require('../middleware/auth');
+const InputValidation = require('../security/input-validation');
 
-// JSON yedek endpoint'i (mevcut)
-router.get('/', async (req, res) => {
+const inputValidator = new InputValidation();
+
+// Güvenli tablo isimleri whitelist
+const ALLOWED_TABLES = [
+  'users', 'products', 'categories', 'orders', 'cart_items',
+  'campaigns', 'discount_codes', 'stories', 'sliders', 'flash_deals',
+  'live_users', 'user_activities', 'admin_logs', 'tenants',
+  'product_variations', 'product_variation_options', 'cart',
+  'user_wallets', 'wallet_transactions', 'reviews', 'custom_production_requests'
+];
+
+// Tablo ismi doğrulama fonksiyonu
+function validateTableName(tableName) {
+  if (!tableName || typeof tableName !== 'string') {
+    return false;
+  }
+  
+  // Sadece alfanumerik ve underscore karakterlerine izin ver
+  if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
+    return false;
+  }
+  
+  // Whitelist kontrolü
+  return ALLOWED_TABLES.includes(tableName);
+}
+
+// Güvenli tablo ismi sanitizasyonu
+function sanitizeTableName(tableName) {
+  if (!tableName || typeof tableName !== 'string') {
+    return null;
+  }
+  
+  // Sadece alfanumerik ve underscore karakterlerini koru
+  const sanitized = tableName.replace(/[^a-zA-Z0-9_]/g, '');
+  
+  // Whitelist kontrolü
+  if (!ALLOWED_TABLES.includes(sanitized)) {
+    return null;
+  }
+  
+  return sanitized;
+}
+
+// JSON yedek endpoint'i - Admin authentication gerekli
+router.get('/', authenticateAdmin, async (req, res) => {
   try {
-    console.log('📦 JSON backup requested');
-    
-    // Tüm tabloları al
-    const tables = [
-      'users', 'products', 'categories', 'orders', 'cart_items',
-      'campaigns', 'discount_codes', 'stories', 'sliders', 'flash_deals',
-      'live_users', 'user_activities', 'admin_logs'
-    ];
+    console.log('📦 JSON backup requested by admin');
     
     const backupData = {};
     
-    for (const table of tables) {
+    for (const table of ALLOWED_TABLES) {
       try {
-        const [rows] = await poolWrapper.execute(`SELECT * FROM ${table}`);
+        // Tablo ismi whitelist'te olduğu için güvenli - backtick ile sarmalayarak kullan
+        const [rows] = await poolWrapper.execute(`SELECT * FROM \`${table}\``);
         backupData[table] = rows;
         console.log(`✅ Table ${table}: ${rows.length} records`);
       } catch (error) {
@@ -47,10 +86,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// SQL yedek endpoint'i (yeni)
-router.get('/sql', async (req, res) => {
+// SQL yedek endpoint'i - Admin authentication gerekli
+router.get('/sql', authenticateAdmin, async (req, res) => {
   try {
-    console.log('🗄️ SQL backup requested');
+    console.log('🗄️ SQL backup requested by admin');
     
     let sqlBackup = '';
     const timestamp = new Date().toISOString();
@@ -68,30 +107,38 @@ router.get('/sql', async (req, res) => {
     sqlBackup += `START TRANSACTION;\n`;
     sqlBackup += `SET time_zone = "+00:00";\n\n`;
     
-    // Tabloları al
+    // Sadece whitelist'teki tabloları al - Güvenli parametreli sorgu
+    const placeholders = ALLOWED_TABLES.map(() => '?').join(',');
     const [tables] = await poolWrapper.execute(`
       SELECT TABLE_NAME 
       FROM INFORMATION_SCHEMA.TABLES 
       WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME IN (${placeholders})
       ORDER BY TABLE_NAME
-    `);
+    `, ALLOWED_TABLES);
     
-    console.log(`📋 Found ${tables.length} tables`);
+    console.log(`📋 Found ${tables.length} allowed tables`);
     
     for (const table of tables) {
       const tableName = table.TABLE_NAME;
       
+      // Güvenlik kontrolü - double check
+      if (!validateTableName(tableName)) {
+        console.warn(`⚠️ Skipping invalid table name: ${tableName}`);
+        continue;
+      }
+      
       try {
-        // Tablo yapısını al
-        const [createTable] = await poolWrapper.execute(`SHOW CREATE TABLE ${tableName}`);
+        // Tablo ismi validate edildi - backtick ile sarmalayarak kullan
+        const [createTable] = await poolWrapper.execute(`SHOW CREATE TABLE \`${tableName}\``);
         if (createTable && createTable[0]) {
           sqlBackup += `-- Table structure for table \`${tableName}\`\n`;
           sqlBackup += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
           sqlBackup += `${createTable[0]['Create Table']};\n\n`;
         }
         
-        // Tablo verilerini al
-        const [rows] = await poolWrapper.execute(`SELECT * FROM ${tableName}`);
+        // Tablo verilerini al - tablo ismi validate edildi
+        const [rows] = await poolWrapper.execute(`SELECT * FROM \`${tableName}\``);
         
         if (rows.length > 0) {
           sqlBackup += `-- Data for table \`${tableName}\`\n`;
@@ -157,8 +204,8 @@ router.get('/sql', async (req, res) => {
   }
 });
 
-// Restore endpoint'i
-router.post('/restore', async (req, res) => {
+// Restore endpoint'i - Admin authentication gerekli
+router.post('/restore', authenticateAdmin, async (req, res) => {
   try {
     const { data, format } = req.body;
     
@@ -169,13 +216,30 @@ router.post('/restore', async (req, res) => {
       });
     }
     
-    console.log(`🔄 Restore requested: ${format || 'unknown'} format`);
+    // SQL injection kontrolü
+    if (inputValidator.scanObjectForSqlInjection({ data, format })) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid input detected in restore data'
+      });
+    }
+    
+    console.log(`🔄 Restore requested by admin: ${format || 'unknown'} format`);
     
     if (format === 'sql') {
-      // SQL restore
+      // SQL restore - Güvenlik: Sadece SELECT, INSERT, UPDATE, DELETE komutlarına izin ver
       const sqlCommands = data.split(';').filter(cmd => cmd.trim());
+      const dangerousKeywords = ['DROP', 'TRUNCATE', 'ALTER', 'CREATE', 'GRANT', 'REVOKE'];
       
       for (const sql of sqlCommands) {
+        const sqlUpper = sql.trim().toUpperCase();
+        const hasDangerousKeyword = dangerousKeywords.some(keyword => sqlUpper.includes(keyword));
+        
+        if (hasDangerousKeyword) {
+          console.warn(`⚠️ Skipping dangerous SQL command: ${sql.substring(0, 100)}`);
+          continue;
+        }
+        
         if (sql.trim()) {
           await poolWrapper.execute(sql.trim());
         }
@@ -184,13 +248,20 @@ router.post('/restore', async (req, res) => {
       console.log(`✅ SQL restore completed: ${sqlCommands.length} commands`);
       
     } else {
-      // JSON restore
+      // JSON restore - Tablo ismi doğrulama ile
       for (const [tableName, records] of Object.entries(data)) {
         if (tableName.startsWith('_')) continue;
         
+        // Tablo ismi doğrulama
+        const sanitizedTableName = sanitizeTableName(tableName);
+        if (!sanitizedTableName) {
+          console.warn(`⚠️ Skipping invalid table name: ${tableName}`);
+          continue;
+        }
+        
         if (Array.isArray(records) && records.length > 0) {
-          // Tabloyu temizle
-          await poolWrapper.execute(`DELETE FROM ${tableName}`);
+          // Tabloyu temizle - tablo ismi validate edildi
+          await poolWrapper.execute(`DELETE FROM \`${sanitizedTableName}\``);
           
           // Verileri ekle
           for (const record of records) {
@@ -198,13 +269,24 @@ router.post('/restore', async (req, res) => {
             const values = Object.values(record);
             const placeholders = columns.map(() => '?').join(', ');
             
+            // Column isimlerini sanitize et
+            const sanitizedColumns = columns.map(col => col.replace(/[^a-zA-Z0-9_]/g, '')).filter(col => col);
+            
+            if (sanitizedColumns.length !== columns.length) {
+              console.warn(`⚠️ Skipping record with invalid column names`);
+              continue;
+            }
+            
+            // Column isimlerini backtick ile sarmala
+            const columnNames = sanitizedColumns.map(col => `\`${col}\``).join(', ');
+            
             await poolWrapper.execute(
-              `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`,
+              `INSERT INTO \`${sanitizedTableName}\` (${columnNames}) VALUES (${placeholders})`,
               values
             );
           }
           
-          console.log(`✅ Table ${tableName}: ${records.length} records restored`);
+          console.log(`✅ Table ${sanitizedTableName}: ${records.length} records restored`);
         }
       }
       

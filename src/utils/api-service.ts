@@ -6,12 +6,12 @@ import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 // Dynamic API base URL - will be set based on network detection
 let currentApiUrl = getApiBaseUrl();
-// ✅ OPTIMIZASYON: Cache durations - daha agresif cache stratejisi
-const CACHE_DURATION = 10 * 60 * 1000; // 10 dakika - genel cache
-const PRODUCT_CACHE_DURATION = 20 * 60 * 1000; // 20 dakika - ürünler için (daha hızlı yenileme)
-const CATEGORY_CACHE_DURATION = 60 * 60 * 1000; // 1 saat - kategoriler için (nadiren değişir)
-const STATIC_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 saat - statik içerik (slider, brands)
-const CART_CACHE_DURATION = 2 * 60 * 1000; // 2 dakika - sepet için (daha sık güncellenir)
+// ✅ OPTIMIZASYON: Cache durations - optimize edilmiş cache stratejisi
+const CACHE_DURATION = 15 * 60 * 1000; // 15 dakika - genel cache (10 → 15)
+const PRODUCT_CACHE_DURATION = 30 * 60 * 1000; // 30 dakika - ürünler için (20 → 30)
+const CATEGORY_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 saat - kategoriler için (1 → 2 saat)
+const STATIC_CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 saat - statik içerik (2 → 4 saat)
+const CART_CACHE_DURATION = 3 * 60 * 1000; // 3 dakika - sepet için (2 → 3 dakika)
 const OFFLINE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 saat offline cache
 
 // Offline özellikleri devre dışı: her zaman ağ üzerinden dene

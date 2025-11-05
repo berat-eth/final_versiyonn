@@ -29,9 +29,10 @@ const multer = require('multer');
 const { OAuth2Client } = require('google-auth-library');
 const compression = require('compression');
 
-// Security modules (simplified)
+// Security modules
 const DatabaseSecurity = require('./security/database-security');
 const InputValidation = require('./security/input-validation');
+const AdvancedSecurity = require('./security/advanced-security');
 
 // Ollama integration
 const axios = require('axios');
@@ -230,8 +231,32 @@ function getLocalIPAddress() {
   return 'localhost';
 }
 
-// Middleware
-app.use(helmet({ contentSecurityPolicy: false }));
+// Middleware - Güvenlik başlıkları
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  xssFilter: true,
+  noSniff: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+}));
 app.use(hpp());
 // Enable gzip compression for API responses
 app.use(compression({
@@ -242,13 +267,37 @@ app.use(compression({
   }
 }));
 
-// CORS - Tüm kısıtlamaları kaldır
+// CORS - Güvenli yapılandırma
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : (process.env.NODE_ENV === 'production' 
+      ? [] // Production'da environment variable'dan oku
+      : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000']); // Development için
+
 app.use(cors({
-  origin: true, // Tüm origin'lere izin ver
-  credentials: true, // Credentials'a izin ver
+  origin: (origin, callback) => {
+    // Same-origin istekleri (Postman, curl, vb.) için izin ver
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Development mode'da tüm origin'lere izin ver (opsiyonel)
+    if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_ALL_ORIGINS === 'true') {
+      return callback(null, true);
+    }
+    
+    // Whitelist kontrolü
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-  allowedHeaders: '*', // Tüm header'lara izin ver
-  exposedHeaders: '*', // Tüm header'ları expose et
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
   preflightContinue: false,
   optionsSuccessStatus: 200
 }));
@@ -365,14 +414,48 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+// Rate limiting - Endpoint bazlı
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 15 * 60 * 1000, // 15 dakika
   max: parseInt(process.env.API_RATE_LIMIT || '400', 10),
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  message: 'Too many requests from this IP, please try again later'
 });
-app.use('/api/users/login', authLimiter);
-app.use('/api/admin', authLimiter);
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dakika
+  max: 5, // 5 başarısız deneme
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: 'Too many login attempts, please try again after 15 minutes'
+});
+
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dakika
+  max: 100, // Admin endpoint'leri için daha yüksek limit
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many admin requests, please try again later'
+});
+
+const criticalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 dakika
+  max: 10, // Kritik endpoint'ler için düşük limit
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Rate limit exceeded for this endpoint'
+});
+
+// Rate limiting uygulama
+app.use('/api/users/login', loginLimiter);
+app.use('/api/admin/login', loginLimiter);
+app.use('/api/admin', adminLimiter);
+app.use('/api/users', authLimiter);
+app.use('/api/orders', criticalLimiter);
+app.use('/api/cart', authLimiter);
+app.use('/api/products', authLimiter);
 
 // SQL Query Logger Middleware
 app.use((req, res, next) => {
@@ -392,6 +475,7 @@ app.use((req, res, next) => {
 // Initialize security modules
 const dbSecurity = new DatabaseSecurity();
 const inputValidator = new InputValidation();
+const advancedSecurity = new AdvancedSecurity();
 
 // Basic request size limiting
 app.use(express.json({ limit: '10mb' }));
@@ -458,6 +542,9 @@ const relaxedCartLimiter = rateLimit({
   skip: (req) => isPrivateIp(req.ip) || req.headers['x-internal-proxy'] === '1'
 });
 app.use('/api', tenantCache);
+
+// Advanced Security Middleware - Saldırı tespiti ve IP reputation kontrolü
+app.use('/api', advancedSecurity.createSecurityMiddleware());
 
 // Global API Key Authentication for all API routes (except health and admin login)
 app.use('/api', (req, res, next) => {
@@ -2168,9 +2255,9 @@ app.post('/api/payments/process', async (req, res) => {
       });
     }
 
-    // Get order details
+    // Get order details - Optimize: sadece gerekli column'lar
     const [orderRows] = await poolWrapper.execute(
-      'SELECT * FROM orders WHERE id = ? AND tenantId = ?',
+      'SELECT id, userId, status, totalAmount, paymentMethod, shippingAddress, createdAt, updatedAt, tenantId FROM orders WHERE id = ? AND tenantId = ?',
       [orderId, req.tenant.id]
     );
 
@@ -2183,9 +2270,9 @@ app.post('/api/payments/process', async (req, res) => {
 
     const order = orderRows[0];
 
-    // Get order items
+    // Get order items - Optimize: sadece gerekli column'lar
     const [itemRows] = await poolWrapper.execute(
-      'SELECT * FROM order_items WHERE orderId = ? AND tenantId = ?',
+      'SELECT id, productId, productName, quantity, price, variationString, selectedVariations FROM order_items WHERE orderId = ? AND tenantId = ?',
       [orderId, req.tenant.id]
     );
 
@@ -7567,9 +7654,9 @@ app.post('/api/users/login', async (req, res) => {
     // Use default tenant ID if not provided
     const tenantId = req.tenant?.id || 1;
 
-    // Get user with hashed password
+    // Get user with hashed password - Optimize: sadece gerekli column'lar
     const [rows] = await poolWrapper.execute(
-      'SELECT * FROM users WHERE email = ? AND tenantId = ?',
+      'SELECT id, name, email, phone, address, password, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt, tenantId FROM users WHERE email = ? AND tenantId = ?',
       [email, tenantId]
     );
 
@@ -7628,9 +7715,9 @@ app.put('/api/users/:id', async (req, res) => {
     const { id } = req.params;
     const { name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, currentPassword, newPassword } = req.body;
 
-    // Get current user
+    // Get current user - Optimize: sadece gerekli column'lar
     const [userRows] = await poolWrapper.execute(
-      'SELECT * FROM users WHERE id = ? AND tenantId = ?',
+      'SELECT id, name, email, phone, address, password, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt, tenantId FROM users WHERE id = ? AND tenantId = ?',
       [id, req.tenant.id]
     );
 
@@ -8257,8 +8344,9 @@ app.put('/api/orders/:id/cancel', async (req, res) => {
 // Admin - Get all products (for admin panel)
 app.get('/api/admin/products', authenticateAdmin, async (req, res) => {
   try {
+    // Optimize: Admin için gerekli column'lar
     const [rows] = await poolWrapper.execute(
-      'SELECT * FROM products ORDER BY lastUpdated DESC'
+      'SELECT id, name, price, image, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId FROM products ORDER BY lastUpdated DESC'
     );
 
     // Clean HTML entities from all products
@@ -8277,8 +8365,9 @@ app.get('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
     const productId = req.params.id;
     console.log('📦 Admin requesting product detail for ID:', productId);
 
+    // Optimize: Admin detail için gerekli column'lar
     const [rows] = await poolWrapper.execute(
-      'SELECT * FROM products WHERE id = ?',
+      'SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId FROM products WHERE id = ?',
       [productId]
     );
 
@@ -8327,7 +8416,8 @@ app.post('/api/admin/products', authenticateAdmin, async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `, [tenantId, name, description, parseFloat(price), parseFloat(taxRate || 0), !!priceIncludesTax, category, image, parseInt(stock || 0, 10), brand]);
 
-    const [rows] = await poolWrapper.execute('SELECT * FROM products WHERE id = ?', [result.insertId]);
+    // Optimize: Sadece gerekli column'lar
+    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId FROM products WHERE id = ?', [result.insertId]);
     res.json({ success: true, data: rows[0], message: 'Ürün oluşturuldu' });
   } catch (error) {
     console.error('❌ Error creating product:', error);
@@ -8353,7 +8443,8 @@ app.put('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
     }
     params.push(productId);
     await poolWrapper.execute(`UPDATE products SET ${fields.join(', ')}, lastUpdated = NOW() WHERE id = ?`, params);
-    const [rows] = await poolWrapper.execute('SELECT * FROM products WHERE id = ?', [productId]);
+    // Optimize: Sadece gerekli column'lar
+    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId FROM products WHERE id = ?', [productId]);
     res.json({ success: true, data: rows[0], message: 'Ürün güncellendi' });
   } catch (error) {
     console.error('❌ Error updating product:', error);
@@ -8447,8 +8538,9 @@ app.post('/api/admin/categories', authenticateAdmin, async (req, res) => {
       [req.tenant.id, name, description || '', categoryTree || '', parentId || null, 'MANUAL']
     );
 
+    // Optimize: Sadece gerekli column'lar
     const [newCategory] = await poolWrapper.execute(
-      'SELECT * FROM categories WHERE id = ?', [result.insertId]
+      'SELECT id, name, description, categoryTree, parentId, source, isActive, createdAt, updatedAt, tenantId FROM categories WHERE id = ?', [result.insertId]
     );
 
     res.json({ success: true, data: newCategory[0], message: 'Kategori oluşturuldu' });
@@ -8486,8 +8578,9 @@ app.put('/api/admin/categories/:id', authenticateAdmin, async (req, res) => {
       params
     );
 
+    // Optimize: Sadece gerekli column'lar
     const [updatedCategory] = await poolWrapper.execute(
-      'SELECT * FROM categories WHERE id = ? AND tenantId = ?', [categoryId, req.tenant.id]
+      'SELECT id, name, description, categoryTree, parentId, source, isActive, createdAt, updatedAt, tenantId FROM categories WHERE id = ? AND tenantId = ?', [categoryId, req.tenant.id]
     );
 
     res.json({ success: true, data: updatedCategory[0], message: 'Kategori güncellendi' });
@@ -8880,7 +8973,8 @@ app.get('/api/products', async (req, res) => {
           const key = `products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`;
           const cached = await global.redis.get(key);
           if (cached) {
-            res.setHeader('Cache-Control', 'public, max-age=30');
+            // Optimize: Client cache 30 → 60 saniye
+            res.setHeader('Cache-Control', 'public, max-age=60');
             return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
           }
         }
@@ -8927,16 +9021,16 @@ app.get('/api/products', async (req, res) => {
     // Clean HTML entities from all products
     const cleanedProducts = rows.map(cleanProductData);
 
-    // Short client cache for list responses
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    // Optimize: Client cache 60 → 120 saniye (2 dakika)
+    res.setHeader('Cache-Control', 'public, max-age=120');
     const payload = {
       products: cleanedProducts,
       total: total,
       hasMore: offset + limit < total
     };
-    // Save to Redis (page 1 only) - cache key'e tekstilOnly ekle
+    // Save to Redis (page 1 only) - Optimize: Cache TTL 300 → 600 (10 dakika)
     if (page === 1) {
-      try { if (global.redis) await global.redis.setEx(`products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`, 300, JSON.stringify(payload)); } catch { }
+      try { if (global.redis) await global.redis.setEx(`products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`, 600, JSON.stringify(payload)); } catch { }
     }
     res.json({ success: true, data: payload });
   } catch (error) {
@@ -9248,7 +9342,8 @@ app.get('/api/products/:id', async (req, res) => {
     if (!Number.isInteger(numericId) || numericId <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid product id' });
     }
-    const [rows] = await poolWrapper.execute('SELECT * FROM products WHERE id = ?', [numericId]);
+    // Optimize: Sadece gerekli column'lar - Public API için
+    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, rating, reviewCount, lastUpdated FROM products WHERE id = ? AND isActive = 1', [numericId]);
 
     if (rows.length > 0) {
       // Clean HTML entities from single product
@@ -9611,7 +9706,8 @@ app.post('/api/products/filter', async (req, res) => {
   try {
     const { category, minPrice, maxPrice, brand, search, tekstilOnly } = req.body;
 
-    let query = 'SELECT * FROM products WHERE tenantId = ?';
+    // Optimize: Sadece gerekli column'lar
+    let query = 'SELECT id, name, price, image, brand, category, stock, sku, rating, reviewCount FROM products WHERE tenantId = ? AND isActive = 1';
     const params = [req.tenant.id];
 
     // Tekstil ürünleri için kategori filtreleme (sadece eksplisit olarak tekstilOnly=true ise)
@@ -10362,7 +10458,9 @@ async function startServer() {
           rows = again;
           return;
         }
-        const q = `SELECT c.*, p.name, p.price, p.image, p.stock 
+        // Optimize: Sadece gerekli column'lar
+        const q = `SELECT c.id, c.userId, c.deviceId, c.productId, c.quantity, c.variationString, c.selectedVariations, c.createdAt, 
+                          p.name, p.price, p.image, p.stock 
          FROM cart c 
          JOIN products p ON c.productId = p.id 
          WHERE c.userId = ? AND c.tenantId = ?
@@ -10370,11 +10468,14 @@ async function startServer() {
         const params = [userId, tenantId];
         const [dbRows] = await poolWrapper.execute(q, params);
         rows = dbRows;
-        await setJsonEx(cacheKey, 60, rows);
+        // Optimize: Cache TTL 60 → 180 (3 dakika - sepet sık değişir)
+        await setJsonEx(cacheKey, 180, rows);
       });
 
       if (!rows) {
-        const q = `SELECT c.*, p.name, p.price, p.image, p.stock 
+        // Optimize: Sadece gerekli column'lar
+        const q = `SELECT c.id, c.userId, c.deviceId, c.productId, c.quantity, c.variationString, c.selectedVariations, c.createdAt, 
+                          p.name, p.price, p.image, p.stock 
          FROM cart c 
          JOIN products p ON c.productId = p.id 
          WHERE c.userId = ? AND c.tenantId = ?
@@ -10382,7 +10483,8 @@ async function startServer() {
         const params = [userId, tenantId];
         const [dbRows] = await poolWrapper.execute(q, params);
         rows = dbRows;
-        await setJsonEx(cacheKey, 60, rows);
+        // Optimize: Cache TTL 60 → 180 (3 dakika)
+        await setJsonEx(cacheKey, 180, rows);
       }
 
       res.json({ success: true, data: rows });
@@ -10478,7 +10580,8 @@ async function startServer() {
       }
 
       // Get cart items for user
-      let cartQuery = 'SELECT c.*, p.name as productName, p.price FROM cart c JOIN products p ON c.productId = p.id WHERE c.tenantId = ?';
+      // Optimize: Sadece gerekli column'lar
+      let cartQuery = 'SELECT c.id, c.userId, c.productId, c.quantity, c.variationString, c.selectedVariations, p.name as productName, p.price FROM cart c JOIN products p ON c.productId = p.id WHERE c.tenantId = ?';
       const cartParams = [tenantId];
 
       if (userId !== 1) {
@@ -10628,7 +10731,9 @@ async function startServer() {
       }
 
       // Cache miss - DB'den çek
-      let getCartSql = `SELECT c.*, p.name, p.price, p.image, p.stock 
+      // Optimize: Sadece gerekli column'lar
+      let getCartSql = `SELECT c.id, c.userId, c.deviceId, c.productId, c.quantity, c.variationString, c.selectedVariations, c.createdAt, 
+                               p.name, p.price, p.image, p.stock
          FROM cart c 
          JOIN products p ON c.productId = p.id 
          WHERE c.tenantId = ? AND c.userId = ?`;
@@ -10644,8 +10749,8 @@ async function startServer() {
 
       const [rows] = await poolWrapper.execute(getCartSql, getCartParams);
 
-      // ⚡ OPTIMIZASYON: Cache süresi 60 → 300 saniye (5 dakika)
-      await setJsonEx(cacheKey, 300, rows);
+      // ⚡ OPTIMIZASYON: Cache süresi 300 → 180 saniye (3 dakika - sepet daha sık değişir)
+      await setJsonEx(cacheKey, 180, rows);
 
       console.log(`✅ Server: Found ${rows.length} cart items for user ${userId}`);
       res.json({ success: true, data: rows });
@@ -10715,13 +10820,15 @@ async function startServer() {
         }
       } catch { }
       if (!campaigns) {
+        // Optimize: Sadece gerekli column'lar
         const [rows] = await poolWrapper.execute(
-          `SELECT * FROM campaigns WHERE tenantId = ? AND isActive = 1 AND status = 'active'
+          `SELECT id, name, type, discountType, discountValue, applicableProducts, startDate, endDate, minPurchaseAmount, maxDiscountAmount, isActive, status FROM campaigns WHERE tenantId = ? AND isActive = 1 AND status = 'active'
            AND (startDate IS NULL OR startDate <= NOW()) AND (endDate IS NULL OR endDate >= NOW())`,
           [tenantId]
         );
         campaigns = rows;
-        try { if (global.redis) await global.redis.setEx(`campaigns:active:${tenantId}`, 300, JSON.stringify(rows)); } catch { }
+        // Optimize: Cache TTL 300 → 600 (10 dakika - campaigns daha az değişir)
+        try { if (global.redis) await global.redis.setEx(`campaigns:active:${tenantId}`, 600, JSON.stringify(rows)); } catch { }
       }
 
       let discountTotal = 0;
@@ -10788,8 +10895,10 @@ async function startServer() {
           if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
         }
       } catch { }
-      const [rows] = await poolWrapper.execute(`SELECT * FROM campaigns WHERE tenantId = ? ORDER BY updatedAt DESC`, [tenantId]);
-      try { if (global.redis) await global.redis.setEx(`campaigns:list:${tenantId}`, 300, JSON.stringify(rows)); } catch { }
+      // Optimize: Sadece gerekli column'lar
+      const [rows] = await poolWrapper.execute(`SELECT id, name, type, discountType, discountValue, applicableProducts, startDate, endDate, minPurchaseAmount, maxDiscountAmount, isActive, status, createdAt, updatedAt FROM campaigns WHERE tenantId = ? ORDER BY updatedAt DESC`, [tenantId]);
+      // Optimize: Cache TTL 300 → 600 (10 dakika)
+      try { if (global.redis) await global.redis.setEx(`campaigns:list:${tenantId}`, 600, JSON.stringify(rows)); } catch { }
       res.json({ success: true, data: rows });
     } catch (error) {
       console.error('❌ Error listing campaigns:', error);
@@ -13261,8 +13370,9 @@ async function startServer() {
   // Öneri fonksiyonu
   async function handleRecommendations(tenantId) {
     try {
+      // Optimize: Sadece gerekli column'lar
       const [rows] = await poolWrapper.execute(
-        'SELECT * FROM products WHERE tenantId = ? AND isActive = 1 ORDER BY RAND() LIMIT 3',
+        'SELECT id, name, price, image, brand, category FROM products WHERE tenantId = ? AND isActive = 1 ORDER BY RAND() LIMIT 3',
         [tenantId]
       );
 

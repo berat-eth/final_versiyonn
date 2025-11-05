@@ -176,19 +176,28 @@ class AdvancedSecurity {
     }
     
     const patterns = [
-      { name: 'SQL_INJECTION', regex: /('|(\\')|(;)|(\\;)|(union)|(select)|(drop)|(insert)|(update)|(delete))/gi },
+      { name: 'SQL_INJECTION', regex: /\b(union|select|drop|insert|update|delete|alter|create|truncate|exec|execute)\b.*\b(from|into|table|database|where|set)\b/gi },
       { name: 'XSS_ATTACK', regex: /<script|javascript:|on\w+\s*=|<iframe|<object|<embed/gi },
       { name: 'PATH_TRAVERSAL', regex: /\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e%5c/gi },
-      { name: 'COMMAND_INJECTION', regex: /[;&|`$()]/g },
-      { name: 'LDAP_INJECTION', regex: /\([^)]*\)|=\*|!\(|&\(|\|\(/g }
+      { name: 'COMMAND_INJECTION', regex: /[;&|`$]\s*(ls|cat|rm|del|dir|type|ps|whoami|id|pwd|cd)/gi },
+      { name: 'LDAP_INJECTION', regex: /[=*()&|!]/g }
     ];
 
     const body = JSON.stringify(req.body || {});
     const query = JSON.stringify(req.query || {});
-    const headers = JSON.stringify(req.headers || {});
+    // Headers sadece belirli alanlarda kontrol et (User-Agent gibi)
+    const headers = JSON.stringify({
+      'user-agent': req.get('User-Agent') || '',
+      'x-forwarded-for': req.get('X-Forwarded-For') || ''
+    });
 
     for (const pattern of patterns) {
-      if (pattern.regex.test(cleanUrl + body + query + headers)) {
+      // Command injection sadece body ve query'de kontrol et (URL'de false positive olabilir)
+      const testString = pattern.name === 'COMMAND_INJECTION' 
+        ? body + query 
+        : cleanUrl + body + query + headers;
+        
+      if (pattern.regex.test(testString)) {
         this.logSecurityEvent('ATTACK_PATTERN_DETECTED', req.ip, {
           pattern: pattern.name,
           url: req.url,

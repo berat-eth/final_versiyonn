@@ -3,18 +3,13 @@ const { poolWrapper } = require('../database-schema');
 // Admin authentication middleware
 async function authenticateAdmin(req, res, next) {
   try {
-    // Geçici olarak admin key kontrolünü devre dışı bırak
-    // Admin panel test için tüm isteklere izin ver
-    console.log('🔓 Admin endpoint accessed:', req.path);
-    next();
-    
-    /* Admin key kontrolü (gelecekte aktif edilebilir)
-    const adminKey = req.headers['x-admin-key'] || req.headers['authorization'];
+    // Admin key kontrolü aktif
+    const adminKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace('Bearer ', '');
     
     if (!adminKey) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Admin key required' 
+        message: 'Admin key required. Please provide X-Admin-Key header or Authorization Bearer token.' 
       });
     }
     
@@ -24,19 +19,20 @@ async function authenticateAdmin(req, res, next) {
       console.error('❌ ADMIN_KEY environment variable is required');
       return res.status(500).json({ 
         success: false, 
-        message: 'Server misconfiguration' 
+        message: 'Server misconfiguration: ADMIN_KEY not set' 
       });
     }
     
     if (adminKey !== validAdminKey) {
+      console.warn(`⚠️ Invalid admin key attempt from IP: ${req.ip}`);
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid admin key' 
       });
     }
     
+    console.log('✅ Admin authenticated:', req.path);
     next();
-    */
   } catch (error) {
     console.error('Admin authentication error:', error);
     res.status(500).json({ 

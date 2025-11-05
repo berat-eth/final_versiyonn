@@ -27,7 +27,8 @@ router.get('/', async (req, res) => {
 
     const { limit = 20 } = req.query;
     const [sliders] = await poolWrapper.execute(`
-      SELECT * FROM sliders 
+      SELECT id, title, image, link, clickAction, \`order\`, isActive, createdAt, updatedAt
+      FROM sliders 
       WHERE isActive = true
       ORDER BY \`order\` ASC
       LIMIT ?
@@ -64,7 +65,8 @@ router.get('/all', authenticateAdmin, async (req, res) => {
 
     const { limit = 50 } = req.query;
     const [sliders] = await poolWrapper.execute(`
-      SELECT * FROM sliders 
+      SELECT id, title, image, link, clickAction, \`order\`, isActive, createdAt, updatedAt
+      FROM sliders 
       ORDER BY \`order\` ASC
       LIMIT ?
     `, [parseInt(limit)]);
@@ -164,8 +166,9 @@ router.post('/', authenticateAdmin, async (req, res) => {
       overlayOpacity
     ]);
 
+    // Optimize: Sadece gerekli column'lar
     const [newSlider] = await poolWrapper.execute(
-      'SELECT * FROM sliders WHERE id = ?',
+      'SELECT id, title, image, link, clickAction, \`order\`, isActive, createdAt, updatedAt FROM sliders WHERE id = ?',
       [result.insertId]
     );
 
@@ -215,9 +218,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       overlayOpacity
     } = req.body;
 
-    // Slider'ın var olup olmadığını kontrol et
+    // Slider'ın var olup olmadığını kontrol et - Optimize: Sadece gerekli column'lar
     const [existing] = await poolWrapper.execute(
-      'SELECT * FROM sliders WHERE id = ?',
+      'SELECT id, title, image, link, clickAction, \`order\`, isActive FROM sliders WHERE id = ?',
       [id]
     );
 
@@ -314,9 +317,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       updateValues
     );
 
-    // Güncellenmiş slider'ı getir
+    // Güncellenmiş slider'ı getir - Optimize: Sadece gerekli column'lar
     const [updated] = await poolWrapper.execute(
-      'SELECT * FROM sliders WHERE id = ?',
+      'SELECT id, title, image, link, clickAction, \`order\`, isActive, createdAt, updatedAt FROM sliders WHERE id = ?',
       [id]
     );
 
@@ -386,8 +389,9 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
 
     const { id } = req.params;
     const { isActive } = req.body;
+    // Optimize: Sadece gerekli column'lar
     const [slider] = await poolWrapper.execute(
-      'SELECT * FROM sliders WHERE id = ?',
+      'SELECT id, title, image, link, clickAction, \`order\`, isActive FROM sliders WHERE id = ?',
       [id]
     );
 
@@ -404,8 +408,9 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
       [newActiveState, id]
     );
 
+    // Optimize: Sadece gerekli column'lar
     const [updated] = await poolWrapper.execute(
-      'SELECT * FROM sliders WHERE id = ?',
+      'SELECT id, title, image, link, clickAction, \`order\`, isActive, createdAt, updatedAt FROM sliders WHERE id = ?',
       [id]
     );
 
@@ -494,8 +499,9 @@ router.post('/:id/click', async (req, res) => {
       [id]
     );
 
+    // Optimize: Sadece clicks column'u gerekli
     const [slider] = await poolWrapper.execute(
-      'SELECT * FROM sliders WHERE id = ?',
+      'SELECT clicks FROM sliders WHERE id = ?',
       [id]
     );
 
@@ -540,8 +546,9 @@ router.post('/:id/view', async (req, res) => {
       [id]
     );
 
+    // Optimize: Sadece views column'u gerekli
     const [slider] = await poolWrapper.execute(
-      'SELECT * FROM sliders WHERE id = ?',
+      'SELECT views FROM sliders WHERE id = ?',
       [id]
     );
 

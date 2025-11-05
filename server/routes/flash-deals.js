@@ -26,8 +26,10 @@ router.get('/all', authenticateAdmin, async (req, res) => {
 
     console.log('⚡ Admin requesting flash deals');
 
+    // Optimize: Sadece gerekli column'lar
     const [rows] = await poolWrapper.execute(`
-      SELECT fd.*
+      SELECT fd.id, fd.name, fd.description, fd.discount_type, fd.discount_value, fd.start_date, 
+             fd.end_date, fd.is_active, fd.created_at, fd.updated_at
       FROM flash_deals fd
       ORDER BY fd.created_at DESC
     `);
@@ -79,9 +81,9 @@ router.get('/', async (req, res) => {
     console.log('📅 Flash deals query - now:', now.toISOString());
     console.log('📅 Flash deals query - now (local):', now.toString());
 
-    // Önce tüm flash deals'ı kontrol et (debug için)
+    // Önce tüm flash deals'ı kontrol et (debug için) - Optimize: Sadece gerekli column'lar
     const [allDeals] = await poolWrapper.execute(`
-      SELECT fd.*, 
+      SELECT fd.id, fd.name, fd.is_active, fd.start_date, fd.end_date,
              CASE WHEN fd.is_active = 1 THEN 'YES' ELSE 'NO' END as active_status,
              CASE WHEN fd.start_date <= ? THEN 'YES' ELSE 'NO' END as started,
              CASE WHEN fd.end_date >= ? THEN 'YES' ELSE 'NO' END as not_ended
@@ -130,10 +132,10 @@ router.get('/', async (req, res) => {
     `, [now, now]);
     console.log('🔍 Date check (first 5 deals):', JSON.stringify(dateCheck, null, 2));
 
-    // Ana sorgu - MySQL NOW() kullanarak timezone problemini çöz
-    // JavaScript Date yerine MySQL'in NOW() fonksiyonunu kullan
+    // Ana sorgu - Optimize: Sadece gerekli column'lar
     let [rows] = await poolWrapper.execute(`
-      SELECT fd.*
+      SELECT fd.id, fd.name, fd.description, fd.discount_type, fd.discount_value, fd.start_date, 
+             fd.end_date, fd.is_active, fd.created_at, fd.updated_at
       FROM flash_deals fd
       WHERE (fd.is_active = 1 OR fd.is_active = true)
         AND fd.start_date <= NOW()
@@ -147,8 +149,10 @@ router.get('/', async (req, res) => {
     if (rows.length === 0) {
       console.log('⚠️ Trying alternative query with MySQL CONVERT_TZ...');
       // MySQL'in timezone'ını kullan
+      // Optimize: Sadece gerekli column'lar
       const [rowsAlt] = await poolWrapper.execute(`
-        SELECT fd.*
+        SELECT fd.id, fd.name, fd.description, fd.discount_type, fd.discount_value, fd.start_date, 
+               fd.end_date, fd.is_active, fd.created_at, fd.updated_at
         FROM flash_deals fd
         WHERE (fd.is_active = 1 OR fd.is_active = true)
           AND fd.start_date <= CONVERT_TZ(NOW(), @@session.time_zone, '+00:00')
@@ -163,8 +167,10 @@ router.get('/', async (req, res) => {
       } else {
         // Son çare: Tarih kontrolünü kaldır, sadece is_active kontrolü yap
         console.log('⚠️ Trying query without date check (only is_active)...');
+        // Optimize: Sadece gerekli column'lar
         const [rowsNoDate] = await poolWrapper.execute(`
-          SELECT fd.*
+          SELECT fd.id, fd.name, fd.description, fd.discount_type, fd.discount_value, fd.start_date, 
+                 fd.end_date, fd.is_active, fd.created_at, fd.updated_at
           FROM flash_deals fd
           WHERE (fd.is_active = 1 OR fd.is_active = true)
           ORDER BY fd.created_at DESC

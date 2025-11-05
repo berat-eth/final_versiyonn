@@ -63,8 +63,8 @@ export class CacheService {
 }
 
 export const CacheTTL = {
-  SHORT: 60 * 1000,          // 1 minute
-  MEDIUM: 5 * 60 * 1000,     // 5 minutes
+  SHORT: 3 * 60 * 1000,          // 3 minutes (1 → 3)
+  MEDIUM: 10 * 60 * 1000,     // 5 minutes
   LONG: 30 * 60 * 1000,      // 30 minutes
   XLONG: 2 * 60 * 60 * 1000, // 2 hours
 };
