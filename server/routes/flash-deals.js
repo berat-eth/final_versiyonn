@@ -132,7 +132,7 @@ router.get('/', async (req, res) => {
 
     // Ana sorgu - MySQL NOW() kullanarak timezone problemini çöz
     // JavaScript Date yerine MySQL'in NOW() fonksiyonunu kullan
-    const [rows] = await poolWrapper.execute(`
+    let [rows] = await poolWrapper.execute(`
       SELECT fd.*
       FROM flash_deals fd
       WHERE (fd.is_active = 1 OR fd.is_active = true)
@@ -141,32 +141,50 @@ router.get('/', async (req, res) => {
       ORDER BY fd.created_at DESC
     `);
     
-    console.log('📊 Flash deals found in DB (active & date valid):', rows.length);
+    console.log('📊 Flash deals found in DB (active & date valid with NOW()):', rows.length);
     
-    // Alternatif: Eğer parametre kullanmak istiyorsak, MySQL DATE_FORMAT kullan
+    // Alternatif: Eğer hala sonuç yoksa, parametreli sorgu dene (MySQL timezone ile)
     if (rows.length === 0) {
-      console.log('⚠️ Trying alternative query with explicit date comparison...');
-      const mysqlDate = now.toISOString().slice(0, 19).replace('T', ' ');
-      console.log('🔍 MySQL formatted date:', mysqlDate);
-      
+      console.log('⚠️ Trying alternative query with MySQL CONVERT_TZ...');
+      // MySQL'in timezone'ını kullan
       const [rowsAlt] = await poolWrapper.execute(`
         SELECT fd.*
         FROM flash_deals fd
         WHERE (fd.is_active = 1 OR fd.is_active = true)
-          AND fd.start_date <= ?
-          AND fd.end_date >= ?
+          AND fd.start_date <= CONVERT_TZ(NOW(), @@session.time_zone, '+00:00')
+          AND fd.end_date >= CONVERT_TZ(NOW(), @@session.time_zone, '+00:00')
         ORDER BY fd.created_at DESC
-      `, [mysqlDate, mysqlDate]);
+      `);
       
-      console.log('📊 Flash deals found (alternative query):', rowsAlt.length);
+      console.log('📊 Flash deals found (alternative query with CONVERT_TZ):', rowsAlt.length);
       if (rowsAlt.length > 0) {
         console.log('✅ Using alternative query results');
-        // rows = rowsAlt; // Bu satırı kaldırdık çünkü const değiştirilemez
-        // Bunun yerine rowsAlt'ı kullanacağız
-        const finalRows = rowsAlt;
-        // Aşağıdaki kodda finalRows kullanılacak
+        rows = rowsAlt;
       } else {
-        const finalRows = rows;
+        // Son çare: Tarih kontrolünü kaldır, sadece is_active kontrolü yap
+        console.log('⚠️ Trying query without date check (only is_active)...');
+        const [rowsNoDate] = await poolWrapper.execute(`
+          SELECT fd.*
+          FROM flash_deals fd
+          WHERE (fd.is_active = 1 OR fd.is_active = true)
+          ORDER BY fd.created_at DESC
+        `);
+        console.log('📊 Flash deals found (without date check):', rowsNoDate.length);
+        if (rowsNoDate.length > 0) {
+          console.log('✅ Using deals without date check (will filter manually)');
+          // Manuel tarih kontrolü yap
+          const validRows = rowsNoDate.filter(deal => {
+            const startDate = new Date(deal.start_date);
+            const endDate = new Date(deal.end_date);
+            const isValid = startDate <= now && endDate >= now;
+            if (!isValid) {
+              console.log(`⚠️ Deal ${deal.id} filtered out: start=${deal.start_date}, end=${deal.end_date}, now=${now.toISOString()}`);
+            }
+            return isValid;
+          });
+          rows = validRows;
+          console.log('📊 Flash deals after manual date filter:', rows.length);
+        }
       }
     }
 
