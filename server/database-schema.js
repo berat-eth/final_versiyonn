@@ -45,7 +45,12 @@ async function createDatabaseSchema(pool) {
           // Sliders
           'sliders',
           // Popups
-          'popups'
+          'popups',
+          // User Behavior Analytics
+          'anonymous_devices',
+          'user_behavior_events',
+          'user_sessions',
+          'device_analytics_aggregates'
       ];
       const missingTables = requiredTables.filter(table => !existingTables.includes(table));
 
@@ -1998,6 +2003,120 @@ async function createDatabaseSchema(pool) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
       console.log('✅ Popups table ready');
+
+      // Anonymous devices table - Oturum açmamış kullanıcıların device bilgileri
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS anonymous_devices (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          deviceId VARCHAR(255) UNIQUE NOT NULL,
+          platform VARCHAR(50),
+          osVersion VARCHAR(100),
+          screenSize VARCHAR(50),
+          browser VARCHAR(100),
+          firstSeen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          lastSeen TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          totalSessions INT DEFAULT 0,
+          metadata JSON,
+          INDEX idx_deviceId (deviceId),
+          INDEX idx_lastSeen (lastSeen),
+          INDEX idx_platform (platform)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ anonymous_devices table ready');
+
+      // User behavior events table - Tüm behavior eventleri (hem logged-in hem anonymous)
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS user_behavior_events (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          userId INT NULL,
+          deviceId VARCHAR(255) NOT NULL,
+          eventType VARCHAR(100) NOT NULL,
+          screenName VARCHAR(255),
+          eventData JSON,
+          sessionId VARCHAR(255),
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          ipAddress VARCHAR(45),
+          userAgent VARCHAR(500),
+          INDEX idx_userId (userId),
+          INDEX idx_deviceId (deviceId),
+          INDEX idx_eventType (eventType),
+          INDEX idx_timestamp (timestamp),
+          INDEX idx_sessionId (sessionId),
+          INDEX idx_user_device (userId, deviceId),
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ user_behavior_events table ready');
+
+      // User sessions table - Kullanıcı oturumları (hem logged-in hem anonymous)
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS user_sessions (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          userId INT NULL,
+          deviceId VARCHAR(255) NOT NULL,
+          sessionId VARCHAR(255) UNIQUE NOT NULL,
+          startTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          endTime TIMESTAMP NULL,
+          duration INT DEFAULT 0,
+          pageCount INT DEFAULT 0,
+          scrollDepth DECIMAL(5,2) DEFAULT 0,
+          metadata JSON,
+          INDEX idx_userId (userId),
+          INDEX idx_deviceId (deviceId),
+          INDEX idx_sessionId (sessionId),
+          INDEX idx_startTime (startTime),
+          INDEX idx_user_device (userId, deviceId),
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ user_sessions table ready');
+
+      // Device analytics aggregates table - Periyodik olarak hesaplanan aggregate veriler
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS device_analytics_aggregates (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          deviceId VARCHAR(255) NOT NULL,
+          userId INT NULL,
+          date DATE NOT NULL,
+          screenViews JSON,
+          scrollDepth JSON,
+          navigationPaths JSON,
+          productInteractions JSON,
+          cartBehavior JSON,
+          paymentBehavior JSON,
+          sessions JSON,
+          deviceInfo JSON,
+          lastUpdated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY unique_device_date (deviceId, date),
+          INDEX idx_userId (userId),
+          INDEX idx_deviceId (deviceId),
+          INDEX idx_date (date),
+          INDEX idx_user_device_date (userId, deviceId, date),
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ device_analytics_aggregates table ready');
+
+      // Archive table for old events
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS user_behavior_events_archive (
+          id BIGINT PRIMARY KEY,
+          userId INT NULL,
+          deviceId VARCHAR(255) NOT NULL,
+          eventType VARCHAR(100) NOT NULL,
+          screenName VARCHAR(255),
+          eventData JSON,
+          sessionId VARCHAR(255),
+          timestamp TIMESTAMP,
+          ipAddress VARCHAR(45),
+          userAgent VARCHAR(500),
+          archivedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_deviceId (deviceId),
+          INDEX idx_timestamp (timestamp),
+          INDEX idx_archivedAt (archivedAt)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ user_behavior_events_archive table ready');
 
       // Migration: Add importance_level to production_orders if not exists
       try {

@@ -50,6 +50,22 @@ export interface ConversionMetrics {
   lastMonthAvgCLV: string;
 }
 
+export interface DeviceInfo {
+  id: number;
+  deviceId: string;
+  platform: string;
+  osVersion: string;
+  screenSize: string;
+  browser: string;
+  firstSeen: string;
+  lastSeen: string;
+  totalSessions: number;
+  userId?: number;
+  userName?: string;
+  userEmail?: string;
+  totalEvents?: number;
+}
+
 export const analyticsService = {
   // Get dashboard stats (admin endpoints)
   getStats: async () => {
@@ -413,6 +429,163 @@ export const analyticsService = {
     } catch (error) {
       console.error('Error getting fraud signals:', error);
       return { success: true, data: {} };
+    }
+  },
+
+  // Device Management - Get all devices
+  getDevices: async (limit: number = 100, offset: number = 0) => {
+    try {
+      const res = await api.get<ApiResponse<DeviceInfo[]>>('/user-data/devices', {
+        limit,
+        offset
+      });
+      return res && res.success ? { success: true, data: res.data || [] } : { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting devices:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Device Analytics - Get device analytics
+  getDeviceAnalytics: async (deviceId: string, days: number = 30) => {
+    try {
+      const res = await api.get<ApiResponse<any>>(`/user-data/behavior/device/${deviceId}`, {
+        days
+      });
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: null };
+    } catch (error) {
+      console.error('Error getting device analytics:', error);
+      return { success: false, data: null };
+    }
+  },
+
+  // Device Linking - Link device to user
+  linkDeviceToUser: async (deviceId: string, userId: number) => {
+    try {
+      const res = await api.post<ApiResponse<any>>('/user-data/behavior/link-device', {
+        deviceId,
+        userId
+      });
+      return res && res.success ? { success: true } : { success: false };
+    } catch (error) {
+      console.error('Error linking device to user:', error);
+      return { success: false };
+    }
+  },
+
+  // Advanced Analytics - Cohort Analysis
+  getCohorts: async (startDate: string, endDate: string, interval: string = 'month') => {
+    try {
+      const res = await api.get<ApiResponse<any>>('/analytics/cohorts', {
+        startDate,
+        endDate,
+        interval
+      });
+      return res && res.success ? { success: true, data: res.data || [] } : { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting cohorts:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  getCohortRetention: async (cohort: string, periods: number = 12) => {
+    try {
+      const res = await api.get<ApiResponse<any>>(`/analytics/cohorts/${cohort}/retention`, {
+        periods
+      });
+      return res && res.success ? { success: true, data: res.data || [] } : { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting retention:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Funnel Analysis
+  calculateFunnel: async (steps: any[], startDate: string, endDate: string, userId?: number, deviceId?: string) => {
+    try {
+      const res = await api.post<ApiResponse<any>>('/analytics/funnels/calculate', {
+        steps,
+        startDate,
+        endDate,
+        userId,
+        deviceId
+      });
+      return res && res.success ? { success: true, data: res.data || [] } : { success: true, data: [] };
+    } catch (error) {
+      console.error('Error calculating funnel:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Geospatial Analytics
+  getGeographicDistribution: async (startDate: string, endDate: string) => {
+    try {
+      const res = await api.get<ApiResponse<any>>('/analytics/geographic', {
+        startDate,
+        endDate
+      });
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: null };
+    } catch (error) {
+      console.error('Error getting geographic distribution:', error);
+      return { success: false, data: null };
+    }
+  },
+
+  // Predictive Analytics
+  predictChurn: async (userId: number, days: number = 30) => {
+    try {
+      const res = await api.get<ApiResponse<any>>(`/analytics/predict/churn/${userId}`, {
+        days
+      });
+      return res && res.success ? { success: true, data: res.data } : { success: false, data: null };
+    } catch (error) {
+      console.error('Error predicting churn:', error);
+      return { success: false, data: null };
+    }
+  },
+
+  predictPurchase: async (userId?: number, deviceId?: string) => {
+    try {
+      const res = await api.get<ApiResponse<any>>('/analytics/predict/purchase', {
+        userId,
+        deviceId
+      });
+      return res && res.success ? { success: true, data: res.data } : { success: false, data: null };
+    } catch (error) {
+      console.error('Error predicting purchase:', error);
+      return { success: false, data: null };
+    }
+  },
+
+  // Health Monitoring
+  getHealthStatus: async () => {
+    try {
+      const res = await api.get<ApiResponse<any>>('/analytics/health');
+      return res && res.success ? { success: true, data: res.data } : { success: false, data: null };
+    } catch (error) {
+      console.error('Error getting health status:', error);
+      return { success: false, data: null };
+    }
+  },
+
+  getMetrics: async () => {
+    try {
+      const res = await api.get<ApiResponse<any>>('/analytics/metrics');
+      return res && res.success ? { success: true, data: res.data } : { success: false, data: null };
+    } catch (error) {
+      console.error('Error getting metrics:', error);
+      return { success: false, data: null };
+    }
+  },
+
+  // Real-time Analytics
+  getRealtimeMetrics: async () => {
+    try {
+      const res = await api.get<ApiResponse<any>>('/analytics/realtime/metrics');
+      return res && res.success ? { success: true, data: res.data } : { success: false, data: null };
+    } catch (error) {
+      console.error('Error getting realtime metrics:', error);
+      return { success: false, data: null };
     }
   },
 };

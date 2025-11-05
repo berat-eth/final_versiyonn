@@ -1,4 +1,5 @@
 import { userDataService } from './UserDataService';
+import { sendTrackingEvent, getOrCreateDeviceId, startTrackingSession, endTrackingSession, linkDeviceToUser } from '../utils/device-tracking';
 
 export interface ScreenViewData {
   userId: number;
@@ -219,6 +220,7 @@ class BehaviorAnalytics {
   private campaignData: CampaignData[] = [];
   private fraudSignals: FraudSignalData[] = [];
   private userId: number | null = null;
+  private deviceId: string | null = null;
   private currentSessionId: string | null = null;
   private currentPath: string[] = [];
   private sessionStartTime: number = 0;
@@ -227,25 +229,53 @@ class BehaviorAnalytics {
   static getInstance(): BehaviorAnalytics {
     if (!BehaviorAnalytics.instance) {
       BehaviorAnalytics.instance = new BehaviorAnalytics();
+      // DeviceId'yi initialize et
+      getOrCreateDeviceId().then(deviceId => {
+        BehaviorAnalytics.instance.deviceId = deviceId;
+      });
     }
     return BehaviorAnalytics.instance;
   }
 
-  setUserId(userId: number) {
+  async setUserId(userId: number) {
     this.userId = userId;
-    this.currentSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // DeviceId'yi al veya oluştur
+    if (!this.deviceId) {
+      this.deviceId = await getOrCreateDeviceId();
+    }
+    
+    // Session başlat
+    this.currentSessionId = await startTrackingSession(userId, {
+      startTime: Date.now()
+    });
+    
     this.currentPath = [];
     this.sessionStartTime = Date.now();
     this.sessionPageCount = 0;
+    
+    // Device'ı user'a bağla (login sonrası)
+    if (userId && this.deviceId) {
+      linkDeviceToUser(userId).catch(err => {
+        console.warn('Device linking hatası:', err);
+      });
+    }
   }
 
   // 1. Ekran görüntüleme süreleri
-  startScreenView(screenName: string, category?: string): void {
-    if (!this.userId) return;
+  async startScreenView(screenName: string, category?: string): Promise<void> {
+    // DeviceId olmadan çalışmaz - async initialize et
+    if (!this.deviceId) {
+      getOrCreateDeviceId().then(deviceId => {
+        this.deviceId = deviceId;
+        this.startScreenView(screenName, category);
+      });
+      return;
+    }
 
-    const key = `${this.userId}-${screenName}-${Date.now()}`;
+    const key = `${this.deviceId}-${screenName}-${Date.now()}`;
     const screenView: ScreenViewData = {
-      userId: this.userId,
+      userId: this.userId || 0, // 0 anonymous için
       screenName,
       category,
       startTime: Date.now(),
@@ -261,12 +291,12 @@ class BehaviorAnalytics {
   }
 
   endScreenView(screenName: string): void {
-    if (!this.userId) return;
+    if (!this.deviceId) return;
 
     // Son ekran görüntüleme kaydını bul
     let foundKey: string | null = null;
     for (const [key, view] of this.screenViews.entries()) {
-      if (view.userId === this.userId && view.screenName === screenName && !view.endTime) {
+      if (key.startsWith(`${this.deviceId}-${screenName}`) && !view.endTime) {
         foundKey = key;
         break;
       }
@@ -285,14 +315,20 @@ class BehaviorAnalytics {
 
   // 2. Scroll derinliği
   trackScrollDepth(screenName: string, scrollDepth: number): void {
-    if (!this.userId) return;
+    if (!this.deviceId) {
+      getOrCreateDeviceId().then(deviceId => {
+        this.deviceId = deviceId;
+        this.trackScrollDepth(screenName, scrollDepth);
+      });
+      return;
+    }
 
-    const key = `${this.userId}-${screenName}`;
+    const key = `${this.deviceId}-${screenName}`;
     let scrollData = this.scrollDepths.get(key);
 
     if (!scrollData) {
       scrollData = {
-        userId: this.userId,
+        userId: this.userId || 0, // 0 anonymous için
         screenName,
         scrollDepth: 0,
         maxScrollDepth: 0,
@@ -616,11 +652,25 @@ class BehaviorAnalytics {
   // Backend'e veri gönderme fonksiyonları
   private async logScreenView(data: ScreenViewData) {
     try {
-      await userDataService.logUserActivity({
-        userId: data.userId,
-        activityType: 'screen_view',
-        activityData: data
-      });
+      // Yeni tracking sistemi ile gönder
+      if (this.deviceId) {
+        await sendTrackingEvent('screen_view', {
+          screenName: data.screenName,
+          category: data.category,
+          duration: data.duration || 0,
+          startTime: data.startTime,
+          endTime: data.endTime
+        }, this.userId || null, this.currentSessionId);
+      }
+      
+      // Eski sistem (backward compatibility)
+      if (data.userId && data.userId > 0) {
+        await userDataService.logUserActivity({
+          userId: data.userId,
+          activityType: 'screen_view',
+          activityData: data
+        });
+      }
     } catch (error) {
       console.warn('⚠️ Screen view logging failed:', error);
     }
@@ -628,11 +678,23 @@ class BehaviorAnalytics {
 
   private async logScrollDepth(data: ScrollDepthData) {
     try {
-      await userDataService.logUserActivity({
-        userId: data.userId,
-        activityType: 'scroll_depth',
-        activityData: data
-      });
+      // Yeni tracking sistemi ile gönder
+      if (this.deviceId) {
+        await sendTrackingEvent('scroll_depth', {
+          screenName: data.screenName,
+          maxScrollDepth: data.maxScrollDepth,
+          scrollEvents: data.scrollEvents
+        }, this.userId || null, this.currentSessionId);
+      }
+      
+      // Eski sistem (backward compatibility)
+      if (data.userId && data.userId > 0) {
+        await userDataService.logUserActivity({
+          userId: data.userId,
+          activityType: 'scroll_depth',
+          activityData: data
+        });
+      }
     } catch (error) {
       console.warn('⚠️ Scroll depth logging failed:', error);
     }
@@ -943,21 +1005,45 @@ class BehaviorAnalytics {
   }
 
   // 11. Oturum Analitiği
-  endSession(totalScrollDepth: number = 0): void {
-    if (!this.userId || !this.currentSessionId) return;
+  async endSession(totalScrollDepth: number = 0): Promise<void> {
+    if (!this.currentSessionId) return;
 
-    const sessionData: SessionData = {
-      userId: this.userId,
-      sessionId: this.currentSessionId,
-      sessionDuration: Date.now() - this.sessionStartTime,
-      pageCount: this.sessionPageCount,
-      totalScrollDepth,
-      returnFrequency: 0, // Backend'de hesaplanacak
-      timestamp: Date.now()
-    };
+    const sessionDuration = Date.now() - this.sessionStartTime;
 
-    this.sessionData.set(this.currentSessionId, sessionData);
-    this.logSession(sessionData);
+    // Yeni tracking sistemi ile session bitir
+    if (this.deviceId && this.currentSessionId) {
+      await endTrackingSession(
+        this.currentSessionId,
+        sessionDuration,
+        this.sessionPageCount,
+        totalScrollDepth,
+        {
+          userId: this.userId,
+          timestamp: Date.now()
+        }
+      );
+    }
+
+    // Eski sistem (backward compatibility)
+    if (this.userId) {
+      const sessionData: SessionData = {
+        userId: this.userId,
+        sessionId: this.currentSessionId || '',
+        sessionDuration,
+        pageCount: this.sessionPageCount,
+        totalScrollDepth,
+        returnFrequency: 0,
+        timestamp: Date.now()
+      };
+
+      this.sessionData.set(this.currentSessionId || '', sessionData);
+      this.logSession(sessionData);
+    }
+
+    // Session'ı temizle
+    this.currentSessionId = null;
+    this.sessionStartTime = 0;
+    this.sessionPageCount = 0;
   }
 
   // 12. Kullanıcı Yaşam Döngüsü (LTV)

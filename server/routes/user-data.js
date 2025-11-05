@@ -4,6 +4,14 @@ const UserDataLogger = require('../services/user-data-logger');
 
 const userDataLogger = new UserDataLogger();
 
+// Behavior processor - poolWrapper inject edilecek
+let behaviorProcessor = null;
+
+// Processor'ı set et (server.js'den çağrılacak)
+router.setProcessor = function(processor) {
+  behaviorProcessor = processor;
+};
+
 // Kullanıcı verilerini kaydet
 router.post('/save-user', async (req, res) => {
   try {
@@ -1178,6 +1186,304 @@ router.get('/behavior/fraud-signals', async (req, res) => {
   } catch (error) {
     console.error('❌ Fraud signals getirme hatası:', error);
     res.status(500).json({ success: false, message: 'Fraud signals getirilemedi' });
+  }
+});
+
+// Yeni Endpoint'ler - Behavior Tracking
+
+// POST /api/user-data/behavior/track - Event kaydetme (hem logged-in hem anonymous)
+router.post('/behavior/track', async (req, res) => {
+  try {
+    if (!behaviorProcessor) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Behavior processor henüz initialize edilmedi' 
+      });
+    }
+
+    const {
+      userId = null,
+      deviceId,
+      eventType,
+      screenName = null,
+      eventData = {},
+      sessionId = null
+    } = req.body;
+
+    if (!deviceId || !eventType) {
+      return res.status(400).json({
+        success: false,
+        message: 'DeviceId ve eventType gerekli'
+      });
+    }
+
+    // IP ve User-Agent'ı al
+    const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+    const userAgent = req.headers['user-agent'] || null;
+
+    const result = await behaviorProcessor.processEvent({
+      userId,
+      deviceId,
+      eventType,
+      screenName,
+      eventData,
+      sessionId,
+      ipAddress,
+      userAgent
+    });
+
+    // Real-time analytics'e event'i gönder
+    try {
+      const getRealtimeAnalytics = require('../services/realtime-analytics');
+      const realtimeAnalytics = getRealtimeAnalytics();
+      
+      // Active user tracking
+      realtimeAnalytics.trackActiveUser(deviceId, userId).catch(() => {});
+      
+      // Event'i buffer'a ekle
+      realtimeAnalytics.addEvent({
+        userId,
+        deviceId,
+        eventType,
+        screenName,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      // Real-time analytics hatası ana işlemi etkilememeli
+    }
+
+    if (result.success) {
+      res.json({ success: true, message: 'Event kaydedildi' });
+    } else {
+      res.status(500).json({ success: false, message: result.error || 'Event kaydedilemedi' });
+    }
+  } catch (error) {
+    console.error('❌ Event tracking hatası:', error);
+    res.status(500).json({ success: false, message: 'Event kaydedilemedi' });
+  }
+});
+
+// POST /api/user-data/behavior/session/start - Session başlat
+router.post('/behavior/session/start', async (req, res) => {
+  try {
+    if (!behaviorProcessor) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Behavior processor henüz initialize edilmedi' 
+      });
+    }
+
+    const { userId = null, deviceId, sessionId, metadata = {} } = req.body;
+
+    if (!deviceId || !sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'DeviceId ve sessionId gerekli'
+      });
+    }
+
+    const result = await behaviorProcessor.startSession({
+      userId,
+      deviceId,
+      sessionId,
+      metadata
+    });
+
+    if (result.success) {
+      res.json({ success: true, message: 'Session başlatıldı' });
+    } else {
+      res.status(500).json({ success: false, message: result.error || 'Session başlatılamadı' });
+    }
+  } catch (error) {
+    console.error('❌ Session start hatası:', error);
+    res.status(500).json({ success: false, message: 'Session başlatılamadı' });
+  }
+});
+
+// POST /api/user-data/behavior/session/end - Session bitir
+router.post('/behavior/session/end', async (req, res) => {
+  try {
+    if (!behaviorProcessor) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Behavior processor henüz initialize edilmedi' 
+      });
+    }
+
+    const { sessionId, duration = 0, pageCount = 0, scrollDepth = 0, metadata = {} } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'SessionId gerekli'
+      });
+    }
+
+    const result = await behaviorProcessor.endSession(sessionId, {
+      duration,
+      pageCount,
+      scrollDepth,
+      metadata
+    });
+
+    if (result.success) {
+      res.json({ success: true, message: 'Session bitirildi' });
+    } else {
+      res.status(500).json({ success: false, message: result.error || 'Session bitirilemedi' });
+    }
+  } catch (error) {
+    console.error('❌ Session end hatası:', error);
+    res.status(500).json({ success: false, message: 'Session bitirilemedi' });
+  }
+});
+
+// GET /api/user-data/devices - Tüm device'ları listele (admin)
+router.get('/devices', async (req, res) => {
+  try {
+    if (!behaviorProcessor) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Behavior processor henüz initialize edilmedi' 
+      });
+    }
+
+    const { limit = 100, offset = 0 } = req.query;
+    const result = await behaviorProcessor.getAllDevices(parseInt(limit), parseInt(offset));
+
+    if (result.success) {
+      res.json({ success: true, data: result.data });
+    } else {
+      res.status(500).json({ success: false, message: result.error || 'Device listesi getirilemedi' });
+    }
+  } catch (error) {
+    console.error('❌ Devices getirme hatası:', error);
+    res.status(500).json({ success: false, message: 'Device listesi getirilemedi' });
+  }
+});
+
+// GET /api/user-data/behavior/device/:deviceId - Device bazlı analitik
+router.get('/behavior/device/:deviceId', async (req, res) => {
+  try {
+    if (!behaviorProcessor) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Behavior processor henüz initialize edilmedi' 
+      });
+    }
+
+    const { deviceId } = req.params;
+    const { days = 30 } = req.query;
+
+    const result = await behaviorProcessor.getUserAnalytics(deviceId, null, parseInt(days));
+
+    if (result.success) {
+      res.json({ success: true, data: result.data });
+    } else {
+      res.status(500).json({ success: false, message: result.error || 'Analitik veriler getirilemedi' });
+    }
+  } catch (error) {
+    console.error('❌ Device analytics hatası:', error);
+    res.status(500).json({ success: false, message: 'Analitik veriler getirilemedi' });
+  }
+});
+
+// GET /api/user-data/behavior/user/:userId - User bazlı analitik
+router.get('/behavior/user/:userId', async (req, res) => {
+  try {
+    if (!behaviorProcessor) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Behavior processor henüz initialize edilmedi' 
+      });
+    }
+
+    const { userId } = req.params;
+    const { days = 30, deviceId = null } = req.query;
+
+    // Eğer deviceId varsa, o device'ın verilerini getir
+    // Yoksa, user'ın tüm device'larından verileri topla
+    if (deviceId) {
+      const result = await behaviorProcessor.getUserAnalytics(deviceId, parseInt(userId), parseInt(days));
+      if (result.success) {
+        return res.json({ success: true, data: result.data });
+      }
+    }
+
+    // User'ın tüm device'larını bul
+    const poolWrapper = behaviorProcessor.pool;
+    const [devices] = await poolWrapper.execute(
+      'SELECT DISTINCT deviceId FROM user_behavior_events WHERE userId = ? LIMIT 10',
+      [userId]
+    );
+
+    // Tüm device'ların verilerini birleştir
+    const allData = {
+      screenViews: [],
+      scrollDepth: [],
+      navigationPaths: [],
+      productInteractions: [],
+      sessions: {}
+    };
+
+    for (const device of devices) {
+      const result = await behaviorProcessor.getUserAnalytics(device.deviceId, parseInt(userId), parseInt(days));
+      if (result.success && result.data) {
+        allData.screenViews.push(...(result.data.screenViews || []));
+        allData.scrollDepth.push(...(result.data.scrollDepth || []));
+        allData.navigationPaths.push(...(result.data.navigationPaths || []));
+        allData.productInteractions.push(...(result.data.productInteractions || []));
+      }
+    }
+
+    // Aggregate sessions
+    const [sessions] = await poolWrapper.execute(
+      `SELECT COUNT(*) as totalSessions,
+              AVG(duration) as avgSessionDuration,
+              AVG(pageCount) as avgPageCount,
+              AVG(scrollDepth) as avgScrollDepth
+       FROM user_sessions
+       WHERE userId = ? AND startTime >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [userId, parseInt(days)]
+    );
+
+    allData.sessions = sessions[0] || {};
+
+    res.json({ success: true, data: allData });
+  } catch (error) {
+    console.error('❌ User analytics hatası:', error);
+    res.status(500).json({ success: false, message: 'Analitik veriler getirilemedi' });
+  }
+});
+
+// POST /api/user-data/behavior/link-device - Device'ı user'a bağla
+router.post('/behavior/link-device', async (req, res) => {
+  try {
+    if (!behaviorProcessor) {
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Behavior processor henüz initialize edilmedi' 
+      });
+    }
+
+    const { deviceId, userId } = req.body;
+
+    if (!deviceId || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'DeviceId ve userId gerekli'
+      });
+    }
+
+    const result = await behaviorProcessor.linkDeviceToUser(deviceId, parseInt(userId));
+
+    if (result.success) {
+      res.json({ success: true, message: 'Device kullanıcıya bağlandı' });
+    } else {
+      res.status(500).json({ success: false, message: result.error || 'Device bağlanamadı' });
+    }
+  } catch (error) {
+    console.error('❌ Device linking hatası:', error);
+    res.status(500).json({ success: false, message: 'Device bağlanamadı' });
   }
 });
 

@@ -790,6 +790,39 @@ async function initializeDatabase() {
     xmlSyncService = new XmlSyncService(pool);
     console.log('📡 XML Sync Service initialized');
 
+    // Initialize User Behavior Processor
+    try {
+      const getProcessor = require('./services/user-behavior-processor');
+      const behaviorProcessor = getProcessor(poolWrapper);
+      // Inject processor into user-data routes
+      userDataRoutes.setProcessor(behaviorProcessor);
+      console.log('✅ User Behavior Processor initialized');
+
+      // Initialize Event Queue
+      const getEventQueue = require('./services/event-queue');
+      const eventQueue = getEventQueue();
+      await eventQueue.initialize();
+      eventQueue.startWorker(behaviorProcessor, 1000);
+      console.log('✅ Event Queue initialized');
+
+      // Initialize Real-time Analytics
+      const getRealtimeAnalytics = require('./services/realtime-analytics');
+      const realtimeAnalytics = getRealtimeAnalytics();
+      console.log('✅ Real-time Analytics initialized');
+    } catch (error) {
+      console.error('❌ User Behavior Processor initialization error:', error);
+    }
+
+    // Initialize Advanced Analytics Routes
+    try {
+      const advancedAnalyticsRoutes = require('./routes/advanced-analytics');
+      advancedAnalyticsRoutes.setServices(poolWrapper);
+      app.use('/api/analytics', advancedAnalyticsRoutes);
+      console.log('✅ Advanced Analytics routes mounted at /api/analytics');
+    } catch (error) {
+      console.error('❌ Advanced Analytics routes initialization error:', error);
+    }
+
     // Initialize Profile Scheduler (every 30 minutes)
     try {
       const { RecommendationService } = require('./services/recommendation-service');
