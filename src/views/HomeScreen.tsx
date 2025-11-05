@@ -107,19 +107,23 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   // Load flash deals from API
   const loadFlashDeals = useCallback(async () => {
     try {
-      console.log('🔄 Loading flash deals...');
+      console.log('🔄 [HomeScreen] loadFlashDeals called');
+      console.log('🔄 [HomeScreen] Calling FlashDealService.getActiveFlashDeals()...');
       const deals = await FlashDealService.getActiveFlashDeals();
-      console.log('✅ Flash deals loaded:', deals?.length || 0, 'deals');
+      console.log('✅ [HomeScreen] Flash deals received:', deals?.length || 0, 'deals');
+      console.log('✅ [HomeScreen] Setting flashDeals state...');
       if (deals && deals.length > 0) {
-        console.log('📦 First deal sample:', JSON.stringify({
+        console.log('📦 [HomeScreen] First deal sample:', JSON.stringify({
           id: deals[0].id,
           name: deals[0].name,
           productsCount: deals[0].products?.length || 0
         }));
       }
       setFlashDeals(deals || []);
+      console.log('✅ [HomeScreen] flashDeals state updated');
     } catch (error) {
-      console.error('❌ Flash deal yükleme hatası:', error);
+      console.error('❌ [HomeScreen] Flash deal yükleme hatası:', error);
+      console.error('❌ [HomeScreen] Error stack:', error instanceof Error ? error.stack : 'No stack');
       setFlashDeals([]);
     }
   }, []);
@@ -162,12 +166,15 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
 
   useEffect(() => {
     const init = async () => {
+      console.log('🚀 HomeScreen init started');
       // Paralel başlat; render'ı bekletme
+      console.log('📊 Calling loadData, loadFavorites, loadSliders, loadFlashDeals...');
       loadData();
       loadFavorites();
       loadSliders();
       loadFlashDeals();
       restoreCountdownAndStart();
+      console.log('✅ HomeScreen init completed');
     };
     const cleanupSlider = setupSliderTimer();
     init();

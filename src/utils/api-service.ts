@@ -283,7 +283,16 @@ class ApiService {
     // Offline modu devre dışı; ağ yoksa hata akışına düşecek
 
     try {
-      const url = `${getApiBaseUrl()}${endpoint}`;
+      const baseUrl = getApiBaseUrl();
+      const url = `${baseUrl}${endpoint}`;
+      if (endpoint.includes('flash-deals')) {
+        console.log('🌐 [api-service] Flash deals request:', {
+          baseUrl,
+          endpoint,
+          fullUrl: url,
+          method
+        });
+      }
       // API Request
 
       const headers: HeadersInit = {
@@ -355,6 +364,14 @@ class ApiService {
 
       const response = await fetch(url, config);
       clearTimeout(timeoutId);
+      if (endpoint.includes('flash-deals')) {
+        console.log('📡 [api-service] Flash deals response:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+      }
       // Response received
 
       // Check if response is JSON before parsing

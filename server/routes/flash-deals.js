@@ -77,17 +77,70 @@ router.get('/', async (req, res) => {
 
     const now = new Date();
     console.log('📅 Flash deals query - now:', now.toISOString());
+    console.log('📅 Flash deals query - now (local):', now.toString());
 
+    // Önce tüm flash deals'ı kontrol et (debug için)
+    const [allDeals] = await poolWrapper.execute(`
+      SELECT fd.*, 
+             CASE WHEN fd.is_active = 1 THEN 'YES' ELSE 'NO' END as active_status,
+             CASE WHEN fd.start_date <= ? THEN 'YES' ELSE 'NO' END as started,
+             CASE WHEN fd.end_date >= ? THEN 'YES' ELSE 'NO' END as not_ended
+      FROM flash_deals fd
+      ORDER BY fd.created_at DESC
+      LIMIT 10
+    `, [now, now]);
+    console.log('🔍 All flash deals in DB (first 10):', allDeals.length);
+    if (allDeals.length > 0) {
+      console.log('🔍 Sample deal:', JSON.stringify({
+        id: allDeals[0].id,
+        name: allDeals[0].name,
+        is_active: allDeals[0].is_active,
+        active_status: allDeals[0].active_status,
+        start_date: allDeals[0].start_date,
+        end_date: allDeals[0].end_date,
+        started: allDeals[0].started,
+        not_ended: allDeals[0].not_ended,
+        now: now.toISOString()
+      }, null, 2));
+    }
+
+    // Farklı filtrelerle test et
+    const [activeDeals] = await poolWrapper.execute(`
+      SELECT COUNT(*) as count FROM flash_deals WHERE is_active = 1
+    `);
+    console.log('🔍 Active flash deals count (is_active=1):', activeDeals[0]?.count || 0);
+
+    const [activeDealsBool] = await poolWrapper.execute(`
+      SELECT COUNT(*) as count FROM flash_deals WHERE is_active = true
+    `);
+    console.log('🔍 Active flash deals count (is_active=true):', activeDealsBool[0]?.count || 0);
+
+    const [allDealsCount] = await poolWrapper.execute(`
+      SELECT COUNT(*) as count FROM flash_deals
+    `);
+    console.log('🔍 Total flash deals count:', allDealsCount[0]?.count || 0);
+
+    // Tarih kontrolü için manuel sorgu
+    const [dateCheck] = await poolWrapper.execute(`
+      SELECT id, name, is_active, start_date, end_date,
+             CASE WHEN start_date <= ? THEN 1 ELSE 0 END as is_started,
+             CASE WHEN end_date >= ? THEN 1 ELSE 0 END as is_not_ended
+      FROM flash_deals
+      LIMIT 5
+    `, [now, now]);
+    console.log('🔍 Date check (first 5 deals):', JSON.stringify(dateCheck, null, 2));
+
+    // Ana sorgu - is_active kontrolünü hem 1 hem true ile dene
     const [rows] = await poolWrapper.execute(`
       SELECT fd.*
       FROM flash_deals fd
-      WHERE fd.is_active = true 
+      WHERE (fd.is_active = 1 OR fd.is_active = true)
         AND fd.start_date <= ? 
         AND fd.end_date >= ?
       ORDER BY fd.created_at DESC
     `, [now, now]);
     
-    console.log('📊 Flash deals found in DB:', rows.length);
+    console.log('📊 Flash deals found in DB (active & date valid):', rows.length);
 
     // Her flash deal için ürünleri getir (kategori bazlı ürünler dahil)
     const dealsWithProducts = await Promise.all(rows.map(async (deal) => {
