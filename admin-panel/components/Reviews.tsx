@@ -247,11 +247,11 @@ export default function Reviews() {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {review.userName?.charAt(0) || review.customer?.charAt(0) || 'A'}
+                      {review.userName?.charAt(0) || 'A'}
                     </div>
                     <div className="flex-1">
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">{review.userName || review.customer || 'Anonim'}</p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">{review.productName || review.product || 'Bilinmeyen Ürün'}</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{review.userName || 'Anonim'}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">{review.productName || 'Bilinmeyen Ürün'}</p>
                       {review.userEmail && (
                         <p className="text-xs text-slate-400 dark:text-slate-500">{review.userEmail}</p>
                       )}
