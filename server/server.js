@@ -9030,7 +9030,7 @@ app.get('/api/products', async (req, res) => {
     };
     // Save to Redis (page 1 only) - Optimize: Cache TTL 300 → 600 (10 dakika)
     if (page === 1) {
-      try { if (global.redis) await global.redis.setEx(`products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`, 600, JSON.stringify(payload)); } catch { }
+      try { if (global.redis) await global.redis.set(`products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`, JSON.stringify(payload), 'EX', 600); } catch { }
     }
     res.json({ success: true, data: payload });
   } catch (error) {
@@ -10854,7 +10854,7 @@ async function startServer() {
         );
         campaigns = rows;
         // Optimize: Cache TTL 300 → 600 (10 dakika - campaigns daha az değişir)
-        try { if (global.redis) await global.redis.setEx(`campaigns:active:${tenantId}`, 600, JSON.stringify(rows)); } catch { }
+        try { if (global.redis) await global.redis.set(`campaigns:active:${tenantId}`, JSON.stringify(rows), 'EX', 600); } catch { }
       }
 
       let discountTotal = 0;
@@ -10924,7 +10924,7 @@ async function startServer() {
       // Optimize: Sadece gerekli column'lar
       const [rows] = await poolWrapper.execute(`SELECT id, name, type, discountType, discountValue, applicableProducts, startDate, endDate, minOrderAmount, maxDiscountAmount, isActive, status, createdAt, updatedAt FROM campaigns WHERE tenantId = ? ORDER BY updatedAt DESC`, [tenantId]);
       // Optimize: Cache TTL 300 → 600 (10 dakika)
-      try { if (global.redis) await global.redis.setEx(`campaigns:list:${tenantId}`, 600, JSON.stringify(rows)); } catch { }
+      try { if (global.redis) await global.redis.set(`campaigns:list:${tenantId}`, JSON.stringify(rows), 'EX', 600); } catch { }
       res.json({ success: true, data: rows });
     } catch (error) {
       console.error('❌ Error listing campaigns:', error);
@@ -13696,7 +13696,7 @@ async function startServer() {
       }
 
       const data = { balance: rows[0].balance };
-      try { if (global.redis) await global.redis.setEx(`wallet:balance:${req.tenant.id}:${internalUserId}`, 120, JSON.stringify(data)); } catch { }
+      try { if (global.redis) await global.redis.set(`wallet:balance:${req.tenant.id}:${internalUserId}`, JSON.stringify(data), 'EX', 120); } catch { }
       res.json({ success: true, data });
     } catch (error) {
       console.error('❌ Wallet balance error:', error);

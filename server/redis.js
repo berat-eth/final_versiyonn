@@ -59,9 +59,10 @@ async function setJsonEx(key, ttlSeconds, value, options = {}) {
     if (shouldCompress) {
       // TODO: Add compression support if needed
       // const compressed = await compress(serialized);
-      // await client.setEx(key, ttlSeconds, compressed);
+      // await client.set(key, compressed, 'EX', ttlSeconds);
     } else {
-      await client.setEx(key, ttlSeconds, serialized);
+      // ioredis API: set(key, value, 'EX', seconds)
+      await client.set(key, serialized, 'EX', ttlSeconds);
     }
     return true;
   } catch (error) {
@@ -112,7 +113,8 @@ async function setJsonExBatch(operations) {
   try {
     const pipeline = client.multi();
     operations.forEach(({ key, ttl, value }) => {
-      pipeline.setEx(key, ttl, JSON.stringify(value));
+      // ioredis API: set(key, value, 'EX', seconds)
+      pipeline.set(key, JSON.stringify(value), 'EX', ttl);
     });
     await pipeline.exec();
     return true;
