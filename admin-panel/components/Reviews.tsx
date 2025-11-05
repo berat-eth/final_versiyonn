@@ -228,7 +228,7 @@ export default function Reviews() {
         </div>
         <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5">
           <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Faydalı Bulunma</p>
-          <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{reviews.reduce((sum, r) => sum + r.helpful, 0)}</p>
+          <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{reviews.reduce((sum, r) => sum + (r.helpful || 0), 0)}</p>
         </div>
       </div>
 
