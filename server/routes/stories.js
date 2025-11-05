@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
 
     const { limit = 20 } = req.query;
     const [stories] = await poolWrapper.execute(`
-      SELECT id, title, image, clickAction, \`order\`, expiresAt, createdAt, updatedAt
+      SELECT id, title, imageUrl, clickAction, \`order\`, expiresAt, createdAt, updatedAt
       FROM stories 
       WHERE isActive = true 
       AND (expiresAt IS NULL OR expiresAt > NOW())
@@ -159,7 +159,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
 
     // Optimize: Sadece gerekli column'lar
     const [newStory] = await poolWrapper.execute(
-      'SELECT id, title, description, image, processedImageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, expiresAt, createdAt, updatedAt FROM stories WHERE id = ?',
+      'SELECT id, title, description, imageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, expiresAt, createdAt, updatedAt FROM stories WHERE id = ?',
       [result.insertId]
     );
 
@@ -207,7 +207,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
     // Story'nin var olup olmadığını kontrol et
     // Optimize: Sadece gerekli column'lar
     const [existing] = await poolWrapper.execute(
-      'SELECT id, title, description, image, clickAction, \`order\`, isActive, expiresAt FROM stories WHERE id = ?',
+      'SELECT id, title, description, imageUrl, clickAction, \`order\`, isActive, expiresAt FROM stories WHERE id = ?',
       [id]
     );
 
@@ -286,7 +286,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
     // Güncellenmiş story'yi getir - Optimize: Sadece gerekli column'lar
     const [updated] = await poolWrapper.execute(
-      'SELECT id, title, description, image, processedImageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, expiresAt, createdAt, updatedAt FROM stories WHERE id = ?',
+      'SELECT id, title, description, imageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, expiresAt, createdAt, updatedAt FROM stories WHERE id = ?',
       [id]
     );
 
@@ -357,7 +357,7 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     // Optimize: Sadece gerekli column'lar
     const [story] = await poolWrapper.execute(
-      'SELECT id, title, description, image, clickAction, \`order\`, isActive, expiresAt FROM stories WHERE id = ?',
+      'SELECT id, title, description, imageUrl, clickAction, \`order\`, isActive, expiresAt FROM stories WHERE id = ?',
       [id]
     );
 
@@ -376,7 +376,7 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
 
     // Optimize: Sadece gerekli column'lar
     const [updated] = await poolWrapper.execute(
-      'SELECT id, title, description, image, clickAction, \`order\`, isActive, expiresAt, createdAt, updatedAt FROM stories WHERE id = ?',
+      'SELECT id, title, description, imageUrl, clickAction, \`order\`, isActive, expiresAt, createdAt, updatedAt FROM stories WHERE id = ?',
       [id]
     );
 

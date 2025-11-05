@@ -10822,7 +10822,7 @@ async function startServer() {
       if (!campaigns) {
         // Optimize: Sadece gerekli column'lar
         const [rows] = await poolWrapper.execute(
-          `SELECT id, name, type, discountType, discountValue, applicableProducts, startDate, endDate, minPurchaseAmount, maxDiscountAmount, isActive, status FROM campaigns WHERE tenantId = ? AND isActive = 1 AND status = 'active'
+          `SELECT id, name, type, discountType, discountValue, applicableProducts, startDate, endDate, minOrderAmount, maxDiscountAmount, isActive, status FROM campaigns WHERE tenantId = ? AND isActive = 1 AND status = 'active'
            AND (startDate IS NULL OR startDate <= NOW()) AND (endDate IS NULL OR endDate >= NOW())`,
           [tenantId]
         );
@@ -10896,7 +10896,7 @@ async function startServer() {
         }
       } catch { }
       // Optimize: Sadece gerekli column'lar
-      const [rows] = await poolWrapper.execute(`SELECT id, name, type, discountType, discountValue, applicableProducts, startDate, endDate, minPurchaseAmount, maxDiscountAmount, isActive, status, createdAt, updatedAt FROM campaigns WHERE tenantId = ? ORDER BY updatedAt DESC`, [tenantId]);
+      const [rows] = await poolWrapper.execute(`SELECT id, name, type, discountType, discountValue, applicableProducts, startDate, endDate, minOrderAmount, maxDiscountAmount, isActive, status, createdAt, updatedAt FROM campaigns WHERE tenantId = ? ORDER BY updatedAt DESC`, [tenantId]);
       // Optimize: Cache TTL 300 → 600 (10 dakika)
       try { if (global.redis) await global.redis.setEx(`campaigns:list:${tenantId}`, 600, JSON.stringify(rows)); } catch { }
       res.json({ success: true, data: rows });

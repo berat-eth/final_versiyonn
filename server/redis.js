@@ -339,6 +339,7 @@ async function healthCheck() {
 }
 
 module.exports = {
+  getClient,
   getJson,
   setJsonEx,
   getJsonBatch,

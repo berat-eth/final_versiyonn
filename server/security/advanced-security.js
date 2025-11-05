@@ -165,6 +165,10 @@ class AdvancedSecurity {
     const safeParams = ['deviceId', 'userId', 'tenantId', 'page', 'limit', 'offset', 'sort', 'order'];
     const safeParamPattern = new RegExp(`(${safeParams.join('|')})=[^&]*`, 'gi');
     
+    // Mobil uygulama User-Agent kontrolü
+    const userAgent = req.get('User-Agent') || '';
+    const isMobileApp = /Huglu-Mobile-App|ReactNative/i.test(userAgent);
+    
     // URL'den güvenli parametreleri çıkar
     let cleanUrl = req.url;
     cleanUrl = cleanUrl.replace(safeParamPattern, '');
@@ -180,29 +184,57 @@ class AdvancedSecurity {
       { name: 'XSS_ATTACK', regex: /<script|javascript:|on\w+\s*=|<iframe|<object|<embed/gi },
       { name: 'PATH_TRAVERSAL', regex: /\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e%5c/gi },
       { name: 'COMMAND_INJECTION', regex: /[;&|`$]\s*(ls|cat|rm|del|dir|type|ps|whoami|id|pwd|cd)/gi },
-      { name: 'LDAP_INJECTION', regex: /[=*()&|!]/g }
+      // LDAP_INJECTION: Sadece gerçek LDAP query pattern'lerini tespit et
+      // Normal JSON karakterleri false positive olmaması için çok spesifik pattern
+      { name: 'LDAP_INJECTION', regex: /\(cn=|\(uid=|\(ou=|\(&\([^)]+\).*\([^)]+\)\)/gi }
     ];
 
     const body = JSON.stringify(req.body || {});
     const query = JSON.stringify(req.query || {});
     // Headers sadece belirli alanlarda kontrol et (User-Agent gibi)
     const headers = JSON.stringify({
-      'user-agent': req.get('User-Agent') || '',
+      'user-agent': userAgent,
       'x-forwarded-for': req.get('X-Forwarded-For') || ''
     });
 
     for (const pattern of patterns) {
+      // Mobil uygulamadan gelen normal request'lerde LDAP_INJECTION kontrolünü atla
+      if (pattern.name === 'LDAP_INJECTION' && isMobileApp) {
+        // Mobil uygulama normal JSON gönderdiği için LDAP_INJECTION false positive olabilir
+        // Sadece gerçekten şüpheli LDAP query pattern'lerini kontrol et
+        const suspiciousLdapPattern = /\(cn=|\(uid=|\(ou=|\(&\([^)]+\).*\([^)]+\)\)/gi;
+        const testString = cleanUrl + body;
+        if (!suspiciousLdapPattern.test(testString)) {
+          continue; // Normal request, atla
+        }
+      }
+      
       // Command injection sadece body ve query'de kontrol et (URL'de false positive olabilir)
-      const testString = pattern.name === 'COMMAND_INJECTION' 
-        ? body + query 
-        : cleanUrl + body + query + headers;
+      let testString;
+      if (pattern.name === 'COMMAND_INJECTION') {
+        testString = body + query;
+      } else if (pattern.name === 'LDAP_INJECTION') {
+        // LDAP_INJECTION için sadece URL ve body kontrol et (query parametreleri normal JSON olabilir)
+        testString = cleanUrl + body;
+      } else {
+        testString = cleanUrl + body + query + headers;
+      }
         
       if (pattern.regex.test(testString)) {
+        // Mobil uygulama için LDAP_INJECTION false positive'lerini filtrele
+        if (pattern.name === 'LDAP_INJECTION' && isMobileApp) {
+          // Sadece gerçek LDAP query pattern'leri tespit et
+          const realLdapPattern = /\(cn=|\(uid=|\(ou=|\(&\([^)]+\).*\([^)]+\)\)/gi;
+          if (!realLdapPattern.test(testString)) {
+            continue; // False positive, atla
+          }
+        }
+        
         this.logSecurityEvent('ATTACK_PATTERN_DETECTED', req.ip, {
           pattern: pattern.name,
           url: req.url,
           cleanUrl,
-          userAgent: req.get('User-Agent'),
+          userAgent: userAgent,
           timestamp: new Date().toISOString()
         });
         

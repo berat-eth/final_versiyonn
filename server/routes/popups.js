@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
 
     const now = new Date();
     const [popups] = await poolWrapper.execute(`
-      SELECT id, title, content, image, type, priority, targetAudience, clickAction, 
+      SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, 
              startDate, endDate, isActive, createdAt, updatedAt
       FROM popups 
       WHERE isActive = true
@@ -107,7 +107,7 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     // Optimize: Sadece gerekli column'lar
     const [popups] = await poolWrapper.execute(
-      'SELECT id, title, content, image, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
       [id]
     );
 
@@ -212,7 +212,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
 
     // Optimize: Sadece gerekli column'lar
     const [newPopup] = await poolWrapper.execute(
-      'SELECT id, title, content, image, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
       [result.insertId]
     );
 
@@ -277,7 +277,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
     // Popup'ın var olup olmadığını kontrol et - Optimize: Sadece gerekli column'lar
     const [existing] = await poolWrapper.execute(
-      'SELECT id, title, content, image, type, priority, targetAudience, clickAction, startDate, endDate, isActive FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive FROM popups WHERE id = ?',
       [id]
     );
 
@@ -296,7 +296,7 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 
     // Güncellenmiş popup'ı getir - Optimize: Sadece gerekli column'lar
     const [updated] = await poolWrapper.execute(
-      'SELECT id, title, content, image, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
       [id]
     );
 
@@ -368,7 +368,7 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     // Optimize: Sadece gerekli column'lar
     const [popup] = await poolWrapper.execute(
-      'SELECT id, title, content, image, type, priority, targetAudience, clickAction, startDate, endDate, isActive FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive FROM popups WHERE id = ?',
       [id]
     );
 
@@ -387,7 +387,7 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
 
     // Optimize: Sadece gerekli column'lar
     const [updated] = await poolWrapper.execute(
-      'SELECT id, title, content, image, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
       [id]
     );
 
