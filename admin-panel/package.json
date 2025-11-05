@@ -27,7 +27,8 @@
     "three": "^0.160.0",
     "puppeteer": "^24.27.0",
     "papaparse": "^5.5.3",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "sharp": "^0.33.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
