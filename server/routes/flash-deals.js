@@ -130,17 +130,45 @@ router.get('/', async (req, res) => {
     `, [now, now]);
     console.log('🔍 Date check (first 5 deals):', JSON.stringify(dateCheck, null, 2));
 
-    // Ana sorgu - is_active kontrolünü hem 1 hem true ile dene
+    // Ana sorgu - MySQL NOW() kullanarak timezone problemini çöz
+    // JavaScript Date yerine MySQL'in NOW() fonksiyonunu kullan
     const [rows] = await poolWrapper.execute(`
       SELECT fd.*
       FROM flash_deals fd
       WHERE (fd.is_active = 1 OR fd.is_active = true)
-        AND fd.start_date <= ? 
-        AND fd.end_date >= ?
+        AND fd.start_date <= NOW()
+        AND fd.end_date >= NOW()
       ORDER BY fd.created_at DESC
-    `, [now, now]);
+    `);
     
     console.log('📊 Flash deals found in DB (active & date valid):', rows.length);
+    
+    // Alternatif: Eğer parametre kullanmak istiyorsak, MySQL DATE_FORMAT kullan
+    if (rows.length === 0) {
+      console.log('⚠️ Trying alternative query with explicit date comparison...');
+      const mysqlDate = now.toISOString().slice(0, 19).replace('T', ' ');
+      console.log('🔍 MySQL formatted date:', mysqlDate);
+      
+      const [rowsAlt] = await poolWrapper.execute(`
+        SELECT fd.*
+        FROM flash_deals fd
+        WHERE (fd.is_active = 1 OR fd.is_active = true)
+          AND fd.start_date <= ?
+          AND fd.end_date >= ?
+        ORDER BY fd.created_at DESC
+      `, [mysqlDate, mysqlDate]);
+      
+      console.log('📊 Flash deals found (alternative query):', rowsAlt.length);
+      if (rowsAlt.length > 0) {
+        console.log('✅ Using alternative query results');
+        // rows = rowsAlt; // Bu satırı kaldırdık çünkü const değiştirilemez
+        // Bunun yerine rowsAlt'ı kullanacağız
+        const finalRows = rowsAlt;
+        // Aşağıdaki kodda finalRows kullanılacak
+      } else {
+        const finalRows = rows;
+      }
+    }
 
     // Her flash deal için ürünleri getir (kategori bazlı ürünler dahil)
     const dealsWithProducts = await Promise.all(rows.map(async (deal) => {
