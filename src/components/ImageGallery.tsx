@@ -18,6 +18,7 @@ interface ImageGalleryProps {
   style?: any;
   showThumbnails?: boolean;
   onImagePress?: (imageUrl: string, index: number) => void;
+  onImageChange?: (index: number) => void;
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -28,6 +29,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
   style,
   showThumbnails = true,
   onImagePress,
+  onImageChange,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
@@ -72,11 +74,19 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
   };
 
   const nextImage = () => {
-    setCurrentIndex((prev) => (prev + 1) % validImages.length);
+    setCurrentIndex((prev) => {
+      const newIndex = (prev + 1) % validImages.length;
+      if (onImageChange) onImageChange(newIndex);
+      return newIndex;
+    });
   };
 
   const prevImage = () => {
-    setCurrentIndex((prev) => (prev - 1 + validImages.length) % validImages.length);
+    setCurrentIndex((prev) => {
+      const newIndex = (prev - 1 + validImages.length) % validImages.length;
+      if (onImageChange) onImageChange(newIndex);
+      return newIndex;
+    });
   };
 
   return (
@@ -151,7 +161,10 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
                 styles.thumbnail,
                 index === currentIndex && styles.activeThumbnail
               ]}
-              onPress={() => setCurrentIndex(index)}
+              onPress={() => {
+                setCurrentIndex(index);
+                if (onImageChange) onImageChange(index);
+              }}
             >
               {!loadedThumbs.has(index) && (
                 <View style={styles.thumbPlaceholder}>
@@ -200,6 +213,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
                 event.nativeEvent.contentOffset.x / screenWidth
               );
               setCurrentIndex(index);
+              if (onImageChange) onImageChange(index);
             }}
             style={styles.modalScrollView}
           >

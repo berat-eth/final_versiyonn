@@ -4,6 +4,7 @@ import { CartItem, ProductVariationOption } from '../utils/types';
 import { apiService } from '../utils/api-service';
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from '../utils/database';
 import { detailedActivityLogger } from '../services/DetailedActivityLogger';
+import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 export class CartController {
   static async addToCart(
@@ -42,6 +43,27 @@ export class CartController {
       if (response.success) {
         // ⚡ OPTIMIZASYON: Logging'i asenkron yap - kullanıcıyı bekleme
         this.logCartActionAsync('added', productId, quantity, selectedVariations, response);
+        
+        // Sepet davranışı tracking - Sepet bilgilerini almak için CartModel'i kullan
+        try {
+          const cartItems = await CartModel.getCartItems(userId);
+          const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+          const cartTotal = cartItems.reduce((total, item) => total + (item.product?.price || 0) * item.quantity, 0);
+          
+          behaviorAnalytics.trackCartAction(
+            'add',
+            productId,
+            quantity,
+            cartItemCount,
+            cartTotal
+          );
+          
+          // User segment güncelle - hızlı karar veren kullanıcı kontrolü
+          behaviorAnalytics.calculateUserSegments();
+        } catch (error) {
+          // Tracking hatası sepete eklemeyi engellemez
+          console.warn('Cart behavior tracking error:', error);
+        }
         
         return { success: true, message: 'Ürün sepete eklendi' };
       } else {

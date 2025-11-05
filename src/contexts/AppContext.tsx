@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, ReactNode, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState as RNAppState, AppStateStatus } from 'react-native';
 import apiService from '../utils/api-service';
 import { UserController } from '../controllers/UserController';
 import { CartItem, Order, Product, User } from '../utils/types';
+import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 // State Types
 export interface AppState {
@@ -111,6 +113,10 @@ const initialState: AppState = {
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'SET_USER':
+      // Behavior analytics'i initialize et
+      if (action.payload && action.payload.id) {
+        behaviorAnalytics.setUserId(action.payload.id);
+      }
       return {
         ...state,
         user: action.payload,
@@ -121,6 +127,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'UPDATE_USER':
+      // Behavior analytics'i güncelle
+      if (action.payload && action.payload.id) {
+        behaviorAnalytics.setUserId(action.payload.id);
+      }
       return {
         ...state,
         user: state.user ? { ...state.user, ...action.payload } : null,
@@ -131,6 +141,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'LOGOUT':
+      // Behavior analytics'i temizle
+      behaviorAnalytics.flushAllData();
       return {
         ...state,
         user: null,
@@ -336,6 +348,8 @@ interface AppProviderProps {
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
+  const appStateRef = useRef<AppStateStatus>(RNAppState.currentState);
+  const scrollDepthRef = useRef<number>(0);
 
   // Load state from AsyncStorage on mount
   useEffect(() => {
@@ -356,9 +370,87 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     // Start network monitoring with optimized intervals
     apiService.startNetworkMonitoring(60000); // 60 saniye aralıklarla kontrol et (20'den optimize edildi)
     
+    // Device info tracking - başlangıçta bir kez ve periyodik olarak
+    const updateDeviceInfo = async () => {
+      if (!state.user || !state.user.id) return;
+      
+      try {
+        const { NetworkMonitor } = await import('../utils/performance-utils');
+        NetworkMonitor.init();
+        
+        const networkType = NetworkMonitor.getConnectionType();
+        let mappedNetworkType: 'wifi' | 'lte' | '5g' | '3g' | '2g' | 'unknown' = 'unknown';
+        if (networkType === 'wifi') mappedNetworkType = 'wifi';
+        else if (networkType === 'cellular') {
+          mappedNetworkType = 'lte'; // Varsayılan olarak LTE
+        }
+        
+        behaviorAnalytics.updateDeviceInfo({
+          networkType: mappedNetworkType
+        });
+        
+        // Battery level tracking (eğer expo-battery mevcutsa)
+        try {
+          const Battery = require('expo-battery').default;
+          const batteryLevel = await Battery.getBatteryLevelAsync();
+          behaviorAnalytics.updateDeviceInfo({
+            batteryLevel: Math.round(batteryLevel * 100)
+          });
+        } catch (batteryError) {
+          // Battery API mevcut değil, sessiz geç
+        }
+      } catch (error) {
+        // Device info tracking hatası uygulamayı engellemez
+      }
+    };
+    
+    if (state.user && state.user.id) {
+      updateDeviceInfo();
+      // Her 5 dakikada bir güncelle
+      const deviceInfoInterval = setInterval(updateDeviceInfo, 300000);
+      return () => {
+        clearInterval(deviceInfoInterval);
+        apiService.stopNetworkMonitoring();
+      };
+    }
+    
     // Cleanup on unmount
     return () => {
       apiService.stopNetworkMonitoring();
+    };
+  }, [state.user]);
+
+  // Session tracking - App state changes (foreground/background)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        // App foreground'a geldi - yeni session başlat
+        if (state.user && state.user.id) {
+          behaviorAnalytics.setUserId(state.user.id);
+        }
+      } else if (appStateRef.current === 'active' && nextAppState.match(/inactive|background/)) {
+        // App background'a gitti - session'ı bitir
+        if (state.user && state.user.id) {
+          behaviorAnalytics.endSession(scrollDepthRef.current);
+          scrollDepthRef.current = 0;
+        }
+      }
+      appStateRef.current = nextAppState;
+    };
+
+    const subscription = RNAppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [state.user]);
+
+  // Component unmount'ta session'ı bitir
+  useEffect(() => {
+    return () => {
+      if (state.user && state.user.id) {
+        behaviorAnalytics.endSession(scrollDepthRef.current);
+      }
     };
   }, []);
 

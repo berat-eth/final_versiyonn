@@ -27,6 +27,7 @@ import PaymentService from '../services/PaymentService';
 import EFT_DETAILS from '../utils/payment-config';
 import NfcCardService, { NfcCardData } from '../services/NfcCardService';
 import * as Clipboard from 'expo-clipboard';
+import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 interface OrderScreenProps {
   navigation: any;
@@ -59,6 +60,14 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
   });
 
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'eft' | 'nfc' | 'wallet'>('credit_card');
+  
+  // Payment method değişikliği tracking
+  React.useEffect(() => {
+    if (paymentMethod === 'credit_card') {
+      // Taksit seçimi için varsayılan olarak 1 taksit kabul ediyoruz
+      behaviorAnalytics.trackPaymentAction('installment_select', undefined, undefined, 1);
+    }
+  }, [paymentMethod]);
   const [cardInfo, setCardInfo] = useState({
     cardNumber: '',
     expiryDate: '',
@@ -79,6 +88,19 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
+  }, [currentStep, steps.length]);
+
+  // Sepet terk tracking - component unmount veya navigation leave
+  React.useEffect(() => {
+    return () => {
+      // Component unmount olduğunda (kullanıcı sayfadan çıktığında)
+      if (currentStep > 0 && currentStep < steps.length) {
+        const abandonStep = currentStep === 0 ? 'cart' : 
+                           currentStep === 1 ? 'checkout' : 
+                           currentStep === 2 ? 'payment' : 'shipping';
+        behaviorAnalytics.trackPaymentAction('cart_abandon', undefined, undefined, undefined, abandonStep);
+      }
+    };
   }, [currentStep, steps.length]);
   // NFC desteğini kontrol et
   React.useEffect(() => {
@@ -220,6 +242,12 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
       
       // Creating order with data
       
+      // Fraud signal tracking - hızlı checkout kontrolü
+      const checkoutStartTime = Date.now() - (route.params?.checkoutStartTime || Date.now());
+      if (checkoutStartTime < 30000) { // 30 saniyeden kısa sürede tamamlanan checkout
+        behaviorAnalytics.trackFraudSignal('fast_checkout', checkoutStartTime);
+      }
+      
       const result = await OrderController.createOrder(
         userId,
         shippingAddress,
@@ -275,6 +303,9 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
           });
 
           if (!paymentResponse.success) {
+            // Başarısız ödeme tracking
+            behaviorAnalytics.trackFraudSignal('failed_payment_attempts', 1);
+            
             Alert.alert('Ödeme Hatası', paymentResponse.message || 'Kart ödemesi başarısız. Lütfen tekrar deneyin.');
             return; // Sepeti temizleme ve yönlendirme yapma
           }

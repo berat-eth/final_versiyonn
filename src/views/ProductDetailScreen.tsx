@@ -34,6 +34,7 @@ import * as FileSystem from 'expo-file-system';
 import { NetworkMonitor } from '../utils/performance-utils';
 import { Chatbot } from '../components/Chatbot';
 import FlashDealService, { FlashDeal } from '../services/FlashDealService';
+import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 interface ProductDetailScreenProps {
   navigation: any;
@@ -72,6 +73,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     endTime: number;
   } | null>(null);
   const [flashCountdown, setFlashCountdown] = useState<number>(0);
+  const [productInteractionStartTime, setProductInteractionStartTime] = useState<number>(0);
+  const [lastImageIndex, setLastImageIndex] = useState<number>(0);
 
   const { productId } = route.params;
 
@@ -154,6 +157,10 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
   useEffect(() => {
     if (product) {
+      // Ürün etkileşim tracking başlat
+      behaviorAnalytics.startProductInteraction(product.id, 'ProductDetail');
+      setProductInteractionStartTime(Date.now());
+      
       // Hesaplamaları hafiflet - sadece gerekli durumlarda çalıştır
       const hasVariations = product.variations && product.variations.length > 0;
       const hasSelectedOptions = Object.keys(selectedOptions).length > 0;
@@ -168,7 +175,22 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
         setCurrentStock(product.stock);
       }
     }
+
+    // Cleanup: Ürün değiştiğinde veya component unmount olduğunda
+    return () => {
+      if (product && productInteractionStartTime > 0) {
+        const duration = Date.now() - productInteractionStartTime;
+        behaviorAnalytics.endProductInteraction(product.id, duration);
+      }
+    };
   }, [product, selectedOptions]);
+
+  // Açıklama sekmesi görüntülenme tracking
+  useEffect(() => {
+    if (product && isDescriptionExpanded) {
+      behaviorAnalytics.trackProductDescriptionView(product.id, true);
+    }
+  }, [isDescriptionExpanded, product]);
 
   // Flash deal bilgisini kontrol et ve hesapla
   useEffect(() => {
@@ -344,6 +366,21 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
   const handleVariationChange = (newSelectedOptions: { [key: string]: ProductVariationOption }) => {
     setSelectedOptions(newSelectedOptions);
+    
+    // Varyant seçimi tracking
+    if (product) {
+      // Varyant string'ini yeni seçimlerden hesapla
+      const hasVariationsArray = Array.isArray(product.variations) && product.variations.length > 0;
+      if (hasVariationsArray) {
+        const variantString = ProductVariationService.getSelectedVariationString(
+          (product.variations as any[]) || [],
+          newSelectedOptions
+        );
+        if (variantString) {
+          behaviorAnalytics.trackProductVariantSelection(product.id, variantString);
+        }
+      }
+    }
   };
 
   const isAllVariationsSelected = () => {
@@ -631,6 +668,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
         const success = await UserController.removeFromFavorites(userId, productId);
         if (success) {
           setIsFavorite(false);
+          // Wishlist tracking - remove
+          behaviorAnalytics.trackWishlist('remove', productId);
           Alert.alert('Başarılı', 'Ürün favorilerden çıkarıldı');
         } else {
           Alert.alert('Hata', 'Ürün favorilerden çıkarılamadı');
@@ -650,6 +689,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
         });
         if (success) {
           setIsFavorite(true);
+          // Wishlist tracking - add
+          behaviorAnalytics.trackWishlist('add', productId);
           Alert.alert('Başarılı', 'Ürün favorilere eklendi');
         } else {
           Alert.alert('Hata', 'Ürün favorilere eklenemedi');
@@ -761,6 +802,13 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             mainImage={product.image || galleryImages?.[0] || 'https://via.placeholder.com/400x400?text=No+Image'}
             style={styles.imageGallery}
             showThumbnails={true}
+            onImageChange={(index: number) => {
+              // Carousel swipe tracking
+              if (product && index !== lastImageIndex) {
+                behaviorAnalytics.trackProductCarouselSwipe(product.id);
+                setLastImageIndex(index);
+              }
+            }}
           />
           
           {/* Favori Butonu */}
@@ -982,7 +1030,13 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
           <View style={styles.descriptionContainer}>
             <TouchableOpacity
               style={[styles.descriptionHeader, !isDescriptionExpanded && { marginBottom: 0 }]}
-              onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+              onPress={() => {
+                setIsDescriptionExpanded(!isDescriptionExpanded);
+                // Description view tracking
+                if (product) {
+                  behaviorAnalytics.trackProductDescriptionView(product.id, !isDescriptionExpanded);
+                }
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.sectionTitle}>{t('productDetail.description')}</Text>

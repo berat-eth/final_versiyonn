@@ -2,6 +2,7 @@ import { getApiBaseUrl, detectBestServer, REMOTE_SERVERS, IP_SERVER_CANDIDATES, 
 import { CacheService } from '../services/CacheService';
 import { Linking } from 'react-native';
 import { getApiKey as getStoredApiKey, getTenantId as getStoredTenantId } from '../services/AuthKeyStore';
+import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 // Dynamic API base URL - will be set based on network detection
 let currentApiUrl = getApiBaseUrl();
@@ -491,6 +492,15 @@ class ApiService {
       }
 
       const duration = Date.now() - startTime;
+
+      // Performance tracking - sadece başarılı istekler için
+      if (response.ok && result && result.success) {
+        try {
+          behaviorAnalytics.trackPerformance(endpoint, duration);
+        } catch (perfError) {
+          // Tracking hatası API çağrısını engellemez
+        }
+      }
 
       // Performance logging
       if (duration > 1000) {

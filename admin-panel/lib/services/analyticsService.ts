@@ -179,4 +179,240 @@ export const analyticsService = {
       };
     }
   },
+
+  // Behavior Analytics - Get screen view times
+  getScreenViews: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/screen-views');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting screen views:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Behavior Analytics - Get scroll depth
+  getScrollDepth: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/scroll-depth');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting scroll depth:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Behavior Analytics - Get navigation paths
+  getNavigationPaths: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/navigation-paths');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting navigation paths:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Behavior Analytics - Get filter usage
+  getFilterUsage: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/filter-usage');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting filter usage:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Behavior Analytics - Get sort preferences
+  getSortPreferences: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/sort-preferences');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting sort preferences:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Behavior Analytics - Get heatmap data
+  getHeatmap: async (screenName?: string) => {
+    try {
+      const url = screenName 
+        ? `/user-data/behavior/heatmap?screenName=${encodeURIComponent(screenName)}`
+        : '/user-data/behavior/heatmap';
+      const res = await api.get<any>(url);
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting heatmap:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Behavior Analytics - Get back navigation
+  getBackNavigation: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/back-navigation');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting back navigation:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Behavior Analytics - Get product interactions
+  getProductInteractions: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/product-interactions');
+      if (res && res.success && res.data) {
+        return { success: true, data: res.data };
+      }
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error('Error getting product interactions:', error);
+      return { success: true, data: [] };
+    }
+  },
+
+  // Behavior Analytics - Get cart behavior
+  getCartBehavior: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/cart-behavior');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting cart behavior:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get payment behavior
+  getPaymentBehavior: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/payment-behavior');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting payment behavior:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get user segments
+  getUserSegments: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/user-segments');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting user segments:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get performance metrics
+  getPerformanceMetrics: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/performance');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting performance metrics:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get device info
+  getDeviceInfo: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/device-info');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting device info:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get notifications
+  getNotifications: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/notifications');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting notifications:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get wishlist
+  getWishlist: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/wishlist');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting wishlist:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get sessions
+  getSessions: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/sessions');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting sessions:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get LTV
+  getLTV: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/ltv');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting LTV:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get campaigns
+  getCampaigns: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/campaigns');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting campaigns:', error);
+      return { success: true, data: {} };
+    }
+  },
+
+  // Behavior Analytics - Get fraud signals
+  getFraudSignals: async () => {
+    try {
+      const res = await api.get<any>('/user-data/behavior/fraud-signals');
+      return res && res.success ? { success: true, data: res.data } : { success: true, data: {} };
+    } catch (error) {
+      console.error('Error getting fraud signals:', error);
+      return { success: true, data: {} };
+    }
+  },
 };

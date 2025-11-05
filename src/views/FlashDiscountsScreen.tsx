@@ -26,6 +26,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { CampaignController, Campaign } from '../controllers/CampaignController';
 import { useAppContext } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 interface FlashDiscountsScreenProps {
   navigation: any;

@@ -23,7 +23,7 @@ import { DiscountWheelController, DiscountCode } from '../controllers/DiscountWh
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useAppContext } from '../contexts/AppContext';
 import { CartShareButtons } from '../components/CartShareButtons';
- 
+import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 interface CartScreenProps {
   navigation: any;
@@ -42,7 +42,7 @@ interface DeliveryAddress {
 }
 
 export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
-  const { updateCart } = useAppContext();
+  const { updateCart, state } = useAppContext();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -136,6 +136,9 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       const userId = await UserController.getCurrentUserId();
       const subtotal = CartController.calculateSubtotal(cartItems);
       
+      // Kupon deneme tracking
+      behaviorAnalytics.trackPaymentAction('coupon_try', discountCode.trim());
+      
       const result = await DiscountWheelController.validateDiscountCode(
         discountCode.trim(),
         userId,
@@ -149,8 +152,20 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
           type: result.data.discountType,
           value: result.data.discountValue
         });
-        Alert.alert('Başarılı', `${result.data.discountAmount.toFixed(2)} TL indirim uygulandı!`);
+        
+      // Kupon başarılı tracking
+      behaviorAnalytics.trackPaymentAction('coupon_success', discountCode.trim(), 'success');
+      
+      // User segment güncelle - kupon kullanımı
+      behaviorAnalytics.calculateUserSegments();
+      
+      Alert.alert('Başarılı', `${result.data.discountAmount.toFixed(2)} TL indirim uygulandı!`);
       } else {
+        // Kupon başarısız tracking
+        const failReason = result.message?.includes('geçersiz') ? 'invalid' : 
+                          result.message?.includes('süresi') ? 'expired' : 'failed';
+        behaviorAnalytics.trackPaymentAction('coupon_fail', discountCode.trim(), failReason);
+        
         Alert.alert('Hata', result.message);
       }
     } catch (error) {
@@ -179,6 +194,9 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     
     if (itemIndex === -1) return;
     
+    const oldItem = oldItems[itemIndex];
+    const oldQuantity = oldItem.quantity;
+    
     // Önce UI'ı güncelle (anında tepki)
     const updatedItems = [...cartItems];
     if (newQuantity === 0) {
@@ -197,6 +215,20 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       itemCount,
       lastUpdated: new Date().toISOString(),
     });
+    
+    // Sepet davranışı tracking
+    if (oldItem && oldItem.product) {
+      const oldSubtotal = CartController.calculateSubtotal(oldItems);
+      const oldItemCount = oldItems.reduce((total, item) => total + item.quantity, 0);
+      behaviorAnalytics.trackCartAction(
+        newQuantity === 0 ? 'remove' : 'update_quantity',
+        oldItem.product.id,
+        newQuantity,
+        oldItemCount,
+        oldSubtotal,
+        oldQuantity
+      );
+    }
     
     setUpdatingItems(prev => new Set(prev.add(cartItemId)));
     
@@ -253,6 +285,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
           onPress: async () => {
             // ⚡ OPTIMIZASYON: Optimistik UI güncellemesi
             const oldItems = [...cartItems];
+            const removedItem = cartItems.find(item => item.id === cartItemId);
             const updatedItems = cartItems.filter(item => item.id !== cartItemId);
             
             // Önce UI'ı güncelle (anında tepki)
@@ -267,6 +300,23 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
               itemCount,
               lastUpdated: new Date().toISOString(),
             });
+            
+            // Sepet davranışı tracking
+            if (removedItem && removedItem.product) {
+              const oldSubtotal = CartController.calculateSubtotal(oldItems);
+              const oldItemCount = oldItems.reduce((total, item) => total + item.quantity, 0);
+              behaviorAnalytics.trackCartAction(
+                'remove',
+                removedItem.product.id,
+                0,
+                oldItemCount,
+                oldSubtotal,
+                removedItem.quantity,
+                undefined,
+                undefined,
+                'user_removed' // Varsayılan neden
+              );
+            }
             
             setUpdatingItems(prev => new Set(prev.add(cartItemId)));
             
@@ -326,7 +376,8 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       cartItems,
       subtotal,
       shipping,
-      total
+      total,
+      checkoutStartTime: Date.now() // Checkout başlangıç zamanı
     });
   }, [cartItems, navigation]);
 
