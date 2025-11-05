@@ -9474,6 +9474,130 @@ app.put('/api/products/:id/stock', async (req, res) => {
   }
 });
 
+// Admin Reviews endpoints
+app.get('/api/admin/reviews', async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const page = parseInt(req.query.page || '1') || 1;
+    const limit = parseInt(req.query.limit || '50') || 50;
+    const offset = (page - 1) * limit;
+
+    // Tüm yorumları getir (ürün ve kullanıcı bilgileriyle birlikte)
+    const [reviews] = await poolWrapper.execute(
+      `SELECT r.id, r.productId, r.userId, r.userName, r.rating, r.comment, r.createdAt,
+              COALESCE(r.status, 'approved') as status,
+              p.name as productName, p.image as productImage,
+              u.email as userEmail, u.phone as userPhone
+       FROM reviews r
+       LEFT JOIN products p ON r.productId = p.id AND r.tenantId = p.tenantId
+       LEFT JOIN users u ON r.userId = u.id AND r.tenantId = u.tenantId
+       WHERE r.tenantId = ?
+       ORDER BY r.createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [tenantId, limit, offset]
+    );
+
+    // Toplam yorum sayısı
+    const [countResult] = await poolWrapper.execute(
+      `SELECT COUNT(*) as total FROM reviews WHERE tenantId = ?`,
+      [tenantId]
+    );
+    const total = countResult[0]?.total || 0;
+
+    // Her yorum için medya dosyalarını getir
+    for (const review of reviews) {
+      const [media] = await poolWrapper.execute(
+        `SELECT id, mediaType, mediaUrl, thumbnailUrl, displayOrder
+         FROM review_media 
+         WHERE reviewId = ? AND tenantId = ?
+         ORDER BY displayOrder ASC`,
+        [review.id, tenantId]
+      );
+      review.media = media || [];
+    }
+
+    res.json({
+      success: true,
+      data: reviews,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting admin reviews:', error);
+    res.status(500).json({ success: false, message: 'Error getting reviews' });
+  }
+});
+
+app.put('/api/admin/reviews/:reviewId/status', async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { status } = req.body;
+    const tenantId = req.tenant?.id || 1;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status. Must be approved or rejected'
+      });
+    }
+
+    // Status sütunu yoksa ekle (ALTER TABLE IF NOT EXISTS çalışmaz, try-catch kullan)
+    try {
+      await poolWrapper.execute(
+        `UPDATE reviews SET status = ? WHERE id = ? AND tenantId = ?`,
+        [status, reviewId, tenantId]
+      );
+    } catch (error) {
+      // Eğer status sütunu yoksa, ekle
+      if (error.code === 'ER_BAD_FIELD_ERROR' || (error.message && error.message.includes('status'))) {
+        await poolWrapper.execute(
+          `ALTER TABLE reviews ADD COLUMN status ENUM('pending', 'approved', 'rejected') DEFAULT 'approved'`
+        );
+        // Tekrar dene
+        await poolWrapper.execute(
+          `UPDATE reviews SET status = ? WHERE id = ? AND tenantId = ?`,
+          [status, reviewId, tenantId]
+        );
+      } else {
+        throw error;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Review status updated'
+    });
+  } catch (error) {
+    console.error('❌ Error updating review status:', error);
+    res.status(500).json({ success: false, message: 'Error updating review status' });
+  }
+});
+
+app.delete('/api/admin/reviews/:reviewId', async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const tenantId = req.tenant?.id || 1;
+
+    // Review'ı sil (CASCADE ile medya dosyaları da silinir)
+    await poolWrapper.execute(
+      `DELETE FROM reviews WHERE id = ? AND tenantId = ?`,
+      [reviewId, tenantId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Review deleted'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting review:', error);
+    res.status(500).json({ success: false, message: 'Error deleting review' });
+  }
+});
+
 // Reviews endpoints
 app.get('/api/reviews/product/:productId', async (req, res) => {
   try {

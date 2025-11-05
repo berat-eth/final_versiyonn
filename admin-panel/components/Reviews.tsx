@@ -1,33 +1,111 @@
 'use client'
 
-import { useState } from 'react'
-import { Star, ThumbsUp, ThumbsDown, MessageSquare, CheckCircle, XCircle, Brain, BarChart3, AlertTriangle, TrendingUp, Target, Eye, RefreshCw, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Star, ThumbsUp, ThumbsDown, MessageSquare, CheckCircle, XCircle, Brain, BarChart3, AlertTriangle, TrendingUp, Target, Eye, RefreshCw, X, Image as ImageIcon, Video } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface Review {
   id: number
-  product: string
-  customer: string
+  productId?: number
+  productName?: string
+  productImage?: string
+  userId?: number
+  userName?: string
+  userEmail?: string
+  userPhone?: string
   rating: number
   comment: string
   date: string
+  createdAt?: string
   status: 'pending' | 'approved' | 'rejected'
-  helpful: number
+  helpful?: number
+  media?: Array<{
+    id: number
+    mediaType: 'image' | 'video'
+    mediaUrl: string
+    thumbnailUrl?: string
+    displayOrder?: number
+  }>
 }
 
 export default function Reviews() {
-  // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
   const [reviews, setReviews] = useState<Review[]>([])
+  const [loading, setLoading] = useState(true)
   const [showAIAnalysis, setShowAIAnalysis] = useState(false)
   const [aiAnalysisData, setAiAnalysisData] = useState<any>(null)
   const [aiLoading, setAiLoading] = useState(false)
 
-  const approve = (id: number) => {
-    setReviews(reviews.map(r => r.id === id ? { ...r, status: 'approved' } : r))
+  useEffect(() => {
+    loadReviews()
+  }, [])
+
+  const loadReviews = async () => {
+    try {
+      setLoading(true)
+      const { api } = await import('@/lib/api')
+      const response = await api.get<any>('/admin/reviews')
+      const data = response as any
+      
+      if (data.success && Array.isArray(data.data)) {
+        const formattedReviews = data.data.map((r: any) => ({
+          id: r.id,
+          productId: r.productId,
+          productName: r.productName || 'Bilinmeyen Ürün',
+          productImage: r.productImage,
+          userId: r.userId,
+          userName: r.userName || 'Anonim',
+          userEmail: r.userEmail,
+          userPhone: r.userPhone,
+          rating: r.rating,
+          comment: r.comment || '',
+          date: new Date(r.createdAt || r.date).toLocaleDateString('tr-TR'),
+          createdAt: r.createdAt,
+          status: r.status || 'approved',
+          helpful: r.helpful || 0,
+          media: r.media || []
+        }))
+        setReviews(formattedReviews)
+      } else {
+        setReviews([])
+      }
+    } catch (error: any) {
+      console.error('Error loading reviews:', error)
+      setReviews([])
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const reject = (id: number) => {
-    setReviews(reviews.map(r => r.id === id ? { ...r, status: 'rejected' } : r))
+  const approve = async (id: number) => {
+    try {
+      const { api } = await import('@/lib/api')
+      await api.put(`/admin/reviews/${id}/status`, { status: 'approved' })
+      setReviews(reviews.map(r => r.id === id ? { ...r, status: 'approved' } : r))
+    } catch (error) {
+      console.error('Error approving review:', error)
+    }
+  }
+
+  const reject = async (id: number) => {
+    try {
+      const { api } = await import('@/lib/api')
+      await api.put(`/admin/reviews/${id}/status`, { status: 'rejected' })
+      setReviews(reviews.map(r => r.id === id ? { ...r, status: 'rejected' } : r))
+    } catch (error) {
+      console.error('Error rejecting review:', error)
+    }
+  }
+
+  const deleteReview = async (id: number) => {
+    if (!confirm('Bu yorumu silmek istediğinize emin misiniz?')) return
+    
+    try {
+      const { api } = await import('@/lib/api')
+      await api.delete(`/admin/reviews/${id}`)
+      setReviews(reviews.filter(r => r.id !== id))
+    } catch (error) {
+      console.error('Error deleting review:', error)
+    }
   }
 
   const performAIAnalysis = async () => {
@@ -95,6 +173,14 @@ export default function Reviews() {
     ))
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -102,18 +188,27 @@ export default function Reviews() {
           <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Değerlendirme & Yorum Yönetimi</h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Müşteri yorumlarını yönetin</p>
         </div>
-        <button
-          onClick={performAIAnalysis}
-          disabled={aiLoading}
-          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {aiLoading ? (
-            <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-          ) : (
-            <Brain className="w-5 h-5 mr-2" />
-          )}
-          {aiLoading ? 'Analiz Ediliyor...' : 'YZ Analiz'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadReviews}
+            className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm flex items-center gap-2 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Yenile
+          </button>
+          <button
+            onClick={performAIAnalysis}
+            disabled={aiLoading}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {aiLoading ? (
+              <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+            ) : (
+              <Brain className="w-5 h-5 mr-2" />
+            )}
+            {aiLoading ? 'Analiz Ediliyor...' : 'YZ Analiz'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -152,11 +247,14 @@ export default function Reviews() {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {review.customer.charAt(0)}
+                      {review.userName?.charAt(0) || review.customer?.charAt(0) || 'A'}
                     </div>
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">{review.customer}</p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">{review.product}</p>
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{review.userName || review.customer || 'Anonim'}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">{review.productName || review.product || 'Bilinmeyen Ürün'}</p>
+                      {review.userEmail && (
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{review.userEmail}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center space-x-2 mb-2">
@@ -164,11 +262,38 @@ export default function Reviews() {
                     <span className="text-sm text-slate-500 dark:text-slate-400">{review.date}</span>
                   </div>
                   <p className="text-slate-700 dark:text-slate-300 mb-3">{review.comment}</p>
+                  
+                  {/* Medya dosyaları (görsel ve video) */}
+                  {review.media && review.media.length > 0 && (
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      {review.media.map((mediaItem) => (
+                        <div key={mediaItem.id} className="relative">
+                          {mediaItem.mediaType === 'video' ? (
+                            <div className="w-16 h-16 bg-slate-200 dark:bg-slate-700 rounded-lg flex items-center justify-center">
+                              <Video className="w-6 h-6 text-slate-500" />
+                            </div>
+                          ) : (
+                            <img
+                              src={mediaItem.thumbnailUrl || mediaItem.mediaUrl}
+                              alt="Review media"
+                              className="w-16 h-16 object-cover rounded-lg"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none'
+                              }}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
                   <div className="flex items-center space-x-4 text-sm">
-                    <span className="flex items-center text-slate-500 dark:text-slate-400">
-                      <ThumbsUp className="w-4 h-4 mr-1" />
-                      {review.helpful} faydalı
-                    </span>
+                    {review.helpful !== undefined && review.helpful > 0 && (
+                      <span className="flex items-center text-slate-500 dark:text-slate-400">
+                        <ThumbsUp className="w-4 h-4 mr-1" />
+                        {review.helpful} faydalı
+                      </span>
+                    )}
                     <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
                       review.status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' :
                       review.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400' :
@@ -179,22 +304,33 @@ export default function Reviews() {
                     </span>
                   </div>
                 </div>
-                {review.status === 'pending' && (
-                  <div className="flex items-center space-x-2 ml-4">
-                    <button
-                      onClick={() => approve(review.id)}
-                      className="p-2 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-800/40 rounded-lg transition-colors"
-                    >
-                      <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-                    </button>
-                    <button
-                      onClick={() => reject(review.id)}
-                      className="p-2 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-800/40 rounded-lg transition-colors"
-                    >
-                      <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center space-x-2 ml-4">
+                  {review.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => approve(review.id)}
+                        className="p-2 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-800/40 rounded-lg transition-colors"
+                        title="Onayla"
+                      >
+                        <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      </button>
+                      <button
+                        onClick={() => reject(review.id)}
+                        className="p-2 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-800/40 rounded-lg transition-colors"
+                        title="Reddet"
+                      >
+                        <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => deleteReview(review.id)}
+                    className="p-2 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-800/40 rounded-lg transition-colors"
+                    title="Sil"
+                  >
+                    <X className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                  </button>
+                </div>
               </div>
             </motion.div>
           ))}

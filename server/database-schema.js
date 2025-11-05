@@ -674,6 +674,7 @@ async function createDatabaseSchema(pool) {
       userName VARCHAR(255) NOT NULL,
       rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
       comment TEXT,
+      status ENUM('pending', 'approved', 'rejected') DEFAULT 'approved',
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
       FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
@@ -681,10 +682,25 @@ async function createDatabaseSchema(pool) {
       INDEX idx_tenant_reviews (tenantId),
       INDEX idx_product_reviews (productId),
       INDEX idx_user_reviews (userId),
-      INDEX idx_rating_tenant (rating, tenantId)
+      INDEX idx_rating_tenant (rating, tenantId),
+      INDEX idx_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
       console.log('✅ Reviews table ready');
+
+      // Status sütunu yoksa ekle (backward compatibility)
+      try {
+        await pool.execute(`
+          ALTER TABLE reviews 
+          ADD COLUMN IF NOT EXISTS status ENUM('pending', 'approved', 'rejected') DEFAULT 'approved'
+        `);
+        console.log('✅ Reviews status column added/verified');
+      } catch (error) {
+        // Sütun zaten varsa hata vermez, devam eder
+        if (error.code !== 'ER_DUP_FIELDNAME') {
+          console.warn('⚠️ Could not add status column to reviews:', error.message);
+        }
+      }
 
       // Review Media table (görsel ve video desteği)
       await pool.execute(`
