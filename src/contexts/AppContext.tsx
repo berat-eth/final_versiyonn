@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, ReactNode } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../utils/api-service';
 import { UserController } from '../controllers/UserController';
-import { CartItem, Order, Product } from '../utils/types';
+import { CartItem, Order, Product, User } from '../utils/types';
 
 // State Types
 export interface AppState {
