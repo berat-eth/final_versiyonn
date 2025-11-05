@@ -267,33 +267,9 @@ app.use(compression({
   }
 }));
 
-// CORS - Güvenli yapılandırma
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : (process.env.NODE_ENV === 'production' 
-      ? [] // Production'da environment variable'dan oku
-      : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000']); // Development için
-
+// CORS - Admin ve mobil uygulama için tüm origin'lere izin ver
 app.use(cors({
-  origin: (origin, callback) => {
-    // Same-origin istekleri (Postman, curl, vb.) için izin ver
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Development mode'da tüm origin'lere izin ver (opsiyonel)
-    if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_ALL_ORIGINS === 'true') {
-      return callback(null, true);
-    }
-    
-    // Whitelist kontrolü
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`⚠️ CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Tüm origin'lere izin ver (admin.plaxsy.com ve mobil uygulama için)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id'],
