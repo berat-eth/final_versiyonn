@@ -68,6 +68,7 @@ router.get('/all', authenticateAdmin, async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     if (!poolWrapper) {
+      console.error('❌ poolWrapper not available in flash-deals route');
       return res.status(500).json({
         success: false,
         message: 'Database connection not available'
@@ -75,6 +76,7 @@ router.get('/', async (req, res) => {
     }
 
     const now = new Date();
+    console.log('📅 Flash deals query - now:', now.toISOString());
 
     const [rows] = await poolWrapper.execute(`
       SELECT fd.*
@@ -84,9 +86,13 @@ router.get('/', async (req, res) => {
         AND fd.end_date >= ?
       ORDER BY fd.created_at DESC
     `, [now, now]);
+    
+    console.log('📊 Flash deals found in DB:', rows.length);
 
     // Her flash deal için ürünleri getir (kategori bazlı ürünler dahil)
     const dealsWithProducts = await Promise.all(rows.map(async (deal) => {
+      console.log(`📦 Processing deal ID: ${deal.id}, name: ${deal.name}`);
+      
       // Seçili ürünler
       const [products] = await poolWrapper.execute(`
         SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
@@ -95,6 +101,8 @@ router.get('/', async (req, res) => {
         JOIN products p ON fdp.product_id = p.id
         WHERE fdp.flash_deal_id = ?
       `, [deal.id]);
+      
+      console.log(`  - Products from flash_deal_products: ${products.length}`);
 
       // Seçili kategorilerdeki ürünler
       const [categoryProducts] = await poolWrapper.execute(`
@@ -105,12 +113,16 @@ router.get('/', async (req, res) => {
         JOIN products p ON p.category = c.name
         WHERE fdc.flash_deal_id = ?
       `, [deal.id]);
+      
+      console.log(`  - Products from categories: ${categoryProducts.length}`);
 
       // Birleştir ve duplicate'leri kaldır
       const allProducts = [...products, ...categoryProducts];
       const uniqueProducts = allProducts.filter((product, index, self) =>
         index === self.findIndex((p) => p.id === product.id)
       );
+      
+      console.log(`  - Total unique products: ${uniqueProducts.length}`);
 
       return {
         ...deal,
@@ -119,6 +131,13 @@ router.get('/', async (req, res) => {
     }));
 
     console.log('⚡ Active flash deals found:', dealsWithProducts.length);
+    if (dealsWithProducts.length > 0) {
+      console.log('📦 Flash deals data sample:', JSON.stringify({
+        id: dealsWithProducts[0].id,
+        name: dealsWithProducts[0].name,
+        productsCount: dealsWithProducts[0].products?.length || 0
+      }, null, 2));
+    }
     res.json({ success: true, data: dealsWithProducts });
   } catch (error) {
     console.error('❌ Error getting active flash deals:', error);

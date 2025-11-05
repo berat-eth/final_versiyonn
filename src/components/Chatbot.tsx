@@ -75,6 +75,9 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     startPulseAnimation();
     checkOnlineStatus();
     checkLLMStatus();
+    
+    // Chatbot butonunu görünür yap
+    console.log('✅ Chatbot component mounted');
   }, []);
 
   const checkLLMStatus = async () => {
@@ -445,7 +448,6 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     
     return (
       <TouchableOpacity
-        key={message.id}
         style={[
           styles.messageContainer,
           isBot ? styles.botMessageContainer : styles.userMessageContainer,
@@ -453,6 +455,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
         ]}
         onLongPress={() => setSelectedMessageId(isSelected ? null : message.id)}
         activeOpacity={0.7}
+        key={message.id}
       >
         {isBot && (
           <View style={styles.botAvatar}>
@@ -528,38 +531,42 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
   };
 
   const renderFloatingButton = () => (
-    <Animated.View style={[
-      styles.floatingButton,
-      { transform: [{ scale: pulseAnim }] }
-    ]}>
-      <TouchableOpacity
-        style={styles.floatingButtonInner}
-        onPress={toggleChatbot}
-      >
-        <Icon name="chat" size={24} color={Colors.textOnPrimary} />
-        {unreadCount > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadText}>{unreadCount}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    </Animated.View>
+    <View style={styles.container}>
+      <Animated.View style={[
+        styles.floatingButton,
+        { transform: [{ scale: pulseAnim }] }
+      ]}>
+        <TouchableOpacity
+          style={styles.floatingButtonInner}
+          onPress={toggleChatbot}
+          activeOpacity={0.8}
+        >
+          <Icon name="chat" size={24} color={Colors.textOnPrimary} />
+          {unreadCount > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>{unreadCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 
   const renderChatWindow = () => (
-    <Animated.View style={[
-      styles.chatWindow,
-      isMinimized && styles.minimizedChat,
-      {
-        transform: [{
-          scale: animatedValue.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.8, 1],
-          })
-        }],
-        opacity: animatedValue,
-      }
-    ]}>
+    <View style={styles.container}>
+      <Animated.View style={[
+        styles.chatWindow,
+        isMinimized && styles.minimizedChat,
+        {
+          transform: [{
+            scale: animatedValue.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.8, 1],
+            })
+          }],
+          opacity: animatedValue,
+        }
+      ]}>
       {/* Header */}
       <View style={styles.chatHeader}>
         <View style={styles.headerLeft}>
@@ -622,7 +629,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
             showsVerticalScrollIndicator={false}
             onContentSizeChange={scrollToBottom}
           >
-            {messages.map(renderMessage)}
+            {messages.map((message) => (
+              <View key={message.id}>
+                {renderMessage(message)}
+              </View>
+            ))}
             {isTyping && renderTypingIndicator()}
           </ScrollView>
 
@@ -667,14 +678,15 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
           </KeyboardAvoidingView>
         </>
       )}
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 
   return (
-    <View style={styles.container}>
+    <>
       {!isVisible && renderFloatingButton()}
       {isVisible && renderChatWindow()}
-    </View>
+    </>
   );
 };
 
@@ -684,6 +696,7 @@ const styles = StyleSheet.create({
     bottom: 20,
     right: 20,
     zIndex: 1000,
+    elevation: 10,
   },
   floatingButton: {
     width: 60,

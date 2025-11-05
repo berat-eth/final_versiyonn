@@ -107,10 +107,19 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   // Load flash deals from API
   const loadFlashDeals = useCallback(async () => {
     try {
+      console.log('🔄 Loading flash deals...');
       const deals = await FlashDealService.getActiveFlashDeals();
+      console.log('✅ Flash deals loaded:', deals?.length || 0, 'deals');
+      if (deals && deals.length > 0) {
+        console.log('📦 First deal sample:', JSON.stringify({
+          id: deals[0].id,
+          name: deals[0].name,
+          productsCount: deals[0].products?.length || 0
+        }));
+      }
       setFlashDeals(deals || []);
     } catch (error) {
-      console.error('Flash deal yükleme hatası:', error);
+      console.error('❌ Flash deal yükleme hatası:', error);
       setFlashDeals([]);
     }
   }, []);
@@ -995,11 +1004,14 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const renderFlashDeals = () => {
     const now = nowTs;
     
+    console.log('🎯 renderFlashDeals called, flashDeals:', flashDeals);
+    
     // Flash deals API'sinden gelen tüm ürünleri topla
     const allFlashProducts: Product[] = [];
     
     if (flashDeals && flashDeals.length > 0) {
       flashDeals.forEach((deal: FlashDeal) => {
+        console.log('📦 Processing deal:', deal.name, 'products:', deal.products?.length);
         if (deal.products && Array.isArray(deal.products) && deal.products.length > 0) {
           deal.products.forEach((product: any) => {
             // Duplicate kontrolü
@@ -1021,14 +1033,24 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
               
               const productWithDiscount: Product = {
                 ...product,
+                id: product.id,
+                name: product.name || '',
+                price: discountedPrice,
+                originalPrice: product.price,
                 image: product.image || product.imageUrl || 'https://via.placeholder.com/300x300?text=No+Image',
+                category: product.category || '',
+                brand: product.brand || '',
+                description: product.description || '',
+                stock: product.stock || 0,
+                rating: product.rating || 0,
+                reviewCount: product.reviewCount || 0,
+                hasVariations: product.hasVariations || false,
+                externalId: product.externalId || '',
                 flashDiscount: discountType === 'percentage' ? discountValue : (discountValue / product.price * 100),
                 flashDiscountFixed: discountType === 'fixed' ? discountValue : 0,
-                originalPrice: product.price,
-                price: discountedPrice,
                 flashDealEndTime: remainSec,
                 flashDealName: deal.name
-              };
+              } as Product;
               
               allFlashProducts.push(productWithDiscount);
             }
@@ -1037,7 +1059,12 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       });
     }
     
-    if (allFlashProducts.length === 0) return null;
+    console.log('📊 Total flash products found:', allFlashProducts.length);
+    
+    if (allFlashProducts.length === 0) {
+      console.log('⚠️ No flash products to display');
+      return null;
+    }
     
     // İlk 5 ürünü göster
     const displayProducts = allFlashProducts.slice(0, 5);

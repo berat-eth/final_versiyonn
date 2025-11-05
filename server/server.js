@@ -8545,60 +8545,8 @@ app.delete('/api/admin/flash-deals/:id', authenticateAdmin, async (req, res) => 
   }
 });
 
-// Get active flash deals with products (for mobile app)
-app.get('/api/flash-deals', async (req, res) => {
-  try {
-    const now = new Date();
-
-    const [rows] = await poolWrapper.execute(`
-      SELECT fd.*
-      FROM flash_deals fd
-      WHERE fd.is_active = true 
-        AND fd.start_date <= ? 
-        AND fd.end_date >= ?
-      ORDER BY fd.created_at DESC
-    `, [now, now]);
-
-    // Her flash deal için ürünleri getir (kategori bazlı ürünler dahil)
-    const dealsWithProducts = await Promise.all(rows.map(async (deal) => {
-      // Seçili ürünler
-      const [products] = await poolWrapper.execute(`
-        SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
-               p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
-        FROM flash_deal_products fdp
-        JOIN products p ON fdp.product_id = p.id
-        WHERE fdp.flash_deal_id = ?
-      `, [deal.id]);
-
-      // Seçili kategorilerdeki ürünler
-      const [categoryProducts] = await poolWrapper.execute(`
-        SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description,
-               p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
-        FROM flash_deal_categories fdc
-        JOIN categories c ON fdc.category_id = c.id
-        JOIN products p ON p.category = c.name
-        WHERE fdc.flash_deal_id = ?
-      `, [deal.id]);
-
-      // Birleştir ve duplicate'leri kaldır
-      const allProducts = [...products, ...categoryProducts];
-      const uniqueProducts = allProducts.filter((product, index, self) =>
-        index === self.findIndex((p) => p.id === product.id)
-      );
-
-      return {
-        ...deal,
-        products: uniqueProducts
-      };
-    }));
-
-    console.log('⚡ Active flash deals found:', dealsWithProducts.length);
-    res.json({ success: true, data: dealsWithProducts });
-  } catch (error) {
-    console.error('❌ Error getting active flash deals:', error);
-    res.status(500).json({ success: false, message: 'Error getting flash deals' });
-  }
-});
+// Flash deals endpoint'i artık routes/flash-deals.js dosyasında tanımlı
+// Bu endpoint kaldırıldı - çakışmayı önlemek için
 
 // Product endpoints (with tenant authentication)
 app.get('/api/products', async (req, res) => {
