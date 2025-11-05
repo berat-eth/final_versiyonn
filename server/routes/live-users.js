@@ -1,11 +1,27 @@
 const express = require('express');
 const router = express.Router();
+const { poolWrapper } = require('../orm/sequelize');
 
 // In-memory storage for live users (temporary - will be replaced with database)
 let liveUsers = [];
 
+// Helper function to get user info from database
+async function getUserInfo(userId) {
+  if (!userId) return null;
+  try {
+    const [rows] = await poolWrapper.execute(
+      'SELECT id, name, phone FROM users WHERE id = ? LIMIT 1',
+      [userId]
+    );
+    return rows.length > 0 ? { name: rows[0].name, phone: rows[0].phone } : null;
+  } catch (error) {
+    console.error('❌ Error getting user info:', error);
+    return null;
+  }
+}
+
 // Get live users
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     console.log('👥 Live users requested');
     
@@ -14,10 +30,25 @@ router.get('/', (req, res) => {
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     
     // Filter out inactive users (older than 5 minutes)
-    const activeUsers = liveUsers.filter(user => {
+    let activeUsers = liveUsers.filter(user => {
       const lastActivity = new Date(user.lastActivity);
       return lastActivity > fiveMinutesAgo;
     });
+
+    // Enrich with user info from database
+    activeUsers = await Promise.all(activeUsers.map(async (user) => {
+      if (user.userId) {
+        const userInfo = await getUserInfo(user.userId);
+        if (userInfo) {
+          return {
+            ...user,
+            userName: userInfo.name,
+            userPhone: userInfo.phone
+          };
+        }
+      }
+      return user;
+    }));
 
     console.log(`📊 Returning ${activeUsers.length} active users out of ${liveUsers.length} total`);
     

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Radio, Users, ShoppingCart, Eye, TrendingUp, Clock, MousePointer, MapPin, Smartphone, Monitor, Tablet, Globe, Search, Heart, Share2, Filter, ArrowRight, Activity, Zap, Target, BarChart3, TrendingDown, RefreshCw, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { api } from '@/lib/api'
 
 interface UserSession {
   id: number
@@ -25,6 +26,9 @@ interface UserSession {
 
 interface ProductView {
   product: string
+  productId?: number
+  productName?: string
+  productImage?: string
   views: number
   avgTime: number
   addToCart: number
@@ -35,18 +39,11 @@ interface ProductView {
 export default function LiveData() {
   const [selectedUser, setSelectedUser] = useState<UserSession | null>(null)
   const [filterDevice, setFilterDevice] = useState<string>('all')
-
-  // Mock oturum verileri kaldırıldı - Backend entegrasyonu için hazır
-  const userSessions: UserSession[] = []
-
-  // Mock ürün görüntüleme verileri kaldırıldı
-  const productViews: ProductView[] = []
-
-  // Mock cihaz dağılımı kaldırıldı
-  const deviceData: Array<{ name: string; value: number; color: string }> = []
-
-  // Mock saatlik aktivite kaldırıldı
-  const hourlyActivity: Array<{ hour: string; users: number; views: number }> = []
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  const [userSessions, setUserSessions] = useState<UserSession[]>([])
+  const [productViews, setProductViews] = useState<ProductView[]>([])
 
   const getDeviceIcon = (device: string) => {
     switch (device) {
@@ -67,6 +64,217 @@ export default function LiveData() {
     }
   }
 
+  // Fetch live users and product views
+  const fetchLiveData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const [liveUsersRes, liveViewsRes] = await Promise.all([
+        api.get<any>('/admin/live-users'),
+        api.get<any>('/admin/live-views')
+      ])
+
+      // Transform live users to UserSession format
+      if (liveUsersRes?.success && Array.isArray(liveUsersRes.data)) {
+        const sessions: UserSession[] = liveUsersRes.data.map((user: any, index: number) => {
+          // Calculate time on site from duration or last activity
+          const lastActivity = new Date(user.lastActivity)
+          const now = new Date()
+          const timeOnSiteSeconds = user.duration || Math.floor((now.getTime() - lastActivity.getTime()) / 1000)
+
+          // Determine status based on page
+          let status: 'browsing' | 'cart' | 'checkout' | 'purchased' = 'browsing'
+          if (user.page?.toLowerCase().includes('cart') || user.page?.toLowerCase().includes('sepet')) {
+            status = 'cart'
+          } else if (user.page?.toLowerCase().includes('checkout') || user.page?.toLowerCase().includes('ödeme')) {
+            status = 'checkout'
+          }
+
+          return {
+            id: user.id || index,
+            user: user.userName || user.userId || 'Misafir Kullanıcı',
+            sessionId: user.sessionId || `session-${index}`,
+            device: (user.device?.toLowerCase().includes('mobile') ? 'mobile' : 
+                     user.device?.toLowerCase().includes('tablet') ? 'tablet' : 'desktop') as 'desktop' | 'mobile' | 'tablet',
+            location: `${user.city || 'Bilinmiyor'}, ${user.country || 'Bilinmiyor'}`,
+            currentPage: user.page || 'Ana Sayfa',
+            timeOnSite: timeOnSiteSeconds,
+            pagesViewed: 1, // Could be enhanced with page view tracking
+            productsViewed: [], // Will be populated from product views
+            timePerProduct: [],
+            cartItems: 0,
+            cartValue: 0,
+            status,
+            lastAction: 'Sayfa görüntüleme',
+            timestamp: new Date(user.lastActivity).toLocaleString('tr-TR')
+          }
+        })
+        setUserSessions(sessions)
+      } else {
+        setUserSessions([])
+      }
+
+      // Transform product views
+      if (liveViewsRes?.success && Array.isArray(liveViewsRes.data)) {
+        // Group by product and calculate stats
+        const productMap = new Map<string | number, {
+          productName: string
+          productId?: number
+          productImage?: string
+          views: number
+          totalTime: number
+          addToCart: number
+          purchases: number
+        }>()
+
+        liveViewsRes.data.forEach((view: any) => {
+          const productId = view.productId
+          const productName = view.productName || 'Bilinmeyen Ürün'
+          const key = productId || productName
+          
+          const existing = productMap.get(key) || {
+            productName,
+            productId,
+            productImage: view.productImage,
+            views: 0,
+            totalTime: 0,
+            addToCart: 0,
+            purchases: 0
+          }
+
+          existing.views++
+          existing.totalTime += view.dwellSeconds || 0
+          if (view.addedToCart) existing.addToCart++
+          if (view.purchased) existing.purchases++
+          // İlk kayıttan productId ve productImage'i al
+          if (!existing.productId && productId) existing.productId = productId
+          if (!existing.productImage && view.productImage) existing.productImage = view.productImage
+
+          productMap.set(key, existing)
+        })
+
+        const views: ProductView[] = Array.from(productMap.values())
+          .map((stats) => ({
+            product: stats.productName,
+            productId: stats.productId,
+            productName: stats.productName,
+            productImage: stats.productImage,
+            views: stats.views,
+            avgTime: stats.views > 0 ? Math.round(stats.totalTime / stats.views) : 0,
+            addToCart: stats.addToCart,
+            purchases: stats.purchases,
+            conversionRate: stats.views > 0 ? Math.round((stats.purchases / stats.views) * 100) / 100 : 0
+          }))
+          .sort((a, b) => b.views - a.views)
+          .slice(0, 10) // Top 10
+
+        // Ürün bilgilerini çek (productId varsa) - paralel olarak
+        const productIds = views.filter(v => v.productId).map(v => v.productId!)
+        if (productIds.length > 0) {
+          try {
+            // Paralel olarak tüm ürünleri çek
+            const productPromises = productIds.map(id => 
+              api.get<any>(`/products/${id}`).catch(() => null)
+            )
+            const productResults = await Promise.allSettled(productPromises)
+            
+            const productsMap = new Map<number, any>()
+            productResults.forEach((result, index) => {
+              if (result.status === 'fulfilled' && result.value?.success && result.value?.data) {
+                const product = result.value.data
+                productsMap.set(productIds[index], product)
+              }
+            })
+            
+            // Ürün bilgilerini güncelle
+            views.forEach(view => {
+              if (view.productId) {
+                const product = productsMap.get(view.productId)
+                if (product) {
+                  view.productName = product.name || view.productName
+                  view.productImage = product.image || product.image1 || product.image2 || view.productImage
+                  view.product = product.name || view.product
+                }
+              }
+            })
+          } catch (err) {
+            console.error('Ürün bilgileri yüklenemedi:', err)
+          }
+        }
+
+        setProductViews(views)
+      } else {
+        setProductViews([])
+      }
+    } catch (err: any) {
+      console.error('❌ Canlı veriler yüklenemedi:', err)
+      setError(err?.message || 'Canlı veriler yüklenemedi')
+      setUserSessions([])
+      setProductViews([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchLiveData()
+    // 30 saniyede bir otomatik yenile
+    const interval = setInterval(fetchLiveData, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Calculate device distribution
+  const deviceData = useMemo(() => {
+    const deviceCounts = {
+      desktop: 0,
+      mobile: 0,
+      tablet: 0
+    }
+
+    userSessions.forEach(session => {
+      if (session.device === 'desktop') deviceCounts.desktop++
+      else if (session.device === 'mobile') deviceCounts.mobile++
+      else if (session.device === 'tablet') deviceCounts.tablet++
+    })
+
+    const total = deviceCounts.desktop + deviceCounts.mobile + deviceCounts.tablet
+    if (total === 0) return []
+
+    const colors = ['#6366f1', '#10b981', '#f59e0b']
+    return [
+      { name: 'Desktop', value: Math.round((deviceCounts.desktop / total) * 100), color: colors[0] },
+      { name: 'Mobile', value: Math.round((deviceCounts.mobile / total) * 100), color: colors[1] },
+      { name: 'Tablet', value: Math.round((deviceCounts.tablet / total) * 100), color: colors[2] }
+    ]
+  }, [userSessions])
+
+  // Calculate hourly activity
+  const hourlyActivity = useMemo(() => {
+    const hours = Array.from({ length: 24 }, (_, i) => i)
+    const activityMap = new Map<number, { users: number; views: number }>()
+
+    hours.forEach(hour => {
+      activityMap.set(hour, { users: 0, views: 0 })
+    })
+
+    // Count active users by hour (simplified - using current hour for now)
+    const now = new Date()
+    const currentHour = now.getHours()
+    activityMap.set(currentHour, {
+      users: userSessions.length,
+      views: productViews.reduce((sum, p) => sum + p.views, 0)
+    })
+
+    return Array.from(activityMap.entries())
+      .map(([hour, stats]) => ({
+        hour: `${String(hour).padStart(2, '0')}:00`,
+        users: stats.users,
+        views: stats.views
+      }))
+      .slice(Math.max(0, currentHour - 11), currentHour + 1) // Son 12 saat
+  }, [userSessions, productViews])
+
   const filteredSessions = filterDevice === 'all'
     ? userSessions
     : userSessions.filter(s => s.device === filterDevice)
@@ -84,15 +292,97 @@ export default function LiveData() {
             <span className="text-sm font-medium text-green-700 dark:text-green-400">CANLI</span>
           </div>
           <button
-            onClick={() => alert('🔄 Veriler yenilendi!')}
-            className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            onClick={fetchLiveData}
+            disabled={loading}
+            className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+            <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-300 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Ana İstatistikler kaldırıldı (mock) */}
+      {/* Loading State */}
+      {loading && userSessions.length === 0 && (
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="w-8 h-8 text-slate-400 animate-spin" />
+          <span className="ml-3 text-slate-600 dark:text-slate-400">Veriler yükleniyor...</span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-700 dark:text-red-400">{error}</p>
+        </div>
+      )}
+
+      {/* Ana İstatistikler */}
+      {!loading && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/30 rounded-xl p-6 border border-blue-200 dark:border-blue-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">Aktif Kullanıcı</p>
+            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{userSessions.length}</p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/30 rounded-xl p-6 border border-purple-200 dark:border-purple-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <Eye className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              <TrendingUp className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">Toplam Görüntüleme</p>
+            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+              {productViews.reduce((sum, p) => sum + p.views, 0).toLocaleString()}
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-900/30 rounded-xl p-6 border border-orange-200 dark:border-orange-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <ShoppingCart className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+              <TrendingUp className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">Sepete Eklenen</p>
+            <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">
+              {productViews.reduce((sum, p) => sum + p.addToCart, 0)}
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/30 rounded-xl p-6 border border-green-200 dark:border-green-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <Target className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">Dönüşüm Oranı</p>
+            <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+              {productViews.length > 0
+                ? `${(productViews.reduce((sum, p) => sum + p.conversionRate, 0) / productViews.length).toFixed(1)}%`
+                : '0%'}
+            </p>
+          </motion.div>
+        </div>
+      )}
 
       {/* Cihaz Dağılımı ve Saatlik Aktivite */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -172,7 +462,14 @@ export default function LiveData() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {productViews.map((product, index) => (
+              {productViews.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                    Henüz ürün görüntüleme verisi yok
+                  </td>
+                </tr>
+              ) : (
+                productViews.map((product, index) => (
                 <motion.tr
                   key={product.product}
                   initial={{ opacity: 0, x: -20 }}
@@ -185,7 +482,28 @@ export default function LiveData() {
                       <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
                         {index + 1}
                       </div>
-                      <span className="font-semibold text-slate-800 dark:text-slate-100">{product.product}</span>
+                      {product.productImage ? (
+                        <img 
+                          src={product.productImage} 
+                          alt={product.productName || product.product}
+                          className="w-10 h-10 rounded-lg object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-lg flex items-center justify-center">
+                          <ShoppingCart className="w-5 h-5 text-slate-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">
+                          {product.productName || product.product}
+                        </p>
+                        {product.productId && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400">ID: {product.productId}</p>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-4">
@@ -223,7 +541,8 @@ export default function LiveData() {
                     </div>
                   </td>
                 </motion.tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
@@ -272,7 +591,13 @@ export default function LiveData() {
         </div>
 
         <div className="space-y-4">
-          {filteredSessions.map((session, index) => {
+          {filteredSessions.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Şu anda aktif kullanıcı oturumu yok</p>
+            </div>
+          ) : (
+            filteredSessions.map((session, index) => {
             const DeviceIcon = getDeviceIcon(session.device)
             return (
               <motion.div
@@ -354,7 +679,8 @@ export default function LiveData() {
                 </div>
               </motion.div>
             )
-          })}
+          })
+          )}
         </div>
       </div>
 

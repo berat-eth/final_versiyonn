@@ -25,6 +25,8 @@ interface Conversation {
   productName?: string
   productPrice?: number
   productImage?: string
+  userId?: number
+  userName?: string
   userEmail?: string
   userPhone?: string
 }
@@ -52,92 +54,82 @@ export default function Chatbot() {
       const { api } = await import('@/lib/api')
       const response = await api.get<any>('/admin/chatbot/conversations')
       const data = response as any
-      if (data.success && Array.isArray(data.data)) {
-        // Backend'den gelen verileri Conversation formatına dönüştür
-        const formatted = data.data.map((msg: any, index: number) => ({
-          id: msg.id || index,
-          customer: msg.userName || msg.userEmail || 'Misafir',
-          avatar: (msg.userName || 'M').charAt(0).toUpperCase(),
-          lastMessage: msg.message || 'Mesaj yok',
-          time: new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-          unread: 0,
-          status: 'offline' as const,
-          messages: [{
-            id: msg.id,
-            sender: 'customer' as const,
-            text: msg.message || '',
-            time: new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-            read: true
-          }],
-          productId: msg.productId,
-          productName: msg.productName || msg.productFullName,
-          productPrice: msg.productPrice || msg.productFullPrice,
-          productImage: msg.productImage || msg.productFullImage,
-          userEmail: msg.userEmail,
-          userPhone: msg.userPhone
-        }))
-        setConversations(formatted)
+      
+      if (!data || !data.success) {
+        console.warn('Chatbot conversations response başarısız:', data)
+        setConversations([])
+        return
       }
-    } catch (error) {
-      console.error('Konuşmalar yüklenemedi:', error)
+      
+      if (Array.isArray(data.data) && data.data.length > 0) {
+        // Backend'den gelen verileri Conversation formatına dönüştür
+        // Aynı userId'ye sahip mesajları grupla
+        const conversationMap = new Map<number, Conversation>()
+        
+        data.data.forEach((msg: any) => {
+          if (!msg || !msg.userId) return
+          
+          const userId = msg.userId
+          
+          if (!conversationMap.has(userId)) {
+            const customerName = msg.userName || msg.userEmail || 'Misafir Kullanıcı'
+            conversationMap.set(userId, {
+              id: userId,
+              customer: customerName,
+              avatar: customerName.charAt(0).toUpperCase(),
+              lastMessage: msg.message || 'Mesaj yok',
+              time: msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : 'Bilinmiyor',
+              unread: 0,
+              status: 'offline' as const,
+              messages: [],
+              productId: msg.productId || msg.productFullName ? msg.productId : undefined,
+              productName: msg.productName || msg.productFullName,
+              productPrice: msg.productPrice || msg.productFullPrice,
+              productImage: msg.productImage || msg.productFullImage,
+              userId: userId,
+              userName: msg.userName,
+              userEmail: msg.userEmail,
+              userPhone: msg.userPhone
+            })
+          }
+          
+          const conv = conversationMap.get(userId)!
+          if (msg.message && msg.timestamp) {
+            conv.messages.push({
+              id: msg.id || Date.now(),
+              sender: 'customer' as const,
+              text: msg.message,
+              time: new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+              read: true
+            })
+            // En son mesajı güncelle
+            if (new Date(msg.timestamp) > new Date(conv.time || 0)) {
+              conv.lastMessage = msg.message
+              conv.time = new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+            }
+          }
+        })
+        
+        setConversations(Array.from(conversationMap.values()))
+      } else {
+        setConversations([])
+      }
+    } catch (error: any) {
+      console.error('Konuşmalar yüklenemedi:', error?.message || error)
+      setConversations([])
     } finally {
       setLoading(false)
     }
   }
 
-  // Yeni mesaj simülasyonu - Her 30 saniyede bir rastgele müşteriden mesaj gelir
+  // Otomatik yenileme - Her 30 saniyede bir backend'den yeni mesajları kontrol et
   useEffect(() => {
-    if (conversations.length === 0) return
-
     const interval = setInterval(() => {
-      if (conversations.length === 0) return
-      
-      const randomConvIndex = Math.floor(Math.random() * conversations.length)
-      const randomMessages = [
-        'Merhaba, yardım alabilir miyim?',
-        'Ürün ne zaman gelir?',
-        'Fiyat bilgisi alabilir miyim?',
-        'Stokta var mı?',
-        'İndirim var mı?',
-        'Kargo ücreti ne kadar?',
-        'Taksit seçenekleri neler?',
-        'Ürün garantisi var mı?',
-      ]
-      const randomMessage = randomMessages[Math.floor(Math.random() * randomMessages.length)]
-
-      setConversations(prev => {
-        if (prev.length === 0) return prev
-        
-        const newConvs = [...prev]
-        const conv = newConvs[randomConvIndex]
-        
-        if (!conv || !conv.messages) return prev
-
-        const newMessageId = conv.messages.length + 1
-
-        conv.messages.push({
-          id: newMessageId,
-          sender: 'customer',
-          text: randomMessage,
-          time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-          read: false
-        })
-
-        conv.lastMessage = randomMessage
-        conv.time = 'Şimdi'
-        conv.unread += 1
-
-        // Zil sesi çal
-        if (soundEnabled) {
-          playNotificationSound()
-        }
-
-        return newConvs
-      })
+      loadConversations()
     }, 30000) // 30 saniye
 
     return () => clearInterval(interval)
-  }, [conversations.length, soundEnabled])
+  }, [])
 
   // Bildirim sesi çalma fonksiyonu - Uzun ve melodik zil sesi
   const playNotificationSound = () => {
@@ -173,7 +165,7 @@ export default function Chatbot() {
   }
 
   // Mesaj gönderme
-  const sendMessage = (e?: React.FormEvent) => {
+  const sendMessage = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault()
       e.stopPropagation()
@@ -195,6 +187,7 @@ export default function Chatbot() {
       read: true
     }
 
+    // UI'da hemen göster
     setConversations(prev => {
       const newConvs = [...prev]
       const convIndex = newConvs.findIndex(c => c.id === selectedChat)
@@ -206,6 +199,48 @@ export default function Chatbot() {
       }
       return newConvs
     })
+
+    // Backend'e gönder
+    try {
+      const { api } = await import('@/lib/api')
+      const response = await api.post('/admin/chatbot/send-message', {
+        userId: conv.userId,
+        message: messageToSend,
+        conversationId: conv.id
+      })
+      
+      if (!response || !(response as any).success) {
+        console.error('Mesaj gönderme başarısız:', response)
+        // Hata durumunda mesajı geri al (opsiyonel)
+        setConversations(prev => {
+          const newConvs = [...prev]
+          const convIndex = newConvs.findIndex(c => c.id === selectedChat)
+          if (convIndex !== -1 && newConvs[convIndex] && newConvs[convIndex].messages) {
+            newConvs[convIndex].messages = newConvs[convIndex].messages.filter(m => m.id !== newMessage.id)
+            if (newConvs[convIndex].messages.length > 0) {
+              const lastMsg = newConvs[convIndex].messages[newConvs[convIndex].messages.length - 1]
+              newConvs[convIndex].lastMessage = lastMsg.text
+            }
+          }
+          return newConvs
+        })
+      }
+    } catch (error) {
+      console.error('Mesaj gönderme hatası:', error)
+      // Hata durumunda mesajı geri al
+      setConversations(prev => {
+        const newConvs = [...prev]
+        const convIndex = newConvs.findIndex(c => c.id === selectedChat)
+        if (convIndex !== -1 && newConvs[convIndex] && newConvs[convIndex].messages) {
+          newConvs[convIndex].messages = newConvs[convIndex].messages.filter(m => m.id !== newMessage.id)
+          if (newConvs[convIndex].messages.length > 0) {
+            const lastMsg = newConvs[convIndex].messages[newConvs[convIndex].messages.length - 1]
+            newConvs[convIndex].lastMessage = lastMsg.text
+          }
+        }
+        return newConvs
+      })
+    }
 
     setTimeout(() => scrollToBottom(), 100)
   }
@@ -355,10 +390,31 @@ export default function Chatbot() {
                   </div>
                     <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="font-semibold text-slate-800 dark:text-slate-200 truncate">{conv.customer}</p>
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200 truncate">{conv.customer}</p>
+                        {conv.userId && (
+                          <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs flex-shrink-0">
+                            ✓
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0 ml-2">{conv.time}</span>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-400 truncate">{conv.lastMessage}</p>
+                    <div className="flex items-center space-x-2 mt-1">
+                      {conv.userName && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1">
+                          <User className="w-3 h-3" />
+                          <span className="truncate">{conv.userName}</span>
+                        </span>
+                      )}
+                      {conv.userPhone && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1">
+                          <Phone className="w-3 h-3" />
+                          <span>{conv.userPhone}</span>
+                        </span>
+                      )}
+                    </div>
                     {conv.productName && (
                       <p className="text-xs text-green-600 dark:text-green-400 mt-1">🛍️ {conv.productName}</p>
                     )}
@@ -390,16 +446,46 @@ export default function Chatbot() {
                       }`}></div>
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedConversation.customer}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedConversation.customer}</p>
+                      {selectedConversation.userId && (
+                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs font-medium">
+                          Kayıtlı
+                        </span>
+                      )}
+                      {!selectedConversation.userId && (
+                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-xs font-medium">
+                          Misafir
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
                       {selectedConversation.status === 'online' ? 'Çevrimiçi' :
                         selectedConversation.status === 'away' ? 'Uzakta' : 'Çevrimdışı'}
                     </p>
+                    {selectedConversation.userId && (
+                      <div className="flex items-center space-x-1 text-xs text-slate-600 dark:text-slate-400 mb-1">
+                        <User className="w-3 h-3" />
+                        <span className="font-medium">ID: {selectedConversation.userId}</span>
+                      </div>
+                    )}
+                    {selectedConversation.userName && (
+                      <div className="flex items-center space-x-1 text-xs text-slate-600 dark:text-slate-400 mb-1">
+                        <User className="w-3 h-3" />
+                        <span>{selectedConversation.userName}</span>
+                      </div>
+                    )}
                     {selectedConversation.userEmail && (
-                      <p className="text-xs text-slate-400 dark:text-slate-500">{selectedConversation.userEmail}</p>
+                      <div className="flex items-center space-x-1 text-xs text-slate-600 dark:text-slate-400 mb-1">
+                        <span>📧</span>
+                        <span>{selectedConversation.userEmail}</span>
+                      </div>
                     )}
                     {selectedConversation.userPhone && (
-                      <p className="text-xs text-slate-400 dark:text-slate-500">{selectedConversation.userPhone}</p>
+                      <div className="flex items-center space-x-1 text-xs text-slate-600 dark:text-slate-400">
+                        <Phone className="w-3 h-3" />
+                        <span>{selectedConversation.userPhone}</span>
+                      </div>
                     )}
                   </div>
                 </div>

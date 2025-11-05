@@ -358,7 +358,12 @@ export default function Orders() {
                       <span className="text-slate-600 dark:text-slate-400 text-sm">{(order as any).itemCount ?? (order.items?.length || 0)} ürün</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-slate-600 dark:text-slate-400 text-sm">{(order as any).paymentMethod || '—'}</span>
+                      <div className="flex items-center space-x-2">
+                        <CreditCard className="w-4 h-4 text-slate-400" />
+                        <span className="text-slate-700 dark:text-slate-300 text-sm font-medium">
+                          {order.paymentMethod || (order as any).payment || 'Belirtilmemiş'}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-slate-800 dark:text-slate-200">₺{order.totalAmount.toLocaleString()}</span>
@@ -677,7 +682,7 @@ export default function Orders() {
                     <div className="space-y-2">
                       <div className="flex items-center space-x-2 text-sm">
                         <CreditCard className="w-3.5 h-3.5 text-slate-600" />
-                        <span className="text-slate-800">{selectedOrderForAction.payment}</span>
+                        <span className="text-slate-800">{selectedOrderForAction.paymentMethod || selectedOrderForAction.payment || 'Belirtilmemiş'}</span>
                       </div>
                       <div className="flex items-center space-x-2 text-sm">
                         <Calendar className="w-3.5 h-3.5 text-slate-600" />

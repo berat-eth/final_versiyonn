@@ -33,6 +33,7 @@ import { PurchaseVerificationService } from '../services/PurchaseVerificationSer
 import * as FileSystem from 'expo-file-system';
 import { NetworkMonitor } from '../utils/performance-utils';
 import { Chatbot } from '../components/Chatbot';
+import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 
 interface ProductDetailScreenProps {
   navigation: any;
@@ -63,6 +64,14 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const [showViewer, setShowViewer] = useState<boolean>(false);
   const [cachedUserId, setCachedUserId] = useState<number | null>(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState<boolean>(true); // Varsayılan olarak açık
+  const [flashDeals, setFlashDeals] = useState<FlashDeal[]>([]);
+  const [flashDealInfo, setFlashDealInfo] = useState<{
+    discount: number;
+    discountType: 'percentage' | 'fixed';
+    originalPrice: number;
+    endTime: number;
+  } | null>(null);
+  const [flashCountdown, setFlashCountdown] = useState<number>(0);
 
   const { productId } = route.params;
 
@@ -74,10 +83,11 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       if (mounted) setCachedUserId(userId);
 
       // ✅ OPTIMIZASYON: Tüm verileri paralel yükle
-      const [productResult, userResult, favoritesResult] = await Promise.allSettled([
+      const [productResult, userResult, favoritesResult, flashDealsResult] = await Promise.allSettled([
         ProductController.getProductById(productId),
         UserController.getCachedUserQuick(),
-        userId > 0 ? UserController.getUserFavorites(userId) : Promise.resolve([])
+        userId > 0 ? UserController.getUserFavorites(userId) : Promise.resolve([]),
+        FlashDealService.getActiveFlashDeals()
       ]);
       
       if (!mounted) return;
@@ -126,6 +136,11 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
         const favoriteIds = favoritesResult.value.map((fav: any) => parseInt(fav.productId));
         setIsFavorite(favoriteIds.includes(productId));
       }
+
+      // Flash deals'ı işle
+      if (flashDealsResult.status === 'fulfilled' && flashDealsResult.value) {
+        setFlashDeals(flashDealsResult.value || []);
+      }
     })();
     
     // GÜVENLİK: Gerçek izleyici sayısı backend'den alınmalı
@@ -154,6 +169,112 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       }
     }
   }, [product, selectedOptions]);
+
+  // Flash deal bilgisini kontrol et ve hesapla
+  useEffect(() => {
+    if (!product || !flashDeals || flashDeals.length === 0) {
+      setFlashDealInfo(null);
+      return;
+    }
+
+    const nowTs = Date.now();
+    let foundDeal: FlashDeal | null = null;
+    let foundProduct: any = null;
+
+    // Ürünün hangi flash deal'de olduğunu bul
+    for (const deal of flashDeals) {
+      if (deal.products && Array.isArray(deal.products)) {
+        const dealProduct = deal.products.find((p: any) => p.id === product.id);
+        if (dealProduct) {
+          foundDeal = deal;
+          foundProduct = dealProduct;
+          break;
+        }
+      }
+    }
+
+    if (!foundDeal || !foundProduct) {
+      setFlashDealInfo(null);
+      return;
+    }
+
+    // Bitiş zamanını hesapla
+    const endDate = foundDeal.end_date ? new Date(foundDeal.end_date).getTime() : 0;
+    const remainSec = Math.max(0, Math.floor((endDate - nowTs) / 1000));
+
+    if (remainSec <= 0) {
+      setFlashDealInfo(null);
+      return;
+    }
+
+    // İndirim bilgisini hesapla
+    const discountType = foundDeal.discount_type || 'percentage';
+    const discountValue = Number(foundDeal.discount_value) || 0;
+    let discount = 0;
+    let originalPrice = product.price;
+
+    if (discountType === 'percentage') {
+      discount = discountValue;
+      if (discount > 0 && discount < 100 && product.price > 0) {
+        originalPrice = product.price / (1 - discount / 100);
+      } else {
+        setFlashDealInfo(null);
+        return;
+      }
+    } else if (discountType === 'fixed') {
+      if (discountValue > 0 && product.price > 0) {
+        discount = (discountValue / product.price) * 100;
+        originalPrice = product.price + discountValue;
+      } else {
+        setFlashDealInfo(null);
+        return;
+      }
+    } else {
+      setFlashDealInfo(null);
+      return;
+    }
+
+    // Discount geçerli bir sayı değilse flash deal bilgisini ayarlama
+    if (!Number.isFinite(discount) || discount <= 0 || discount >= 100) {
+      setFlashDealInfo(null);
+      return;
+    }
+
+    if (!Number.isFinite(originalPrice) || originalPrice <= 0) {
+      setFlashDealInfo(null);
+      return;
+    }
+
+    setFlashDealInfo({
+      discount: Math.round(discount * 100) / 100, // 2 ondalık basamağa yuvarla
+      discountType,
+      originalPrice: Math.round(originalPrice * 100) / 100,
+      endTime: remainSec
+    });
+    setFlashCountdown(remainSec);
+  }, [product, flashDeals]);
+
+  // Flash deal countdown timer
+  useEffect(() => {
+    if (!flashDealInfo) {
+      return;
+    }
+
+    // Countdown'u flashDealInfo'nun endTime'ına göre güncelle
+    setFlashCountdown(flashDealInfo.endTime);
+
+    const interval = setInterval(() => {
+      setFlashCountdown((prev) => {
+        const next = Math.max(0, prev - 1);
+        if (next <= 0) {
+          setFlashDealInfo(null);
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [flashDealInfo]);
 
   const loadProduct = async () => {
     try {
@@ -614,6 +735,16 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     } catch { return null; }
   }
 
+  // Flash deal countdown formatı (Gün:Saat:Dakika:Saniye)
+  const formatHMS = (totalSeconds: number) => {
+    const sec = Math.max(0, totalSeconds);
+    const d = Math.floor(sec / 86400); // Gün
+    const h = Math.floor((sec % 86400) / 3600); // Saat
+    const m = Math.floor((sec % 3600) / 60); // Dakika
+    const s = sec % 60; // Saniye
+    return `${d.toString().padStart(3, '0')}:${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -657,9 +788,35 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             </Text>
           </View>
 
-          <Text style={styles.price}>
-            {ProductController.formatPrice(currentPrice)}
-          </Text>
+          {/* Flash İndirim Bilgisi */}
+          {flashDealInfo && 
+           typeof flashDealInfo.discount === 'number' && 
+           flashDealInfo.discount > 0 && 
+           Number.isFinite(flashDealInfo.discount) && (
+            <View style={styles.flashDealContainer}>
+              <View style={styles.flashDiscountBadge}>
+                <Icon name="flash-on" size={16} color="white" />
+                <Text style={styles.flashDiscountText}>
+                  %{Math.round(flashDealInfo.discount)} İndirim
+                </Text>
+              </View>
+              <View style={styles.flashTimerBadge}>
+                <Icon name="timer" size={14} color="white" />
+                <Text style={styles.flashTimerText}>{formatHMS(flashCountdown)}</Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.priceContainer}>
+            {flashDealInfo && flashDealInfo.originalPrice > currentPrice && (
+              <Text style={styles.originalPrice}>
+                {ProductController.formatPrice(flashDealInfo.originalPrice)}
+              </Text>
+            )}
+            <Text style={[styles.price, flashDealInfo && styles.flashPrice]}>
+              {ProductController.formatPrice(currentPrice)}
+            </Text>
+          </View>
 
           {currentStock > 0 && (
             <View style={styles.quantityContainer}>
@@ -1029,12 +1186,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
   },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
   price: {
     fontSize: 32,
     fontWeight: '700',
     color: '#000000',
-    marginBottom: 16,
     letterSpacing: -1,
+  },
+  flashPrice: {
+    color: '#ff6b35',
+  },
+  originalPrice: {
+    fontSize: 20,
+    fontWeight: '500',
+    color: '#8E8E93',
+    textDecorationLine: 'line-through',
+  },
+  flashDealContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  flashDiscountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ff6b35',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+  },
+  flashDiscountText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
+  },
+  flashTimerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+  },
+  flashTimerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'white',
   },
   variationInfo: {
     marginBottom: 20,

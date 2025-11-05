@@ -7069,7 +7069,7 @@ app.get('/api/admin/orders', authenticateAdmin, async (req, res) => {
     // Get orders with product details
     const [orders] = await poolWrapper.execute(
       `
-      SELECT o.id, o.totalAmount, o.status, o.createdAt, o.city, o.district, o.fullAddress, o.shippingAddress,
+      SELECT o.id, o.totalAmount, o.status, o.createdAt, o.city, o.district, o.fullAddress, o.shippingAddress, o.paymentMethod,
              u.name as userName, u.email as userEmail, 
              t.name as tenantName
       FROM orders o 
@@ -12622,7 +12622,10 @@ async function startServer() {
         });
       }
 
-      console.log('🤖 Chatbot mesaj alındı:', { message, actionType, userId, productId });
+      // Tenant kontrolü
+      const tenantId = req.tenant?.id || 1;
+
+      console.log('🤖 Chatbot mesaj alındı:', { message, actionType, userId, productId, tenantId });
 
       // Intent tespiti
       const intent = detectChatbotIntent(message.toLowerCase());
@@ -12633,8 +12636,8 @@ async function startServer() {
       if (productId) {
         try {
           const [productRows] = await poolWrapper.execute(
-            'SELECT id, name, price, image FROM products WHERE id = ? LIMIT 1',
-            [productId]
+            'SELECT id, name, price, image FROM products WHERE id = ? AND tenantId = ? LIMIT 1',
+            [productId, tenantId]
           );
           if (productRows.length > 0) {
             productInfo = {
@@ -12650,7 +12653,24 @@ async function startServer() {
       }
 
       // Yanıt oluştur
-      const response = await generateChatbotResponse(intent, message, actionType, req.tenant.id);
+      let response;
+      try {
+        response = await generateChatbotResponse(intent, message, actionType, tenantId);
+      } catch (responseError) {
+        console.error('❌ Yanıt oluşturma hatası:', responseError);
+        // Fallback yanıt
+        response = {
+          id: `bot-${Date.now()}`,
+          text: '🤔 Üzgünüm, şu anda yanıt veremiyorum. Lütfen tekrar deneyin veya canlı desteğe bağlanın.',
+          isBot: true,
+          timestamp: new Date(),
+          type: 'quick_reply',
+          quickReplies: [
+            { id: '1', text: '🔄 Tekrar Dene', action: 'retry' },
+            { id: '2', text: '🎧 Canlı Destek', action: 'live_support' },
+          ]
+        };
+      }
 
       // Analitik verilerini kaydet (ürün bilgileri ile)
       try {
@@ -12658,7 +12678,7 @@ async function startServer() {
           `INSERT INTO chatbot_analytics (tenantId, userId, message, intent, productId, productName, productPrice, productImage, timestamp) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
           [
-            req.tenant.id,
+            tenantId,
             userId || null,
             message.substring(0, 100),
             intent,
@@ -12682,7 +12702,17 @@ async function startServer() {
       res.status(500).json({
         success: false,
         message: 'Mesaj işlenirken hata oluştu',
-        error: error.message
+        data: {
+          id: `bot-error-${Date.now()}`,
+          text: '😔 Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin veya canlı desteğe bağlanın.',
+          isBot: true,
+          timestamp: new Date(),
+          type: 'quick_reply',
+          quickReplies: [
+            { id: '1', text: '🔄 Tekrar Dene', action: 'retry' },
+            { id: '2', text: '🎧 Canlı Destek', action: 'live_support' },
+          ]
+        }
       });
     }
   });
@@ -12692,16 +12722,19 @@ async function startServer() {
     try {
       const { userId, message, intent, satisfaction, productId, productName, productPrice, productImage } = req.body;
 
+      // Tenant kontrolü
+      const tenantId = req.tenant?.id || 1;
+
       // Analitik verilerini kaydet
       await poolWrapper.execute(
         `INSERT INTO chatbot_analytics (userId, tenantId, message, intent, satisfaction, productId, productName, productPrice, productImage, timestamp) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           userId || null,
-          req.tenant.id,
-          message?.substring(0, 100),
-          intent,
-          satisfaction,
+          tenantId,
+          message?.substring(0, 100) || null,
+          intent || 'unknown',
+          satisfaction || null,
           productId || null,
           productName || null,
           productPrice || null,
@@ -12719,6 +12752,8 @@ async function startServer() {
   // Admin - Chatbot konuşmalarını getir (ürün bilgileri ile)
   app.get('/api/admin/chatbot/conversations', authenticateAdmin, async (req, res) => {
     try {
+      const tenantId = req.tenant?.id || 1;
+      
       const [rows] = await poolWrapper.execute(`
         SELECT 
           ca.id,
@@ -12738,12 +12773,12 @@ async function startServer() {
           p.price as productFullPrice,
           p.image as productFullImage
         FROM chatbot_analytics ca
-        LEFT JOIN users u ON ca.userId = u.id
-        LEFT JOIN products p ON ca.productId = p.id
+        LEFT JOIN users u ON ca.userId = u.id AND u.tenantId = ca.tenantId
+        LEFT JOIN products p ON ca.productId = p.id AND p.tenantId = ca.tenantId
         WHERE ca.tenantId = ?
         ORDER BY ca.timestamp DESC
         LIMIT 500
-      `, [req.tenant.id]);
+      `, [tenantId]);
 
       res.json({
         success: true,
@@ -12752,6 +12787,102 @@ async function startServer() {
     } catch (error) {
       console.error('❌ Chatbot konuşmaları getirme hatası:', error);
       res.status(500).json({ success: false, message: 'Konuşmalar getirilemedi' });
+    }
+  });
+
+  // Admin - Chatbot mesaj gönder
+  app.post('/api/admin/chatbot/send-message', authenticateAdmin, async (req, res) => {
+    try {
+      const { userId, message, conversationId } = req.body;
+
+      if (!userId || !message || !message.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'userId ve message gerekli'
+        });
+      }
+
+      // Tenant kontrolü
+      const tenantId = req.tenant?.id || 1;
+
+      // Kullanıcı kontrolü (aynı tenant'ta mı?)
+      const [userCheck] = await poolWrapper.execute(
+        'SELECT id FROM users WHERE id = ? AND tenantId = ? LIMIT 1',
+        [userId, tenantId]
+      );
+
+      if (userCheck.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Kullanıcı bulunamadı'
+        });
+      }
+
+      // Kullanıcıya mesaj kaydet
+      await poolWrapper.execute(
+        `INSERT INTO chatbot_analytics (tenantId, userId, message, intent, timestamp) 
+         VALUES (?, ?, ?, ?, NOW())`,
+        [
+          tenantId,
+          userId,
+          message.substring(0, 1000),
+          'admin_message'
+        ]
+      );
+
+      res.json({
+        success: true,
+        message: 'Mesaj gönderildi'
+      });
+    } catch (error) {
+      console.error('❌ Admin mesaj gönderme hatası:', error);
+      res.status(500).json({ success: false, message: 'Mesaj gönderilemedi' });
+    }
+  });
+
+  // Kullanıcı - Admin mesajlarını getir
+  app.get('/api/chatbot/admin-messages/:userId', async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (!userId || userId <= 0) {
+        return res.status(400).json({ success: false, message: 'Geçersiz userId' });
+      }
+
+      // Tenant kontrolü (kullanıcının tenant'ı)
+      const [userRow] = await poolWrapper.execute(
+        'SELECT tenantId FROM users WHERE id = ? LIMIT 1',
+        [userId]
+      );
+
+      const tenantId = userRow.length > 0 ? userRow[0].tenantId : 1;
+
+      const [rows] = await poolWrapper.execute(
+        `SELECT id, message, timestamp 
+         FROM chatbot_analytics 
+         WHERE userId = ? AND tenantId = ? AND intent = 'admin_message' AND timestamp > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+         ORDER BY timestamp DESC
+         LIMIT 50`,
+        [userId, tenantId]
+      );
+
+      res.json({
+        success: true,
+        data: rows
+      });
+    } catch (error) {
+      console.error('❌ Admin mesajları getirme hatası:', error);
+      res.status(500).json({ success: false, message: 'Mesajlar getirilemedi' });
+    }
+  });
+
+  // Admin mesajını okundu olarak işaretle
+  app.post('/api/chatbot/admin-messages/:messageId/read', async (req, res) => {
+    try {
+      const messageId = parseInt(req.params.messageId);
+      // Bu endpoint şimdilik sadece log için, ileride okundu durumu takibi için kullanılabilir
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false });
     }
   });
 
@@ -12904,7 +13035,7 @@ async function startServer() {
           { id: '1', text: '📞 Canlı Destek', action: 'live_support' },
           { id: '2', text: '📧 E-posta Gönder', action: 'email_support' },
           { id: '3', text: '❓ S.S.S.', action: 'faq' },
-          { id: '4', text: '📞 Telefon', action: 'phone_support' }
+          { id: '4', text: '📱 WhatsApp', action: 'whatsapp_support' }
         ]
       }
     };
@@ -13149,11 +13280,11 @@ async function startServer() {
   async function handleSpecialChatbotAction(action, message, messageId, timestamp, tenantId) {
     const responses = {
       live_support: {
-        text: '🎧 Canlı desteğe bağlanıyorsunuz... Ortalama bekleme süresi: 2-3 dakika\n\n📞 Telefon: 0530 312 58 13\n📧 E-posta: info@hugluoutdoor.com',
+        text: '🎧 Canlı desteğe bağlanıyorsunuz... Ortalama bekleme süresi: 2-3 dakika\n\n📞 Telefon: 0530 312 58 13\n📱 WhatsApp: +90 530 312 58 13\n📧 E-posta: info@hugluoutdoor.com',
         type: 'quick_reply',
         quickReplies: [
           { id: '1', text: '📞 Telefon Et', action: 'call_support' },
-          { id: '2', text: '📞 Telefon', action: 'phone_support' },
+          { id: '2', text: '📱 WhatsApp', action: 'whatsapp_support' },
           { id: '3', text: '📧 E-posta', action: 'email_support' }
         ]
       },

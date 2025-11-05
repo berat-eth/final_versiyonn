@@ -15,11 +15,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Colors } from '../theme/colors';
 import { Spacing, Shadows } from '../theme/theme';
 import { ChatbotService } from '../services/ChatbotService';
 import { AnythingLLMService } from '../services/AnythingLLMService';
+import { UserController } from '../controllers/UserController';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ChatbotProps {
@@ -48,6 +50,7 @@ export interface QuickReply {
 const { width, height } = Dimensions.get('window');
 
 export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId }) => {
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -61,6 +64,9 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
   const scrollViewRef = useRef<ScrollView>(null);
   const animatedValue = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Tab bar yüksekliği (70) + safe area bottom + margin
+  const bottomOffset = 70 + Math.max(insets.bottom, 8) + 20;
   
   // Typing indicator için animated values'ları component seviyesinde tanımla
   const typingDotOpacity = useRef([
@@ -89,6 +95,76 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       setLlmEnabled(false);
     }
   };
+
+  // Admin mesaj dinleyicisi
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    let timeout: NodeJS.Timeout | null = null;
+    const processedMessageIds = new Set<string>();
+    
+    const checkMessages = async () => {
+      try {
+        const userId = await UserController.getCurrentUserId();
+        if (!userId || userId <= 0) return;
+
+        const apiService = (await import('../utils/api-service')).default;
+        const response = await apiService.get(`/chatbot/admin-messages/${userId}`);
+        
+        if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
+          setMessages(prevMessages => {
+            const newMessages = response.data.filter((msg: any) => {
+              if (!msg || !msg.id) return false;
+              const msgId = `admin-${msg.id}`;
+              // Daha önce işlenmemiş mesajları filtrele
+              if (processedMessageIds.has(msgId)) return false;
+              if (prevMessages.some(m => m.id === msgId)) {
+                processedMessageIds.add(msgId);
+                return false;
+              }
+              return true;
+            });
+
+            if (newMessages.length > 0) {
+              const adminMessages: ChatMessage[] = newMessages.map((msg: any) => {
+                const msgId = `admin-${msg.id}`;
+                processedMessageIds.add(msgId);
+                return {
+                  id: msgId,
+                  text: msg.message || 'Mesaj içeriği yok',
+                  isBot: true,
+                  timestamp: new Date(msg.timestamp || Date.now()),
+                  type: 'text' as const,
+                };
+              });
+
+              // Mesajları okundu olarak işaretle (hata durumunda sessizce geç)
+              newMessages.forEach((msg: any) => {
+                if (msg.id) {
+                  apiService.post(`/chatbot/admin-messages/${msg.id}/read`, {}).catch(() => {});
+                }
+              });
+
+              return [...prevMessages, ...adminMessages];
+            }
+            return prevMessages;
+          });
+        }
+      } catch (error) {
+        // Sessizce geç
+      }
+    };
+
+    // İlk kontrol (biraz gecikmeyle)
+    timeout = setTimeout(checkMessages, 2000);
+
+    // Her 5 saniyede bir kontrol et
+    interval = setInterval(checkMessages, 5000);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      if (timeout) clearTimeout(timeout);
+    };
+  }, []);
 
   // LLM durumunu yenile (ayarlar sayfasından dönüşte)
   useEffect(() => {
@@ -312,26 +388,51 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     setIsTyping(true);
 
     try {
-      // AI ile mesaj işleme (productId ile)
-      const response = await ChatbotService.processMessage(text, type, productId);
+      // Kullanıcı ID'sini al
+      const userId = await UserController.getCurrentUserId();
+      
+      // AI ile mesaj işleme (productId ve userId ile)
+      const response = await ChatbotService.processMessage(text, type, productId, userId);
       
       // Intent tespiti (analitik için)
       const intent = detectIntent(text.toLowerCase());
       
-      // Analitik takip
-      await ChatbotService.logChatInteraction(1, text, intent); // userId = 1 (guest)
+      // Analitik takip (gerçek userId ile) - hata durumunda sessizce geç
+      ChatbotService.logChatInteraction(userId || 0, text, intent).catch(() => {});
       
+      // Yanıtı göster (gerçekçi yazma süresi)
+      const typingDelay = 1000 + Math.random() * 1000;
       setTimeout(() => {
         setIsTyping(false);
-        addMessage(response);
-      }, 1000 + Math.random() * 1000); // Gerçekçi yazma süresi
+        if (response && response.text) {
+          addMessage(response);
+        } else {
+          // Fallback: Yanıt alınamadı
+          const fallbackMessage: ChatMessage = {
+            id: `bot-fallback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: '🤔 Yanıt alınamadı. Lütfen tekrar deneyin.',
+            isBot: true,
+            timestamp: new Date(),
+            type: 'quick_reply',
+            quickReplies: [
+              { id: '1', text: '🔄 Tekrar Dene', action: 'retry' },
+              { id: '2', text: '🎧 Canlı Destek', action: 'live_support' },
+            ]
+          };
+          addMessage(fallbackMessage);
+        }
+      }, typingDelay);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Chatbot send message error:', error);
       setIsTyping(false);
+      
+      // Hata mesajı oluştur
       const errorMessage: ChatMessage = {
         id: `bot-error-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        text: '😔 Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin veya canlı desteğe bağlanın.',
+        text: error?.message?.includes('network') || error?.message?.includes('timeout') 
+          ? '🌐 İnternet bağlantınızı kontrol edin ve tekrar deneyin.'
+          : '😔 Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin veya canlı desteğe bağlanın.',
         isBot: true,
         timestamp: new Date(),
         type: 'quick_reply',
@@ -382,26 +483,47 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
   };
 
   const handleQuickReply = async (quickReply: QuickReply) => {
+    // Retry action - son mesajı tekrar gönder
+    if (quickReply.action === 'retry') {
+      const lastUserMessage = messages.filter(m => !m.isBot).pop();
+      if (lastUserMessage) {
+        await sendMessage(lastUserMessage.text, lastUserMessage.type || 'text');
+      }
+      return;
+    }
+
     // Navigasyon eylemi kontrolü
     if (quickReply.action.includes('navigate_') || 
         quickReply.action.includes('view_') || 
         quickReply.action === 'order_detail') {
       
       if (navigation) {
-        await ChatbotService.handleNavigation(quickReply.action, navigation, quickReply.data);
-        
-        // Chatbot'u kapat
-        toggleChatbot();
-        
-        // Başarı mesajı ekle
-        const successMessage: ChatMessage = {
-          id: `bot-success-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          text: `✅ ${quickReply.text} sayfasına yönlendiriliyorsunuz...`,
-          isBot: true,
-          timestamp: new Date(),
-          type: 'text',
-        };
-        addMessage(successMessage);
+        try {
+          await ChatbotService.handleNavigation(quickReply.action, navigation, quickReply.data);
+          
+          // Chatbot'u kapat
+          toggleChatbot();
+          
+          // Başarı mesajı ekle
+          const successMessage: ChatMessage = {
+            id: `bot-success-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: `✅ ${quickReply.text} sayfasına yönlendiriliyorsunuz...`,
+            isBot: true,
+            timestamp: new Date(),
+            type: 'text',
+          };
+          addMessage(successMessage);
+        } catch (navError: any) {
+          console.error('Navigation error:', navError);
+          const errorMessage: ChatMessage = {
+            id: `bot-nav-error-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: '⚠️ Sayfaya yönlendirilemedi. Lütfen manuel olarak gidin.',
+            isBot: true,
+            timestamp: new Date(),
+            type: 'text',
+          };
+          addMessage(errorMessage);
+        }
         return;
       }
     }
@@ -531,7 +653,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
   };
 
   const renderFloatingButton = () => (
-    <View style={styles.container}>
+    <View style={[styles.container, { bottom: bottomOffset }]}>
       <Animated.View style={[
         styles.floatingButton,
         { transform: [{ scale: pulseAnim }] }
@@ -553,7 +675,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
   );
 
   const renderChatWindow = () => (
-    <View style={styles.container}>
+    <View style={[styles.container, { bottom: bottomOffset }]}>
       <Animated.View style={[
         styles.chatWindow,
         isMinimized && styles.minimizedChat,
@@ -693,10 +815,19 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 20,
     right: 20,
-    zIndex: 1000,
-    elevation: 10,
+    zIndex: 9999,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 25,
+      },
+    }),
   },
   floatingButton: {
     width: 60,

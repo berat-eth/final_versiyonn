@@ -167,40 +167,80 @@ export class ChatbotService {
     'stok': 'Ürün sayfasında stok durumu gösterilir. Stokta olmayan ürünler için "Stok gelince haber ver" seçeneğini kullanın.'
   };
 
-  static async processMessage(message: string, actionType: string = 'text', productId?: number): Promise<ChatMessage> {
+  static async processMessage(message: string, actionType: string = 'text', productId?: number, userId?: number): Promise<ChatMessage> {
     const timestamp = new Date();
     // GÜVENLİK: Kriptografik olarak güvenli message ID
-    const { generateSecureMessageId } = require('../utils/crypto-utils');
-    const messageId = generateSecureMessageId();
+    let messageId: string;
+    try {
+      const cryptoUtils = await import('../utils/crypto-utils');
+      messageId = cryptoUtils.generateSecureMessageId();
+    } catch (error) {
+      // Fallback: Basit message ID
+      messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
 
     try {
-      // Backend API'ye mesaj gönder
-      const response = await apiService.post('/chatbot/message', {
-        message,
-        actionType,
-        userId: await this.getActiveUserId(),
-        productId: productId || undefined
-      });
+      // Backend API'ye mesaj gönder (userId parametresi varsa onu kullan)
+      const activeUserId = userId !== undefined ? userId : await this.getActiveUserId();
+      
+      let response;
+      try {
+        response = await apiService.post('/chatbot/message', {
+          message,
+          actionType,
+          userId: activeUserId || null,
+          productId: productId || undefined
+        });
+      } catch (apiError: any) {
+        console.error('❌ Chatbot API error:', apiError);
+        throw new Error(apiError?.message || 'API isteği başarısız');
+      }
 
-      if (response.success && response.data) {
+      if (response && response.success && response.data) {
         // Backend'den gelen yanıtı kullan
+        let quickReplies = response.data.quickReplies;
+        
+        // live_support action'ı için telefon butonlarını filtrele (sadece "Telefon Et" kalsın)
+        if (actionType === 'live_support' && quickReplies && Array.isArray(quickReplies)) {
+          quickReplies = quickReplies.filter((reply: QuickReply) => {
+            // "Telefon" butonunu kaldır, sadece "Telefon Et" kalsın
+            if (reply.action === 'phone_support' || (reply.text && reply.text.includes('📞 Telefon') && !reply.text.includes('Telefon Et'))) {
+              return false;
+            }
+            return true;
+          });
+        }
+        
         return {
           id: response.data.id || messageId,
-          text: response.data.text,
+          text: response.data.text || 'Yanıt alınamadı',
           isBot: true,
           timestamp: new Date(response.data.timestamp || timestamp),
           type: response.data.type || 'text',
-          quickReplies: response.data.quickReplies,
+          quickReplies: quickReplies || [],
           data: response.data.data,
         };
       } else {
-        throw new Error('Backend response failed');
+        throw new Error(response?.message || 'Backend response failed');
       }
     } catch (error) {
       console.error('❌ Backend chatbot error, using fallback:', error);
       
       // Fallback: Yerel işleme
-      return await this.processMessageLocally(message, actionType, messageId, timestamp);
+      const localResponse = await this.processMessageLocally(message, actionType, messageId, timestamp);
+      
+      // live_support için telefon butonlarını filtrele
+      if (actionType === 'live_support' && localResponse.quickReplies && Array.isArray(localResponse.quickReplies)) {
+        localResponse.quickReplies = localResponse.quickReplies.filter((reply: QuickReply) => {
+          // "Telefon" butonunu kaldır, sadece "Telefon Et" kalsın
+          if (reply.action === 'phone_support' || (reply.text && reply.text.includes('📞 Telefon') && !reply.text.includes('Telefon Et'))) {
+            return false;
+          }
+          return true;
+        });
+      }
+      
+      return localResponse;
     }
   }
 

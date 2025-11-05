@@ -20,6 +20,7 @@ import CustomerCare from '@/components/CustomerCare'
 import Segments from '@/components/Segments'
 
 import LiveData from '@/components/LiveData'
+import LiveUsers from '@/components/LiveUsers'
 
 import Chatbot from '@/components/Chatbot'
 import Security from '@/components/Security'
@@ -247,6 +248,7 @@ export default function DashboardPage() {
 
           {activeTab === 'analytics' && <Analytics />}
           {activeTab === 'live-data' && <LiveData />}
+          {activeTab === 'live-users' && <LiveUsers />}
           {activeTab === 'server-stats' && <ServerStats />}
           {activeTab === 'backup' && <Backup />}
           {activeTab === 'file-manager' && <FileManager />}
