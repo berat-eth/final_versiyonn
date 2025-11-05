@@ -1098,8 +1098,13 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
           contentContainerStyle={styles.productList}
         >
           {displayProducts.map((item: Product, index: number) => {
-            const flashDiscount = (item as any).flashDiscount || 0;
+            const flashDiscount = (item as any).flashDiscount;
             const remainSec = (item as any).flashDealEndTime || 0;
+            
+            // flashDiscount'ı sayıya çevir ve kontrol et
+            const discountValue = typeof flashDiscount === 'number' 
+              ? flashDiscount 
+              : (typeof flashDiscount === 'string' ? parseFloat(flashDiscount) : 0) || 0;
             
             return (
               <ModernCard
@@ -1115,11 +1120,13 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
                     source={{ uri: item.image || 'https://via.placeholder.com/300x300?text=No+Image' }} 
                     style={styles.productImage} 
                   />
-                  <View style={styles.flashDiscountBadge}>
-                    <Text style={styles.flashDiscountText}>
-                      %{flashDiscount.toFixed(0)} İndirim
-                    </Text>
-                  </View>
+                  {discountValue > 0 && (
+                    <View style={styles.flashDiscountBadge}>
+                      <Text style={styles.flashDiscountText}>
+                        %{discountValue.toFixed(0)} İndirim
+                      </Text>
+                    </View>
+                  )}
                   <View style={styles.flashTimerBadge}>
                     <Icon name="timer" size={12} color="white" />
                     <Text style={styles.flashTimerText}>{formatHMS(remainSec)}</Text>
