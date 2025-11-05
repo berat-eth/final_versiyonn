@@ -546,10 +546,14 @@ export const analyticsService = {
 
   predictPurchase: async (userId?: number, deviceId?: string) => {
     try {
-      const res = await api.get<ApiResponse<any>>('/analytics/predict/purchase', {
-        userId,
-        deviceId
-      });
+      const params: Record<string, string | number | boolean> = {};
+      if (userId !== undefined) {
+        params.userId = userId;
+      }
+      if (deviceId !== undefined) {
+        params.deviceId = deviceId;
+      }
+      const res = await api.get<ApiResponse<any>>('/analytics/predict/purchase', params);
       return res && res.success ? { success: true, data: res.data } : { success: false, data: null };
     } catch (error) {
       console.error('Error predicting purchase:', error);
