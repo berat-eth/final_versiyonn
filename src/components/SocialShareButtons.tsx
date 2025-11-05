@@ -7,6 +7,8 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ShareUtils, ProductShareData } from '../utils/shareUtils';
 import { canEarnShareExp, DAILY_LIMIT } from '../utils/social-share-limit';
 import { UserController } from '../controllers/UserController';
@@ -39,28 +41,32 @@ export const SocialShareButtons: React.FC<SocialShareButtonsProps> = ({
     {
       id: 'instagram',
       name: 'Instagram',
-      icon: 'camera-alt',
+      icon: 'logo-instagram',
+      iconType: 'ionicons',
       color: '#E4405F',
       gradient: ['#833AB4', '#FD1D1D', '#FCB045'],
     },
     {
       id: 'facebook',
       name: 'Facebook',
-      icon: 'facebook',
+      icon: 'logo-facebook',
+      iconType: 'ionicons',
       color: '#1877F2',
       gradient: ['#1877F2', '#42A5F5'],
     },
     {
       id: 'whatsapp',
       name: 'WhatsApp',
-      icon: 'chat',
+      icon: 'logo-whatsapp',
+      iconType: 'ionicons',
       color: '#25D366',
       gradient: ['#25D366', '#128C7E'],
     },
     {
       id: 'twitter',
       name: 'Twitter',
-      icon: 'alternate-email',
+      icon: 'logo-twitter',
+      iconType: 'ionicons',
       color: '#1DA1F2',
       gradient: ['#1DA1F2', '#0D8BD9'],
     },
@@ -160,18 +166,25 @@ export const SocialShareButtons: React.FC<SocialShareButtonsProps> = ({
           <TouchableOpacity
             key={platform.id}
             style={[
-              styles.shareButton,
-              { backgroundColor: platform.color },
+              styles.shareButtonContainer,
               sharing === platform.id && styles.sharingButton,
             ]}
             onPress={() => handleSocialShare(platform.id)}
             disabled={sharing !== null}
+            activeOpacity={0.8}
           >
-            <Icon
-              name={platform.icon}
-              size={24}
-              color="#FFFFFF"
-            />
+            <LinearGradient
+              colors={platform.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.shareButtonGradient}
+            >
+              <Ionicons
+                name={platform.icon as any}
+                size={32}
+                color="#FFFFFF"
+              />
+            </LinearGradient>
             {sharing === platform.id && (
               <Text style={styles.sharingText}>Paylaşılıyor...</Text>
             )}
@@ -180,7 +193,7 @@ export const SocialShareButtons: React.FC<SocialShareButtonsProps> = ({
       </View>
       
       <View style={styles.infoContainer}>
-        <Icon name="info" size={16} color="#8E8E93" />
+        <Ionicons name="information-circle" size={18} color="#007bff" />
         <Text style={styles.infoText}>
           Her paylaşımda 25 EXP kazanırsınız. EXP'lerinizle seviye atlayın!
         </Text>
@@ -214,20 +227,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     marginBottom: 16,
   },
-  shareButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  shareButtonContainer: {
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  shareButtonGradient: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
   sharingButton: {
     opacity: 0.7,

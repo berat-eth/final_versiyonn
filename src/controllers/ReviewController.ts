@@ -108,7 +108,7 @@ export class ReviewController {
     userName: string,
     rating: number,
     comment: string,
-    images?: string[]
+    media?: any[] // MediaItem[] veya string[] (backward compatibility)
   ): Promise<{ success: boolean; message: string; review?: Review }> {
     try {
       console.log(`📝 Adding review for product: ${productId}, user: ${userId}, rating: ${rating}`);
@@ -142,6 +142,25 @@ export class ReviewController {
         };
       }
 
+      // Medya dosyalarını formatla
+      const mediaData = media ? media.map((item) => {
+        if (typeof item === 'string') {
+          // Backward compatibility: string array (sadece görsel URL'leri)
+          return {
+            mediaType: 'image',
+            mediaUrl: item,
+          };
+        } else {
+          // MediaItem formatı
+          return {
+            mediaType: item.type,
+            mediaUrl: item.uploadUrl || item.uri,
+            fileSize: item.fileSize,
+            mimeType: item.mimeType,
+          };
+        }
+      }) : [];
+
       // API'ye yorum ekleme isteği gönder
       const reviewData = {
         productId,
@@ -149,7 +168,7 @@ export class ReviewController {
         userName,
         rating,
         comment: comment.trim(),
-        images: images || []
+        media: mediaData
       };
 
       const response = await apiService.createReview(reviewData);
@@ -166,13 +185,17 @@ export class ReviewController {
           rating,
           comment: comment.trim(),
           createdAt: new Date().toISOString(),
-          images: images ? images.map((img, index) => ({
+          media: mediaData.map((m, index) => ({
             id: index + 1,
             reviewId: response.data?.reviewId || 0,
-            imageUrl: img,
+            mediaType: m.mediaType as 'image' | 'video',
+            mediaUrl: m.mediaUrl,
+            fileSize: m.fileSize,
+            mimeType: m.mimeType,
             uploadedAt: new Date().toISOString(),
-            order: index,
-          })) : [],
+            displayOrder: index,
+          })),
+          images: [], // Backward compatibility - artık media kullanıyoruz
           isVerifiedPurchase: purchaseCheck.purchaseInfo?.hasPurchased || false,
           helpfulCount: 0,
           isHelpful: false,
@@ -201,7 +224,7 @@ export class ReviewController {
           userName,
           rating,
           comment,
-          images: images || []
+          media: media || []
         });
         return { success: false, message: 'Çevrimdışı mod - yorum ekleme isteği kuyruğa eklendi' };
       }
@@ -217,7 +240,8 @@ export class ReviewController {
   static async updateReview(
     reviewId: number,
     rating: number,
-    comment: string
+    comment: string,
+    media?: any[]
   ): Promise<{ success: boolean; message: string }> {
     try {
       console.log(`🔄 Updating review: ${reviewId}, rating: ${rating}`);
@@ -258,7 +282,8 @@ export class ReviewController {
         review.userId,
         review.userName,
         rating,
-        comment.trim()
+        comment.trim(),
+        media
       );
       
       if (addResult.success) {
@@ -448,6 +473,17 @@ export class ReviewController {
           thumbnailUrl: img.thumbnail_url,
           uploadedAt: img.uploaded_at,
           order: img.order || 0,
+        })) : [],
+        media: apiReview.media ? apiReview.media.map((m: any) => ({
+          id: m.id,
+          reviewId: m.reviewId,
+          mediaType: m.mediaType || (m.mediaUrl?.match(/\.(mp4|mov|avi)$/i) ? 'video' : 'image'),
+          mediaUrl: m.mediaUrl,
+          thumbnailUrl: m.thumbnailUrl,
+          fileSize: m.fileSize,
+          mimeType: m.mimeType,
+          uploadedAt: m.uploadedAt || new Date().toISOString(),
+          displayOrder: m.displayOrder || 0,
         })) : [],
         isVerifiedPurchase: apiReview.isVerifiedPurchase || false,
         helpfulCount: apiReview.helpfulCount || 0,

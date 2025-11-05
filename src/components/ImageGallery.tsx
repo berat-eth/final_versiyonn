@@ -65,10 +65,9 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({
 
   const handleImagePress = (index: number) => {
     setCurrentIndex(index);
+    setModalVisible(true);
     if (onImagePress) {
       onImagePress(validImages[index], index);
-    } else {
-      setModalVisible(true);
     }
   };
 

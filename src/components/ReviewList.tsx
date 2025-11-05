@@ -8,6 +8,8 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  Modal,
+  Video,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Review } from '../utils/types';
@@ -84,12 +86,22 @@ export const ReviewList: React.FC<ReviewListProps> = ({
     setGalleryVisible(true);
   };
 
-  const renderReviewImages = (review: Review) => {
-    if (!review.images || review.images.length === 0) {
+  const renderReviewMedia = (review: Review) => {
+    // Yeni medya desteği (görsel + video)
+    const media = review.media || [];
+    
+    // Backward compatibility: eski images desteği
+    const images = review.images || [];
+    const allMedia = [
+      ...media.map(m => ({ type: 'media' as const, url: m.mediaUrl, mediaType: m.mediaType, id: m.id })),
+      ...images.map(img => ({ type: 'image' as const, url: img.imageUrl, mediaType: 'image' as const, id: img.id }))
+    ];
+
+    if (allMedia.length === 0) {
       return null;
     }
 
-    const imageUrls = review.images.map(img => img.imageUrl);
+    const mediaUrls = allMedia.map(m => m.url);
 
     return (
       <View style={styles.imagesContainer}>
@@ -99,16 +111,30 @@ export const ReviewList: React.FC<ReviewListProps> = ({
           showsHorizontalScrollIndicator={false}
           style={styles.imagesScroll}
         >
-          {imageUrls.map((imageUrl, index) => (
+          {allMedia.map((item, index) => (
             <TouchableOpacity
-              key={index}
+              key={item.id || index}
               style={styles.imageContainer}
-              onPress={() => handleViewImages(imageUrls, index)}
+              onPress={() => handleViewImages(mediaUrls, index)}
             >
-              <Image source={{ uri: imageUrl }} style={styles.reviewImage} />
-              {imageUrls.length > 3 && index === 2 && (
+              {item.mediaType === 'video' ? (
+                <>
+                  <Video
+                    source={{ uri: item.url }}
+                    style={styles.reviewImage}
+                    resizeMode="cover"
+                    paused={true}
+                  />
+                  <View style={styles.videoBadge}>
+                    <Icon name="play-circle-filled" size={24} color="#fff" />
+                  </View>
+                </>
+              ) : (
+                <Image source={{ uri: item.url }} style={styles.reviewImage} />
+              )}
+              {allMedia.length > 3 && index === 2 && (
                 <View style={styles.moreImagesOverlay}>
-                  <Text style={styles.moreImagesText}>+{imageUrls.length - 3}</Text>
+                  <Text style={styles.moreImagesText}>+{allMedia.length - 3}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -154,7 +180,7 @@ export const ReviewList: React.FC<ReviewListProps> = ({
 
           <Text style={styles.reviewComment}>{review.comment}</Text>
 
-          {renderReviewImages(review)}
+          {renderReviewMedia(review)}
 
           <View style={styles.reviewFooter}>
             {review.helpfulCount !== undefined && (
@@ -320,6 +346,14 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  videoBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 16,
+    padding: 4,
   },
   reviewFooter: {
     flexDirection: 'row',

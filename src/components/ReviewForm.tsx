@@ -10,13 +10,20 @@ import {
   ScrollView,
 } from 'react-native';
 import { Review } from '../utils/types';
-import { ImageUploader } from './ImageUploader';
+import { MediaUploader } from './MediaUploader';
 import { useLanguage } from '../contexts/LanguageContext';
+
+interface MediaItem {
+  uri: string;
+  type: 'image' | 'video';
+  uploaded?: boolean;
+  uploadUrl?: string;
+}
 
 interface ReviewFormProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (rating: number, comment: string, images?: string[]) => void;
+  onSubmit: (rating: number, comment: string, media?: MediaItem[]) => void;
   review?: Review | null;
   loading?: boolean;
 }
@@ -31,7 +38,21 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
   const { t, isLoading: languageLoading } = useLanguage();
   const [rating, setRating] = useState(review?.rating || 5);
   const [comment, setComment] = useState(review?.comment || '');
-  const [images, setImages] = useState<string[]>(review?.images?.map(img => img.imageUrl) || []);
+  const [media, setMedia] = useState<MediaItem[]>(
+    review?.media?.map(m => ({
+      uri: m.mediaUrl,
+      type: m.mediaType,
+      uploaded: true,
+      uploadUrl: m.mediaUrl,
+    })) || 
+    review?.images?.map(img => ({
+      uri: img.imageUrl,
+      type: 'image' as const,
+      uploaded: true,
+      uploadUrl: img.imageUrl,
+    })) || 
+    []
+  );
 
   const handleSubmit = () => {
     if (!comment.trim()) {
@@ -44,13 +65,27 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
       return;
     }
 
-    onSubmit(rating, comment.trim(), images);
+    onSubmit(rating, comment.trim(), media);
   };
 
   const handleClose = () => {
     setRating(review?.rating || 5);
     setComment(review?.comment || '');
-    setImages(review?.images?.map(img => img.imageUrl) || []);
+    setMedia(
+      review?.media?.map(m => ({
+        uri: m.mediaUrl,
+        type: m.mediaType,
+        uploaded: true,
+        uploadUrl: m.mediaUrl,
+      })) || 
+      review?.images?.map(img => ({
+        uri: img.imageUrl,
+        type: 'image' as const,
+        uploaded: true,
+        uploadUrl: img.imageUrl,
+      })) || 
+      []
+    );
     onClose();
   };
 
@@ -108,11 +143,12 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
               textAlignVertical="top"
             />
 
-            <ImageUploader
-              images={images}
-              onImagesChange={setImages}
-              maxImages={5}
+            <MediaUploader
+              media={media}
+              onMediaChange={setMedia}
+              maxMedia={5}
               maxImageSize={5}
+              maxVideoSize={50}
               disabled={loading}
             />
 

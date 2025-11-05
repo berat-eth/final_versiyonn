@@ -74,6 +74,7 @@ export interface Review {
   comment: string;
   createdAt: string;
   images?: ReviewImage[];
+  media?: ReviewMedia[]; // Yeni medya desteği (görsel + video)
   isVerifiedPurchase?: boolean;
   helpfulCount?: number;
   isHelpful?: boolean;
@@ -86,6 +87,18 @@ export interface ReviewImage {
   thumbnailUrl?: string;
   uploadedAt: string;
   order?: number;
+}
+
+export interface ReviewMedia {
+  id: number;
+  reviewId: number;
+  mediaType: 'image' | 'video';
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  fileSize?: number;
+  mimeType?: string;
+  uploadedAt: string;
+  displayOrder?: number;
 }
 
 // User Types

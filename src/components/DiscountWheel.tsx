@@ -223,7 +223,10 @@ export default function DiscountWheel({ visible, onClose, onSpinComplete }: Disc
       <View style={styles.overlay}>
         <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.title}>🎰 İndirim Çarkı</Text>
+            <View style={styles.titleContainer}>
+              <Ionicons name="gift" size={28} color="#007bff" style={styles.titleIcon} />
+              <Text style={styles.title}>İndirim Çarkı</Text>
+            </View>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
@@ -392,6 +395,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  titleIcon: {
+    marginRight: 10,
   },
   title: {
     fontSize: 24,

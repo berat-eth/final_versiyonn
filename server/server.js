@@ -25,6 +25,7 @@ const rateLimit = require('express-rate-limit');
 const ftp = require('basic-ftp');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const { OAuth2Client } = require('google-auth-library');
 const compression = require('compression');
 
@@ -397,6 +398,50 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // XML gövdeleri için text parser (text/xml, application/xml)
 app.use(express.text({ type: ['text/xml', 'application/xml'], limit: '20mb' }));
+
+// Dosya yükleme için uploads klasörünü oluştur
+const uploadsDir = path.join(__dirname, 'uploads', 'reviews');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('✅ Uploads directory created:', uploadsDir);
+}
+
+// Multer yapılandırması
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    const baseName = path.basename(file.originalname, ext);
+    cb(null, `${baseName}-${uniqueSuffix}${ext}`);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  // Görsel ve video formatları
+  const allowedMimes = [
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+    'video/mp4', 'video/quicktime', 'video/x-msvideo'
+  ];
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Geçersiz dosya formatı. Sadece görsel (JPEG, PNG, WebP) ve video (MP4, MOV, AVI) yüklenebilir.'));
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB maksimum
+  },
+  fileFilter: fileFilter
+});
+
+// Statik dosya servisi (yüklenen dosyaları erişilebilir yap)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Tenant cache middleware (preload tenant from Redis if available)
 const tenantCache = require('./middleware/tenantCache');
@@ -7778,6 +7823,52 @@ app.get('/api/orders/user/:userId', async (req, res) => {
   }
 });
 
+// Kullanıcının belirli bir ürünü satın alıp almadığını kontrol et
+app.get('/api/users/:userId/purchases/:productId', tenantCache, async (req, res) => {
+  try {
+    const { userId, productId } = req.params;
+    const tenantId = req.tenant?.id || 1;
+    
+    console.log(`🔍 Checking purchase for user ${userId}, product ${productId}, tenant ${tenantId}`);
+
+    // Kullanıcının bu ürünü içeren siparişlerini kontrol et
+    const [purchases] = await poolWrapper.execute(
+      `SELECT o.id as orderId, o.status as orderStatus, o.createdAt as purchaseDate,
+              oi.productId, oi.quantity, oi.price, oi.selectedVariations
+       FROM orders o
+       INNER JOIN order_items oi ON o.id = oi.orderId
+       WHERE o.userId = ? AND o.tenantId = ? AND oi.productId = ?
+       ORDER BY o.createdAt DESC
+       LIMIT 1`,
+      [userId, tenantId, productId]
+    );
+
+    if (purchases.length > 0) {
+      const purchase = purchases[0];
+      res.json({
+        success: true,
+        data: {
+          orderId: purchase.orderId,
+          orderStatus: purchase.orderStatus,
+          purchaseDate: purchase.purchaseDate,
+          productId: purchase.productId,
+          quantity: purchase.quantity,
+          price: purchase.price,
+          productVariations: purchase.selectedVariations ? JSON.parse(purchase.selectedVariations) : []
+        }
+      });
+    } else {
+      res.json({
+        success: true,
+        data: null
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error checking user purchase:', error);
+    res.status(500).json({ success: false, message: 'Error checking purchase' });
+  }
+});
+
 app.post('/api/orders', async (req, res) => {
   try {
     const {
@@ -9397,6 +9488,18 @@ app.get('/api/reviews/product/:productId', async (req, res) => {
       [productId]
     );
 
+    // Her yorum için medya dosyalarını getir
+    for (const review of rows) {
+      const [media] = await poolWrapper.execute(
+        `SELECT id, mediaType, mediaUrl, thumbnailUrl, fileSize, mimeType, displayOrder
+         FROM review_media 
+         WHERE reviewId = ? 
+         ORDER BY displayOrder ASC`,
+        [review.id]
+      );
+      review.media = media;
+    }
+
     res.json({ success: true, data: rows });
   } catch (error) {
     console.error('❌ Error getting product reviews:', error);
@@ -9404,9 +9507,46 @@ app.get('/api/reviews/product/:productId', async (req, res) => {
   }
 });
 
+// Dosya yükleme endpoint'i (görsel ve video)
+app.post('/api/reviews/upload', upload.array('media', 5), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dosya yüklenmedi'
+      });
+    }
+
+    const uploadedFiles = req.files.map(file => {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const mediaUrl = `${baseUrl}/uploads/reviews/${file.filename}`;
+      
+      return {
+        mediaType: file.mimetype.startsWith('image/') ? 'image' : 'video',
+        mediaUrl: mediaUrl,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        filename: file.filename
+      };
+    });
+
+    res.json({
+      success: true,
+      data: uploadedFiles,
+      message: 'Dosyalar başarıyla yüklendi'
+    });
+  } catch (error) {
+    console.error('❌ Error uploading files:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Dosya yükleme hatası' 
+    });
+  }
+});
+
 app.post('/api/reviews', async (req, res) => {
   try {
-    const { productId, userId, userName, rating, comment } = req.body;
+    const { productId, userId, userName, rating, comment, tenantId, media } = req.body;
 
     // Validate required fields
     if (!productId || !userId || !userName || !rating) {
@@ -9424,10 +9564,13 @@ app.post('/api/reviews', async (req, res) => {
       });
     }
 
+    // Get tenantId from request or use default
+    const finalTenantId = tenantId || 1;
+
     // Check if user already reviewed this product
     const [existingReview] = await poolWrapper.execute(
-      'SELECT id FROM reviews WHERE productId = ? AND userId = ?',
-      [productId, userId]
+      'SELECT id FROM reviews WHERE productId = ? AND userId = ? AND tenantId = ?',
+      [productId, userId, finalTenantId]
     );
 
     if (existingReview.length > 0) {
@@ -9439,29 +9582,52 @@ app.post('/api/reviews', async (req, res) => {
 
     // Insert new review
     const [result] = await poolWrapper.execute(
-      'INSERT INTO reviews (productId, userId, userName, rating, comment) VALUES (?, ?, ?, ?, ?)',
-      [productId, userId, userName, rating, comment || '']
+      'INSERT INTO reviews (tenantId, productId, userId, userName, rating, comment) VALUES (?, ?, ?, ?, ?, ?)',
+      [finalTenantId, productId, userId, userName, rating, comment || '']
     );
+
+    const reviewId = result.insertId;
+
+    // Eğer medya dosyaları varsa, review_media tablosuna ekle
+    if (media && Array.isArray(media) && media.length > 0) {
+      for (let i = 0; i < media.length; i++) {
+        const mediaItem = media[i];
+        await poolWrapper.execute(
+          `INSERT INTO review_media (tenantId, reviewId, mediaType, mediaUrl, thumbnailUrl, fileSize, mimeType, displayOrder)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            finalTenantId,
+            reviewId,
+            mediaItem.mediaType || (mediaItem.mediaUrl.match(/\.(mp4|mov|avi)$/i) ? 'video' : 'image'),
+            mediaItem.mediaUrl,
+            mediaItem.thumbnailUrl || null,
+            mediaItem.fileSize || null,
+            mediaItem.mimeType || null,
+            i
+          ]
+        );
+      }
+    }
 
     // Update product rating and review count
     const [reviewStats] = await poolWrapper.execute(
       `SELECT AVG(rating) as avgRating, COUNT(*) as reviewCount 
        FROM reviews 
-       WHERE productId = ?`,
-      [productId]
+       WHERE productId = ? AND tenantId = ?`,
+      [productId, finalTenantId]
     );
 
     if (reviewStats.length > 0) {
       const { avgRating, reviewCount } = reviewStats[0];
       await poolWrapper.execute(
-        'UPDATE products SET rating = ?, reviewCount = ? WHERE id = ?',
-        [parseFloat(avgRating.toFixed(2)), reviewCount, productId]
+        'UPDATE products SET rating = ?, reviewCount = ? WHERE id = ? AND tenantId = ?',
+        [parseFloat(avgRating.toFixed(2)), reviewCount, productId, finalTenantId]
       );
     }
 
     res.json({
       success: true,
-      data: { reviewId: result.insertId },
+      data: { reviewId: reviewId },
       message: 'Review added successfully'
     });
   } catch (error) {

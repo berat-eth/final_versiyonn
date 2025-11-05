@@ -1,4 +1,5 @@
 import { apiService, ApiResponse } from '../utils/api-service';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface FlashDealProduct {
   id: number;
@@ -22,9 +23,77 @@ export interface FlashDeal {
   products: FlashDealProduct[];
 }
 
+const CACHE_KEY = 'flash_deals_cache';
+const CACHE_TIMESTAMP_KEY = 'flash_deals_cache_timestamp';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 dakika cache süresi
+
+interface CacheData {
+  data: FlashDeal[];
+  timestamp: number;
+}
+
 export class FlashDealService {
-  static async getActiveFlashDeals(): Promise<FlashDeal[]> {
+  // Cache'den veri oku
+  private static async getFromCache(): Promise<FlashDeal[] | null> {
     try {
+      const [cachedData, timestampStr] = await Promise.all([
+        AsyncStorage.getItem(CACHE_KEY),
+        AsyncStorage.getItem(CACHE_TIMESTAMP_KEY)
+      ]);
+
+      if (!cachedData || !timestampStr) {
+        return null;
+      }
+
+      const timestamp = parseInt(timestampStr, 10);
+      const now = Date.now();
+      const age = now - timestamp;
+
+      // Cache süresi dolmuşsa null döndür
+      if (age > CACHE_DURATION) {
+        console.log('⏰ Flash deals cache expired, age:', Math.round(age / 1000), 'seconds');
+        await AsyncStorage.multiRemove([CACHE_KEY, CACHE_TIMESTAMP_KEY]);
+        return null;
+      }
+
+      // Cache geçerli, veriyi parse et ve döndür
+      const parsed: CacheData = JSON.parse(cachedData);
+      console.log('✅ Flash deals loaded from cache, age:', Math.round(age / 1000), 'seconds');
+      return parsed.data;
+    } catch (error) {
+      console.error('❌ Cache read error:', error);
+      return null;
+    }
+  }
+
+  // Cache'e veri yaz
+  private static async saveToCache(data: FlashDeal[]): Promise<void> {
+    try {
+      const cacheData: CacheData = {
+        data,
+        timestamp: Date.now()
+      };
+      await AsyncStorage.multiSet([
+        [CACHE_KEY, JSON.stringify(cacheData)],
+        [CACHE_TIMESTAMP_KEY, cacheData.timestamp.toString()]
+      ]);
+      console.log('💾 Flash deals saved to cache');
+    } catch (error) {
+      console.error('❌ Cache write error:', error);
+    }
+  }
+
+  static async getActiveFlashDeals(forceRefresh: boolean = false): Promise<FlashDeal[]> {
+    try {
+      // Eğer force refresh değilse, önce cache'den kontrol et
+      if (!forceRefresh) {
+        const cached = await this.getFromCache();
+        if (cached !== null) {
+          return cached;
+        }
+      }
+
+      // Cache'de yok veya süresi dolmuş, API'den çek
       console.log('🔄 Calling /api/flash-deals endpoint...');
       const res: ApiResponse<FlashDeal[]> = await apiService.get('/flash-deals');
       console.log('📦 Flash deals API response:', {
@@ -33,6 +102,8 @@ export class FlashDealService {
         dataIsArray: Array.isArray(res?.data),
         dataLength: Array.isArray(res?.data) ? res.data.length : 'N/A'
       });
+      
+      let deals: FlashDeal[] = [];
       
       // API response format: { success: true, data: [...] }
       if (res && res.success && res.data) {
@@ -46,27 +117,44 @@ export class FlashDealService {
               productsCount: res.data[0].products?.length || 0
             });
           }
-          return res.data as FlashDeal[];
+          deals = res.data as FlashDeal[];
         }
         // Eğer res.data içinde data varsa (nested)
-        if (res.data && typeof res.data === 'object' && 'data' in res.data && Array.isArray((res.data as any).data)) {
+        else if (res.data && typeof res.data === 'object' && 'data' in res.data && Array.isArray((res.data as any).data)) {
           console.log('✅ Flash deals loaded (nested):', (res.data as any).data.length);
-          return (res.data as any).data as FlashDeal[];
+          deals = (res.data as any).data as FlashDeal[];
         }
       }
-      console.warn('⚠️ Flash deals data formatı beklenmedik:', {
-        success: res?.success,
-        hasData: !!res?.data,
-        dataType: typeof res?.data
-      });
-      return [];
+
+      // Cache'e kaydet
+      if (deals.length > 0) {
+        await this.saveToCache(deals);
+      }
+
+      if (deals.length === 0) {
+        console.warn('⚠️ Flash deals data formatı beklenmedik:', {
+          success: res?.success,
+          hasData: !!res?.data,
+          dataType: typeof res?.data
+        });
+      }
+
+      return deals;
     } catch (error: any) {
       console.error('❌ Flash deal yükleme hatası:', error?.message || error);
-      console.error('❌ Error details:', error);
+      
+      // Hata durumunda cache'den döndürmeyi dene
+      const cached = await this.getFromCache();
+      if (cached !== null && cached.length > 0) {
+        console.log('⚠️ Using cached flash deals due to API error');
+        return cached;
+      }
+      
       return [];
     }
   }
 }
 
 export default FlashDealService;
+
 

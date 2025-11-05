@@ -62,6 +62,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const [viewerCount, setViewerCount] = useState<number>(0);
   const [showViewer, setShowViewer] = useState<boolean>(false);
   const [cachedUserId, setCachedUserId] = useState<number | null>(null);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState<boolean>(true); // Varsayılan olarak açık
 
   const { productId } = route.params;
 
@@ -443,7 +444,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     }
   };
 
-  const handleReviewSubmit = async (rating: number, comment: string, images?: string[]) => {
+  const handleReviewSubmit = async (rating: number, comment: string, media?: any[]) => {
     if (!currentUser) {
       Alert.alert('Hata', 'Yorum yapmak için giriş yapmanız gerekiyor.');
       return;
@@ -455,7 +456,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       
       if (userReview) {
         // Update existing review
-        result = await ReviewController.updateReview(userReview.id, rating, comment);
+        result = await ReviewController.updateReview(userReview.id, rating, comment, media);
       } else {
         // Add new review
         result = await ReviewController.addReview(
@@ -464,7 +465,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
           currentUser.name,
           rating,
           comment,
-          images
+          media
         );
       }
 
@@ -629,10 +630,6 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             mainImage={product.image || galleryImages?.[0] || 'https://via.placeholder.com/400x400?text=No+Image'}
             style={styles.imageGallery}
             showThumbnails={true}
-            onImagePress={(imageUrl, index) => {
-              // Görsel tam ekran gösterimi - ImageGallery bileşeni otomatik olarak modal açar
-              console.log('Image pressed:', imageUrl, index);
-            }}
           />
           
           {/* Favori Butonu */}
@@ -663,6 +660,27 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
           <Text style={styles.price}>
             {ProductController.formatPrice(currentPrice)}
           </Text>
+
+          {currentStock > 0 && (
+            <View style={styles.quantityContainer}>
+              <Text style={styles.quantityLabel}>Adet:</Text>
+              <View style={styles.quantitySelector}>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={decreaseQuantity}
+                >
+                  <Text style={styles.quantityButtonText}>-</Text>
+                </TouchableOpacity>
+                <Text style={styles.quantity}>{quantity}</Text>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={increaseQuantity}
+                >
+                  <Text style={styles.quantityButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Mevcut Bedenler (seçim zorunlu, stokta olmayanlar kırmızı çarpı ile) */}
           {Array.isArray(product.variations) && product.variations.length > 0 && (() => {
@@ -805,8 +823,21 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
           {/* Varyasyonlar bölümü kaldırıldı */}
 
           <View style={styles.descriptionContainer}>
-            <Text style={styles.sectionTitle}>{t('productDetail.description')}</Text>
-            <Text style={styles.description}>{getTranslatedProductDescription(product, currentLanguage)}</Text>
+            <TouchableOpacity
+              style={[styles.descriptionHeader, !isDescriptionExpanded && { marginBottom: 0 }]}
+              onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sectionTitle}>{t('productDetail.description')}</Text>
+              <Icon
+                name={isDescriptionExpanded ? 'expand-less' : 'expand-more'}
+                size={24}
+                color="#1A1A1A"
+              />
+            </TouchableOpacity>
+            {isDescriptionExpanded && (
+              <Text style={styles.description}>{getTranslatedProductDescription(product, currentLanguage)}</Text>
+            )}
           </View>
 
           {/* XML'den gelen ek bilgiler (varsa) */}
@@ -916,27 +947,6 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
               onReviewUpdate={handleReviewUpdate}
             />
           </View>
-
-          {currentStock > 0 && (
-            <View style={styles.quantityContainer}>
-              <Text style={styles.quantityLabel}>Adet:</Text>
-              <View style={styles.quantitySelector}>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={decreaseQuantity}
-                >
-                  <Text style={styles.quantityButtonText}>-</Text>
-                </TouchableOpacity>
-                <Text style={styles.quantity}>{quantity}</Text>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={increaseQuantity}
-                >
-                  <Text style={styles.quantityButtonText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
         </View>
       </ScrollView>
 
@@ -1111,12 +1121,18 @@ const styles = StyleSheet.create({
   descriptionContainer: {
     marginBottom: 32,
   },
+  descriptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#1A1A1A',
-    marginBottom: 12,
     letterSpacing: -0.5,
+    flex: 1,
   },
   description: {
     fontSize: 16,

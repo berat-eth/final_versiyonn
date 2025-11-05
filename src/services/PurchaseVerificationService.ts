@@ -17,11 +17,20 @@ export class PurchaseVerificationService {
     try {
       const userId = await UserController.getCurrentUserId();
       if (!userId) {
+        console.log('⚠️ No user ID found for purchase verification');
         return { hasPurchased: false };
       }
 
+      console.log(`🔍 Verifying purchase for user ${userId}, product ${productId}`);
+      
       // API'den kullanıcının siparişlerini kontrol et
       const response = await apiService.get(`/users/${userId}/purchases/${productId}`);
+      
+      console.log('📦 Purchase verification response:', {
+        success: response?.success,
+        hasData: !!response?.data,
+        data: response?.data
+      });
       
       if (response.success && response.data) {
         return {
@@ -33,9 +42,11 @@ export class PurchaseVerificationService {
         };
       }
 
+      console.log('⚠️ Purchase verification: User has not purchased this product');
       return { hasPurchased: false };
-    } catch (error) {
-      console.error('Error verifying purchase:', error);
+    } catch (error: any) {
+      console.error('❌ Error verifying purchase:', error?.message || error);
+      // Hata durumunda da false döndür, ama log'la
       return { hasPurchased: false };
     }
   }
@@ -72,9 +83,18 @@ export class PurchaseVerificationService {
     purchaseInfo?: PurchaseVerification;
   }> {
     try {
+      console.log(`🔍 Checking review eligibility for product ${productId}`);
+      
       const purchaseInfo = await this.verifyPurchase(productId);
       
+      console.log('📦 Purchase info:', {
+        hasPurchased: purchaseInfo.hasPurchased,
+        orderStatus: purchaseInfo.orderStatus
+      });
+      
+      // Satın alma kontrolü - eğer satın alınmışsa yorum yapabilir
       if (!purchaseInfo.hasPurchased) {
+        console.log('❌ User has not purchased this product');
         return {
           canReview: false,
           reason: 'Bu ürünü satın almadığınız için yorum yapamazsınız.',
@@ -82,24 +102,30 @@ export class PurchaseVerificationService {
         };
       }
 
-      // Sipariş durumu kontrolü
-      if (purchaseInfo.orderStatus && !['delivered', 'completed'].includes(purchaseInfo.orderStatus)) {
+      // Sipariş durumu kontrolü - daha esnek hale getirildi
+      // 'pending', 'processing', 'shipped' durumlarında da yorum yapılabilir
+      // Sadece 'cancelled' veya 'refunded' durumlarında izin verilmez
+      const blockedStatuses = ['cancelled', 'refunded'];
+      if (purchaseInfo.orderStatus && blockedStatuses.includes(purchaseInfo.orderStatus.toLowerCase())) {
+        console.log('❌ Order status blocks review:', purchaseInfo.orderStatus);
         return {
           canReview: false,
-          reason: 'Siparişiniz henüz teslim edilmediği için yorum yapamazsınız.',
+          reason: 'Sipariş durumunuz yorum yapmanıza izin vermiyor.',
           purchaseInfo
         };
       }
 
+      console.log('✅ User can review this product');
       return {
         canReview: true,
         purchaseInfo
       };
-    } catch (error) {
-      console.error('Error checking review eligibility:', error);
+    } catch (error: any) {
+      console.error('❌ Error checking review eligibility:', error?.message || error);
+      // Hata durumunda da false döndür, ama daha açıklayıcı mesaj ver
       return {
         canReview: false,
-        reason: 'Yorum yapma yetkinizi kontrol ederken bir hata oluştu.'
+        reason: `Yorum yapma yetkinizi kontrol ederken bir hata oluştu: ${error?.message || 'Bilinmeyen hata'}`
       };
     }
   }

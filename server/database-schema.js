@@ -686,6 +686,28 @@ async function createDatabaseSchema(pool) {
   `);
       console.log('✅ Reviews table ready');
 
+      // Review Media table (görsel ve video desteği)
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS review_media (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      reviewId INT NOT NULL,
+      mediaType ENUM('image', 'video') NOT NULL,
+      mediaUrl VARCHAR(500) NOT NULL,
+      thumbnailUrl VARCHAR(500),
+      fileSize INT,
+      mimeType VARCHAR(100),
+      uploadedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      displayOrder INT DEFAULT 0,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewId) REFERENCES reviews(id) ON DELETE CASCADE,
+      INDEX idx_review_media (reviewId),
+      INDEX idx_tenant_media (tenantId),
+      INDEX idx_media_type (mediaType)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Review media table ready');
+
       // User Wallets table
       await pool.execute(`
     CREATE TABLE IF NOT EXISTS user_wallets (
