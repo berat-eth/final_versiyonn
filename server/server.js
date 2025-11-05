@@ -3598,7 +3598,7 @@ app.get('/api/admin/user-discount-codes', authenticateAdmin, async (req, res) =>
     const limit = parseInt(req.query.limit) || 100;
     const offset = parseInt(req.query.offset) || 0;
     const [rows] = await poolWrapper.execute(
-      `SELECT udc.id, udc.userId, u.name as userName, udc.code as discountCode, udc.discountType, udc.discountValue, udc.isUsed, udc.expiresAt, udc.createdAt
+      `SELECT udc.id, udc.userId, u.name as userName, udc.discountCode, udc.discountType, udc.discountValue, udc.isUsed, udc.expiresAt, udc.createdAt
        FROM user_discount_codes udc
        LEFT JOIN users u ON u.id = udc.userId
        WHERE udc.tenantId = ?
@@ -3617,7 +3617,8 @@ app.get('/api/admin/user-discount-codes', authenticateAdmin, async (req, res) =>
 app.post('/api/admin/user-discount-codes', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
-    const { userId, discountType, discountValue, expiresAt, code } = req.body || {};
+    const { userId, discountType, discountValue, expiresAt, discountCode, code } = req.body || {};
+    const finalDiscountCode = discountCode || code; // Backward compatibility
     if (!userId || !discountType || typeof discountValue === 'undefined') {
       return res.status(400).json({ success: false, message: 'userId, discountType, discountValue required' });
     }
@@ -3631,10 +3632,10 @@ app.post('/api/admin/user-discount-codes', authenticateAdmin, async (req, res) =
     }
 
     // Generate code if not provided
-    const genCode = code || `USR${userId}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const genCode = finalDiscountCode || `USR${userId}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
     await poolWrapper.execute(
-      `INSERT INTO user_discount_codes (tenantId, userId, code, discountType, discountValue, expiresAt, isUsed)
+      `INSERT INTO user_discount_codes (tenantId, userId, discountCode, discountType, discountValue, expiresAt, isUsed)
        VALUES (?, ?, ?, ?, ?, ?, 0)`,
       [tenantId, userId, genCode, discountType, valueNum, expiresAt || new Date(Date.now() + 30 * 86400000)]
     );
@@ -3751,10 +3752,11 @@ app.get('/api/admin/discount-wheel-spins', authenticateAdmin, async (req, res) =
     const limit = parseInt(req.query.limit) || 100;
     const offset = parseInt(req.query.offset) || 0;
     const [rows] = await poolWrapper.execute(
-      `SELECT id, userId, deviceId, prize, discountCode, isUsed, usedAt, createdAt, expiresAt
-       FROM discount_wheel_spins
-       WHERE tenantId = ?
-       ORDER BY createdAt DESC
+      `SELECT dws.id, dws.userId, u.name as userName, dws.deviceId, dws.spinResult, dws.discountCode, dws.isUsed, dws.usedAt, dws.createdAt, dws.expiresAt
+       FROM discount_wheel_spins dws
+       LEFT JOIN users u ON u.id = dws.userId
+       WHERE dws.tenantId = ?
+       ORDER BY dws.createdAt DESC
        LIMIT ? OFFSET ?`,
       [req.tenant?.id || 1, limit, offset]
     );
@@ -3783,6 +3785,196 @@ app.get('/api/admin/user-events', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('❌ Error getting user events:', error);
     res.status(500).json({ success: false, message: 'Error getting user events' });
+  }
+});
+
+// ==================== USER NOTIFICATIONS ====================
+
+// Get user notifications
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.query.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User ID required' });
+    }
+
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    const unreadOnly = req.query.unreadOnly === 'true';
+
+    let query = `SELECT id, title, message, type, isRead, readAt, data, createdAt
+                 FROM user_notifications
+                 WHERE userId = ? AND tenantId = ?`;
+    const params = [userId, req.tenant?.id || 1];
+
+    if (unreadOnly) {
+      query += ' AND isRead = false';
+    }
+
+    query += ' ORDER BY createdAt DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const [rows] = await poolWrapper.execute(query, params);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting notifications:', error);
+    res.status(500).json({ success: false, message: 'Error getting notifications' });
+  }
+});
+
+// Get unread notification count
+app.get('/api/notifications/unread-count', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.query.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User ID required' });
+    }
+
+    const [result] = await poolWrapper.execute(
+      `SELECT COUNT(*) as count
+       FROM user_notifications
+       WHERE userId = ? AND tenantId = ? AND isRead = false`,
+      [userId, req.tenant?.id || 1]
+    );
+
+    res.json({ success: true, count: result[0]?.count || 0 });
+  } catch (error) {
+    console.error('❌ Error getting unread count:', error);
+    res.status(500).json({ success: false, message: 'Error getting unread count' });
+  }
+});
+
+// Mark notification as read
+app.put('/api/notifications/:id/read', async (req, res) => {
+  try {
+    const notificationId = parseInt(req.params.id);
+    const userId = req.user?.id || req.body.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User ID required' });
+    }
+
+    await poolWrapper.execute(
+      `UPDATE user_notifications
+       SET isRead = true, readAt = NOW()
+       WHERE id = ? AND userId = ? AND tenantId = ?`,
+      [notificationId, userId, req.tenant?.id || 1]
+    );
+
+    res.json({ success: true, message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('❌ Error marking notification as read:', error);
+    res.status(500).json({ success: false, message: 'Error marking notification as read' });
+  }
+});
+
+// Mark all notifications as read
+app.put('/api/notifications/read-all', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.body.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User ID required' });
+    }
+
+    await poolWrapper.execute(
+      `UPDATE user_notifications
+       SET isRead = true, readAt = NOW()
+       WHERE userId = ? AND tenantId = ? AND isRead = false`,
+      [userId, req.tenant?.id || 1]
+    );
+
+    res.json({ success: true, message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('❌ Error marking all notifications as read:', error);
+    res.status(500).json({ success: false, message: 'Error marking all notifications as read' });
+  }
+});
+
+// ==================== ADMIN NOTIFICATIONS ====================
+
+// Admin - Send notification to user(s)
+app.post('/api/admin/notifications/send', authenticateAdmin, async (req, res) => {
+  try {
+    const { userIds, userId, title, message, type = 'info', data } = req.body;
+
+    if (!title || !message) {
+      return res.status(400).json({ success: false, message: 'Title and message are required' });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+    let targetUserIds = [];
+
+    if (userIds && Array.isArray(userIds) && userIds.length > 0) {
+      // Multiple users
+      targetUserIds = userIds;
+    } else if (userId) {
+      // Single user
+      targetUserIds = [userId];
+    } else {
+      return res.status(400).json({ success: false, message: 'userId or userIds array required' });
+    }
+
+    // Validate users exist
+    const placeholders = targetUserIds.map(() => '?').join(',');
+    const [users] = await poolWrapper.execute(
+      `SELECT id FROM users WHERE id IN (${placeholders}) AND tenantId = ?`,
+      [...targetUserIds, tenantId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, message: 'No valid users found' });
+    }
+
+    // Insert notifications
+    const dataJson = data ? JSON.stringify(data) : null;
+    const insertPromises = users.map(user => 
+      poolWrapper.execute(
+        `INSERT INTO user_notifications (tenantId, userId, title, message, type, data)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [tenantId, user.id, title, message, type, dataJson]
+      )
+    );
+    
+    await Promise.all(insertPromises);
+
+    res.json({ 
+      success: true, 
+      message: `Notification sent to ${users.length} user(s)`,
+      sentCount: users.length
+    });
+  } catch (error) {
+    console.error('❌ Error sending notification:', error);
+    res.status(500).json({ success: false, message: 'Error sending notification' });
+  }
+});
+
+// Admin - Get all notifications (for admin view)
+app.get('/api/admin/notifications', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const userId = req.query.userId;
+
+    let query = `SELECT un.id, un.userId, u.name as userName, u.email, un.title, un.message, un.type, un.isRead, un.readAt, un.createdAt
+                  FROM user_notifications un
+                  LEFT JOIN users u ON u.id = un.userId
+                  WHERE un.tenantId = ?`;
+    const params = [req.tenant?.id || 1];
+
+    if (userId) {
+      query += ' AND un.userId = ?';
+      params.push(userId);
+    }
+
+    query += ' ORDER BY un.createdAt DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const [rows] = await poolWrapper.execute(query, params);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error getting admin notifications:', error);
+    res.status(500).json({ success: false, message: 'Error getting notifications' });
   }
 });
 

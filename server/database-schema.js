@@ -1071,6 +1071,29 @@ async function createDatabaseSchema(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
       console.log('✅ Chatbot analytics table ready');
+
+      // User notifications table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_notifications (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      userId INT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      type ENUM('info', 'success', 'warning', 'error', 'promotion', 'order') DEFAULT 'info',
+      isRead BOOLEAN DEFAULT false,
+      readAt TIMESTAMP NULL,
+      data JSON NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_tenant_notifications (tenantId),
+      INDEX idx_user_notifications (userId),
+      INDEX idx_read_status (isRead),
+      INDEX idx_created_at (createdAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ User notifications table ready');
       
       // Mevcut tabloya productId kolonlarını ekle (eğer yoksa)
       try {

@@ -48,6 +48,7 @@ import StoreLocatorScreen from '../views/StoreLocatorScreen';
 import ReferralScreen from '../views/ReferralScreen';
 import { UserLevelScreen } from '../views/UserLevelScreen';
 import InvoicesScreen from '../views/InvoicesScreen';
+import { NotificationScreen } from '../views/NotificationScreen';
 
 // Components
 import { HamburgerMenu } from '../components/HamburgerMenu';
@@ -58,9 +59,55 @@ import { ThemeProvider } from '../contexts/ThemeContext';
 import { CartController } from '../controllers/CartController';
 import { ProductController } from '../controllers/ProductController';
 import { UserController } from '../controllers/UserController';
+import NotificationService from '../services/NotificationService';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Notification Badge Component
+const NotificationBadge = () => {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadCount = async () => {
+      try {
+        const count = await NotificationService.getUnreadCount();
+        setUnreadCount(count);
+      } catch (error) {
+        console.error('Error loading notification count:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCount();
+    const interval = setInterval(loadCount, 30000); // Her 30 saniyede bir güncelle
+
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading || unreadCount === 0) return null;
+
+  return (
+    <View style={{
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      backgroundColor: '#ef4444',
+      borderRadius: 10,
+      minWidth: 18,
+      height: 18,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 4,
+    }}>
+      <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
+        {unreadCount > 99 ? '99+' : unreadCount}
+      </Text>
+    </View>
+  );
+};
 
 // Dev-time screen validator to catch undefined imports causing require('undefined')
 function debugValidateScreens() {
@@ -189,13 +236,23 @@ const CustomHeader = ({ navigation, categories }: { navigation: any; categories:
             resizeMode="contain"
           />
         </View>
-        <TouchableOpacity
-          onPress={() => setShowSearch(true)}
-          style={{ padding: 8, marginLeft: 8 }}
-          activeOpacity={0.7}
-        >
-          <Icon name="search" size={24} color="#1A1A2E" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Notifications')}
+            style={{ padding: 8, marginRight: 8, position: 'relative' }}
+            activeOpacity={0.7}
+          >
+            <Icon name="notifications-none" size={24} color="#1A1A2E" />
+            <NotificationBadge />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowSearch(true)}
+            style={{ padding: 8 }}
+            activeOpacity={0.7}
+          >
+            <Icon name="search" size={24} color="#1A1A2E" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Modal
@@ -480,6 +537,11 @@ const ProfileStack = () => {
         name="Settings"
         component={SettingsScreen}
         options={{ title: 'Ayarlar' }}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationScreen}
+        options={{ title: 'Bildirimler', headerShown: false }}
       />
       <Stack.Screen
         name="Order"
