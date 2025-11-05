@@ -1026,7 +1026,7 @@ async function createDatabaseSchema(pool) {
       deviceId VARCHAR(255) NOT NULL,
       ipAddress VARCHAR(45),
       userAgent TEXT,
-      spinResult ENUM('3', '5', '10') NOT NULL,
+      spinResult ENUM('1', '3', '5', '7', '10', '20') NOT NULL,
       discountCode VARCHAR(20) NOT NULL,
       isUsed BOOLEAN DEFAULT false,
       usedAt TIMESTAMP NULL,
@@ -1094,6 +1094,20 @@ async function createDatabaseSchema(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
       console.log('✅ User notifications table ready');
+
+      // Update discount_wheel_spins ENUM if needed
+      try {
+        await pool.execute(`
+          ALTER TABLE discount_wheel_spins 
+          MODIFY COLUMN spinResult ENUM('1', '3', '5', '7', '10', '20') NOT NULL
+        `);
+        console.log('✅ Discount wheel spins ENUM updated');
+      } catch (error) {
+        // Column might already have correct ENUM or table doesn't exist yet
+        if (!error.message.includes('Duplicate column') && !error.message.includes("doesn't exist")) {
+          console.log('⚠️ Could not update discount_wheel_spins ENUM:', error.message);
+        }
+      }
       
       // Mevcut tabloya productId kolonlarını ekle (eğer yoksa)
       try {

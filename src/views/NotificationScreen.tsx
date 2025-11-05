@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { Notification, NotificationService } from '../services/NotificationService';
+import NotificationService, { Notification } from '../services/NotificationService';
 import { Colors } from '../theme/colors';
 import { Spacing } from '../theme/theme';
 
@@ -29,14 +29,23 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
 
   const loadNotifications = useCallback(async () => {
     try {
+      if (!NotificationService) {
+        console.error('❌ NotificationService is undefined');
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+
       const [notifs, count] = await Promise.all([
         NotificationService.getNotifications(100),
         NotificationService.getUnreadCount(),
       ]);
-      setNotifications(notifs);
-      setUnreadCount(count);
+      setNotifications(notifs || []);
+      setUnreadCount(count || 0);
     } catch (error) {
-      console.error('Error loading notifications:', error);
+      console.error('❌ Error loading notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
       setRefreshing(false);

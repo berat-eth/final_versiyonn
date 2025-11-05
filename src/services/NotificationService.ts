@@ -20,6 +20,7 @@ class NotificationService {
     try {
       const userId = await UserController.getCurrentUserId();
       if (!userId) {
+        console.log('⚠️ No user ID available for notifications');
         return [];
       }
 
@@ -27,12 +28,12 @@ class NotificationService {
         `/notifications?userId=${userId}&limit=${limit}&offset=${offset}${unreadOnly ? '&unreadOnly=true' : ''}`
       );
 
-      if (response.success && Array.isArray(response.data)) {
+      if (response && response.success && Array.isArray(response.data)) {
         return response.data;
       }
       return [];
     } catch (error) {
-      console.error('Error getting notifications:', error);
+      console.error('❌ Error getting notifications:', error);
       return [];
     }
   }
@@ -49,12 +50,12 @@ class NotificationService {
 
       const response = await apiService.get<{ count: number }>(`/notifications/unread-count?userId=${userId}`);
       
-      if (response.success && response.data) {
+      if (response && response.success && response.data) {
         return response.data.count || 0;
       }
       return 0;
     } catch (error) {
-      console.error('Error getting unread count:', error);
+      console.error('❌ Error getting unread count:', error);
       return 0;
     }
   }

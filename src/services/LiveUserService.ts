@@ -29,7 +29,7 @@ class LiveUserService {
     private getCurrentPage(): string {
         // React Native'de sayfa takibi için
         // Bu fonksiyon navigation state'ine göre güncellenebilir
-        return window?.location?.pathname || '/app'
+        return this.lastPage || '/app'
     }
 
     private getUserAgent(): string {
@@ -86,13 +86,18 @@ class LiveUserService {
                 ipAddress: this.getIPAddress(),
                 userAgent: this.getUserAgent(),
                 page: this.getCurrentPage(),
-                referrer: document?.referrer || undefined
+                referrer: undefined // React Native'de referrer yok
             }
 
             const response = await apiService.post('/live-users', userData)
-            console.log('✅ User activity recorded:', response)
+            if (__DEV__) {
+                console.log('✅ User activity recorded:', response)
+            }
         } catch (error) {
-            console.warn('⚠️ Failed to record user activity:', error)
+            // Sadece development modunda log göster
+            if (__DEV__) {
+                console.warn('⚠️ Failed to record user activity:', error)
+            }
         }
     }
 
@@ -106,9 +111,14 @@ class LiveUserService {
                 duration: duration
             })
 
-            console.log('💓 Heartbeat sent:', response)
+            if (__DEV__) {
+                console.log('💓 Heartbeat sent:', response)
+            }
         } catch (error) {
-            console.warn('⚠️ Failed to send heartbeat:', error)
+            // Sadece development modunda log göster
+            if (__DEV__) {
+                console.warn('⚠️ Failed to send heartbeat:', error)
+            }
         }
     }
 
