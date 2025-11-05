@@ -167,12 +167,16 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   useEffect(() => {
     const init = async () => {
       console.log('🚀 HomeScreen init started');
-      // Paralel başlat; render'ı bekletme
-      console.log('📊 Calling loadData, loadFavorites, loadSliders, loadFlashDeals...');
-      loadData();
-      loadFavorites();
-      loadSliders();
-      loadFlashDeals();
+      // ✅ OPTIMIZASYON: Tüm yükleme işlemlerini paralel başlat
+      console.log('📊 Calling loadData, loadFavorites, loadSliders in parallel...');
+      
+      // loadData içinde zaten flash deals yükleniyor, bu yüzden loadFlashDeals'ı kaldırdık
+      Promise.allSettled([
+        loadData(),
+        loadFavorites(),
+        loadSliders()
+      ]).catch(() => {});
+      
       restoreCountdownAndStart();
       console.log('✅ HomeScreen init completed');
     };
@@ -218,13 +222,14 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       const isLoggedIn = await UserController.isLoggedIn();
       const userId = isLoggedIn ? await UserController.getCurrentUserId() : null;
 
-      // ✅ OPTIMIZASYON: Tüm veri çağrılarını paralel yap
+      // ✅ OPTIMIZASYON: Tüm veri çağrılarını paralel yap (flash deals dahil)
       const [
         homepageResult,
         catsResult,
         allCampaignsResult,
         personalizedResult,
-        userCampaignsResult
+        userCampaignsResult,
+        flashDealsResult
       ] = await Promise.allSettled([
         // Homepage products (sadece giriş yapılmışsa)
         userId ? apiService.get(`/users/${userId}/homepage-products`) : Promise.resolve(null),
@@ -235,11 +240,17 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         // Kişiselleştirilmiş içerik (sadece giriş yapılmışsa)
         userId ? PersonalizationController.generatePersonalizedContent(userId) : Promise.resolve(null),
         // Kullanıcıya özel kampanyalar (sadece giriş yapılmışsa)
-        userId ? CampaignController.getAvailableCampaigns(userId) : Promise.resolve(null)
+        userId ? CampaignController.getAvailableCampaigns(userId) : Promise.resolve(null),
+        // Flash deals (paralel yükle)
+        FlashDealService.getActiveFlashDeals()
       ]);
 
-      // Flash deals yükle
-      await loadFlashDeals();
+      // Flash deals sonucunu işle
+      if (flashDealsResult.status === 'fulfilled' && flashDealsResult.value) {
+        setFlashDeals(flashDealsResult.value || []);
+      } else {
+        setFlashDeals([]);
+      }
 
       // Homepage products işle
       let homepagePayload: any | null = null;

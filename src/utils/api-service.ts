@@ -5,10 +5,12 @@ import { getApiKey as getStoredApiKey, getTenantId as getStoredTenantId } from '
 
 // Dynamic API base URL - will be set based on network detection
 let currentApiUrl = getApiBaseUrl();
-// Optimized cache durations based on data type
-const CACHE_DURATION = 15 * 60 * 1000; // 15 dakika cache (5'ten artırıldı)
-const PRODUCT_CACHE_DURATION = 30 * 60 * 1000; // 30 dakika - ürünler için
-const CATEGORY_CACHE_DURATION = 60 * 60 * 1000; // 1 saat - kategoriler için
+// ✅ OPTIMIZASYON: Cache durations - daha agresif cache stratejisi
+const CACHE_DURATION = 10 * 60 * 1000; // 10 dakika - genel cache
+const PRODUCT_CACHE_DURATION = 20 * 60 * 1000; // 20 dakika - ürünler için (daha hızlı yenileme)
+const CATEGORY_CACHE_DURATION = 60 * 60 * 1000; // 1 saat - kategoriler için (nadiren değişir)
+const STATIC_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 saat - statik içerik (slider, brands)
+const CART_CACHE_DURATION = 2 * 60 * 1000; // 2 dakika - sepet için (daha sık güncellenir)
 const OFFLINE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 saat offline cache
 
 // Offline özellikleri devre dışı: her zaman ağ üzerinden dene
@@ -77,6 +79,9 @@ class ApiService {
   private apiKey: string | null = null;
   private alternativeUrls: string[] = []; // Alternative URLs to try
   private currentUrlIndex: number = 0;
+  
+  // ✅ OPTIMIZASYON: Request deduplication - aynı endpoint'e aynı anda birden fazla istek gitmesini engelle
+  private pendingRequests = new Map<string, Promise<ApiResponse<any>>>();
 
   // API Key management
   setApiKey(apiKey: string): void {
@@ -274,14 +279,51 @@ class ApiService {
     isOfflineRetry: boolean = false
   ): Promise<ApiResponse<T>> {
     const startTime = Date.now();
-    // Sepet işlemleri için daha kısa timeout
+    // ✅ OPTIMIZASYON: Retry stratejisi - endpoint'e göre belirle
     const isCartOperation = endpoint.includes('/cart');
-    const TIMEOUT_MS = isCartOperation ? 5000 : 10000; // Sepet: 5sn, Diğer: 10sn
-    const MAX_RETRIES = isCartOperation ? 0 : 1; // Sepet: retry yok, hızlı fail
+    const isCriticalOperation = endpoint.includes('/orders') || endpoint.includes('/payments');
+    const TIMEOUT_MS = 10000; // Varsayılan timeout (executeRequest içinde dinamik olarak ayarlanacak)
+    const MAX_RETRIES = isCartOperation ? 0 : (isCriticalOperation ? 2 : 1); // Kritik işlemler: 2 retry, Sepet: retry yok
+
+    // ✅ OPTIMIZASYON: Request deduplication - GET istekleri için aynı anda tekrarlayan istekleri birleştir
+    const requestKey = `${method}:${endpoint}:${body ? JSON.stringify(body) : ''}`;
+    
+    // POST/PUT/DELETE istekleri için deduplication yapma (idempotent değil)
+    // Sadece GET istekleri için deduplication yap
+    if (method === 'GET' && this.pendingRequests.has(requestKey)) {
+      const pendingRequest = this.pendingRequests.get(requestKey)!;
+      return pendingRequest as Promise<ApiResponse<T>>;
+    }
 
     // Network availability check
     // Offline modu devre dışı; ağ yoksa hata akışına düşecek
 
+    // Yeni isteği başlat ve pendingRequests'e ekle
+    const requestPromise = this.executeRequest<T>(endpoint, method, body, retryCount, isOfflineRetry, TIMEOUT_MS, MAX_RETRIES, startTime);
+    
+    // GET istekleri için deduplication yap
+    if (method === 'GET') {
+      this.pendingRequests.set(requestKey, requestPromise);
+      requestPromise.finally(() => {
+        // İstek tamamlandığında pendingRequests'ten kaldır
+        this.pendingRequests.delete(requestKey);
+      });
+    }
+    
+    return requestPromise;
+  }
+
+  // ✅ OPTIMIZASYON: Request execution'ı ayrı metoda taşıdık
+  private async executeRequest<T>(
+    endpoint: string,
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    body: any,
+    retryCount: number,
+    isOfflineRetry: boolean,
+    TIMEOUT_MS: number,
+    MAX_RETRIES: number,
+    startTime: number
+  ): Promise<ApiResponse<T>> {
     try {
       const baseUrl = getApiBaseUrl();
       const url = `${baseUrl}${endpoint}`;
@@ -293,6 +335,24 @@ class ApiService {
           method
         });
       }
+      
+      // ✅ OPTIMIZASYON: Endpoint'e göre dinamik timeout belirleme
+      let dynamicTimeout = TIMEOUT_MS;
+      if (endpoint.includes('/cart')) {
+        // Sepet işlemleri: hızlı olmalı (kullanıcı etkileşimi)
+        dynamicTimeout = 5000;
+      } else if (endpoint.includes('/products/search') || endpoint.includes('/products/filter')) {
+        // Arama/filtreleme: orta hız (kullanıcı bekleyebilir)
+        dynamicTimeout = 8000;
+      } else if (endpoint.includes('/homepage-products') || endpoint.includes('/products')) {
+        // Ürün listeleri: biraz daha uzun (çok veri çekiliyor)
+        dynamicTimeout = 12000;
+      } else if (endpoint.includes('/categories') || endpoint.includes('/brands') || endpoint.includes('/slider')) {
+        // Statik içerik: daha uzun timeout (nadiren değişir, cache'lenebilir)
+        dynamicTimeout = 15000;
+      }
+      // Diğer endpointler için varsayılan TIMEOUT_MS kullanılır
+
       // API Request
 
       const headers: HeadersInit = {
@@ -353,11 +413,11 @@ class ApiService {
         // Request body encrypted for sensitive data
       }
 
-      // Custom timeout implementation with AbortController
+      // ✅ OPTIMIZASYON: Dinamik timeout kullan
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
-      }, TIMEOUT_MS);
+      }, dynamicTimeout);
 
       // Add abort signal to config
       config.signal = controller.signal;
@@ -365,11 +425,16 @@ class ApiService {
       const response = await fetch(url, config);
       clearTimeout(timeoutId);
       if (endpoint.includes('flash-deals')) {
+        // ✅ FIX: React Native'de Headers.entries() desteklenmiyor, manuel dönüştürme
+        const headersObj: Record<string, string> = {};
+        response.headers.forEach((value: string, key: string) => {
+          headersObj[key] = value;
+        });
         console.log('📡 [api-service] Flash deals response:', {
           status: response.status,
           statusText: response.statusText,
           ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
+          headers: headersObj
         });
       }
       // Response received
@@ -455,10 +520,23 @@ class ApiService {
         // Response data decrypted for sensitive fields
       }
 
-      // Cache successful responses
+      // ✅ OPTIMIZASYON: Cache successful responses with appropriate TTL
       if (method === 'GET' && result.success) {
         const cacheKey = this.getCacheKey(endpoint);
-        await this.setCache(cacheKey, result, false);
+        let ttl = CACHE_DURATION;
+        
+        // Endpoint'e göre cache süresi belirle
+        if (endpoint.includes('/products') && !endpoint.includes('/search')) {
+          ttl = PRODUCT_CACHE_DURATION;
+        } else if (endpoint.includes('/categories') || endpoint.includes('/brands')) {
+          ttl = CATEGORY_CACHE_DURATION;
+        } else if (endpoint.includes('/cart')) {
+          ttl = CART_CACHE_DURATION;
+        } else if (endpoint.includes('/slider') || endpoint.includes('/homepage-products')) {
+          ttl = STATIC_CACHE_DURATION;
+        }
+        
+        await CacheService.set(cacheKey, result, ttl);
       }
 
       this.isOnline = true;
@@ -899,19 +977,26 @@ class ApiService {
     const endpoint = `/cart/user/${userId}`;
     const cacheKey = this.getCacheKey(endpoint);
 
-    // Agresif cache stratejisi: 2 dakika cache
+    // ✅ OPTIMIZASYON: SWR pattern - cache varsa hemen döndür, arkaplanda yenile
     try {
       const cached = await CacheService.get<ApiResponse<any[]>>(cacheKey);
       if (cached && cached.success && Array.isArray(cached.data)) {
-        // Cache varsa hemen döndür, arkaplanda yenileme YOK (performans için)
+        // Cache varsa hemen döndür, arkaplanda sessizce yenile (SWR pattern)
+        this.request<any[]>(endpoint)
+          .then(async (fresh) => {
+            if (fresh && fresh.success) {
+              await CacheService.set(cacheKey, fresh, CART_CACHE_DURATION);
+            }
+          })
+          .catch(() => { });
         return cached;
       }
     } catch { }
 
-    // Cache yoksa API'den çek ve 2 dakika cache'le
+    // Cache yoksa API'den çek ve cache'le
     const result = await this.request<any[]>(endpoint);
     if (result.success) {
-      await CacheService.set(cacheKey, result, 2 * 60 * 1000); // 2 dakika
+      await CacheService.set(cacheKey, result, CART_CACHE_DURATION);
     }
     return result;
   }
@@ -1011,18 +1096,26 @@ class ApiService {
     return this.request(`/reviews/product/${productId}`);
   }
 
-  // Enhanced utility endpoints with caching
+  // ✅ OPTIMIZASYON: Enhanced utility endpoints with SWR caching
   async getCategories(): Promise<ApiResponse<string[]>> {
     const cacheKey = this.getCacheKey('/categories');
     const cached = await this.getFromCache<ApiResponse<string[]>>(cacheKey);
 
-    if (cached) {
+    // SWR pattern: cache varsa hemen döndür, arkaplanda yenile
+    if (cached && cached.success) {
+      this.request<string[]>('/categories')
+        .then(async (fresh) => {
+          if (fresh && fresh.success) {
+            await this.setCache(cacheKey, fresh, false);
+          }
+        })
+        .catch(() => { });
       return cached;
     }
 
     const result = await this.request<string[]>('/categories');
     if (result.success) {
-      await this.setCache(cacheKey, result, result.isOffline);
+      await this.setCache(cacheKey, result, false);
     }
     return result;
   }
@@ -1031,13 +1124,21 @@ class ApiService {
     const cacheKey = this.getCacheKey('/brands');
     const cached = await this.getFromCache<ApiResponse<string[]>>(cacheKey);
 
-    if (cached) {
+    // SWR pattern: cache varsa hemen döndür, arkaplanda yenile
+    if (cached && cached.success) {
+      this.request<string[]>('/brands')
+        .then(async (fresh) => {
+          if (fresh && fresh.success) {
+            await this.setCache(cacheKey, fresh, false);
+          }
+        })
+        .catch(() => { });
       return cached;
     }
 
     const result = await this.request<string[]>('/brands');
     if (result.success) {
-      await this.setCache(cacheKey, result, result.isOffline);
+      await this.setCache(cacheKey, result, false);
     }
     return result;
   }

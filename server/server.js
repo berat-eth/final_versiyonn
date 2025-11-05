@@ -443,9 +443,9 @@ const upload = multer({
 // Statik dosya servisi (yüklenen dosyaları erişilebilir yap)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Tenant cache middleware (preload tenant from Redis if available)
+// ✅ OPTIMIZASYON: Tenant cache middleware with enhanced Redis helpers
 const tenantCache = require('./middleware/tenantCache');
-const { getJson, setJsonEx, delKey, withLock, sha256 } = require('./redis');
+const { getJson, setJsonEx, delKey, withLock, sha256, getOrSet, CACHE_TTL } = require('./redis');
 
 // Relaxed rate limiter for cart endpoints (reduce 429 while Redis cache active)
 const isPrivateIp = (ip) => /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(ip || '');
@@ -8998,29 +8998,24 @@ app.get('/api/users/:userId/homepage-products', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Tenant missing' });
     }
 
-    // Try Redis first
-    try {
-      if (global.redis) {
-        const rkey = `homepage:${tenantId}:${userId}`;
-        const cached = await global.redis.get(rkey);
-        if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
+    // ✅ OPTIMIZASYON: Use getOrSet helper with SWR pattern
+    const rkey = `homepage:${tenantId}:${userId}`;
+    const payload = await getOrSet(rkey, CACHE_TTL.LONG, async () => {
+      // TTL: 6 hours (DB fallback)
+      const [rows] = await poolWrapper.execute(`SELECT payload, updatedAt FROM user_homepage_products WHERE userId = ? AND tenantId = ? LIMIT 1`, [userId, tenantId]);
+      let data;
+      if (rows && rows.length) {
+        const updatedAt = new Date(rows[0].updatedAt).getTime();
+        const fresh = Date.now() - updatedAt < 6 * 60 * 60 * 1000;
+        if (fresh) {
+          try { data = typeof rows[0].payload === 'string' ? JSON.parse(rows[0].payload) : rows[0].payload; } catch { data = rows[0].payload; }
+        }
       }
-    } catch { }
-
-    // TTL: 6 hours (DB fallback)
-    const [rows] = await poolWrapper.execute(`SELECT payload, updatedAt FROM user_homepage_products WHERE userId = ? AND tenantId = ? LIMIT 1`, [userId, tenantId]);
-    let payload;
-    if (rows && rows.length) {
-      const updatedAt = new Date(rows[0].updatedAt).getTime();
-      const fresh = Date.now() - updatedAt < 6 * 60 * 60 * 1000;
-      if (fresh) {
-        try { payload = typeof rows[0].payload === 'string' ? JSON.parse(rows[0].payload) : rows[0].payload; } catch { payload = rows[0].payload; }
+      if (!data) {
+        data = await buildHomepagePayload(tenantId, userId);
       }
-    }
-    if (!payload) {
-      payload = await buildHomepagePayload(tenantId, userId);
-    }
-    try { if (global.redis) await global.redis.setEx(`homepage:${tenantId}:${userId}`, 3600, JSON.stringify(payload)); } catch { }
+      return data;
+    }, { backgroundRefresh: true });
     res.setHeader('Cache-Control', 'no-store');
     return res.json({ success: true, data: payload });
   } catch (error) {
@@ -9039,32 +9034,25 @@ app.get('/api/users/:userId/account-summary', async (req, res) => {
     const tenantId = req.tenant?.id;
     if (!tenantId) return res.status(400).json({ success: false, message: 'Tenant missing' });
 
-    // Redis
+    // ✅ OPTIMIZASYON: Use getOrSet helper for account summary
     const rkey = `account:summary:${tenantId}:${userId}`;
-    try {
-      if (global.redis) {
-        const cached = await global.redis.get(rkey);
-        if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
-      }
-    } catch { }
+    const summary = await getOrSet(rkey, CACHE_TTL.SHORT, async () => {
+      // Aggregate summary
+      const [[user]] = await poolWrapper.execute('SELECT id, name, email, phone, createdAt FROM users WHERE id = ? AND tenantId = ? LIMIT 1', [userId, tenantId]);
+      const [[wallet]] = await poolWrapper.execute('SELECT balance, currency FROM user_wallets WHERE userId = ? AND tenantId = ? LIMIT 1', [userId, tenantId]);
+      const [[orders]] = await poolWrapper.execute('SELECT COUNT(*) as count FROM orders WHERE userId = ? AND tenantId = ?', [userId, tenantId]);
+      const [[favorites]] = await poolWrapper.execute('SELECT COUNT(*) as count FROM user_favorites_v2 WHERE userId = ?', [userId]);
 
-    // Aggregate summary
-    const [[user]] = await poolWrapper.execute('SELECT id, name, email, phone, createdAt FROM users WHERE id = ? AND tenantId = ? LIMIT 1', [userId, tenantId]);
-    const [[wallet]] = await poolWrapper.execute('SELECT balance, currency FROM user_wallets WHERE userId = ? AND tenantId = ? LIMIT 1', [userId, tenantId]);
-    const [[orders]] = await poolWrapper.execute('SELECT COUNT(*) as count FROM orders WHERE userId = ? AND tenantId = ?', [userId, tenantId]);
-    const [[favorites]] = await poolWrapper.execute('SELECT COUNT(*) as count FROM user_favorites_v2 WHERE userId = ?', [userId]);
-
-    const summary = {
-      user: user || null,
-      wallet: wallet || { balance: 0, currency: 'TRY' },
-      counts: {
-        orders: orders?.count || 0,
-        favorites: favorites?.count || 0
-      },
-      generatedAt: new Date().toISOString()
-    };
-
-    try { if (global.redis) await global.redis.setEx(rkey, 300, JSON.stringify(summary)); } catch { }
+      return {
+        user: user || null,
+        wallet: wallet || { balance: 0, currency: 'TRY' },
+        counts: {
+          orders: orders?.count || 0,
+          favorites: favorites?.count || 0
+        },
+        generatedAt: new Date().toISOString()
+      };
+    }, { backgroundRefresh: true });
     return res.json({ success: true, data: summary });
   } catch (error) {
     console.error('❌ Account summary error:', error);
@@ -9960,15 +9948,11 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Category and brand endpoints
 app.get('/api/categories', async (req, res) => {
   try {
-    // Try Redis hot cache first
-    try {
-      if (global.redis) {
-        const cached = await global.redis.get(`categories:${req.tenant.id}`);
-        if (cached) {
-          return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
-        }
-      }
-    } catch { }
+    // ✅ OPTIMIZASYON: Use getJson helper
+    const cached = await getJson(`categories:${req.tenant.id}`);
+    if (cached) {
+      return res.json({ success: true, data: cached, cached: true, source: 'redis' });
+    }
     // Check cache
     const now = Date.now();
     if (categoriesCache && (now - categoriesCacheTime) < CACHE_DURATION) {
@@ -9997,12 +9981,8 @@ app.get('/api/categories', async (req, res) => {
     categoriesCache = categoryNames;
     categoriesCacheTime = now;
     console.log('📋 Categories cached for 5 minutes');
-    // Update Redis hot cache
-    try {
-      if (global.redis) {
-        await global.redis.setEx(`categories:${req.tenant.id}`, 600, JSON.stringify(categoryNames));
-      }
-    } catch { }
+    // ✅ OPTIMIZASYON: Use setJsonEx helper with CACHE_TTL
+    await setJsonEx(`categories:${req.tenant.id}`, CACHE_TTL.MEDIUM, categoryNames);
 
     res.json({ success: true, data: categoryNames });
   } catch (error) {
@@ -10067,18 +10047,17 @@ function buildCategoryTree(categories) {
 
 app.get('/api/brands', async (req, res) => {
   try {
-    // Redis hot cache
-    try {
-      if (global.redis) {
-        const cached = await global.redis.get(`brands:${req.tenant.id}`);
-        if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
-      }
-    } catch { }
+    // ✅ OPTIMIZASYON: Use getJson helper
+    const cached = await getJson(`brands:${req.tenant.id}`);
+    if (cached) {
+      return res.json({ success: true, data: cached, cached: true, source: 'redis' });
+    }
     const [rows] = await poolWrapper.execute(
       'SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL AND brand != ""'
     );
     const brands = rows.map(row => row.brand).sort();
-    try { if (global.redis) await global.redis.setEx(`brands:${req.tenant.id}`, 600, JSON.stringify(brands)); } catch { }
+    // ✅ OPTIMIZASYON: Use setJsonEx helper with CACHE_TTL
+    await setJsonEx(`brands:${req.tenant.id}`, CACHE_TTL.MEDIUM, brands);
     res.json({ success: true, data: brands });
   } catch (error) {
     console.error('Error getting brands:', error);
@@ -10227,19 +10206,77 @@ app.post('/api/sync/import-xml', async (req, res) => {
 // Start server
 async function startServer() {
   await initializeDatabase();
-  // Initialize Redis (optional, local instance)
-  try {
-    const { createClient } = require('redis');
-    const url = process.env.REDIS_URL || 'redis://localhost:6379';
-    // Passwordless Redis connection (no REDIS_PASSWORD)
-    const client = createClient({ url });
-    client.on('error', (err) => console.warn('⚠️ Redis error:', err.message));
-    await client.connect();
-    global.redis = client;
-    console.log('✅ Redis connected');
-  } catch (e) {
-    console.warn('⚠️ Redis not available:', e.message);
+  // ✅ OPTIMIZASYON: Initialize Redis with retry and reconnection
+  let redisRetries = 0;
+  const maxRedisRetries = 3;
+  const redisRetryDelay = 2000;
+  
+  async function connectRedis() {
+    try {
+      const { createClient } = require('redis');
+      const url = process.env.REDIS_URL || 'redis://localhost:6379';
+      
+      // ✅ OPTIMIZASYON: Enhanced Redis client configuration
+      const client = createClient({ 
+        url,
+        socket: {
+          reconnectStrategy: (retries) => {
+            if (retries > 10) {
+              console.error('❌ Redis: Max reconnection attempts reached');
+              return new Error('Max reconnection attempts reached');
+            }
+            // Exponential backoff: 50ms, 100ms, 200ms, 400ms, 800ms, 1600ms, 3200ms, 6400ms, 12800ms, 25600ms
+            return Math.min(retries * 50, 30000);
+          },
+          connectTimeout: 5000
+        },
+        // Connection pooling
+        pingInterval: 30000 // Keep connection alive
+      });
+      
+      client.on('error', (err) => {
+        console.warn('⚠️ Redis error:', err.message);
+      });
+      
+      client.on('connect', () => {
+        console.log('🔄 Redis: Connecting...');
+      });
+      
+      client.on('ready', () => {
+        console.log('✅ Redis connected and ready');
+        redisRetries = 0;
+      });
+      
+      client.on('reconnecting', () => {
+        console.log('🔄 Redis: Reconnecting...');
+      });
+      
+      await client.connect();
+      global.redis = client;
+      
+      // ✅ OPTIMIZASYON: Health check after connection
+      const { healthCheck } = require('./redis');
+      const health = await healthCheck();
+      if (health.available) {
+        console.log(`✅ Redis health check passed (latency: ${health.latency}ms)`);
+      }
+      
+      return client;
+    } catch (e) {
+      redisRetries++;
+      if (redisRetries < maxRedisRetries) {
+        console.warn(`⚠️ Redis connection failed (attempt ${redisRetries}/${maxRedisRetries}), retrying in ${redisRetryDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, redisRetryDelay));
+        return connectRedis();
+      } else {
+        console.warn('⚠️ Redis not available after max retries:', e.message);
+        global.redis = null;
+        return null;
+      }
+    }
   }
+  
+  await connectRedis();
   // Ensure default tenant API key exists and active
   await ensureDefaultTenantApiKey();
 
