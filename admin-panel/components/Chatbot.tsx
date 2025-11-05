@@ -21,6 +21,12 @@ interface Conversation {
   unread: number
   status: 'online' | 'offline' | 'away'
   messages: Message[]
+  productId?: number
+  productName?: string
+  productPrice?: number
+  productImage?: string
+  userEmail?: string
+  userPhone?: string
 }
 
 export default function Chatbot() {
