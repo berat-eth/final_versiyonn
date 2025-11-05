@@ -167,7 +167,7 @@ export class ChatbotService {
     'stok': 'Ürün sayfasında stok durumu gösterilir. Stokta olmayan ürünler için "Stok gelince haber ver" seçeneğini kullanın.'
   };
 
-  static async processMessage(message: string, actionType: string = 'text'): Promise<ChatMessage> {
+  static async processMessage(message: string, actionType: string = 'text', productId?: number): Promise<ChatMessage> {
     const timestamp = new Date();
     // GÜVENLİK: Kriptografik olarak güvenli message ID
     const { generateSecureMessageId } = require('../utils/crypto-utils');
@@ -178,7 +178,8 @@ export class ChatbotService {
       const response = await apiService.post('/chatbot/message', {
         message,
         actionType,
-        userId: await this.getActiveUserId()
+        userId: await this.getActiveUserId(),
+        productId: productId || undefined
       });
 
       if (response.success && response.data) {

@@ -1017,16 +1017,69 @@ async function createDatabaseSchema(pool) {
       message TEXT,
       intent VARCHAR(100),
       satisfaction TINYINT,
+      productId INT NULL,
+      productName VARCHAR(255) NULL,
+      productPrice DECIMAL(10,2) NULL,
+      productImage TEXT NULL,
       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
       FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE SET NULL,
       INDEX idx_tenant_analytics (tenantId),
       INDEX idx_user_analytics (userId),
       INDEX idx_intent_analytics (intent),
+      INDEX idx_product_analytics (productId),
       INDEX idx_timestamp_analytics (timestamp)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
       console.log('✅ Chatbot analytics table ready');
+      
+      // Mevcut tabloya productId kolonlarını ekle (eğer yoksa)
+      try {
+        // Önce kolonların var olup olmadığını kontrol et
+        const [columns] = await pool.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'chatbot_analytics'
+            AND COLUMN_NAME IN ('productId', 'productName', 'productPrice', 'productImage')
+        `);
+        
+        const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+        
+        if (!existingColumns.includes('productId')) {
+          await pool.execute(`ALTER TABLE chatbot_analytics ADD COLUMN productId INT NULL`);
+        }
+        if (!existingColumns.includes('productName')) {
+          await pool.execute(`ALTER TABLE chatbot_analytics ADD COLUMN productName VARCHAR(255) NULL`);
+        }
+        if (!existingColumns.includes('productPrice')) {
+          await pool.execute(`ALTER TABLE chatbot_analytics ADD COLUMN productPrice DECIMAL(10,2) NULL`);
+        }
+        if (!existingColumns.includes('productImage')) {
+          await pool.execute(`ALTER TABLE chatbot_analytics ADD COLUMN productImage TEXT NULL`);
+        }
+        
+        // Index ekle (eğer yoksa)
+        try {
+          await pool.execute(`ALTER TABLE chatbot_analytics ADD INDEX idx_product_analytics (productId)`);
+        } catch (idxError: any) {
+          if (!idxError.message.includes('Duplicate key name')) {
+            console.warn('⚠️ Index eklenemedi:', idxError.message);
+          }
+        }
+        
+        // Foreign key ekle (eğer yoksa)
+        try {
+          await pool.execute(`ALTER TABLE chatbot_analytics ADD FOREIGN KEY (productId) REFERENCES products(id) ON DELETE SET NULL`);
+        } catch (fkError: any) {
+          if (!fkError.message.includes('Duplicate foreign key') && !fkError.message.includes('already exists')) {
+            console.warn('⚠️ Foreign key eklenemedi:', fkError.message);
+          }
+        }
+      } catch (e: any) {
+        console.warn('⚠️ Chatbot analytics table update warning:', e.message);
+      }
 
       // Wallet recharge requests table
       await pool.execute(`

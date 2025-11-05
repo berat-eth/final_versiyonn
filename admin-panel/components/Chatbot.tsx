@@ -33,6 +33,51 @@ export default function Chatbot() {
 
   // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [loading, setLoading] = useState(false)
+  
+  // Backend'den konuşmaları yükle
+  useEffect(() => {
+    loadConversations()
+  }, [])
+  
+  const loadConversations = async () => {
+    try {
+      setLoading(true)
+      const { api } = await import('@/lib/api')
+      const response = await api.get<any>('/admin/chatbot/conversations')
+      const data = response as any
+      if (data.success && Array.isArray(data.data)) {
+        // Backend'den gelen verileri Conversation formatına dönüştür
+        const formatted = data.data.map((msg: any, index: number) => ({
+          id: msg.id || index,
+          customer: msg.userName || msg.userEmail || 'Misafir',
+          avatar: (msg.userName || 'M').charAt(0).toUpperCase(),
+          lastMessage: msg.message || 'Mesaj yok',
+          time: new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+          unread: 0,
+          status: 'offline' as const,
+          messages: [{
+            id: msg.id,
+            sender: 'customer' as const,
+            text: msg.message || '',
+            time: new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+            read: true
+          }],
+          productId: msg.productId,
+          productName: msg.productName || msg.productFullName,
+          productPrice: msg.productPrice || msg.productFullPrice,
+          productImage: msg.productImage || msg.productFullImage,
+          userEmail: msg.userEmail,
+          userPhone: msg.userPhone
+        }))
+        setConversations(formatted)
+      }
+    } catch (error) {
+      console.error('Konuşmalar yüklenemedi:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Yeni mesaj simülasyonu - Her 30 saniyede bir rastgele müşteriden mesaj gelir
   useEffect(() => {
@@ -302,12 +347,15 @@ export default function Chatbot() {
                       conv.status === 'away' ? 'bg-yellow-500' : 'bg-slate-400'
                       }`}></div>
                   </div>
-                  <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <p className="font-semibold text-slate-800 dark:text-slate-200 truncate">{conv.customer}</p>
                       <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0 ml-2">{conv.time}</span>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-400 truncate">{conv.lastMessage}</p>
+                    {conv.productName && (
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">🛍️ {conv.productName}</p>
+                    )}
                   </div>
                   {conv.unread > 0 && (
                     <div className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
@@ -341,6 +389,12 @@ export default function Chatbot() {
                       {selectedConversation.status === 'online' ? 'Çevrimiçi' :
                         selectedConversation.status === 'away' ? 'Uzakta' : 'Çevrimdışı'}
                     </p>
+                    {selectedConversation.userEmail && (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{selectedConversation.userEmail}</p>
+                    )}
+                    {selectedConversation.userPhone && (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{selectedConversation.userPhone}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -355,6 +409,30 @@ export default function Chatbot() {
                   </button>
                 </div>
               </div>
+
+              {/* Ürün Bilgileri */}
+              {selectedConversation.productId && (
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
+                  <div className="flex items-center space-x-4">
+                    {selectedConversation.productImage && (
+                      <img 
+                        src={selectedConversation.productImage} 
+                        alt={selectedConversation.productName || 'Ürün'}
+                        className="w-16 h-16 rounded-lg object-cover"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">İlgili Ürün</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedConversation.productName || 'Ürün bilgisi yok'}</p>
+                      {selectedConversation.productPrice && (
+                        <p className="text-sm text-green-600 dark:text-green-400 font-bold mt-1">
+                          {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(selectedConversation.productPrice)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 dark:bg-slate-900">

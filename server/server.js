@@ -1138,7 +1138,8 @@ try {
 
 // Flash Deals Routes
 try {
-  const flashDealsRoutes = require('./routes/flash-deals');
+  const createFlashDealsRouter = require('./routes/flash-deals');
+  const flashDealsRoutes = createFlashDealsRouter(poolWrapper);
   app.use('/api/admin/flash-deals', flashDealsRoutes);
   app.use('/api/flash-deals', flashDealsRoutes);
   console.log('✅ Flash deals routes mounted at /api/admin/flash-deals and /api/flash-deals');
@@ -12145,7 +12146,7 @@ async function startServer() {
   // Chatbot mesaj işleme endpoint'i
   app.post('/api/chatbot/message', async (req, res) => {
     try {
-      const { message, actionType = 'text', userId } = req.body;
+      const { message, actionType = 'text', userId, productId } = req.body;
 
       if (!message || !message.trim()) {
         return res.status(400).json({
@@ -12154,14 +12155,55 @@ async function startServer() {
         });
       }
 
-      console.log('🤖 Chatbot mesaj alındı:', { message, actionType, userId });
+      console.log('🤖 Chatbot mesaj alındı:', { message, actionType, userId, productId });
 
       // Intent tespiti
       const intent = detectChatbotIntent(message.toLowerCase());
       console.log('🎯 Tespit edilen intent:', intent);
 
+      // Ürün bilgilerini al (eğer productId varsa)
+      let productInfo = null;
+      if (productId) {
+        try {
+          const [productRows] = await poolWrapper.execute(
+            'SELECT id, name, price, image FROM products WHERE id = ? LIMIT 1',
+            [productId]
+          );
+          if (productRows.length > 0) {
+            productInfo = {
+              id: productRows[0].id,
+              name: productRows[0].name,
+              price: productRows[0].price,
+              image: productRows[0].image
+            };
+          }
+        } catch (err) {
+          console.warn('⚠️ Ürün bilgisi alınamadı:', err.message);
+        }
+      }
+
       // Yanıt oluştur
       const response = await generateChatbotResponse(intent, message, actionType, req.tenant.id);
+
+      // Analitik verilerini kaydet (ürün bilgileri ile)
+      try {
+        await poolWrapper.execute(
+          `INSERT INTO chatbot_analytics (tenantId, userId, message, intent, productId, productName, productPrice, productImage, timestamp) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          [
+            req.tenant.id,
+            userId || null,
+            message.substring(0, 100),
+            intent,
+            productInfo?.id || null,
+            productInfo?.name || null,
+            productInfo?.price || null,
+            productInfo?.image || null
+          ]
+        );
+      } catch (analyticsError) {
+        console.warn('⚠️ Chatbot analytics kaydedilemedi:', analyticsError.message);
+      }
 
       res.json({
         success: true,
@@ -12181,19 +12223,68 @@ async function startServer() {
   // Chatbot analitik endpoint'i
   app.post('/api/chatbot/analytics', async (req, res) => {
     try {
-      const { userId, message, intent, satisfaction } = req.body;
+      const { userId, message, intent, satisfaction, productId, productName, productPrice, productImage } = req.body;
 
       // Analitik verilerini kaydet
       await poolWrapper.execute(
-        `INSERT INTO chatbot_analytics (userId, tenantId, message, intent, satisfaction, timestamp) 
-       VALUES (?, ?, ?, ?, ?, NOW())`,
-        [userId || null, req.tenant.id, message?.substring(0, 100), intent, satisfaction]
+        `INSERT INTO chatbot_analytics (userId, tenantId, message, intent, satisfaction, productId, productName, productPrice, productImage, timestamp) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          userId || null,
+          req.tenant.id,
+          message?.substring(0, 100),
+          intent,
+          satisfaction,
+          productId || null,
+          productName || null,
+          productPrice || null,
+          productImage || null
+        ]
       );
 
       res.json({ success: true });
     } catch (error) {
       console.error('❌ Chatbot analitik hatası:', error);
       res.status(500).json({ success: false, message: 'Analitik kaydedilemedi' });
+    }
+  });
+  
+  // Admin - Chatbot konuşmalarını getir (ürün bilgileri ile)
+  app.get('/api/admin/chatbot/conversations', authenticateAdmin, async (req, res) => {
+    try {
+      const [rows] = await poolWrapper.execute(`
+        SELECT 
+          ca.id,
+          ca.userId,
+          u.name as userName,
+          u.email as userEmail,
+          u.phone as userPhone,
+          ca.message,
+          ca.intent,
+          ca.satisfaction,
+          ca.productId,
+          ca.productName,
+          ca.productPrice,
+          ca.productImage,
+          ca.timestamp,
+          p.name as productFullName,
+          p.price as productFullPrice,
+          p.image as productFullImage
+        FROM chatbot_analytics ca
+        LEFT JOIN users u ON ca.userId = u.id
+        LEFT JOIN products p ON ca.productId = p.id
+        WHERE ca.tenantId = ?
+        ORDER BY ca.timestamp DESC
+        LIMIT 500
+      `, [req.tenant.id]);
+
+      res.json({
+        success: true,
+        data: rows
+      });
+    } catch (error) {
+      console.error('❌ Chatbot konuşmaları getirme hatası:', error);
+      res.status(500).json({ success: false, message: 'Konuşmalar getirilemedi' });
     }
   });
 

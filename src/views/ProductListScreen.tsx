@@ -34,6 +34,7 @@ import { CategoriesSection } from '../components/CategoriesSection';
 import { ProductListControls } from '../components/ProductListControls';
 import { FlashDealsHeader } from '../components/FlashDealsHeader';
 import FlashDealService, { FlashDeal } from '../services/FlashDealService';
+import { Chatbot } from '../components/Chatbot';
 
 interface ProductListScreenProps {
   navigation: any;
@@ -720,7 +721,9 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
           categories={categories}
         />
       )}
-
+      
+      {/* Chatbot */}
+      <Chatbot navigation={navigation} />
     </SafeAreaView>
   );
 };

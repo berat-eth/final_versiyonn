@@ -32,6 +32,7 @@ import { getTranslatedProductName, getTranslatedProductDescription, getTranslate
 import { PurchaseVerificationService } from '../services/PurchaseVerificationService';
 import * as FileSystem from 'expo-file-system';
 import { NetworkMonitor } from '../utils/performance-utils';
+import { Chatbot } from '../components/Chatbot';
 
 interface ProductDetailScreenProps {
   navigation: any;
@@ -964,6 +965,9 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
         review={userReview}
         loading={submittingReview}
       />
+      
+      {/* Chatbot */}
+      <Chatbot navigation={navigation} productId={productId} />
     </SafeAreaView>
   );
 };

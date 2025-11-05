@@ -25,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 interface ChatbotProps {
   navigation?: any;
   onClose?: () => void;
+  productId?: number;
 }
 
 export interface ChatMessage {
@@ -46,7 +47,7 @@ export interface QuickReply {
 
 const { width, height } = Dimensions.get('window');
 
-export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose }) => {
+export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -308,8 +309,8 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose }) => {
     setIsTyping(true);
 
     try {
-      // AI ile mesaj işleme
-      const response = await ChatbotService.processMessage(text, type);
+      // AI ile mesaj işleme (productId ile)
+      const response = await ChatbotService.processMessage(text, type, productId);
       
       // Intent tespiti (analitik için)
       const intent = detectIntent(text.toLowerCase());
