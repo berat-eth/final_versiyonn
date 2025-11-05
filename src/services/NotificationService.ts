@@ -20,7 +20,7 @@ class NotificationService {
     try {
       const userId = await UserController.getCurrentUserId();
       if (!userId) {
-        console.log('⚠️ No user ID available for notifications');
+        console.log('⚠️ Bildirimler için kullanıcı ID bulunamadı');
         return [];
       }
 
@@ -33,7 +33,7 @@ class NotificationService {
       }
       return [];
     } catch (error) {
-      console.error('❌ Error getting notifications:', error);
+      console.error('❌ Bildirimler yüklenirken hata:', error);
       return [];
     }
   }
@@ -55,7 +55,7 @@ class NotificationService {
       }
       return 0;
     } catch (error) {
-      console.error('❌ Error getting unread count:', error);
+      console.error('❌ Okunmamış bildirim sayısı alınırken hata:', error);
       return 0;
     }
   }
@@ -73,7 +73,7 @@ class NotificationService {
       const response = await apiService.put(`/notifications/${notificationId}/read`, { userId });
       return response.success || false;
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      console.error('Bildirim okundu olarak işaretlenirken hata:', error);
       return false;
     }
   }
@@ -91,7 +91,7 @@ class NotificationService {
       const response = await apiService.put('/notifications/read-all', { userId });
       return response.success || false;
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      console.error('Tüm bildirimler okundu olarak işaretlenirken hata:', error);
       return false;
     }
   }

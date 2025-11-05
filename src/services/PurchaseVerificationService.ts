@@ -17,7 +17,7 @@ export class PurchaseVerificationService {
     try {
       const userId = await UserController.getCurrentUserId();
       if (!userId) {
-        console.log('⚠️ No user ID found for purchase verification');
+        console.log('⚠️ Satın alma doğrulaması için kullanıcı ID bulunamadı');
         return { hasPurchased: false };
       }
 
@@ -45,7 +45,7 @@ export class PurchaseVerificationService {
       console.log('⚠️ Purchase verification: User has not purchased this product');
       return { hasPurchased: false };
     } catch (error: any) {
-      console.error('❌ Error verifying purchase:', error?.message || error);
+      console.error('❌ Satın alma doğrulanırken hata:', error?.message || error);
       // Hata durumunda da false döndür, ama log'la
       return { hasPurchased: false };
     }
@@ -69,7 +69,7 @@ export class PurchaseVerificationService {
 
       return [];
     } catch (error) {
-      console.error('Error getting user purchases:', error);
+      console.error('Kullanıcı satın alımları alınırken hata:', error);
       return [];
     }
   }
@@ -121,7 +121,7 @@ export class PurchaseVerificationService {
         purchaseInfo
       };
     } catch (error: any) {
-      console.error('❌ Error checking review eligibility:', error?.message || error);
+      console.error('❌ Yorum uygunluğu kontrol edilirken hata:', error?.message || error);
       // Hata durumunda da false döndür, ama daha açıklayıcı mesaj ver
       return {
         canReview: false,

@@ -162,7 +162,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       setLoading(true);
       await loadUserData();
     } catch (error) {
-      console.error('Error checking user:', error);
+      console.error('Kullanıcı kontrol edilirken hata:', error);
     } finally {
       setLoading(false);
     }
@@ -226,7 +226,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }).catch(() => {});
       }
     } catch (error) {
-      console.error('Error loading user data:', error);
+      console.error('Kullanıcı verileri yüklenirken hata:', error);
     }
   };
 
@@ -406,13 +406,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               try {
                 await SecureStorage.clearUserData();
               } catch (error) {
-                console.warn('Could not clear secure storage:', error);
+                console.warn('Güvenli depolama temizlenemedi:', error);
               }
               
               // User logged out successfully
               
             } catch (error) {
-              console.error('Error during logout:', error);
+              console.error('Çıkış yapılırken hata:', error);
               Alert.alert('Hata', 'Çıkış yaparken bir hata oluştu');
             }
           },
@@ -726,36 +726,44 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       <RealTimeStatusBar />
       
       <ScrollView showsVerticalScrollIndicator={false} style={styles.modernScrollView}>
-        {/* Modern Header with Simple Background */}
-        <View style={styles.modernProfileHeader}>
+        {/* Modern Header with Gradient Background */}
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.modernProfileHeader}
+        >
           <View style={styles.modernProfileContent}>
-            <View style={styles.modernProfileAvatar}>
-              <Text style={styles.modernAvatarText}>
-              {currentUser.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+            <View style={styles.modernProfileAvatarContainer}>
+              <LinearGradient
+                colors={['#ffffff', '#f0f0f0']}
+                style={styles.modernProfileAvatar}
+              >
+                <Text style={styles.modernAvatarText}>
+                  {currentUser.name.charAt(0).toUpperCase()}
+                </Text>
+              </LinearGradient>
+              <View style={styles.modernAvatarBorder} />
+            </View>
             <View style={styles.modernProfileInfo}>
               <Text style={styles.modernProfileName}>{currentUser.name}</Text>
               <Text style={styles.modernProfileEmail}>{currentUser.email}</Text>
-              <Text style={styles.modernProfileUserId}>
-                Kullanıcı ID: {currentUser.user_id || currentUser.id}
-              </Text>
               <View style={styles.modernProfileBadge}>
                 <Icon name="verified" size={16} color="#10b981" />
                 <Text style={styles.modernProfileBadgeText}>Doğrulanmış Hesap</Text>
-          </View>
-        </View>
+              </View>
+            </View>
             <View style={styles.modernHeaderActions}>
               <TouchableOpacity 
                 style={styles.modernNotificationButton}
                 onPress={() => navigation.navigate('Notifications')}
               >
-                <Icon name="notifications-none" size={20} color="#6b7280" />
+                <Icon name="notifications-none" size={20} color="#ffffff" />
                 <View style={styles.modernNotificationBadge} />
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* User Level Card */}
         {userLevel && (
@@ -768,7 +776,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 try {
                   navigation.navigate('UserLevel');
                 } catch (error) {
-                  console.error('Navigation error:', error);
+                  console.error('Navigasyon hatası:', error);
                   // Fallback: parent navigator'ı dene
                   const parent = navigation.getParent?.();
                   if (parent?.navigate) {
@@ -780,40 +788,60 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
         )}
 
-        {/* Simple Stats Cards */}
+        {/* Modern Stats Cards with Gradients */}
         <View style={styles.modernStatsContainer}>
-          <View style={styles.modernStatCard}>
-            <View style={styles.simpleStatIcon}>
-              <Icon name="shopping-bag" size={24} color="#6b7280" />
-          </View>
+          <TouchableOpacity style={styles.modernStatCard} activeOpacity={0.8}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernStatGradient}
+            >
+              <Icon name="shopping-bag" size={24} color="#ffffff" />
+            </LinearGradient>
             <Text style={styles.modernStatNumber}>{activeOrders}</Text>
             <Text style={styles.modernStatLabel}>Aktif Sipariş</Text>
-          </View>
+          </TouchableOpacity>
           
-          <View style={styles.modernStatCard}>
-            <View style={styles.simpleStatIcon}>
-              <Icon name="favorite" size={24} color="#6b7280" />
-          </View>
+          <TouchableOpacity style={styles.modernStatCard} activeOpacity={0.8}>
+            <LinearGradient
+              colors={['#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernStatGradient}
+            >
+              <Icon name="favorite" size={24} color="#ffffff" />
+            </LinearGradient>
             <Text style={styles.modernStatNumber}>{favoriteCount}</Text>
             <Text style={styles.modernStatLabel}>Favori</Text>
-        </View>
+          </TouchableOpacity>
 
-          <View style={styles.modernStatCard}>
-            <View style={styles.simpleStatIcon}>
-              <Icon name="receipt" size={24} color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernStatCard} activeOpacity={0.8}>
+            <LinearGradient
+              colors={['#4facfe', '#00f2fe']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernStatGradient}
+            >
+              <Icon name="receipt" size={24} color="#ffffff" />
+            </LinearGradient>
             <Text style={styles.modernStatNumber}>{orders.length}</Text>
             <Text style={styles.modernStatLabel}>Toplam Sipariş</Text>
-            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Modern Menu Cards */}
         <View style={styles.modernMenuContainer}>
           {/* Cüzdanım */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Wallet')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.wallet color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Wallet')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.wallet color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Cüzdanım</Text>
               <Text style={styles.modernMenuSubtitle}>{ProductController.formatPrice(walletBalance)} bakiye</Text>
@@ -822,10 +850,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Siparişlerim */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Orders')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.orders color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Orders')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.orders color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Siparişlerim</Text>
               <Text style={styles.modernMenuSubtitle}>{orders.length} sipariş</Text>
@@ -834,10 +867,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Faturalarım */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Invoices')}>
-            <View style={styles.simpleMenuIcon}>
-              <Icon name="receipt-long" size={24} color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Invoices')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <Icon name="receipt-long" size={24} color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Faturalarım</Text>
               <Text style={styles.modernMenuSubtitle}>Geçmiş faturaları görüntüle</Text>
@@ -846,10 +884,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Kargo Takibi */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('ShippingTracking')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.tracking color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('ShippingTracking')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#4facfe', '#00f2fe']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.tracking color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Kargo Takibi</Text>
               <Text style={styles.modernMenuSubtitle}>{activeOrders} aktif kargo</Text>
@@ -858,10 +901,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Bayilik Başvurusu */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('DealershipApplications')}>
-            <View style={styles.simpleMenuIcon}>
-              <Icon name="business" size={24} color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('DealershipApplications')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <Icon name="business" size={24} color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Bayilik Başvurularım</Text>
               <Text style={styles.modernMenuSubtitle}>Başvurularınızı görüntüleyin</Text>
@@ -870,10 +918,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Bana Özel Kampanyalar */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('MyCampaigns')}>
-            <View style={styles.simpleMenuIcon}>
-              <Icon name="local-offer" size={24} color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('MyCampaigns')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <Icon name="local-offer" size={24} color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Bana Özel Kampanyalar</Text>
               <Text style={styles.modernMenuSubtitle}>Kişiselleştirilmiş teklifler</Text>
@@ -882,10 +935,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* İndirim Kodlarım */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('MyDiscountCodes')}>
-            <View style={styles.simpleMenuIcon}>
-              <Icon name="local-offer" size={24} color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('MyDiscountCodes')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#fa709a', '#fee140']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <Icon name="local-offer" size={24} color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>İndirim Kodlarım</Text>
               <Text style={styles.modernMenuSubtitle}>Kazanılan indirim kodları</Text>
@@ -894,10 +952,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Özel Üretim Taleplerim */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('CustomRequests')}>
-            <View style={styles.simpleMenuIcon}>
-              <Icon name="build" size={24} color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('CustomRequests')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#30cfd0', '#330867']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <Icon name="build" size={24} color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Özel Üretim Taleplerim</Text>
               <Text style={styles.modernMenuSubtitle}>Taleplerinizi ve aşamaları takip edin</Text>
@@ -906,10 +969,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Adreslerim */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Addresses')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.address color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Addresses')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#4facfe', '#00f2fe']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.address color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Adreslerim</Text>
               <Text style={styles.modernMenuSubtitle}>Teslimat adresleri</Text>
@@ -918,10 +986,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Favorilerim */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Favorites')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.heart color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Favorites')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.heart color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Favorilerim</Text>
               <Text style={styles.modernMenuSubtitle}>{favoriteCount} ürün</Text>
@@ -930,10 +1003,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* İade Taleplerim */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('ReturnRequests')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.returns color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('ReturnRequests')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#fa709a', '#fee140']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.returns color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>İade Taleplerim</Text>
               <Text style={styles.modernMenuSubtitle}>İade ve değişim talepleri</Text>
@@ -942,10 +1020,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* S.S.S. */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('FAQ')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.faq color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('FAQ')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.faq color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Sıkça Sorulan Sorular</Text>
               <Text style={styles.modernMenuSubtitle}>Merak ettiğiniz soruların cevapları</Text>
@@ -954,10 +1037,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Destek */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Support')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.support color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Support')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#4facfe', '#00f2fe']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.support color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Destek</Text>
               <Text style={styles.modernMenuSubtitle}>Yardım ve iletişim</Text>
@@ -966,10 +1054,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Referans Programı */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Referral')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.refer color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Referral')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.refer color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Referans Programı</Text>
               <Text style={styles.modernMenuSubtitle}>Kod oluştur, paylaş ve kazan</Text>
@@ -978,10 +1071,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Mağazada Bul */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('StoreLocator', {})}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.store color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('StoreLocator', {})} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#30cfd0', '#330867']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.store color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Fiziki Mağazalarımız</Text>
               <Text style={styles.modernMenuSubtitle}>Yakın mağazaları görüntüle</Text>
@@ -990,10 +1088,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Ayarlar */}
-          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Settings')}>
-            <View style={styles.simpleMenuIcon}>
-              <ProfileIcons.settings color="#6b7280" />
-            </View>
+          <TouchableOpacity style={styles.modernMenuItem} onPress={() => navigation.navigate('Settings')} activeOpacity={0.7}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernMenuIconGradient}
+            >
+              <ProfileIcons.settings color="#ffffff" />
+            </LinearGradient>
             <View style={styles.modernMenuContent}>
               <Text style={styles.modernMenuTitle}>Ayarlar</Text>
               <Text style={styles.modernMenuSubtitle}>Hesap ve bildirim ayarları</Text>
@@ -1041,11 +1144,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
         )}
 
-        {/* Simple Logout Button */}
-        <TouchableOpacity style={styles.simpleLogoutButton} onPress={handleLogout}>
-          <ProfileIcons.logout color="#ef4444" />
-          <Text style={styles.simpleLogoutButtonText}>Çıkış Yap</Text>
-        </TouchableOpacity>
+        {/* Modern Logout Button with Gradient */}
+        <View style={styles.modernLogoutButton}>
+          <TouchableOpacity style={styles.modernLogoutTouchable} onPress={handleLogout} activeOpacity={0.8}>
+            <LinearGradient
+              colors={['#ef4444', '#dc2626']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modernLogoutGradient}
+            >
+              <ProfileIcons.logout color="#ffffff" />
+              <Text style={styles.modernLogoutButtonText}>Çıkış Yap</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -1463,30 +1575,42 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modernProfileHeader: {
-    paddingTop: 40,
+    paddingTop: 50,
     paddingBottom: 30,
     paddingHorizontal: 20,
-    backgroundColor: 'white',
   },
   modernProfileContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  modernProfileAvatarContainer: {
+    position: 'relative',
+    marginRight: 16,
+  },
   modernProfileAvatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  modernAvatarBorder: {
+    position: 'absolute',
+    top: -3,
+    left: -3,
+    right: -3,
+    bottom: -3,
+    borderRadius: 43,
     borderWidth: 2,
-    borderColor: '#e5e7eb',
+    borderColor: '#ffffff',
+    opacity: 0.3,
   },
   modernAvatarText: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#374151',
+    color: '#667eea',
   },
   modernProfileInfo: {
     flex: 1,
@@ -1494,12 +1618,15 @@ const styles = StyleSheet.create({
   modernProfileName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#ffffff',
     marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   modernProfileEmail: {
     fontSize: 16,
-    color: '#6b7280',
+    color: 'rgba(255, 255, 255, 0.9)',
     marginBottom: 4,
   },
   modernProfileUserId: {
@@ -1538,11 +1665,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#f9fafb',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     position: 'relative',
   },
   modernNotificationBadge: {
@@ -1559,30 +1686,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
     gap: 12,
-    marginTop: -20,
+    marginTop: -25,
   },
   modernStatCard: {
     flex: 1,
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
   },
   modernStatGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   modernStatNumber: {
     fontSize: 20,
@@ -1603,17 +1740,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f5f5f5',
+  },
+  modernMenuIconGradient: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   modernMenuIcon: {
     width: 48,
@@ -1707,6 +1862,37 @@ const styles = StyleSheet.create({
     marginRight: 16,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+  },
+  modernLogoutButton: {
+    marginHorizontal: 20,
+    marginVertical: 20,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#ef4444',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modernLogoutTouchable: {
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  modernLogoutGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  modernLogoutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginLeft: 8,
   },
   simpleLogoutButton: {
     flexDirection: 'row',

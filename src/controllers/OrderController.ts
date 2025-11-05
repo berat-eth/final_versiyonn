@@ -329,24 +329,38 @@ export class OrderController {
     }
   }
 
-  static getStatusText(status: OrderStatus): string {
-    const statusTexts = {
+  static getStatusText(status: OrderStatus | string): string {
+    const statusTexts: Record<string, string> = {
       [OrderStatus.PENDING]: 'Beklemede',
       [OrderStatus.PROCESSING]: 'İşleniyor',
       [OrderStatus.SHIPPED]: 'Kargoya Verildi',
       [OrderStatus.DELIVERED]: 'Teslim Edildi',
-      [OrderStatus.CANCELLED]: 'İptal Edildi'
+      [OrderStatus.CANCELLED]: 'İptal Edildi',
+      'pending': 'Beklemede',
+      'processing': 'İşleniyor',
+      'shipped': 'Kargoya Verildi',
+      'delivered': 'Teslim Edildi',
+      'completed': 'Tamamlandı',
+      'cancelled': 'İptal Edildi',
+      'refunded': 'İade Edildi'
     };
     return statusTexts[status] || status;
   }
 
-  static getStatusColor(status: OrderStatus): string {
-    const statusColors = {
+  static getStatusColor(status: OrderStatus | string): string {
+    const statusColors: Record<string, string> = {
       [OrderStatus.PENDING]: '#FFA500',
       [OrderStatus.PROCESSING]: '#4169E1',
       [OrderStatus.SHIPPED]: '#9370DB',
       [OrderStatus.DELIVERED]: '#32CD32',
-      [OrderStatus.CANCELLED]: '#DC143C'
+      [OrderStatus.CANCELLED]: '#DC143C',
+      'pending': '#FFA500',
+      'processing': '#4169E1',
+      'shipped': '#9370DB',
+      'delivered': '#32CD32',
+      'completed': '#32CD32',
+      'cancelled': '#DC143C',
+      'refunded': '#DC143C'
     };
     return statusColors[status] || '#808080';
   }

@@ -47,7 +47,7 @@ class LiveUserService {
         if (this.isTracking) return
 
         this.isTracking = true
-        console.log('🟢 Live user tracking started')
+        console.log('🟢 Canlı kullanıcı takibi başlatıldı')
 
         // İlk kayıt
         this.recordUserActivity()
@@ -62,7 +62,7 @@ class LiveUserService {
         if (!this.isTracking) return
 
         this.isTracking = false
-        console.log('🔴 Live user tracking stopped')
+        console.log('🔴 Canlı kullanıcı takibi durduruldu')
 
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval)
@@ -74,7 +74,7 @@ class LiveUserService {
         if (page === this.lastPage) return
 
         this.lastPage = page
-        console.log('📄 Page updated:', page)
+        console.log('📄 Sayfa güncellendi:', page)
 
         this.recordUserActivity()
     }
@@ -91,12 +91,12 @@ class LiveUserService {
 
             const response = await apiService.post('/live-users', userData)
             if (__DEV__) {
-                console.log('✅ User activity recorded:', response)
+                console.log('✅ Kullanıcı aktivitesi kaydedildi:', response)
             }
         } catch (error) {
             // Sadece development modunda log göster
             if (__DEV__) {
-                console.warn('⚠️ Failed to record user activity:', error)
+                console.warn('⚠️ Kullanıcı aktivitesi kaydedilemedi:', error)
             }
         }
     }
@@ -112,12 +112,12 @@ class LiveUserService {
             })
 
             if (__DEV__) {
-                console.log('💓 Heartbeat sent:', response)
+                console.log('💓 Canlılık sinyali gönderildi:', response)
             }
         } catch (error) {
             // Sadece development modunda log göster
             if (__DEV__) {
-                console.warn('⚠️ Failed to send heartbeat:', error)
+                console.warn('⚠️ Canlılık sinyali gönderilemedi:', error)
             }
         }
     }

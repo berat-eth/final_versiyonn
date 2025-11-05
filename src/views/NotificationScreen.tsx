@@ -30,7 +30,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
   const loadNotifications = useCallback(async () => {
     try {
       if (!NotificationService) {
-        console.error('❌ NotificationService is undefined');
+        console.error('❌ NotificationService tanımsız');
         setNotifications([]);
         setUnreadCount(0);
         return;
@@ -43,7 +43,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
       setNotifications(notifs || []);
       setUnreadCount(count || 0);
     } catch (error) {
-      console.error('❌ Error loading notifications:', error);
+      console.error('❌ Bildirimler yüklenirken hata:', error);
       setNotifications([]);
       setUnreadCount(0);
     } finally {

@@ -75,7 +75,7 @@ const NotificationBadge = () => {
         const count = await NotificationService.getUnreadCount();
         setUnreadCount(count);
       } catch (error) {
-        console.error('Error loading notification count:', error);
+        console.error('Bildirim sayısı yüklenirken hata:', error);
       } finally {
         setLoading(false);
       }
@@ -309,7 +309,7 @@ const HomeStack = () => {
       const cats = await ProductController.getCategories();
       setCategories(Array.isArray(cats) ? cats : []);
     } catch (error) {
-      console.error('Error loading categories:', error);
+      console.error('Kategoriler yüklenirken hata:', error);
       setCategories([]); // Fallback to empty array
     }
   };
@@ -657,7 +657,7 @@ const TabNavigator = () => {
           lastUpdated: new Date().toISOString(),
         });
       } catch (error) {
-        console.error('Error loading initial cart:', error);
+        console.error('Sepet başlangıç verileri yüklenirken hata:', error);
       }
     };
 
