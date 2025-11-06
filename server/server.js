@@ -9404,7 +9404,16 @@ app.get('/api/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const numericId = Number(id);
-    console.log(`🔍 [GET /api/products/${id}] Request received - numericId: ${numericId}, tenantId: ${req.tenant?.id || 'missing'}`);
+    const tenantId = req.tenant?.id;
+    const apiKey = req.headers['x-api-key'] || 'not-provided';
+    
+    console.log(`🔍 [GET /api/products/${id}] Request received:`, {
+      numericId,
+      tenantId: tenantId || 'missing',
+      apiKey: apiKey.substring(0, 10) + '...',
+      userAgent: req.headers['user-agent']?.substring(0, 50) || 'unknown',
+      origin: req.headers.origin || 'unknown'
+    });
     
     if (!Number.isInteger(numericId) || numericId <= 0) {
       console.log(`❌ [GET /api/products/${id}] Invalid product id: ${numericId}`);
@@ -9413,7 +9422,7 @@ app.get('/api/products/:id', async (req, res) => {
     
     // Tenant kontrolü - req.tenant middleware'den geliyor
     if (!req.tenant || !req.tenant.id) {
-      console.log(`❌ [GET /api/products/${id}] Tenant authentication required`);
+      console.log(`❌ [GET /api/products/${id}] Tenant authentication required - API Key: ${apiKey.substring(0, 10)}...`);
       return res.status(401).json({ success: false, message: 'Tenant authentication required' });
     }
     
@@ -9425,7 +9434,7 @@ app.get('/api/products/:id', async (req, res) => {
       [numericId, req.tenant.id]
     );
 
-    console.log(`🔍 [GET /api/products/${id}] Query result: ${rows.length} row(s) found`);
+    console.log(`🔍 [GET /api/products/${id}] Query result: ${rows.length} row(s) found (productId: ${numericId}, tenantId: ${req.tenant.id})`);
 
     if (rows.length > 0) {
       const product = rows[0];
@@ -9453,20 +9462,35 @@ app.get('/api/products/:id', async (req, res) => {
           productId: debugProduct.id,
           productName: debugProduct.name,
           productTenantId: debugProduct.tenantId,
-          requestedTenantId: req.tenant.id
+          requestedTenantId: req.tenant.id,
+          tenantMismatch: debugProduct.tenantId !== req.tenant.id
         });
         res.status(404).json({ 
           success: false, 
           message: 'Product not found',
+          error: 'PRODUCT_TENANT_MISMATCH',
           debug: process.env.NODE_ENV === 'development' ? {
             productExists: true,
             productTenantId: debugProduct.tenantId,
-            requestedTenantId: req.tenant.id
+            requestedTenantId: req.tenant.id,
+            tenantMismatch: true
           } : undefined
         });
       } else {
         console.log(`❌ [GET /api/products/${id}] Product not found in database (id: ${numericId}, tenantId: ${req.tenant.id})`);
-        res.status(404).json({ success: false, message: 'Product not found' });
+        // Tüm tenant'larda ürün var mı kontrol et
+        const [allTenantsCheck] = await poolWrapper.execute(
+          'SELECT id, name, tenantId FROM products WHERE id = ?',
+          [numericId]
+        );
+        if (allTenantsCheck.length > 0) {
+          console.log(`⚠️ [GET /api/products/${id}] Product exists in other tenants:`, allTenantsCheck.map(p => ({ id: p.id, tenantId: p.tenantId })));
+        }
+        res.status(404).json({ 
+          success: false, 
+          message: 'Product not found',
+          error: 'PRODUCT_NOT_FOUND'
+        });
       }
     }
   } catch (error) {

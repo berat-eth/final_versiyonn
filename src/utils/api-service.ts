@@ -336,6 +336,17 @@ class ApiService {
           method
         });
       }
+      if (endpoint.includes('/products/') && !endpoint.includes('/products?')) {
+        // Ürün detay endpoint'i için log
+        const productId = endpoint.match(/\/products\/(\d+)/)?.[1];
+        console.log('🌐 [api-service] Product detail request:', {
+          productId,
+          baseUrl,
+          endpoint,
+          fullUrl: url,
+          method
+        });
+      }
       
       // ✅ OPTIMIZASYON: Endpoint'e göre dinamik timeout belirleme
       let dynamicTimeout = TIMEOUT_MS;
@@ -426,6 +437,18 @@ class ApiService {
 
       const response = await fetch(url, config);
       clearTimeout(timeoutId);
+      
+      // Product endpoint için log
+      if (endpoint.includes('/products/') && !endpoint.includes('/products?')) {
+        const productId = endpoint.match(/\/products\/(\d+)/)?.[1];
+        console.log(`📡 [api-service] Product ${productId} response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          url: url
+        });
+      }
+      
       if (endpoint.includes('flash-deals')) {
         // ✅ FIX: React Native'de Headers.entries() desteklenmiyor, manuel dönüştürme
         const headersObj: Record<string, string> = {};
@@ -529,6 +552,19 @@ class ApiService {
         // API call completed
       }
 
+      // Product endpoint için 404/401 hatalarını detaylı logla
+      if (endpoint.includes('/products/') && !endpoint.includes('/products?') && !response.ok) {
+        const productId = endpoint.match(/\/products\/(\d+)/)?.[1];
+        console.error(`❌ [api-service] Product ${productId} request failed:`, {
+          status: response.status,
+          statusText: response.statusText,
+          url: url,
+          result: result,
+          error: result?.error,
+          message: result?.message
+        });
+      }
+      
       if (!response.ok) {
         const status = response.status;
         // 502/503/504 durumlarında otomatik kısa gecikmeli yeniden dene
@@ -780,27 +816,45 @@ class ApiService {
     return result;
   }
 
-  async getProductById(id: number): Promise<ApiResponse<any>> {
+  async getProductById(id: number, nocache: boolean = false): Promise<ApiResponse<any>> {
     const cacheKey = this.getCacheKey(`/products/${id}`);
-    const cached = await this.getFromCache<ApiResponse<any>>(cacheKey);
-
-    // SWR: Eğer cache varsa hemen onu döndür; arkaplanda yenile
-    if (cached && cached.success) {
-      // Arkaplanda yenile (sessiz)
-      this.request<any>(`/products/${id}`)
-        .then(async (fresh) => {
-          if (fresh && fresh.success) {
-            await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
-          }
-        })
-        .catch(() => { });
-      return cached;
+    
+    // Cache bypass kontrolü: nocache=true ise cache'i atla
+    if (!nocache) {
+      const cached = await this.getFromCache<ApiResponse<any>>(cacheKey);
+      // SWR: Eğer cache varsa hemen onu döndür; arkaplanda yenile
+      if (cached && cached.success) {
+        // Arkaplanda yenile (sessiz)
+        this.request<any>(`/products/${id}`)
+          .then(async (fresh) => {
+            if (fresh && fresh.success) {
+              await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
+            }
+          })
+          .catch(() => { });
+        return cached;
+      }
     }
 
-    const result = await this.request<any>(`/products/${id}`);
+    const endpoint = `/products/${id}${nocache ? '?nocache=true' : ''}`;
+    console.log(`🌐 [api-service] Product request: ID=${id}, nocache=${nocache}, endpoint=${endpoint}`);
+    
+    const result = await this.request<any>(endpoint);
+    
     if (result.success) {
-      await CacheService.set(cacheKey, result, PRODUCT_CACHE_DURATION);
+      if (!nocache) {
+        await CacheService.set(cacheKey, result, PRODUCT_CACHE_DURATION);
+      }
+      console.log(`✅ [api-service] Product ${id} fetched successfully`);
+    } else {
+      console.error(`❌ [api-service] Product ${id} fetch failed:`, {
+        success: result.success,
+        message: result.message,
+        error: result.error,
+        status: (result as any).status
+      });
     }
+    
     return result;
   }
 
