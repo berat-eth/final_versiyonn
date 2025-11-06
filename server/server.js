@@ -9419,7 +9419,21 @@ app.get('/api/products/:id', async (req, res) => {
     }
   } catch (error) {
     console.error(`❌ [GET /api/products/${req.params.id}] Error getting product:`, error);
-    res.status(500).json({ success: false, message: 'Error getting product' });
+    console.error(`❌ [GET /api/products/${req.params.id}] Error stack:`, error.stack);
+    console.error(`❌ [GET /api/products/${req.params.id}] Error details:`, {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    });
+    // CORS header'larını set et
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    res.status(500).json({ success: false, message: 'Error getting product', error: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 

@@ -446,14 +446,33 @@ class ApiService {
       let result;
 
       if (contentType && contentType.includes('application/json')) {
+        // Response'u önce clone et ki hata durumunda tekrar okuyabilelim
+        const clonedResponse = response.clone();
         try {
-          result = await response.json();
-        } catch (jsonError) {
+          const text = await response.text();
+          if (!text || text.trim() === '') {
+            result = {
+              success: false,
+              message: 'Empty response from server',
+              error: 'EMPTY_RESPONSE'
+            };
+          } else {
+            result = JSON.parse(text);
+          }
+        } catch (jsonError: any) {
           console.error('❌ JSON parse error:', jsonError);
+          // Response text'ini al ve logla (clone'dan)
+          try {
+            const text = await clonedResponse.text();
+            console.error('❌ Response text (first 500 chars):', text.substring(0, 500));
+          } catch (e) {
+            console.error('❌ Could not read response text:', e);
+          }
           result = {
             success: false,
             message: 'Invalid JSON response from server',
-            error: 'JSON_PARSE_ERROR'
+            error: 'JSON_PARSE_ERROR',
+            parseError: jsonError?.message || String(jsonError)
           };
         }
       } else {

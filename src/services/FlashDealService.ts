@@ -100,8 +100,20 @@ export class FlashDealService {
         success: res?.success,
         hasData: !!res?.data,
         dataIsArray: Array.isArray(res?.data),
-        dataLength: Array.isArray(res?.data) ? res.data.length : 'N/A'
+        dataLength: Array.isArray(res?.data) ? res.data.length : 'N/A',
+        error: res?.error,
+        message: res?.message
       });
+      
+      // Hata durumunda detaylı log
+      if (!res || !res.success) {
+        console.error('❌ Flash deals API error:', {
+          success: res?.success,
+          error: res?.error,
+          message: res?.message,
+          parseError: (res as any)?.parseError
+        });
+      }
       
       let deals: FlashDeal[] = [];
       
