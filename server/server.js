@@ -9004,9 +9004,11 @@ app.get('/api/products', async (req, res) => {
     const offset = (page - 1) * limit;
     const language = req.query.language || 'tr'; // Default to Turkish
     const tekstilOnly = req.query.tekstilOnly === 'true' || req.query.tekstilOnly === true; // Sadece kullanıcı panelinden true gelirse filtrele
+    const nocache = req.query.nocache === 'true' || req.query.nocache === true || req.query.refresh === 'true' || req.query.refresh === true; // Cache bypass
 
     // Redis hot cache for list page 1 (most requested) - cache key'e tekstilOnly ekle
-    if (page === 1) {
+    // Cache bypass kontrolü: nocache veya refresh parametresi varsa cache'i atla
+    if (page === 1 && !nocache) {
       try {
         if (global.redis) {
           const key = `products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`;
@@ -9014,10 +9016,17 @@ app.get('/api/products', async (req, res) => {
           if (cached) {
             // Optimize: Client cache 30 → 60 saniye
             res.setHeader('Cache-Control', 'public, max-age=60');
+            console.log(`✅ [GET /api/products] Cache hit - returning cached data (use ?nocache=true to bypass)`);
             return res.json({ success: true, data: JSON.parse(cached), cached: true, source: 'redis' });
           }
         }
-      } catch { }
+      } catch (error) {
+        console.warn('⚠️ [GET /api/products] Cache read error:', error.message);
+      }
+    }
+    
+    if (nocache) {
+      console.log(`🔄 [GET /api/products] Cache bypassed - fetching fresh data from database`);
     }
 
     // Tekstil kategorileri (sadece tekstilOnly=true ise kullanılacak)
@@ -9073,15 +9082,21 @@ app.get('/api/products', async (req, res) => {
     };
     
     // Save to Redis (page 1 only) - Optimize: Cache TTL 300 → 600 (10 dakika)
-    if (page === 1) {
+    // Cache bypass kontrolü: nocache varsa cache'e yazma
+    if (page === 1 && !nocache) {
       try { 
         if (global.redis) {
           // JSON string'i cache'le (compression middleware response'u otomatik sıkıştırır)
           const cachedPayload = JSON.stringify(payload);
           await global.redis.set(`products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`, cachedPayload, 'EX', 600);
+          console.log(`💾 [GET /api/products] Data cached for 10 minutes`);
         }
-      } catch { }
+      } catch (error) {
+        console.warn('⚠️ [GET /api/products] Cache write error:', error.message);
+      }
     }
+    
+    console.log(`✅ [GET /api/products] Returning fresh data from database (page: ${page}, limit: ${limit}, total: ${total})`);
     res.json({ success: true, data: payload });
   } catch (error) {
     console.error('Error getting products:', error);

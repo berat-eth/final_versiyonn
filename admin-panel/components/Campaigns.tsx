@@ -228,7 +228,7 @@ export default function Campaigns() {
           setFlashDeals(flashDeals.filter(d => d.id !== id))
         }
       } catch (error) {
-        console.error('Flash deal silme hatası:', error)
+        console.error('Flash indirim silme hatası:', error)
       }
     }
   }
@@ -237,7 +237,7 @@ export default function Campaigns() {
     e.preventDefault()
     
     if (!flashFormData.name.trim()) {
-      alert('Flash deal adı zorunludur!')
+      alert('Flash indirim adı zorunludur!')
       return
     }
     
@@ -315,27 +315,27 @@ export default function Campaigns() {
         category_ids: categoryIds.length > 0 ? categoryIds : []
       }
       
-      console.log('📤 Flash deal gönderiliyor:', submitData);
+      console.log('📤 Flash indirim gönderiliyor:', submitData);
       console.log('📦 Seçili ürünler:', selectedProducts);
       console.log('📁 Seçili kategoriler:', selectedCategories);
       
       if (editingFlashDeal) {
         const response = await api.put(`/admin/flash-deals/${editingFlashDeal.id}`, submitData) as any
-        console.log('📥 Flash deal güncelleme yanıtı:', response);
+        console.log('📥 Flash indirim güncelleme yanıtı:', response);
         if (response.success) {
           await loadFlashDeals()
-          alert('Flash deal başarıyla güncellendi!')
+          alert('Flash indirim başarıyla güncellendi!')
         } else {
-          alert('Flash deal güncellenemedi: ' + (response.message || 'Bilinmeyen hata'))
+          alert('Flash indirim güncellenemedi: ' + (response.message || 'Bilinmeyen hata'))
         }
       } else {
         const response = await api.post('/admin/flash-deals', submitData) as any
-        console.log('📥 Flash deal oluşturma yanıtı:', response);
+        console.log('📥 Flash indirim oluşturma yanıtı:', response);
         if (response.success) {
           await loadFlashDeals()
-          alert('Flash deal başarıyla oluşturuldu!')
+          alert('Flash indirim başarıyla oluşturuldu!')
         } else {
-          alert('Flash deal oluşturulamadı: ' + (response.message || 'Bilinmeyen hata'))
+          alert('Flash indirim oluşturulamadı: ' + (response.message || 'Bilinmeyen hata'))
         }
       }
       
@@ -357,13 +357,13 @@ export default function Campaigns() {
         isActive: true
       })
     } catch (error) {
-      console.error('Flash deal kaydetme hatası:', error)
-      alert('Flash deal kaydedilirken bir hata oluştu: ' + (error as Error).message)
+      console.error('Flash indirim kaydetme hatası:', error)
+      alert('Flash indirim kaydedilirken bir hata oluştu: ' + (error as Error).message)
     }
   }
 
   const handleFlashEdit = (deal: FlashDeal) => {
-    console.log('📝 Flash deal düzenleniyor:', deal);
+    console.log('📝 Flash indirim düzenleniyor:', deal);
     setEditingFlashDeal(deal);
     
     // Tarih formatını kontrol et ve düzelt
@@ -449,7 +449,7 @@ export default function Campaigns() {
         }
       }
     } catch (error) {
-      console.error('Flash deal durumu değiştirme hatası:', error)
+      console.error('Flash indirim durumu değiştirme hatası:', error)
     }
   }
 
@@ -893,13 +893,13 @@ export default function Campaigns() {
               className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-xl flex items-center hover:shadow-lg"
             >
               <Plus className="w-5 h-5 mr-2" />
-              Yeni Flash Deal
+              Yeni Flash İndirim
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Aktif Flash Deal</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Aktif Flash İndirim</p>
               <p className="text-3xl font-bold text-orange-600">{flashDeals.filter(d => d.isActive && isActive(d.startDate, d.endDate)).length}</p>
             </div>
             <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
@@ -907,7 +907,7 @@ export default function Campaigns() {
               <p className="text-3xl font-bold text-red-600">{flashDeals.filter(d => isExpired(d.endDate)).length}</p>
             </div>
             <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Toplam Flash Deal</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-2">Toplam Flash İndirim</p>
               <p className="text-3xl font-bold text-blue-600">{flashDeals.length}</p>
             </div>
             <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm p-5 border border-slate-200 dark:border-slate-700">
@@ -1547,7 +1547,7 @@ export default function Campaigns() {
               }}
             >
               <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{editingFlashDeal ? 'Flash Deal Düzenle' : 'Yeni Flash Deal'}</h3>
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{editingFlashDeal ? 'Flash İndirim Düzenle' : 'Yeni Flash İndirim'}</h3>
                 <button onClick={() => setIsFlashModalOpen(false)}>
                   <X className="w-6 h-6" />
                 </button>
@@ -1561,7 +1561,7 @@ export default function Campaigns() {
                     value={flashFormData.name}
                     onChange={(e) => setFlashFormData({ ...flashFormData, name: e.target.value })}
                     className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
-                    placeholder="Flash deal adı"
+                    placeholder="Flash indirim adı"
                   />
                 </div>
                 <div>
@@ -1571,7 +1571,7 @@ export default function Campaigns() {
                     onChange={(e) => setFlashFormData({ ...flashFormData, description: e.target.value })}
                     className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100"
                     rows={3}
-                    placeholder="Flash deal açıklaması"
+                    placeholder="Flash indirim açıklaması"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -1833,7 +1833,7 @@ export default function Campaigns() {
         )}
       </AnimatePresence>
 
-      {/* Flash Deal Detay Modal */}
+      {/* Flash İndirim Detay Modal */}
       <AnimatePresence>
         {viewingFlashDeal && (
           <motion.div
@@ -1851,7 +1851,7 @@ export default function Campaigns() {
               className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
             >
               <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-slate-800">Flash Deal Detayları</h3>
+                <h3 className="text-2xl font-bold text-slate-800">Flash İndirim Detayları</h3>
                 <button
                   onClick={() => setViewingFlashDeal(null)}
                   className="p-2 hover:bg-slate-100 rounded-lg transition-colors"

@@ -749,23 +749,32 @@ class ApiService {
   }
 
   // New paginated products endpoint
-  async getProducts(page: number = 1, limit: number = 50): Promise<ApiResponse<{ products: any[], total: number, hasMore: boolean }>> {
+  async getProducts(page: number = 1, limit: number = 50, nocache: boolean = false): Promise<ApiResponse<{ products: any[], total: number, hasMore: boolean }>> {
     const cacheKey = this.getCacheKey(`/products?page=${page}&limit=${limit}`);
-    const cached = await this.getFromCache<ApiResponse<{ products: any[], total: number, hasMore: boolean }>>(cacheKey);
-    if (cached && cached.success && Array.isArray(cached.data?.products)) {
-      // SWR cache-first
-      this.request<{ products: any[], total: number, hasMore: boolean }>(`/products?page=${page}&limit=${limit}`)
-        .then(async (fresh) => {
-          if (fresh && fresh.success) {
-            await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
-          }
-        })
-        .catch(() => { });
-      return cached;
+    
+    // Cache bypass kontrolü: nocache=true ise cache'i atla
+    if (!nocache) {
+      const cached = await this.getFromCache<ApiResponse<{ products: any[], total: number, hasMore: boolean }>>(cacheKey);
+      if (cached && cached.success && Array.isArray(cached.data?.products)) {
+        // SWR cache-first - arkaplanda yenile
+        this.request<{ products: any[], total: number, hasMore: boolean }>(`/products?page=${page}&limit=${limit}`)
+          .then(async (fresh) => {
+            if (fresh && fresh.success) {
+              await CacheService.set(cacheKey, fresh, PRODUCT_CACHE_DURATION);
+            }
+          })
+          .catch(() => { });
+        return cached;
+      }
     }
 
-    const result = await this.request<{ products: any[], total: number, hasMore: boolean }>(`/products?page=${page}&limit=${limit}`);
-    if (result.success) {
+    // Cache bypass veya cache miss - fresh data çek
+    const queryParams = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+    if (nocache) {
+      queryParams.append('nocache', 'true');
+    }
+    const result = await this.request<{ products: any[], total: number, hasMore: boolean }>(`/products?${queryParams.toString()}`);
+    if (result.success && !nocache) {
       await CacheService.set(cacheKey, result, PRODUCT_CACHE_DURATION);
     }
     return result;
