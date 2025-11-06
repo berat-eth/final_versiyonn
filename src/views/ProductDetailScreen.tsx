@@ -126,6 +126,13 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             Promise.all(downloadPromises).catch(() => {});
           } catch {}
         }, 0);
+      } else {
+        // Ürün yüklenemedi - loading'i kapat ve hata durumunu göster
+        setLoading(false);
+        if (productResult.status === 'rejected') {
+          console.error('❌ Ürün yüklenirken hata:', productResult.reason);
+        }
+        // product null olacak, render kısmında "Ürün bulunamadı" mesajı gösterilecek
       }
       
       // Kullanıcıyı işle
@@ -302,6 +309,13 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     try {
       setLoading(true);
       const prod = await ProductController.getProductById(productId);
+      
+      if (!prod) {
+        // Ürün yüklenemedi
+        setLoading(false);
+        return;
+      }
+      
       setProduct(prod);
       setCurrentPrice(prod?.price || 0);
       setCurrentStock(prod?.stock || 0);
@@ -728,9 +742,30 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
   if (!product) {
     return (
-      <View style={styles.container}>
-        <Text>Ürün bulunamadı</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Icon name="error-outline" size={64} color={Colors.error} />
+          <Text style={styles.errorTitle}>Ürün Bulunamadı</Text>
+          <Text style={styles.errorMessage}>
+            Ürün detayları yüklenirken bir sorun oluştu. Lütfen tekrar deneyin.
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setLoading(true);
+              loadProduct();
+            }}
+          >
+            <Text style={styles.retryButtonText}>Tekrar Dene</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Geri Dön</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -1658,5 +1693,55 @@ const styles = StyleSheet.create({
   },
   disabledButtonText: {
     color: '#999999',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+    minWidth: 200,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  backButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    minWidth: 200,
+  },
+  backButtonText: {
+    color: '#1A1A1A',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

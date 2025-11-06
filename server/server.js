@@ -267,12 +267,12 @@ app.use(compression({
   }
 }));
 
-// CORS - Admin ve mobil uygulama için tüm origin'lere izin ver
+// CORS - Tüm origin'lere izin ver (web sitesi, mobil uygulama ve admin panel için)
 app.use(cors({
-  origin: true, // Tüm origin'lere izin ver (admin.plaxsy.com ve mobil uygulama için)
+  origin: true, // Tüm origin'lere izin ver (web sitesi, mobil uygulama ve admin panel için)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id', 'Accept'],
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
   preflightContinue: false,
   optionsSuccessStatus: 200
