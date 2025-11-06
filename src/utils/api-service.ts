@@ -371,7 +371,8 @@ class ApiService {
         'Content-Type': 'application/json',
         'User-Agent': 'Huglu-Mobile-App/1.0',
         'Accept': 'application/json',
-        'Accept-Encoding': 'gzip, deflate, br', // Compression desteği
+        // ✅ FIX: React Native Brotli (br) desteklemiyor, sadece gzip/deflate kullan
+        'Accept-Encoding': 'gzip, deflate', // Brotli kaldırıldı - React Native uyumluluğu için
         // Tenant header dinamik
         'X-Tenant-Id': '1'
       };
@@ -466,28 +467,63 @@ class ApiService {
 
       // Check if response is JSON before parsing
       const contentType = response.headers.get('content-type');
+      const contentEncoding = response.headers.get('content-encoding');
       let result;
+
+      // Content-Encoding kontrolü - sıkıştırılmış response uyarısı
+      if (contentEncoding && contentEncoding.includes('br')) {
+        console.warn('⚠️ [api-service] Response is Brotli compressed - React Native may not decode it properly. Consider disabling Brotli on server.');
+      }
 
       if (contentType && contentType.includes('application/json')) {
         // Response'u önce clone et ki hata durumunda tekrar okuyabilelim
         const clonedResponse = response.clone();
         try {
+          // ✅ FIX: React Native fetch otomatik olarak gzip/deflate decode eder
+          // Ama eğer Brotli (br) gelirse decode edemez
           const text = await response.text();
-          if (!text || text.trim() === '') {
+          
+          // Eğer text binary görünüyorsa (sıkıştırılmış ama decode edilmemiş), hata ver
+          if (text && text.length > 0) {
+            const firstChar = text.charCodeAt(0);
+            const isBinary = (firstChar < 32 || firstChar > 126) && !text.trim().startsWith('{') && !text.trim().startsWith('[');
+            if (isBinary && contentEncoding) {
+              console.error('❌ [api-service] Response appears to be compressed but not decoded:', {
+                contentEncoding,
+                firstChar,
+                textPreview: text.substring(0, 100)
+              });
+              result = {
+                success: false,
+                message: 'Compressed response could not be decoded. Server may be using Brotli compression which React Native does not support.',
+                error: 'DECOMPRESSION_ERROR',
+                contentEncoding
+              };
+            } else if (!text || text.trim() === '') {
+              result = {
+                success: false,
+                message: 'Empty response from server',
+                error: 'EMPTY_RESPONSE'
+              };
+            } else {
+              result = JSON.parse(text);
+            }
+          } else {
             result = {
               success: false,
               message: 'Empty response from server',
               error: 'EMPTY_RESPONSE'
             };
-          } else {
-            result = JSON.parse(text);
           }
         } catch (jsonError: any) {
           console.error('❌ JSON parse error:', jsonError);
           // Response text'ini al ve logla (clone'dan)
           try {
             const text = await clonedResponse.text();
-            console.error('❌ Response text (first 500 chars):', text.substring(0, 500));
+            // Sadece ilk 200 karakteri göster (binary data çok uzun olabilir)
+            const preview = text.length > 200 ? text.substring(0, 200) : text;
+            console.error('❌ Response text preview:', preview);
+            console.error('❌ Response encoding:', contentEncoding);
           } catch (e) {
             console.error('❌ Could not read response text:', e);
           }
@@ -495,7 +531,8 @@ class ApiService {
             success: false,
             message: 'Invalid JSON response from server',
             error: 'JSON_PARSE_ERROR',
-            parseError: jsonError?.message || String(jsonError)
+            parseError: jsonError?.message || String(jsonError),
+            contentEncoding
           };
         }
       } else {

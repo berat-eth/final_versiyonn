@@ -259,11 +259,18 @@ app.use(helmet({
 }));
 app.use(hpp());
 // Enable gzip compression for API responses - optimized for product lists
+// ✅ FIX: Brotli devre dışı - React Native Brotli desteklemiyor, sadece gzip/deflate kullan
 app.use(compression({
   threshold: 1024, // Threshold artırıldı - küçük response'lar sıkıştırılmayacak (tek ürün detayı gibi)
   level: 6, // Compression level (1-9, 6 = good balance between speed and size)
+  // Brotli'yi devre dışı bırak - sadece gzip/deflate kullan
   filter: (req, res) => {
     if (req.headers['x-no-compress']) return false;
+    
+    // ✅ FIX: Accept-Encoding header'ından br (Brotli) kaldır - React Native uyumluluğu için
+    if (req.headers['accept-encoding']) {
+      req.headers['accept-encoding'] = req.headers['accept-encoding'].replace(/br,?/gi, '').replace(/,\s*,/g, ',').trim();
+    }
     
     // Tek ürün detay endpoint'i için compression'ı devre dışı bırak
     // Çünkü küçük response'lar için compression gereksiz ve sorun yaratabilir

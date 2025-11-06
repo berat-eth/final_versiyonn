@@ -113,6 +113,13 @@ export class FlashDealService {
           message: res?.message,
           parseError: (res as any)?.parseError
         });
+        // Hata durumunda cache'den döndürmeyi dene
+        const cached = await this.getFromCache();
+        if (cached !== null && cached.length > 0) {
+          console.log('⚠️ Using cached flash deals due to API error');
+          return cached;
+        }
+        return [];
       }
       
       let deals: FlashDeal[] = [];
@@ -135,20 +142,34 @@ export class FlashDealService {
         else if (res.data && typeof res.data === 'object' && 'data' in res.data && Array.isArray((res.data as any).data)) {
           console.log('✅ Flash deals loaded (nested):', (res.data as any).data.length);
           deals = (res.data as any).data as FlashDeal[];
+        } else {
+          // Beklenmeyen format
+          console.warn('⚠️ Flash deals data formatı beklenmedik:', {
+            success: res?.success,
+            hasData: !!res?.data,
+            dataType: typeof res?.data,
+            isArray: Array.isArray(res.data),
+            dataKeys: res.data && typeof res.data === 'object' ? Object.keys(res.data) : 'N/A'
+          });
         }
+      } else {
+        console.warn('⚠️ Flash deals response has no data:', {
+          success: res?.success,
+          hasData: !!res?.data,
+          dataType: typeof res?.data
+        });
       }
 
       // Cache'e kaydet
       if (deals.length > 0) {
         await this.saveToCache(deals);
-      }
-
-      if (deals.length === 0) {
-        console.warn('⚠️ Flash deals data formatı beklenmedik:', {
-          success: res?.success,
-          hasData: !!res?.data,
-          dataType: typeof res?.data
-        });
+      } else {
+        // Data yoksa cache'den döndürmeyi dene
+        const cached = await this.getFromCache();
+        if (cached !== null && cached.length > 0) {
+          console.log('⚠️ No deals from API, using cached flash deals');
+          return cached;
+        }
       }
 
       return deals;
