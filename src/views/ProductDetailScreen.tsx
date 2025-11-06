@@ -36,6 +36,14 @@ import { Chatbot } from '../components/Chatbot';
 import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
+// Fallback colors if Colors import fails
+const fallbackColors = {
+  error: '#EF4444',
+  primary: '#6366F1',
+  secondary: '#F59E0B',
+  text: '#111827',
+};
+
 interface ProductDetailScreenProps {
   navigation: any;
   route: any;
@@ -744,7 +752,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Icon name="error-outline" size={64} color={Colors.error} />
+          <Icon name="error-outline" size={64} color={(Colors && Colors.error) || fallbackColors.error} />
           <Text style={styles.errorTitle}>Ürün Bulunamadı</Text>
           <Text style={styles.errorMessage}>
             Ürün detayları yüklenirken bir sorun oluştu. Lütfen tekrar deneyin.
@@ -854,7 +862,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             <Icon
               name={isFavorite ? 'favorite' : 'favorite-border'}
               size={24}
-              color={isFavorite ? Colors.secondary : Colors.text}
+              color={isFavorite ? ((Colors && Colors.secondary) || fallbackColors.secondary) : ((Colors && Colors.text) || fallbackColors.text)}
             />
           </TouchableOpacity>
         </View>
@@ -1197,22 +1205,26 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       </ScrollView>
 
 
-      {currentStock > 0 && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[
-              styles.addToCartButton,
-              (addingToCart || (isSizeSelectionRequired() && !isSizeSelected())) && styles.disabledButton
-            ]}
-            onPress={handleAddToCart}
-            disabled={addingToCart || (isSizeSelectionRequired() && !isSizeSelected())}
-          >
-            <Text style={styles.addToCartText}>
-              {addingToCart ? 'Ekleniyor...' : (isSizeSelectionRequired() && !isSizeSelected() ? 'Beden Seçin' : 'Sepete Ekle')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={[
+            styles.addToCartButton,
+            (addingToCart || (isSizeSelectionRequired() && !isSizeSelected()) || currentStock <= 0) && styles.disabledButton
+          ]}
+          onPress={handleAddToCart}
+          disabled={addingToCart || (isSizeSelectionRequired() && !isSizeSelected()) || currentStock <= 0}
+        >
+          <Text style={styles.addToCartText}>
+            {addingToCart 
+              ? 'Ekleniyor...' 
+              : currentStock <= 0 
+                ? 'Stokta Yok' 
+                : (isSizeSelectionRequired() && !isSizeSelected() 
+                  ? 'Beden Seçin' 
+                  : 'Sepete Ekle')}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <ReviewForm
         visible={showReviewForm}
@@ -1717,7 +1729,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   retryButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: (Colors && Colors.primary) || fallbackColors.primary,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 12,

@@ -67,8 +67,9 @@ router.get('/all', authenticateAdmin, async (req, res) => {
 
     const { limit = 100 } = req.query;
     const [popups] = await poolWrapper.execute(`
-      SELECT id, title, content, image, type, priority, targetAudience, clickAction, 
-             startDate, endDate, isActive, createdAt, updatedAt
+      SELECT id, title, content, imageUrl, type, position, isDismissible, isRequired, priority, 
+             targetAudience, clickAction, startDate, endDate, isActive, buttonText, buttonColor, 
+             backgroundColor, textColor, width, height, autoClose, showDelay, createdAt, updatedAt
       FROM popups 
       ORDER BY priority DESC, createdAt DESC
       LIMIT ?
@@ -210,9 +211,9 @@ router.post('/', authenticateAdmin, async (req, res) => {
       showDelay
     ]);
 
-    // Optimize: Sadece gerekli column'lar
+    // Tüm alanları getir
     const [newPopup] = await poolWrapper.execute(
-      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, position, isDismissible, isRequired, priority, targetAudience, clickAction, startDate, endDate, isActive, buttonText, buttonColor, backgroundColor, textColor, width, height, autoClose, showDelay, createdAt, updatedAt FROM popups WHERE id = ?',
       [result.insertId]
     );
 
@@ -294,9 +295,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       updateValues
     );
 
-    // Güncellenmiş popup'ı getir - Optimize: Sadece gerekli column'lar
+    // Güncellenmiş popup'ı getir - Tüm alanları getir
     const [updated] = await poolWrapper.execute(
-      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, position, isDismissible, isRequired, priority, targetAudience, clickAction, startDate, endDate, isActive, buttonText, buttonColor, backgroundColor, textColor, width, height, autoClose, showDelay, createdAt, updatedAt FROM popups WHERE id = ?',
       [id]
     );
 
@@ -385,9 +386,9 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
       [newActiveState, id]
     );
 
-    // Optimize: Sadece gerekli column'lar
+    // Tüm alanları getir
     const [updated] = await poolWrapper.execute(
-      'SELECT id, title, content, imageUrl, type, priority, targetAudience, clickAction, startDate, endDate, isActive, createdAt, updatedAt FROM popups WHERE id = ?',
+      'SELECT id, title, content, imageUrl, type, position, isDismissible, isRequired, priority, targetAudience, clickAction, startDate, endDate, isActive, buttonText, buttonColor, backgroundColor, textColor, width, height, autoClose, showDelay, createdAt, updatedAt FROM popups WHERE id = ?',
       [id]
     );
 

@@ -258,11 +258,16 @@ app.use(helmet({
   referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
 app.use(hpp());
-// Enable gzip compression for API responses
+// Enable gzip compression for API responses - optimized for product lists
 app.use(compression({
-  threshold: 1024,
+  threshold: 512, // Daha düşük threshold - daha küçük response'lar da sıkıştırılır
+  level: 6, // Compression level (1-9, 6 = good balance between speed and size)
   filter: (req, res) => {
     if (req.headers['x-no-compress']) return false;
+    // Products endpoint için özel compression - her zaman sıkıştır
+    if (req.path.includes('/api/products')) {
+      return true; // Her zaman sıkıştır
+    }
     return compression.filter(req, res);
   }
 }));
@@ -8999,14 +9004,25 @@ app.get('/api/products', async (req, res) => {
 
     // Optimize: Client cache 60 → 120 saniye (2 dakika)
     res.setHeader('Cache-Control', 'public, max-age=120');
+    // Compression için Vary header (compression middleware otomatik Content-Encoding ekler)
+    res.setHeader('Vary', 'Accept-Encoding');
+    
+    // Response payload - sadece gerekli alanlar (gereksiz alanlar kaldırıldı)
     const payload = {
       products: cleanedProducts,
       total: total,
       hasMore: offset + limit < total
     };
+    
     // Save to Redis (page 1 only) - Optimize: Cache TTL 300 → 600 (10 dakika)
     if (page === 1) {
-      try { if (global.redis) await global.redis.set(`products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`, JSON.stringify(payload), 'EX', 600); } catch { }
+      try { 
+        if (global.redis) {
+          // JSON string'i cache'le (compression middleware response'u otomatik sıkıştırır)
+          const cachedPayload = JSON.stringify(payload);
+          await global.redis.set(`products:list:${req.tenant.id}:p1:${limit}:${tekstilOnly ? 'tekstil' : 'all'}`, cachedPayload, 'EX', 600);
+        }
+      } catch { }
     }
     res.json({ success: true, data: payload });
   } catch (error) {

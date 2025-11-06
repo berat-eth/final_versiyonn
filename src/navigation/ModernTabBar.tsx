@@ -63,14 +63,14 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
             
             const iconNode = typeof options.tabBarIcon === 'function'
               ? options.tabBarIcon({ 
-                  color: isFocused ? '#FFFFFF' : '#9ca3af', 
+                  color: '#000000', 
                   size: 24 
                 })
               : (
                   <Icon
                     name={iconName}
                     size={24}
-                    color={isFocused ? '#FFFFFF' : '#9ca3af'}
+                    color="#000000"
                   />
                 );
 
@@ -170,7 +170,7 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
                     style={[
                       styles.tabLabel,
                       {
-                        color: isFocused ? '#FFFFFF' : '#6b7280',
+                        color: '#000000',
                         fontWeight: isFocused ? '700' : '600',
                       }
                     ]}

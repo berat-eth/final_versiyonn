@@ -112,7 +112,7 @@ export default function Popups() {
       try {
         const response = await api.delete(`/admin/popups/${id}`) as any
         if (response.success) {
-          setPopups(popups.filter(p => p.id !== id))
+          await loadPopups() // Listeyi yenile
         }
       } catch (error) {
         console.error('Popup silme hatası:', error)
@@ -128,7 +128,7 @@ export default function Popups() {
         // Güncelle
         const response = await api.put(`/admin/popups/${editingPopup.id}`, formData) as any
         if (response.success) {
-          setPopups(popups.map(p => p.id === editingPopup.id ? response.data : p))
+          await loadPopups() // Listeyi yenile
           setIsModalOpen(false)
           setEditingPopup(null)
         }
@@ -136,7 +136,7 @@ export default function Popups() {
         // Yeni oluştur
         const response = await api.post('/admin/popups', formData) as any
         if (response.success) {
-          setPopups([...popups, response.data])
+          await loadPopups() // Listeyi yenile
           setIsModalOpen(false)
         }
       }
@@ -163,7 +163,6 @@ export default function Popups() {
         autoClose: 0,
         showDelay: 0
       })
-      loadPopups()
     } catch (error) {
       console.error('Popup kaydetme hatası:', error)
       alert('Popup kaydedilirken hata oluştu')

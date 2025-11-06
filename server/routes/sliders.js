@@ -65,7 +65,8 @@ router.get('/all', authenticateAdmin, async (req, res) => {
 
     const { limit = 50 } = req.query;
     const [sliders] = await poolWrapper.execute(`
-      SELECT id, title, image, link, clickAction, \`order\`, isActive, createdAt, updatedAt
+      SELECT id, title, description, imageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, 
+             autoPlay, duration, buttonText, buttonColor, textColor, overlayOpacity, createdAt, updatedAt
       FROM sliders 
       ORDER BY \`order\` ASC
       LIMIT ?
@@ -166,9 +167,9 @@ router.post('/', authenticateAdmin, async (req, res) => {
       overlayOpacity
     ]);
 
-    // Optimize: Sadece gerekli column'lar
+    // Tüm alanları getir
     const [newSlider] = await poolWrapper.execute(
-      'SELECT id, title, imageUrl, clickAction, \`order\`, isActive, createdAt, updatedAt FROM sliders WHERE id = ?',
+      'SELECT id, title, description, imageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, autoPlay, duration, buttonText, buttonColor, textColor, overlayOpacity, createdAt, updatedAt FROM sliders WHERE id = ?',
       [result.insertId]
     );
 
@@ -317,9 +318,9 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       updateValues
     );
 
-    // Güncellenmiş slider'ı getir - Optimize: Sadece gerekli column'lar
+    // Güncellenmiş slider'ı getir - Tüm alanları getir
     const [updated] = await poolWrapper.execute(
-      'SELECT id, title, imageUrl, clickAction, \`order\`, isActive, createdAt, updatedAt FROM sliders WHERE id = ?',
+      'SELECT id, title, description, imageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, autoPlay, duration, buttonText, buttonColor, textColor, overlayOpacity, createdAt, updatedAt FROM sliders WHERE id = ?',
       [id]
     );
 
@@ -408,9 +409,9 @@ router.patch('/:id/toggle', authenticateAdmin, async (req, res) => {
       [newActiveState, id]
     );
 
-    // Optimize: Sadece gerekli column'lar
+    // Tüm alanları getir
     const [updated] = await poolWrapper.execute(
-      'SELECT id, title, imageUrl, clickAction, \`order\`, isActive, createdAt, updatedAt FROM sliders WHERE id = ?',
+      'SELECT id, title, description, imageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, autoPlay, duration, buttonText, buttonColor, textColor, overlayOpacity, createdAt, updatedAt FROM sliders WHERE id = ?',
       [id]
     );
 

@@ -25,7 +25,7 @@ export interface FlashDeal {
 
 const CACHE_KEY = 'flash_deals_cache';
 const CACHE_TIMESTAMP_KEY = 'flash_deals_cache_timestamp';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 dakika cache süresi
+const CACHE_DURATION = 4 * 60 * 1000; // 4 dakika cache süresi
 
 interface CacheData {
   data: FlashDeal[];

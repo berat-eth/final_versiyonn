@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { generateSecureDeviceId } from './crypto-utils';
+import { getApiKey as getStoredApiKey, getTenantId as getStoredTenantId } from '../services/AuthKeyStore';
 
 const DEVICE_ID_KEY = 'device_id';
-const API_BASE_URL = 'https://api.zerodaysoftware.tr/api';
 
 /**
  * DeviceId'yi al veya oluştur
@@ -26,6 +26,131 @@ export async function getOrCreateDeviceId(): Promise<string> {
     // Fallback: geçici deviceId oluştur
     return generateSecureDeviceId(Platform.OS);
   }
+}
+
+/**
+ * API base URL'i al (lazy loading ile circular dependency'den kaçın)
+ */
+function getApiBaseUrl(): string {
+  try {
+    // Önce process.env'den oku
+    const fromEnv = (process as any)?.env?.EXPO_PUBLIC_API_BASE_URL;
+    if (fromEnv) return String(fromEnv);
+    
+    // Sonra expo-constants'ı optional olarak dene (güvenli require)
+    try {
+      // Dynamic require ile modül yükleme - undefined kontrolü ile
+      let ConstantsModule;
+      try {
+        ConstantsModule = require('expo-constants');
+      } catch (requireError) {
+        // Modül yüklenemezse atla
+        ConstantsModule = null;
+      }
+      
+      // Undefined veya null kontrolü
+      if (!ConstantsModule || ConstantsModule === undefined || ConstantsModule === null) {
+        // Modül yüklenemedi, sessizce devam et
+      } else if (typeof ConstantsModule === 'object') {
+        // Default export kontrolü
+        const Constants = ConstantsModule.default || ConstantsModule;
+        if (Constants && typeof Constants === 'object') {
+          const extra = Constants?.expoConfig?.extra || Constants?.manifest?.extra || {};
+          const fromExtra = extra?.EXPO_PUBLIC_API_BASE_URL;
+          if (fromExtra) return String(fromExtra);
+        }
+      }
+    } catch (constantsError) {
+      // expo-constants yüklenemezse sessizce devam et
+    }
+    
+    // Fallback: default URL
+    return 'https://api.plaxsy.com/api';
+  } catch {
+    return 'https://api.plaxsy.com/api';
+  }
+}
+
+/**
+ * API key ve tenant ID'yi al (api-service.ts ile aynı mantık)
+ * Runtime'da değerleri alarak circular dependency'den kaçınıyoruz
+ */
+async function getApiHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  let apiKeyToUse: string | null = null;
+  let tenantIdToUse: string | null = null;
+
+  // Runtime'da config değerlerini al (expo-constants olmadan)
+  try {
+    // Önce process.env'den oku
+    const singleTenant = String(((process as any)?.env?.EXPO_PUBLIC_SINGLE_TENANT) || 'true') === 'true';
+    
+    if (singleTenant) {
+      apiKeyToUse = String(((process as any)?.env?.EXPO_PUBLIC_TENANT_API_KEY) || '') || null;
+      tenantIdToUse = String(((process as any)?.env?.EXPO_PUBLIC_TENANT_ID) || '1') || null;
+    }
+    
+    // Eğer process.env'de yoksa, expo-constants'ı optional olarak dene (güvenli require)
+    if (!apiKeyToUse || !tenantIdToUse) {
+      try {
+        // Dynamic require ile modül yükleme - undefined kontrolü ile
+        let ConstantsModule;
+        try {
+          ConstantsModule = require('expo-constants');
+        } catch (requireError) {
+          // Modül yüklenemezse atla
+          ConstantsModule = null;
+        }
+        
+        // Undefined veya null kontrolü
+        if (ConstantsModule && ConstantsModule !== undefined && ConstantsModule !== null && typeof ConstantsModule === 'object') {
+          // Default export kontrolü
+          const Constants = ConstantsModule.default || ConstantsModule;
+          if (Constants && typeof Constants === 'object') {
+            const extra = Constants?.expoConfig?.extra || Constants?.manifest?.extra || {};
+            
+            if (singleTenant) {
+              if (!apiKeyToUse) {
+                apiKeyToUse = String(extra?.EXPO_PUBLIC_TENANT_API_KEY || '') || null;
+              }
+              if (!tenantIdToUse) {
+                tenantIdToUse = String(extra?.EXPO_PUBLIC_TENANT_ID || '1') || null;
+              }
+            }
+          }
+        }
+      } catch (constantsError) {
+        // expo-constants yüklenemezse sessizce devam et
+      }
+    }
+  } catch (error) {
+    // Config okuma hatası - sessizce devam et
+  }
+
+  // Depodan okunan değerleri tercih et
+  try {
+    const [storedKey, storedTenant] = await Promise.all([
+      getStoredApiKey(),
+      getStoredTenantId()
+    ]);
+    if (storedKey) apiKeyToUse = storedKey;
+    if (storedTenant) tenantIdToUse = storedTenant;
+  } catch {}
+
+  if (tenantIdToUse) {
+    headers['X-Tenant-Id'] = tenantIdToUse;
+    headers['x-tenant-id'] = tenantIdToUse;
+  }
+
+  if (apiKeyToUse) {
+    headers['X-API-Key'] = apiKeyToUse;
+  }
+
+  return headers;
 }
 
 /**
@@ -55,11 +180,12 @@ export async function sendTrackingEvent(
     };
 
     // Non-blocking fetch - main thread'i bloklamaz
-    fetch(`${API_BASE_URL}/user-data/behavior/track`, {
+    const apiUrl = getApiBaseUrl();
+    const headers = await getApiHeaders();
+    
+    fetch(`${apiUrl}/user-data/behavior/track`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(payload)
     }).catch(error => {
       // Silent fail - tracking hatası kullanıcıyı etkilememeli
@@ -91,11 +217,12 @@ export async function startTrackingSession(
       metadata
     };
 
-    await fetch(`${API_BASE_URL}/user-data/behavior/session/start`, {
+    const apiUrl = getApiBaseUrl();
+    const headers = await getApiHeaders();
+    
+    await fetch(`${apiUrl}/user-data/behavior/session/start`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(payload)
     }).catch(error => {
       console.error('Session start hatası:', error);
@@ -138,11 +265,12 @@ export async function endTrackingSession(
       metadata
     };
 
-    await fetch(`${API_BASE_URL}/user-data/behavior/session/end`, {
+    const apiUrl = getApiBaseUrl();
+    const headers = await getApiHeaders();
+    
+    await fetch(`${apiUrl}/user-data/behavior/session/end`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(payload)
     }).catch(error => {
       console.error('Session end hatası:', error);
@@ -164,22 +292,46 @@ export async function endTrackingSession(
 export async function linkDeviceToUser(userId: number): Promise<boolean> {
   try {
     const deviceId = await getOrCreateDeviceId();
+    const apiUrl = getApiBaseUrl();
+    const headers = await getApiHeaders();
     
     const payload = {
       deviceId,
       userId
     };
 
-    const response = await fetch(`${API_BASE_URL}/user-data/behavior/link-device`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
+    // Timeout kontrolü için AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 saniye timeout
 
-    const result = await response.json();
-    return result.success === true;
+    try {
+      const response = await fetch(`${apiUrl}/user-data/behavior/link-device`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`❌ Device linking HTTP hatası: ${response.status} - ${errorText}`);
+        return false;
+      }
+
+      const result = await response.json();
+      return result.success === true;
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError.name === 'AbortError') {
+        console.error('❌ Device linking timeout (10s)');
+        return false;
+      }
+      
+      throw fetchError;
+    }
   } catch (error) {
     console.error('❌ Device linking hatası:', error);
     return false;

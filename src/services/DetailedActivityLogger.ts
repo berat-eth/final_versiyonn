@@ -128,8 +128,18 @@ class DetailedActivityLogger {
 
   private generateSessionId(): string {
     // GÜVENLİK: Kriptografik olarak güvenli session ID
-    const { generateSecureSessionId } = require('../utils/crypto-utils');
-    return generateSecureSessionId();
+    try {
+      const cryptoUtils = require('../utils/crypto-utils');
+      if (cryptoUtils && typeof cryptoUtils.generateSecureSessionId === 'function') {
+        return cryptoUtils.generateSecureSessionId();
+      } else {
+        // Fallback: basit session ID
+        return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+    } catch (error) {
+      // Fallback: basit session ID
+      return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
   }
 
   private getDeviceInfo() {

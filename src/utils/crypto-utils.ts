@@ -3,8 +3,6 @@
  * Math.random() yerine kullanılmalıdır
  */
 
-import CryptoJS from 'crypto-js';
-
 /**
  * React Native uyumlu güvenli random bytes üretir
  */

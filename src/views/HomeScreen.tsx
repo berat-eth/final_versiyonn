@@ -168,13 +168,14 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
     const init = async () => {
       console.log('🚀 HomeScreen init started');
       // ✅ OPTIMIZASYON: Tüm yükleme işlemlerini paralel başlat
-      console.log('📊 Calling loadData, loadFavorites, loadSliders in parallel...');
+      console.log('📊 Calling loadData, loadFavorites, loadSliders, loadFlashDeals in parallel...');
       
-      // loadData içinde zaten flash deals yükleniyor, bu yüzden loadFlashDeals'ı kaldırdık
+      // İlk yükleme - flash deals dahil
       Promise.allSettled([
         loadData(),
         loadFavorites(),
-        loadSliders()
+        loadSliders(),
+        loadFlashDeals()
       ]).catch(() => {});
       
       restoreCountdownAndStart();
@@ -182,8 +183,16 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
     };
     const cleanupSlider = setupSliderTimer();
     init();
+    
+    // Flash deals'ı 4 dakikada bir çek
+    const flashDealsInterval = setInterval(() => {
+      console.log('⏰ 4 dakika geçti, flash deals yenileniyor...');
+      loadFlashDeals();
+    }, 4 * 60 * 1000); // 4 dakika
+    
     return () => {
       cleanupSlider();
+      clearInterval(flashDealsInterval);
       // Persist current countdown on unmount
       AsyncStorage.setItem(COUNTDOWN_STORAGE_KEY, String(countdownTimer)).catch(() => {});
       AsyncStorage.setItem(COUNTDOWN_SAVED_AT_KEY, String(Date.now())).catch(() => {});
@@ -222,14 +231,13 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       const isLoggedIn = await UserController.isLoggedIn();
       const userId = isLoggedIn ? await UserController.getCurrentUserId() : null;
 
-      // ✅ OPTIMIZASYON: Tüm veri çağrılarını paralel yap (flash deals dahil)
+      // ✅ OPTIMIZASYON: Tüm veri çağrılarını paralel yap (flash deals hariç - 4 dakikada bir çekiliyor)
       const [
         homepageResult,
         catsResult,
         allCampaignsResult,
         personalizedResult,
-        userCampaignsResult,
-        flashDealsResult
+        userCampaignsResult
       ] = await Promise.allSettled([
         // Homepage products (sadece giriş yapılmışsa)
         userId ? apiService.get(`/users/${userId}/homepage-products`) : Promise.resolve(null),
@@ -240,17 +248,8 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         // Kişiselleştirilmiş içerik (sadece giriş yapılmışsa)
         userId ? PersonalizationController.generatePersonalizedContent(userId) : Promise.resolve(null),
         // Kullanıcıya özel kampanyalar (sadece giriş yapılmışsa)
-        userId ? CampaignController.getAvailableCampaigns(userId) : Promise.resolve(null),
-        // Flash deals (paralel yükle)
-        FlashDealService.getActiveFlashDeals()
+        userId ? CampaignController.getAvailableCampaigns(userId) : Promise.resolve(null)
       ]);
-
-      // Flash deals sonucunu işle
-      if (flashDealsResult.status === 'fulfilled' && flashDealsResult.value) {
-        setFlashDeals(flashDealsResult.value || []);
-      } else {
-        setFlashDeals([]);
-      }
 
       // Homepage products işle
       let homepagePayload: any | null = null;
@@ -339,8 +338,19 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       const allProducts = allProductsResponse?.products || [];
       if (allProducts && allProducts.length > 0) {
         // GÜVENLİK: Kriptografik olarak güvenli shuffle
-        const { secureShuffleArray } = require('../utils/crypto-utils');
-        const shuffled = secureShuffleArray(allProducts);
+        let shuffled: typeof allProducts;
+        try {
+          const cryptoUtils = require('../utils/crypto-utils');
+          if (cryptoUtils && typeof cryptoUtils.secureShuffleArray === 'function') {
+            shuffled = cryptoUtils.secureShuffleArray(allProducts);
+          } else {
+            // Fallback: basit shuffle
+            shuffled = [...allProducts].sort(() => Math.random() - 0.5);
+          }
+        } catch (error) {
+          // Fallback: basit shuffle
+          shuffled = [...allProducts].sort(() => Math.random() - 0.5);
+        }
         const randomProducts = getUniqueProducts(shuffled, newProducts, 6);
         
         setPopularProducts(randomProducts);
@@ -1047,14 +1057,11 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   const renderFlashDeals = () => {
     const now = nowTs;
     
-    console.log('🎯 renderFlashDeals called, flashDeals:', flashDeals);
-    
     // Flash deals API'sinden gelen tüm ürünleri topla
     const allFlashProducts: Product[] = [];
     
     if (flashDeals && flashDeals.length > 0) {
       flashDeals.forEach((deal: FlashDeal) => {
-        console.log('📦 Processing deal:', deal.name, 'products:', deal.products?.length);
         if (deal.products && Array.isArray(deal.products) && deal.products.length > 0) {
           deal.products.forEach((product: any) => {
             // Duplicate kontrolü
@@ -1102,10 +1109,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       });
     }
     
-    console.log('📊 Total flash products found:', allFlashProducts.length);
-    
     if (allFlashProducts.length === 0) {
-      console.log('⚠️ No flash products to display');
       return null;
     }
     

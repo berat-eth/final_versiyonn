@@ -77,10 +77,11 @@ export default function Sliders() {
       try {
         const response = await api.delete(`/admin/sliders/${id}`) as any
         if (response.success) {
-          setSliders(sliders.filter(s => s.id !== id))
+          await loadSliders() // Listeyi yenile
         }
       } catch (error) {
         console.error('Slider silme hatası:', error)
+        alert('Slider silinirken hata oluştu')
       }
     }
   }
@@ -92,13 +93,13 @@ export default function Sliders() {
         // Güncelle
         const response = await api.put(`/admin/sliders/${editingSlider.id}`, formData) as any
         if (response.success) {
-          setSliders(sliders.map(s => s.id === editingSlider.id ? response.data : s))
+          await loadSliders() // Listeyi yenile
         }
       } else {
         // Yeni oluştur
         const response = await api.post('/admin/sliders', formData) as any
         if (response.success) {
-          setSliders([...sliders, response.data])
+          await loadSliders() // Listeyi yenile
         }
       }
       setIsModalOpen(false)
@@ -121,6 +122,7 @@ export default function Sliders() {
       })
     } catch (error) {
       console.error('Slider kaydetme hatası:', error)
+      alert('Slider kaydedilirken hata oluştu')
     }
   }
 
@@ -151,11 +153,12 @@ export default function Sliders() {
       if (slider) {
         const response = await api.patch(`/admin/sliders/${id}/toggle`, { isActive: !slider.isActive }) as any
         if (response.success) {
-          setSliders(sliders.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s))
+          await loadSliders() // Listeyi yenile
         }
       }
     } catch (error) {
       console.error('Slider durumu değiştirme hatası:', error)
+      alert('Slider durumu değiştirilirken hata oluştu')
     }
   }
 

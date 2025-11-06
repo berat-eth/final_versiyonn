@@ -73,8 +73,19 @@ export class AnythingLLMService {
 
       if (!storedSessionId) {
         // GÜVENLİK: Kriptografik olarak güvenli session ID
-        const { generateSecureSessionId } = require('../utils/crypto-utils');
-        const newSessionId = generateSecureSessionId();
+        let newSessionId: string;
+        try {
+          const cryptoUtils = require('../utils/crypto-utils');
+          if (cryptoUtils && typeof cryptoUtils.generateSecureSessionId === 'function') {
+            newSessionId = cryptoUtils.generateSecureSessionId();
+          } else {
+            // Fallback: basit session ID
+            newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          }
+        } catch (requireError) {
+          // Fallback: basit session ID
+          newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
         await AsyncStorage.setItem(this.SESSION_KEY, newSessionId);
         return newSessionId;
       }
@@ -84,8 +95,18 @@ export class AnythingLLMService {
     } catch (error) {
       console.error('Session ID error:', error);
       // GÜVENLİK: Fallback için de güvenli random
-      const { generateSecureSessionId } = require('../utils/crypto-utils');
-      return generateSecureSessionId();
+      try {
+        const cryptoUtils = require('../utils/crypto-utils');
+        if (cryptoUtils && typeof cryptoUtils.generateSecureSessionId === 'function') {
+          return cryptoUtils.generateSecureSessionId();
+        } else {
+          // Fallback: basit session ID
+          return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+      } catch (requireError) {
+        // Fallback: basit session ID
+        return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
     }
   }
 

@@ -7,35 +7,42 @@ import { detailedActivityLogger } from '../services/DetailedActivityLogger';
 
 export class ProductController {
   // Enhanced product fetching with pagination and better offline support
-  static async getAllProducts(page: number = 1, limit: number = 20): Promise<{ products: Product[], total: number, hasMore: boolean }> {
+  static async getAllProducts(page: number = 1, limit: number = 50): Promise<{ products: Product[], total: number, hasMore: boolean }> {
     try {
-      // Try cache first for first page
-      if (page === 1) {
-        const cached = await CacheService.get<Product[]>('cache:products:all');
-        if (cached && cached.length) {
-          // Return first page from cache
-          const paginatedProducts = cached.slice(0, limit);
-          return {
-            products: paginatedProducts,
-            total: cached.length,
-            hasMore: cached.length > limit
-          };
-        }
+      // Cache key - her sayfa için ayrı cache
+      const cacheKey = `cache:products:page:${page}:limit:${limit}`;
+      const totalCacheKey = 'cache:products:total';
+      
+      // Tüm sayfalar için cache kontrolü
+      const [cachedProducts, cachedTotal] = await Promise.all([
+        CacheService.get<Product[]>(cacheKey),
+        CacheService.get<number>(totalCacheKey)
+      ]);
+      
+      if (cachedProducts && cachedProducts.length > 0) {
+        // Cache'den döndür
+        return {
+          products: cachedProducts,
+          total: cachedTotal || cachedProducts.length,
+          hasMore: cachedTotal ? (page * limit < cachedTotal) : false
+        };
       }
 
       // Try API with pagination
       const response = await apiService.getProducts(page, limit);
       if (response.success && response.data && Array.isArray(response.data.products)) {
         const products = response.data.products.map((apiProduct: any) => this.mapApiProductToAppProduct(apiProduct));
+        const total = response.data.total || 0;
         
-        // Cache first page
-        if (page === 1) {
-          CacheService.set('cache:products:all', products, CacheTTL.MEDIUM).catch(() => {});
-        }
+        // Tüm sayfalar için cache'le (daha uzun TTL)
+        Promise.all([
+          CacheService.set(cacheKey, products, CacheTTL.LONG).catch(() => {}),
+          total > 0 ? CacheService.set(totalCacheKey, total, CacheTTL.XLONG).catch(() => {}) : Promise.resolve()
+        ]).catch(() => {});
         
         return {
           products,
-          total: response.data.total || products.length,
+          total,
           hasMore: response.data.hasMore || false
         };
       }
@@ -46,9 +53,15 @@ export class ProductController {
         const products = xmlProducts.map(xmlProduct => 
           XmlProductService.convertXmlProductToAppProduct(xmlProduct)
         );
-        CacheService.set('cache:products:all', products, CacheTTL.SHORT).catch(() => {});
         
+        // XML'den gelen tüm ürünleri cache'le
         const paginatedProducts = products.slice(0, limit);
+        Promise.all([
+          CacheService.set(cacheKey, paginatedProducts, CacheTTL.SHORT).catch(() => {}),
+          CacheService.set('cache:products:all', products, CacheTTL.SHORT).catch(() => {}),
+          CacheService.set(totalCacheKey, products.length, CacheTTL.SHORT).catch(() => {})
+        ]).catch(() => {});
+        
         return {
           products: paginatedProducts,
           total: products.length,
@@ -60,6 +73,30 @@ export class ProductController {
     } catch (error) {
       console.error('❌ ProductController - getAllProducts error:', error);
       return { products: [], total: 0, hasMore: false };
+    }
+  }
+
+  // Batch cache'leme - birden fazla sayfayı aynı anda cache'le
+  static async cacheBatchPages(startPage: number, endPage: number, limit: number = 20): Promise<void> {
+    try {
+      const pagesToCache = [];
+      for (let page = startPage; page <= endPage; page++) {
+        pagesToCache.push(
+          this.getAllProducts(page, limit).then(result => {
+            // Cache zaten getAllProducts içinde yapılıyor, burada sadece prefetch yapıyoruz
+            return result;
+          }).catch(error => {
+            console.error(`Error caching page ${page}:`, error);
+            return null;
+          })
+        );
+      }
+      
+      // Tüm sayfaları paralel yükle ve cache'le
+      await Promise.allSettled(pagesToCache);
+      console.log(`✅ Batch cached pages ${startPage}-${endPage}`);
+    } catch (error) {
+      console.error('❌ Batch cache error:', error);
     }
   }
 

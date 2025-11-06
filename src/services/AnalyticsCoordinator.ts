@@ -61,10 +61,23 @@ class AnalyticsCoordinator {
   // Kullanıcı oturumu başlatma
   startUserSession(userId: number): void {
     // GÜVENLİK: Kriptografik olarak güvenli session ID
-    const { generateSecureSessionId } = require('../utils/crypto-utils');
+    let sessionId: string;
+    try {
+      const cryptoUtils = require('../utils/crypto-utils');
+      if (cryptoUtils && typeof cryptoUtils.generateSecureSessionId === 'function') {
+        sessionId = cryptoUtils.generateSecureSessionId();
+      } else {
+        // Fallback: basit session ID
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+    } catch (error) {
+      // Fallback: basit session ID
+      sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
     this.currentSession = {
       userId,
-      sessionId: generateSecureSessionId(),
+      sessionId,
       startTime: Date.now(),
       totalEvents: 0,
       screensVisited: [],

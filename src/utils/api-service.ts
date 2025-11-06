@@ -360,6 +360,7 @@ class ApiService {
         'Content-Type': 'application/json',
         'User-Agent': 'Huglu-Mobile-App/1.0',
         'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate, br', // Compression desteği
         // Tenant header dinamik
         'X-Tenant-Id': '1'
       };
@@ -729,7 +730,7 @@ class ApiService {
   }
 
   // New paginated products endpoint
-  async getProducts(page: number = 1, limit: number = 20): Promise<ApiResponse<{ products: any[], total: number, hasMore: boolean }>> {
+  async getProducts(page: number = 1, limit: number = 50): Promise<ApiResponse<{ products: any[], total: number, hasMore: boolean }>> {
     const cacheKey = this.getCacheKey(`/products?page=${page}&limit=${limit}`);
     const cached = await this.getFromCache<ApiResponse<{ products: any[], total: number, hasMore: boolean }>>(cacheKey);
     if (cached && cached.success && Array.isArray(cached.data?.products)) {

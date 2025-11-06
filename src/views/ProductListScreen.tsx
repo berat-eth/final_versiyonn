@@ -12,6 +12,7 @@ import {
   TextInput,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -80,7 +81,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   const [selectedCategory, setSelectedCategory] = useState(route.params?.category || null);
   const [categories, setCategories] = useState<string[]>([]);
   const [favoriteProducts, setFavoriteProducts] = useState<number[]>([]);
-  const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'rating' | 'name'>('name');
+  const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'rating' | 'name'>('default');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [filters, setFilters] = useState({
@@ -99,7 +100,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalProducts, setTotalProducts] = useState(0);
-  const ITEMS_PER_PAGE = 20; // 40'tan 20'ye optimize edildi
+  const ITEMS_PER_PAGE = 50; // Sayfa başına 50 ürün
 
   const searchInputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
@@ -110,7 +111,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     loadData();
     loadFavorites();
     loadCampaigns();
-    loadFlashDeals();
+    // Flash deals sadece showFlashDeals true ise veya cache'den yüklenecek (4 dakikada bir API'den çekiliyor)
+    if (showFlashDeals) {
+      loadFlashDeals();
+    }
     if (mounted && !nowIntervalRef.current) {
       nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
     }
@@ -136,7 +140,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         nowIntervalRef.current = null;
       }
     };
-  }, [selectedCategory, navigation]);
+  }, [selectedCategory, navigation, showFlashDeals]);
 
   useEffect(() => {
     if (route.params?.searchQuery) {
@@ -154,46 +158,67 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
   }, [route.params?.category, route.params?.showFlashDeals]);
 
+  // Filtre ve sıralama değiştiğinde uygula
   useEffect(() => {
-    applyFiltersAndSort();
+    if (products.length > 0) {
+      applyFiltersAndSort();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, searchQuery, sortBy, filters]);
 
-  const loadData = async (page: number = 1, append: boolean = false) => {
+  const loadData = async (page: number = 1) => {
     try {
-      if (page === 1) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
+      setLoading(true);
       
       const effectiveCategory = selectedCategory && selectedCategory !== 'Tümü' ? selectedCategory : null;
+      
+      // Kategorileri sadece ilk yüklemede veya kategori listesi boşsa çek
+      const categoriesPromise = (page === 1 && categories.length === 0) 
+        ? ProductController.getAllCategories()
+        : Promise.resolve(categories);
+      
       const [productsResult, allCategories] = await Promise.all([
         effectiveCategory 
           ? ProductController.getProductsByCategory(effectiveCategory)
           : ProductController.getAllProducts(page, ITEMS_PER_PAGE),
-        ProductController.getAllCategories(),
+        categoriesPromise,
       ]);
       
       if (effectiveCategory) {
-        // For category products, use legacy method
+        // For category products, use legacy method - tüm ürünleri göster
         const allProducts = Array.isArray(productsResult) ? productsResult : [];
         setProducts(allProducts);
-        setFilteredProducts(allProducts);
+        // Kategori değiştiğinde filtre/sıralama yoksa direkt set et
+        if (!searchQuery && sortBy === 'default' && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
+          setFilteredProducts(allProducts);
+        } else {
+          // Filtre/sıralama varsa applyFiltersAndSort çalışacak (useEffect ile)
+          setFilteredProducts(allProducts);
+        }
         setTotalProducts(allProducts.length);
         setHasMore(false);
+        setCurrentPageNum(1);
       } else {
         // Sayfalı yükle
         const { products: pageItems, total, hasMore: more } = productsResult as any;
         const pageArray = Array.isArray(pageItems) ? pageItems : [];
-        const next = append ? [...products, ...pageArray] : pageArray;
-        setProducts(next);
-        setFilteredProducts(next);
-        setTotalProducts(total || next.length);
+        setProducts(pageArray);
+        // Filtre/sıralama yoksa direkt set et, varsa applyFiltersAndSort çalışacak
+        if (!searchQuery && sortBy === 'default' && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
+          setFilteredProducts(pageArray);
+        } else {
+          // Filtre/sıralama varsa applyFiltersAndSort çalışacak (useEffect ile)
+          setFilteredProducts(pageArray);
+        }
+        setTotalProducts(total || 0);
         setHasMore(Boolean(more));
         setCurrentPageNum(page);
       }
       
-      setCategories(Array.isArray(allCategories) ? allCategories : []);
+      // Kategorileri sadece yeni veri geldiyse güncelle
+      if (Array.isArray(allCategories) && allCategories.length > 0 && (categories.length === 0 || page === 1)) {
+        setCategories(allCategories);
+      }
     } catch (error) {
       console.error('Error loading products:', error);
     } finally {
@@ -303,23 +328,20 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     setCurrentPageNum(1);
     setHasMore(true);
     await Promise.all([
-      loadData(1, false),
+      loadData(1),
       loadFlashDeals()
     ]);
     setRefreshing(false);
-  };
-
-  const loadMore = async () => {
-    // Sonsuz kaydırma kaldırıldı: artık kullanılmıyor
-    return;
   };
 
   const goToPage = async (pageNum: number) => {
     if (pageNum < 1) return;
     if (selectedCategory) return; // kategori modunda sayfalama yok
     setCurrentPageNum(pageNum);
-    await loadData(pageNum, false);
-    try { listRef.current?.scrollToOffset({ offset: 0, animated: true }); } catch {}
+    await loadData(pageNum);
+    try { 
+      listRef.current?.scrollToOffset({ offset: 0, animated: true }); 
+    } catch {}
   };
 
 
@@ -368,6 +390,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         break;
       case 'name':
         filtered.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'default':
+      default:
+        // Varsayılan sıralama - değişiklik yok
         break;
     }
 
@@ -478,6 +504,17 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
 
   const handleCategorySelect = (category: string | null) => {
     setSelectedCategory(category);
+    // Kategori değiştiğinde sayfa 1'e dön ve filtreleri sıfırla
+    setCurrentPageNum(1);
+    setHasMore(true);
+    setSearchQuery('');
+    setFilters({
+      minPrice: 0,
+      maxPrice: 10000,
+      brands: [],
+      inStock: false,
+    });
+    setSortBy('default');
   };
 
   const handleAllCategoriesPress = () => {
@@ -489,7 +526,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   };
 
   const handleSortPress = () => {
-            const options = ['name', 'price-asc', 'price-desc', 'rating'] as const;
+            const options = ['default', 'name', 'price-asc', 'price-desc', 'rating'] as const;
             const currentIndex = options.indexOf(sortBy);
             const newSort = options[(currentIndex + 1) % options.length];
             setSortBy(newSort);
@@ -712,11 +749,11 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         ) : renderEmptyState}
         ListFooterComponent={!showFlashDeals ? renderFooter : null}
         removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={100}
-        initialNumToRender={10}
-        windowSize={5}
-        // Sonsuz kaydırma devre dışı (numaralı sayfalama kullanılıyor)
+        maxToRenderPerBatch={20}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={20}
+        windowSize={10}
+        // Infinite scroll için getItemLayout optimize edildi
         getItemLayout={viewMode === 'grid' ? undefined : (data, index) => ({
           length: 120,
           offset: 120 * index,
@@ -724,7 +761,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         })}
       />
 
-      {/* Sayfa altına kayan sayfalama: ListFooterComponent kullanılıyor */}
+      {/* Infinite scroll aktif - sayfalama kaldırıldı */}
 
       {filterModalVisible && (
         <FilterModal

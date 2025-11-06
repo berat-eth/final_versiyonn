@@ -668,9 +668,9 @@ const TabNavigator = () => {
     <Tab.Navigator
       tabBar={(props) => <ModernTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: '#0ea5e9',
+        tabBarActiveTintColor: '#000000',
         tabBarInactiveTintColor: '#000000',
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '700', marginTop: 2 },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '700', marginTop: 2, color: '#000000' },
         headerShown: false,
       }}
     >

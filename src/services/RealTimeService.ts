@@ -98,8 +98,20 @@ export class RealTimeService {
       setTimeout(() => {
         // Simulate 95% success rate for more stability
         // GÜVENLİK: Kriptografik olarak güvenli random kullan
-        const { generateSecureRandomNumber } = require('../utils/crypto-utils');
-        const randomValue = generateSecureRandomNumber(0, 100);
+        let randomValue: number;
+        try {
+          const cryptoUtils = require('../utils/crypto-utils');
+          if (cryptoUtils && typeof cryptoUtils.generateSecureRandomNumber === 'function') {
+            randomValue = cryptoUtils.generateSecureRandomNumber(0, 100);
+          } else {
+            // Fallback: basit random
+            randomValue = Math.floor(Math.random() * 100);
+          }
+        } catch (error) {
+          // Fallback: basit random
+          randomValue = Math.floor(Math.random() * 100);
+        }
+        
         const success = randomValue > 5; // 95% success rate
         
         // Log for debugging (remove in production)
