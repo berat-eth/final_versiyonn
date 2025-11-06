@@ -12,6 +12,7 @@ export default function QuotesPage() {
   const [loading, setLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   useEffect(() => {
     if (user?.id) {
@@ -229,9 +230,25 @@ export default function QuotesPage() {
 
               <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => {
-                    setSelectedRequest(request)
+                  onClick={async () => {
+                    setLoadingDetail(true)
                     setShowDetailModal(true)
+                    try {
+                      // Detayları backend'den çek
+                      const response = await customProductionApi.getRequestById(request.id, user!.id)
+                      if (response.success && response.data) {
+                        setSelectedRequest(response.data)
+                      } else {
+                        // Fallback: Liste'den gelen veriyi kullan
+                        setSelectedRequest(request)
+                      }
+                    } catch (error) {
+                      console.error('Detay yüklenemedi:', error)
+                      // Fallback: Liste'den gelen veriyi kullan
+                      setSelectedRequest(request)
+                    } finally {
+                      setLoadingDetail(false)
+                    }
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                 >
@@ -280,24 +297,37 @@ export default function QuotesPage() {
       )}
 
       {/* Detail Modal */}
-      {showDetailModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowDetailModal(false)}>
+      {showDetailModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => {
+          setShowDetailModal(false)
+          setSelectedRequest(null)
+        }}>
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Talep Detayları</h3>
-                <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                  {selectedRequest.requestNumber || `Talep #${selectedRequest.id}`}
-                </p>
+                {selectedRequest && (
+                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                    {selectedRequest.requestNumber || `Talep #${selectedRequest.id}`}
+                  </p>
+                )}
               </div>
               <button
-                onClick={() => setShowDetailModal(false)}
+                onClick={() => {
+                  setShowDetailModal(false)
+                  setSelectedRequest(null)
+                }}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <span className="material-symbols-outlined text-gray-500 dark:text-gray-400">close</span>
               </button>
             </div>
 
+            {loadingDetail ? (
+              <div className="p-12 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            ) : selectedRequest ? (
             <div className="p-6 space-y-6">
               {/* Status */}
               <div className="flex items-center gap-4">
@@ -479,44 +509,82 @@ export default function QuotesPage() {
               )}
 
               {/* Items */}
-              {selectedRequest.items && selectedRequest.items.length > 0 && (
+              {selectedRequest.items && selectedRequest.items.length > 0 ? (
                 <div>
                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ürünler</h4>
                   <div className="space-y-4">
-                    {selectedRequest.items.map((item: any, idx: number) => (
-                      <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                        <p className="font-semibold text-gray-900 dark:text-white mb-2">
-                          {item.productName || `Ürün #${item.productId}`}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Adet: {item.quantity}</p>
-                        {item.customizations && (() => {
-                          try {
-                            const customizations = typeof item.customizations === 'string' 
-                              ? JSON.parse(item.customizations) 
-                              : item.customizations;
-                            if (customizations?.sizes && Array.isArray(customizations.sizes) && customizations.sizes.length > 0) {
-                              return (
-                                <div className="mt-2">
-                                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Beden Dağılımı:</p>
-                                  <div className="flex flex-wrap gap-2 mt-1">
-                                    {customizations.sizes.map((sizeItem: any, sizeIdx: number) => (
-                                      <span 
-                                        key={sizeIdx}
-                                        className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs"
-                                      >
-                                        {sizeItem.size}: {sizeItem.quantity}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )
-                            }
-                          } catch {}
-                          return null
-                        })()}
-                      </div>
-                    ))}
+                    {selectedRequest.items.map((item: any, idx: number) => {
+                      // productId null ise veya productName yoksa, customizations'dan bilgi çıkar
+                      let productName = item.productName;
+                      let productId = item.productId;
+                      let quantity = item.quantity || 0;
+                      
+                      // Eğer productId null ise ve customizations varsa, oradan bilgi al
+                      if (!productId && item.customizations) {
+                        try {
+                          const customizations = typeof item.customizations === 'string' 
+                            ? JSON.parse(item.customizations) 
+                            : item.customizations;
+                          if (customizations?.productName) {
+                            productName = customizations.productName;
+                          }
+                          if (customizations?.productId) {
+                            productId = customizations.productId;
+                          }
+                        } catch (e) {
+                          console.error('Customizations parse error:', e);
+                        }
+                      }
+                      
+                      // Toplam adet hesapla (eğer beden dağılımı varsa)
+                      let totalQuantity = quantity;
+                      let sizeDistribution: any[] = [];
+                      
+                      if (item.customizations) {
+                        try {
+                          const customizations = typeof item.customizations === 'string' 
+                            ? JSON.parse(item.customizations) 
+                            : item.customizations;
+                          if (customizations?.sizes && Array.isArray(customizations.sizes) && customizations.sizes.length > 0) {
+                            sizeDistribution = customizations.sizes;
+                            totalQuantity = customizations.sizes.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0);
+                          }
+                        } catch (e) {
+                          console.error('Customizations parse error:', e);
+                        }
+                      }
+                      
+                      return (
+                        <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                          <p className="font-semibold text-gray-900 dark:text-white mb-2">
+                            {productName || (productId ? `Ürün #${productId}` : 'Ürün Bilgisi Yok')}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                            Adet: {totalQuantity > 0 ? totalQuantity : quantity}
+                          </p>
+                          {sizeDistribution.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Beden Dağılımı:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {sizeDistribution.map((sizeItem: any, sizeIdx: number) => (
+                                  <span 
+                                    key={sizeIdx}
+                                    className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs"
+                                  >
+                                    {sizeItem.size}: {sizeItem.quantity}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Bu talep için ürün bilgisi bulunamadı.</p>
                 </div>
               )}
 
@@ -528,6 +596,11 @@ export default function QuotesPage() {
                 </div>
               )}
             </div>
+            ) : (
+              <div className="p-12 text-center">
+                <p className="text-gray-600 dark:text-gray-400">Talep detayları yüklenemedi.</p>
+              </div>
+            )}
           </div>
       </div>
       )}

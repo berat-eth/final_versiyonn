@@ -143,14 +143,34 @@ class AdvancedSecurity {
    * IP Reputation Kontrolü
    */
   checkIPReputation(ip) {
+    // Localhost ve private IP'leri bypass et
+    const isPrivateIP = /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|localhost)/.test(ip || '');
+    if (isPrivateIP) {
+      return { allowed: true };
+    }
+    
+    // Development ortamında IP kontrolünü devre dışı bırak
+    if (process.env.NODE_ENV !== 'production') {
+      return { allowed: true };
+    }
+    
     const reputation = this.suspiciousIPs.get(ip) || { score: 0, lastSeen: Date.now() };
     
-    // IP skorunu hesapla
-    if (reputation.score > 100) {
+    // IP skorunu zamanla azalt (24 saat sonra yarıya iner)
+    const now = Date.now();
+    const hoursSinceLastSeen = (now - reputation.lastSeen) / (1000 * 60 * 60);
+    if (hoursSinceLastSeen > 24) {
+      reputation.score = Math.max(0, reputation.score * 0.5);
+      reputation.lastSeen = now;
+      this.suspiciousIPs.set(ip, reputation);
+    }
+    
+    // IP skorunu hesapla (eşik değerlerini artırdık)
+    if (reputation.score > 200) {
       return { blocked: true, reason: 'High risk IP' };
     }
     
-    if (reputation.score > 50) {
+    if (reputation.score > 100) {
       return { warning: true, reason: 'Suspicious IP' };
     }
     
@@ -345,10 +365,30 @@ class AdvancedSecurity {
    * IP Skorunu Artır
    */
   increaseIPScore(ip, points = 10) {
+    // Localhost ve private IP'ler için skor artırma
+    const isPrivateIP = /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|localhost)/.test(ip || '');
+    if (isPrivateIP || process.env.NODE_ENV !== 'production') {
+      return; // Private IP'ler ve development ortamında skor artırma
+    }
+    
     const current = this.suspiciousIPs.get(ip) || { score: 0, lastSeen: Date.now() };
     current.score += points;
     current.lastSeen = Date.now();
     this.suspiciousIPs.set(ip, current);
+  }
+  
+  /**
+   * IP Skorunu Sıfırla (Admin için)
+   */
+  resetIPScore(ip) {
+    this.suspiciousIPs.delete(ip);
+  }
+  
+  /**
+   * Tüm IP Skorlarını Temizle (Development için)
+   */
+  clearAllIPScores() {
+    this.suspiciousIPs.clear();
   }
 
   /**
@@ -423,8 +463,27 @@ class AdvancedSecurity {
    */
   createSecurityMiddleware() {
     return (req, res, next) => {
+      // IP adresini al (x-forwarded-for header'ını kontrol et)
+      const getClientIP = (req) => {
+        const xForwardedFor = req.headers['x-forwarded-for'];
+        if (xForwardedFor) {
+          return xForwardedFor.split(',')[0].trim();
+        }
+        return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+      };
+      
+      const clientIP = getClientIP(req);
+      
+      // Localhost ve private IP'leri bypass et
+      const isPrivateIP = /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|localhost)/.test(clientIP || '');
+      
+      // Development ortamında veya private IP ise güvenlik kontrollerini atla
+      if (process.env.NODE_ENV !== 'production' || isPrivateIP) {
+        return next();
+      }
+      
       // IP reputation kontrolü
-      const ipReputation = this.checkIPReputation(req.ip);
+      const ipReputation = this.checkIPReputation(clientIP);
       if (ipReputation.blocked) {
         return res.status(403).json({
           success: false,
@@ -432,10 +491,10 @@ class AdvancedSecurity {
         });
       }
 
-      // Saldırı paterni tespiti
+      // Saldırı paterni tespiti (sadece production'da)
       const attackDetection = this.detectAttackPattern(req);
       if (attackDetection.detected) {
-        this.increaseIPScore(req.ip, 20);
+        this.increaseIPScore(clientIP, 20);
         return res.status(400).json({
           success: false,
           message: 'Suspicious request detected'
@@ -444,7 +503,7 @@ class AdvancedSecurity {
 
       // Warning varsa logla
       if (ipReputation.warning) {
-        this.logSecurityEvent('SUSPICIOUS_ACTIVITY', req.ip, {
+        this.logSecurityEvent('SUSPICIOUS_ACTIVITY', clientIP, {
           path: req.path,
           reason: ipReputation.reason
         });

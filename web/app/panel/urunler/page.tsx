@@ -32,7 +32,7 @@ export default function ProductsPage() {
     if (user?.id) {
       loadProducts()
     }
-  }, [user, page])
+  }, [user, page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProducts = async () => {
     try {
@@ -43,12 +43,19 @@ export default function ProductsPage() {
       })
       console.log('Ürünler yükleme response:', response)
       if (response.success && response.data) {
-        setProducts(response.data)
+        if (Array.isArray(response.data)) {
+          setProducts(response.data)
+        } else {
+          console.warn('Ürünler yükleme: Geçersiz veri formatı', response.data)
+          setProducts([])
+        }
       } else {
         console.warn('Ürünler yüklenemedi:', response.message || 'Bilinmeyen hata')
+        setProducts([])
       }
     } catch (error) {
       console.error('Ürünler yüklenemedi:', error)
+      setProducts([])
     } finally {
       setLoading(false)
     }

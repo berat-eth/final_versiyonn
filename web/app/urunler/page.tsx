@@ -35,26 +35,76 @@ export default function Urunler() {
 
   useEffect(() => {
     loadProducts()
-  }, [page])
+  }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProducts = async () => {
     try {
       setLoading(true)
+      console.log('🔄 Ürünler yükleniyor...', { page, limit, tekstilOnly: true })
+      
       // Backend'den sadece tekstil ürünleri çek (Camp Ürünleri ve Silah Aksesuarları hariç)
       // Sayfalama ile birlikte
       const response = await productsApi.getProducts(page, limit, undefined, true)
-      console.log('Ürünler yükleme response:', response)
+      
+      console.log('📦 Ürünler API Response:', {
+        success: response.success,
+        hasData: !!response.data,
+        dataType: typeof response.data,
+        dataKeys: response.data ? Object.keys(response.data) : [],
+        message: response.message,
+        fullResponse: response
+      })
+      
       if (response.success && response.data) {
         const data = response.data as { products: Product[]; total: number; hasMore: boolean }
-        setProducts(data.products)
-        setTotal(data.total)
-        setHasMore(data.hasMore)
-        setTotalPages(Math.ceil(data.total / limit))
+        
+        console.log('📊 Response Data Detayları:', {
+          hasProducts: !!data.products,
+          productsIsArray: Array.isArray(data.products),
+          productsLength: Array.isArray(data.products) ? data.products.length : 'N/A',
+          total: data.total,
+          hasMore: data.hasMore,
+          fullData: data
+        })
+        
+        if (data && Array.isArray(data.products)) {
+          console.log('✅ Ürünler başarıyla yüklendi:', data.products.length, 'ürün')
+          setProducts(data.products)
+          setTotal(data.total || 0)
+          setHasMore(data.hasMore || false)
+          setTotalPages(Math.ceil((data.total || 0) / limit))
+        } else {
+          console.warn('⚠️ Ürünler yükleme: Geçersiz veri formatı', {
+            data,
+            productsType: typeof data?.products,
+            productsIsArray: Array.isArray(data?.products)
+          })
+          setProducts([])
+          setTotal(0)
+          setHasMore(false)
+          setTotalPages(1)
+        }
       } else {
-        console.warn('Ürünler yüklenemedi:', response.message || 'Bilinmeyen hata')
+        console.warn('⚠️ Ürünler yüklenemedi:', {
+          success: response.success,
+          message: response.message || 'Bilinmeyen hata',
+          response
+        })
+        setProducts([])
+        setTotal(0)
+        setHasMore(false)
+        setTotalPages(1)
       }
-    } catch (error) {
-      console.error('Ürünler yüklenemedi:', error)
+    } catch (error: any) {
+      console.error('❌ Ürünler yükleme hatası:', {
+        error,
+        message: error?.message,
+        stack: error?.stack
+      })
+      setProducts([])
+      setTotal(0)
+      setHasMore(false)
+      setTotalPages(1)
     } finally {
       setLoading(false)
     }
