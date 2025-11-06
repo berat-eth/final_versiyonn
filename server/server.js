@@ -7585,11 +7585,20 @@ app.post('/api/users', async (req, res) => {
       [userId, tenantId, name, plainEmail, hashedPassword, plainPhone, (gender || null), validBirthDate, plainAddress]
     );
 
-    // Return user data for web panel
-    const [newUser] = await poolWrapper.execute(
+    // Return user data for web panel - Try with company fields first, fallback if columns don't exist
+    let [newUser] = await poolWrapper.execute(
       'SELECT id, name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt FROM users WHERE id = ? AND tenantId = ?',
       [result.insertId, tenantId]
-    );
+    ).catch(async (error) => {
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        console.log('⚠️ Company columns missing, using fallback query');
+        return await poolWrapper.execute(
+          'SELECT id, name, email, phone, address, createdAt FROM users WHERE id = ? AND tenantId = ?',
+          [result.insertId, tenantId]
+        );
+      }
+      throw error;
+    });
 
     res.json({
       success: true,
@@ -7700,11 +7709,21 @@ app.post('/api/users/login', async (req, res) => {
     // Use default tenant ID if not provided
     const tenantId = req.tenant?.id || 1;
 
-    // Get user with hashed password - Optimize: sadece gerekli column'lar
-    const [rows] = await poolWrapper.execute(
+    // Get user with hashed password - Try with company fields first, fallback if columns don't exist
+    let [rows] = await poolWrapper.execute(
       'SELECT id, name, email, phone, address, password, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt, tenantId FROM users WHERE email = ? AND tenantId = ?',
       [email, tenantId]
-    );
+    ).catch(async (error) => {
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        console.log('⚠️ Company columns missing, using fallback query');
+        // Fallback: sadece mevcut kolonları seç
+        return await poolWrapper.execute(
+          'SELECT id, name, email, phone, address, password, createdAt, tenantId FROM users WHERE email = ? AND tenantId = ?',
+          [email, tenantId]
+        );
+      }
+      throw error;
+    });
 
     if (rows.length > 0) {
       const user = rows[0];
@@ -7714,6 +7733,7 @@ app.post('/api/users/login', async (req, res) => {
 
       if (isPasswordValid) {
         // Return user data (no decryption needed)
+        // Company fields may not exist, so use optional chaining
         const userData = {
           id: user.id,
           name: user.name,
@@ -7878,10 +7898,20 @@ app.put('/api/users/:id', async (req, res) => {
     }
 
     // Return updated user data
-    const [updatedUser] = await poolWrapper.execute(
-      'SELECT id, name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt FROM users WHERE id = ? AND tenantId = ?',
-      [id, req.tenant.id]
-    );
+      // Try with company fields first, fallback if columns don't exist
+      let [updatedUser] = await poolWrapper.execute(
+        'SELECT id, name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt FROM users WHERE id = ? AND tenantId = ?',
+        [id, req.tenant.id]
+      ).catch(async (error) => {
+        if (error.code === 'ER_BAD_FIELD_ERROR') {
+          console.log('⚠️ Company columns missing, using fallback query');
+          return await poolWrapper.execute(
+            'SELECT id, name, email, phone, address, createdAt FROM users WHERE id = ? AND tenantId = ?',
+            [id, req.tenant.id]
+          );
+        }
+        throw error;
+      });
 
     res.json({
       success: true,
