@@ -260,14 +260,22 @@ app.use(helmet({
 app.use(hpp());
 // Enable gzip compression for API responses - optimized for product lists
 app.use(compression({
-  threshold: 512, // Daha düşük threshold - daha küçük response'lar da sıkıştırılır
+  threshold: 1024, // Threshold artırıldı - küçük response'lar sıkıştırılmayacak (tek ürün detayı gibi)
   level: 6, // Compression level (1-9, 6 = good balance between speed and size)
   filter: (req, res) => {
     if (req.headers['x-no-compress']) return false;
-    // Products endpoint için özel compression - her zaman sıkıştır
-    if (req.path.includes('/api/products')) {
-      return true; // Her zaman sıkıştır
+    
+    // Tek ürün detay endpoint'i için compression'ı devre dışı bırak
+    // Çünkü küçük response'lar için compression gereksiz ve sorun yaratabilir
+    if (req.path && /^\/api\/products\/\d+$/.test(req.path)) {
+      return false; // Tek ürün detayı için compression yok
     }
+    
+    // Products list endpoint için compression aktif
+    if (req.path && req.path.includes('/api/products') && !req.path.match(/\/api\/products\/\d+/)) {
+      return true; // Ürün listesi için sıkıştır
+    }
+    
     return compression.filter(req, res);
   }
 }));
@@ -9411,11 +9419,40 @@ app.get('/api/products/:id', async (req, res) => {
       // Clean HTML entities from single product
       const cleanedProduct = cleanProductData(product);
       
+      // Tek ürün detayı için compression header'ını temizle (küçük response için gereksiz)
+      // Compression middleware zaten filter'da devre dışı bırakıldı, ama emin olmak için
+      res.setHeader('Content-Encoding', 'identity');
+      
       console.log(`✅ [GET /api/products/${id}] Product returned successfully: ${cleanedProduct.name}`);
       res.json({ success: true, data: cleanedProduct });
     } else {
-      console.log(`❌ [GET /api/products/${id}] Product not found in database (id: ${numericId}, tenantId: ${req.tenant.id})`);
-      res.status(404).json({ success: false, message: 'Product not found' });
+      // Debug: Ürünün var olup olmadığını ve hangi tenantId'ye ait olduğunu kontrol et
+      const [debugRows] = await poolWrapper.execute(
+        'SELECT id, name, tenantId FROM products WHERE id = ?',
+        [numericId]
+      );
+      
+      if (debugRows.length > 0) {
+        const debugProduct = debugRows[0];
+        console.log(`⚠️ [GET /api/products/${id}] Product exists but belongs to different tenant:`, {
+          productId: debugProduct.id,
+          productName: debugProduct.name,
+          productTenantId: debugProduct.tenantId,
+          requestedTenantId: req.tenant.id
+        });
+        res.status(404).json({ 
+          success: false, 
+          message: 'Product not found',
+          debug: process.env.NODE_ENV === 'development' ? {
+            productExists: true,
+            productTenantId: debugProduct.tenantId,
+            requestedTenantId: req.tenant.id
+          } : undefined
+        });
+      } else {
+        console.log(`❌ [GET /api/products/${id}] Product not found in database (id: ${numericId}, tenantId: ${req.tenant.id})`);
+        res.status(404).json({ success: false, message: 'Product not found' });
+      }
     }
   } catch (error) {
     console.error(`❌ [GET /api/products/${req.params.id}] Error getting product:`, error);
