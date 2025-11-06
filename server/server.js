@@ -9334,12 +9334,33 @@ app.get('/api/products/:id', async (req, res) => {
     if (!Number.isInteger(numericId) || numericId <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid product id' });
     }
+    
+    // Tenant kontrolü - req.tenant middleware'den geliyor
+    if (!req.tenant || !req.tenant.id) {
+      return res.status(401).json({ success: false, message: 'Tenant authentication required' });
+    }
+    
     // Optimize: Sadece gerekli column'lar - Public API için
-    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, rating, reviewCount, lastUpdated FROM products WHERE id = ?', [numericId]);
+    // tenantId ve isActive kontrolü eklendi
+    const [rows] = await poolWrapper.execute(
+      'SELECT id, name, price, image, images, brand, category, description, stock, sku, rating, reviewCount, lastUpdated, isActive FROM products WHERE id = ? AND tenantId = ?',
+      [numericId, req.tenant.id]
+    );
 
     if (rows.length > 0) {
+      const product = rows[0];
+      
+      // isActive kontrolü - eğer ürün pasifse 404 döndür
+      if (product.isActive === 0 || product.isActive === false) {
+        return res.status(404).json({ success: false, message: 'Product not found' });
+      }
+      
       // Clean HTML entities from single product
-      const cleanedProduct = cleanProductData(rows[0]);
+      const cleanedProduct = cleanProductData(product);
+      
+      // isActive alanını response'dan çıkar (public API için gerekli değil)
+      delete cleanedProduct.isActive;
+      
       res.json({ success: true, data: cleanedProduct });
     } else {
       res.status(404).json({ success: false, message: 'Product not found' });
