@@ -12,6 +12,7 @@ import {
   FlatList,
   Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { ProductController } from '../controllers/ProductController';
 import { CartController } from '../controllers/CartController';
@@ -54,6 +55,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   route,
 }) => {
   const { t, currentLanguage, isLoading: languageLoading } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -589,6 +591,12 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       return;
     }
 
+    // Stok kontrolü - stok 0 ise uyarı ver ama butonu devre dışı bırakma
+    if (currentStock <= 0) {
+      Alert.alert('Stokta Yok', 'Bu ürün şu anda stokta bulunmamaktadır.');
+      return;
+    }
+
     if (currentStock < quantity) {
       Alert.alert('Hata', 'Seçilen miktar stoktan fazla.');
       return;
@@ -831,7 +839,10 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {showViewer && (
           <View style={styles.viewerToast}>
             <Icon name="visibility" size={16} color="#1A1A1A" />
@@ -1205,16 +1216,20 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       </ScrollView>
 
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { bottom: 70 + Math.max(insets.bottom, 8) }]}>
         <TouchableOpacity
           style={[
             styles.addToCartButton,
-            (addingToCart || (isSizeSelectionRequired() && !isSizeSelected()) || currentStock <= 0) && styles.disabledButton
+            currentStock <= 0 && styles.outOfStockButton,
+            (addingToCart || (isSizeSelectionRequired() && !isSizeSelected())) && styles.disabledButton
           ]}
           onPress={handleAddToCart}
-          disabled={addingToCart || (isSizeSelectionRequired() && !isSizeSelected()) || currentStock <= 0}
+          disabled={addingToCart || (isSizeSelectionRequired() && !isSizeSelected())}
         >
-          <Text style={styles.addToCartText}>
+          <Text style={[
+            styles.addToCartText,
+            currentStock <= 0 && styles.outOfStockText
+          ]}>
             {addingToCart 
               ? 'Ekleniyor...' 
               : currentStock <= 0 
@@ -1583,17 +1598,37 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: 'center',
   },
+  scrollContent: {
+    paddingBottom: 100, // Footer için alan bırak
+  },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 20,
+    paddingBottom: 20,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
     backgroundColor: '#FFFFFF',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   addToCartButton: {
     backgroundColor: '#000000',
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: 'center',
+  },
+  outOfStockButton: {
+    backgroundColor: '#9CA3AF',
   },
   disabledButton: {
     opacity: 0.5,
@@ -1602,6 +1637,9 @@ const styles = StyleSheet.create({
   addToCartText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  outOfStockText: {
     color: '#FFFFFF',
   },
   favoriteButton: {
