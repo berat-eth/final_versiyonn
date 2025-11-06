@@ -239,7 +239,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "https://api.plaxsy.com", "https://admin.plaxsy.com", "https://plaxsy.com", "https://www.plaxsy.com"],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -274,23 +274,43 @@ app.use(compression({
 
 // CORS - Tüm origin'lere izin ver (web sitesi, mobil uygulama ve admin panel için)
 app.use(cors({
-  origin: true, // Tüm origin'lere izin ver (web sitesi, mobil uygulama ve admin panel için)
+  origin: function (origin, callback) {
+    // Origin yoksa (mobil uygulama, Postman vb.) izin ver
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // İzin verilen origin'ler
+    const allowedOrigins = [
+      'https://admin.plaxsy.com',
+      'https://www.plaxsy.com',
+      'https://plaxsy.com',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001'
+    ];
+    
+    // Origin izin verilen listede mi kontrol et
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Geliştirme ortamında tüm origin'lere izin ver
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(null, true); // Geçici olarak tüm origin'lere izin ver
+      }
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id', 'x-tenant-id', 'Accept', 'Origin', 'X-Requested-With'],
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
   preflightContinue: false,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  maxAge: 86400 // 24 saat preflight cache
 }));
-
-// OPTIONS istekleri için hızlı yanıt
-app.use((req, res, next) => {
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-  next();
-});
 
 app.use(express.json());
 
@@ -549,6 +569,12 @@ app.use('/api', (req, res, next) => {
   // Tüm /api (admin dahil) istekleri için: yalnız X-API-Key zorunlu
   const apiKey = req.headers['x-api-key'];
   if (!apiKey) {
+    // CORS header'larını set et
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
     return res.status(401).json({
       success: false,
       message: 'API key required. Please provide X-API-Key header.'
@@ -587,6 +613,12 @@ app.use('/api', (req, res, next) => {
           [apiKey]
         );
         if (!rows || rows.length === 0) {
+          // CORS header'larını set et
+          const origin = req.headers.origin;
+          if (origin) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+          }
           return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
         }
         const t = rows[0];
@@ -604,6 +636,12 @@ app.use('/api', (req, res, next) => {
         [apiKey]
       );
       if (rows.length === 0) {
+        // CORS header'larını set et
+        const origin = req.headers.origin;
+        if (origin) {
+          res.setHeader('Access-Control-Allow-Origin', origin);
+          res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
         return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
       }
       req.tenant = rows[0];
@@ -619,6 +657,12 @@ app.use('/api', (req, res, next) => {
         [apiKey]
       ).then(([rows]) => {
         if (rows.length === 0) {
+          // CORS header'larını set et
+          const origin = req.headers.origin;
+          if (origin) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+          }
           return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
         }
         req.tenant = rows[0];
@@ -628,6 +672,12 @@ app.use('/api', (req, res, next) => {
         next();
       }).catch(err => {
         console.error('❌ Error authenticating API key:', err);
+        // CORS header'larını set et
+        const origin = req.headers.origin;
+        if (origin) {
+          res.setHeader('Access-Control-Allow-Origin', origin);
+          res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
         res.status(500).json({ success: false, message: 'Error authenticating API key' });
       });
     }
