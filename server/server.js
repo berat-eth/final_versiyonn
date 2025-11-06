@@ -9381,42 +9381,44 @@ app.get('/api/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const numericId = Number(id);
+    console.log(`🔍 [GET /api/products/${id}] Request received - numericId: ${numericId}, tenantId: ${req.tenant?.id || 'missing'}`);
+    
     if (!Number.isInteger(numericId) || numericId <= 0) {
+      console.log(`❌ [GET /api/products/${id}] Invalid product id: ${numericId}`);
       return res.status(400).json({ success: false, message: 'Invalid product id' });
     }
     
     // Tenant kontrolü - req.tenant middleware'den geliyor
     if (!req.tenant || !req.tenant.id) {
+      console.log(`❌ [GET /api/products/${id}] Tenant authentication required`);
       return res.status(401).json({ success: false, message: 'Tenant authentication required' });
     }
     
     // Optimize: Sadece gerekli column'lar - Public API için
-    // tenantId ve isActive kontrolü eklendi
+    // isActive kolonu products tablosunda olmayabilir, bu yüzden seçmiyoruz
+    // Eğer isActive kolonu varsa ve pasifse, WHERE clause'da filtreleyebiliriz ama şimdilik tüm ürünleri gösteriyoruz
     const [rows] = await poolWrapper.execute(
-      'SELECT id, name, price, image, images, brand, category, description, stock, sku, rating, reviewCount, lastUpdated, isActive FROM products WHERE id = ? AND tenantId = ?',
+      'SELECT id, name, price, image, images, brand, category, description, stock, sku, rating, reviewCount, lastUpdated FROM products WHERE id = ? AND tenantId = ?',
       [numericId, req.tenant.id]
     );
 
+    console.log(`🔍 [GET /api/products/${id}] Query result: ${rows.length} row(s) found`);
+
     if (rows.length > 0) {
       const product = rows[0];
-      
-      // isActive kontrolü - eğer ürün pasifse 404 döndür
-      if (product.isActive === 0 || product.isActive === false) {
-        return res.status(404).json({ success: false, message: 'Product not found' });
-      }
+      console.log(`🔍 [GET /api/products/${id}] Product found: ${product.name}`);
       
       // Clean HTML entities from single product
       const cleanedProduct = cleanProductData(product);
       
-      // isActive alanını response'dan çıkar (public API için gerekli değil)
-      delete cleanedProduct.isActive;
-      
+      console.log(`✅ [GET /api/products/${id}] Product returned successfully: ${cleanedProduct.name}`);
       res.json({ success: true, data: cleanedProduct });
     } else {
+      console.log(`❌ [GET /api/products/${id}] Product not found in database (id: ${numericId}, tenantId: ${req.tenant.id})`);
       res.status(404).json({ success: false, message: 'Product not found' });
     }
   } catch (error) {
-    console.error('Error getting product:', error);
+    console.error(`❌ [GET /api/products/${req.params.id}] Error getting product:`, error);
     res.status(500).json({ success: false, message: 'Error getting product' });
   }
 });

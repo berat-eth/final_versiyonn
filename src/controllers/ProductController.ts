@@ -108,6 +108,7 @@ export class ProductController {
 
   static async getProductById(id: number): Promise<Product | null> {
     try {
+      console.log(`🔍 [ProductController] getProductById called for ID: ${id}`);
       
       // ✅ OPTIMIZASYON: Ürün ve varyasyonları paralel çek
       const [productResponse, variationsResponse] = await Promise.allSettled([
@@ -115,6 +116,18 @@ export class ProductController {
         // Varyasyonları da paralel çek - API'den gelecek
         apiService.getProductVariations(id)
       ]);
+      
+      // Log API response
+      if (productResponse.status === 'fulfilled') {
+        console.log(`🔍 [ProductController] Product API response for ID ${id}:`, {
+          success: productResponse.value.success,
+          hasData: !!productResponse.value.data,
+          message: productResponse.value.message,
+          error: productResponse.value.error
+        });
+      } else {
+        console.error(`❌ [ProductController] Product API promise rejected for ID ${id}:`, productResponse.reason);
+      }
       
       // Try API first
       if (productResponse.status === 'fulfilled' && productResponse.value.success && productResponse.value.data) {
@@ -199,9 +212,14 @@ export class ProductController {
       // XML fallback artık kullanılmıyor - API başarısız olursa null döndür
       // Eğer XML gerekirse, XmlProductService'e tek ürün çekme metodu eklenebilir
       
+      console.log(`❌ [ProductController] Product not found for ID ${id} - API response was not successful`);
       return null;
     } catch (error) {
-      console.error(`❌ ProductController - getProductById error for ID ${id}:`, error);
+      console.error(`❌ [ProductController] getProductById error for ID ${id}:`, error);
+      console.error(`❌ [ProductController] Error details:`, {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack?.substring(0, 500) : undefined
+      });
       
       return null;
     }
