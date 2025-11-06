@@ -35,13 +35,14 @@ class CohortAnalysisService {
       }
 
       // Cohort'ları oluştur (kayıt tarihine göre)
+      // Not: orders tablosunda 'total' kolonu yok, 'totalAmount' kullanılıyor
       const [cohorts] = await this.pool.execute(
         `SELECT 
           DATE_FORMAT(u.createdAt, ?) as cohort,
           COUNT(DISTINCT u.id) as totalUsers,
           COUNT(DISTINCT CASE WHEN ube.userId IS NOT NULL THEN u.id END) as activeUsers,
           COUNT(DISTINCT o.userId) as purchasers,
-          SUM(o.total) as totalRevenue
+          COALESCE(SUM(o.totalAmount), 0) as totalRevenue
          FROM users u
          LEFT JOIN user_behavior_events ube ON u.id = ube.userId AND ube.timestamp >= DATE_SUB(NOW(), INTERVAL 30 DAY)
          LEFT JOIN orders o ON u.id = o.userId
@@ -109,13 +110,14 @@ class CohortAnalysisService {
    */
   async calculateLTV(cohort, days = 90) {
     try {
+      // Not: orders tablosunda 'total' kolonu yok, 'totalAmount' kullanılıyor
       const [ltvData] = await this.pool.execute(
         `SELECT 
           u.id,
           u.createdAt,
           COUNT(DISTINCT o.id) as totalOrders,
-          SUM(o.total) as totalRevenue,
-          AVG(o.total) as avgOrderValue,
+          COALESCE(SUM(o.totalAmount), 0) as totalRevenue,
+          COALESCE(AVG(o.totalAmount), 0) as avgOrderValue,
           DATEDIFF(NOW(), u.createdAt) as daysSinceRegistration
          FROM users u
          LEFT JOIN orders o ON u.id = o.userId
@@ -152,12 +154,13 @@ class CohortAnalysisService {
    */
   async getCohortConversionRate(cohort) {
     try {
+      // Not: orders tablosunda 'total' kolonu yok, 'totalAmount' kullanılıyor
       const [conversion] = await this.pool.execute(
         `SELECT 
           COUNT(DISTINCT u.id) as totalUsers,
           COUNT(DISTINCT o.userId) as purchasers,
           COUNT(DISTINCT o.id) as totalOrders,
-          SUM(o.total) as totalRevenue
+          COALESCE(SUM(o.totalAmount), 0) as totalRevenue
          FROM users u
          LEFT JOIN orders o ON u.id = o.userId
          WHERE DATE_FORMAT(u.createdAt, '%Y-%m') = ?`,
