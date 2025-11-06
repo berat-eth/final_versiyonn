@@ -479,7 +479,7 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             const options: any[] = Array.isArray(variation.options) ? variation.options : [];
             return (
               <View key={variationId} style={{ marginBottom: 12 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1A1A1A', marginBottom: 8 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#1A1A1A', marginBottom: 8 }}>
                   {variation.name || 'Varyasyon'}
                 </Text>
                 <View style={styles.availableSizes}>
@@ -1271,17 +1271,17 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   brand: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#8E8E93',
     marginBottom: 4,
     fontWeight: '400',
   },
   name: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
     color: '#1A1A1A',
     marginBottom: 12,
-    lineHeight: 30,
+    lineHeight: 26,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -1293,13 +1293,13 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   rating: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: '#1A1A1A',
     marginRight: 6,
   },
   reviewCount: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#8E8E93',
   },
   priceContainer: {
@@ -1309,7 +1309,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   price: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
     color: '#000000',
     letterSpacing: -1,
@@ -1318,7 +1318,7 @@ const styles = StyleSheet.create({
     color: '#ff6b35',
   },
   originalPrice: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '500',
     color: '#8E8E93',
     textDecorationLine: 'line-through',
@@ -1339,7 +1339,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   flashDiscountText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     color: 'white',
   },
@@ -1353,7 +1353,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   flashTimerText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: 'white',
   },
@@ -1364,7 +1364,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   variationLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#8E8E93',
     marginBottom: 4,
     textTransform: 'uppercase',
@@ -1379,18 +1379,18 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   stockText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#1A1A1A',
     fontWeight: '400',
   },
   lowStock: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#FF9500',
     marginTop: 4,
     fontWeight: '500',
   },
   outOfStock: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#FF3B30',
     fontWeight: '600',
   },
@@ -1449,16 +1449,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: '#1A1A1A',
     letterSpacing: -0.5,
     flex: 1,
   },
   description: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#48484A',
-    lineHeight: 24,
+    lineHeight: 22,
     fontWeight: '400',
   },
   extraInfoContainer: {
@@ -1487,7 +1487,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   extraHeaderText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#1A1A1A',
     marginLeft: 8,
@@ -1521,7 +1521,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   extraChipValue: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#111827',
     fontWeight: '600',
   },
@@ -1558,7 +1558,7 @@ const styles = StyleSheet.create({
   },
   addReviewButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
   quantityContainer: {
@@ -1567,7 +1567,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   quantityLabel: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#1A1A1A',
     marginRight: 16,
     fontWeight: '500',
@@ -1592,7 +1592,7 @@ const styles = StyleSheet.create({
   },
   quantity: {
     paddingHorizontal: 20,
-    fontSize: 16,
+    fontSize: 14,
     color: '#1A1A1A',
     fontWeight: '500',
     minWidth: 40,
@@ -1635,7 +1635,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#CCCCCC',
   },
   addToCartText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -1682,7 +1682,7 @@ const styles = StyleSheet.create({
   },
   viewerToastText: {
     marginLeft: 6,
-    fontSize: 12,
+    fontSize: 11,
     color: '#1A1A1A',
     fontWeight: '500',
   },
@@ -1719,7 +1719,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sizeText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333333',
     fontWeight: '600',
   },
@@ -1735,7 +1735,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   variationWarningText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#E65100',
     fontWeight: '500',
     marginLeft: 8,
