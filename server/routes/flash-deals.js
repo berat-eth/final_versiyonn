@@ -35,14 +35,24 @@ router.get('/all', authenticateAdmin, async (req, res) => {
     `);
 
     // Her flash deal için ürün ve kategori bilgilerini getir
+    const tenantId = req.tenant?.id;
     const dealsWithTargets = await Promise.all(rows.map(async (deal) => {
-      const [products] = await poolWrapper.execute(`
+      // Seçili ürünler - tenantId kontrolü ekle (opsiyonel, admin için)
+      let productsQuery = `
         SELECT p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
                p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_products fdp
         JOIN products p ON fdp.product_id = p.id
         WHERE fdp.flash_deal_id = ?
-      `, [deal.id]);
+      `;
+      const productsParams = [deal.id];
+      
+      if (tenantId) {
+        productsQuery += ' AND p.tenantId = ?';
+        productsParams.push(tenantId);
+      }
+      
+      const [products] = await poolWrapper.execute(productsQuery, productsParams);
 
       const [categories] = await poolWrapper.execute(`
         SELECT c.id, c.name
@@ -195,29 +205,46 @@ router.get('/', async (req, res) => {
     }
 
     // Her flash deal için ürünleri getir (kategori bazlı ürünler dahil)
+    const tenantId = req.tenant?.id;
     const dealsWithProducts = await Promise.all(rows.map(async (deal) => {
       console.log(`📦 Processing deal ID: ${deal.id}, name: ${deal.name}`);
       
-      // Seçili ürünler
-      const [products] = await poolWrapper.execute(`
+      // Seçili ürünler - tenantId kontrolü ekle
+      let productsQuery = `
         SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
                p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_products fdp
         JOIN products p ON fdp.product_id = p.id
         WHERE fdp.flash_deal_id = ?
-      `, [deal.id]);
+      `;
+      const productsParams = [deal.id];
       
-      console.log(`  - Products from flash_deal_products: ${products.length}`);
+      if (tenantId) {
+        productsQuery += ' AND p.tenantId = ?';
+        productsParams.push(tenantId);
+      }
+      
+      const [products] = await poolWrapper.execute(productsQuery, productsParams);
+      
+      console.log(`  - Products from flash_deal_products: ${products.length}${tenantId ? ` (tenantId: ${tenantId})` : ''}`);
 
-      // Seçili kategorilerdeki ürünler
-      const [categoryProducts] = await poolWrapper.execute(`
+      // Seçili kategorilerdeki ürünler - tenantId kontrolü ekle
+      let categoryProductsQuery = `
         SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description,
                p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_categories fdc
         JOIN categories c ON fdc.category_id = c.id
         JOIN products p ON p.category = c.name
         WHERE fdc.flash_deal_id = ?
-      `, [deal.id]);
+      `;
+      const categoryProductsParams = [deal.id];
+      
+      if (tenantId) {
+        categoryProductsQuery += ' AND p.tenantId = ?';
+        categoryProductsParams.push(tenantId);
+      }
+      
+      const [categoryProducts] = await poolWrapper.execute(categoryProductsQuery, categoryProductsParams);
       
       console.log(`  - Products from categories: ${categoryProducts.length}`);
 
