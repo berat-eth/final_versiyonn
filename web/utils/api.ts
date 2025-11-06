@@ -80,13 +80,12 @@ class ApiClient {
 
     try {
       // API çağrıları için cache'i devre dışı bırak - her zaman fresh data
-      // Not: Expires header'ı CORS preflight'ında izin verilmediği için kaldırıldı
+      // Not: Cache-Control, Pragma, Expires header'ları CORS preflight'ında izin verilmediği için kaldırıldı
+      // Sadece fetch options'da cache: 'no-store' kullanıyoruz
       const response = await fetch(url, {
         ...fetchOptions,
         headers: {
-          ...requestHeaders,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
+          ...requestHeaders
         },
         cache: 'no-store' // Browser cache'i bypass et
       });
