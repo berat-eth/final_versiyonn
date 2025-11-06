@@ -7781,11 +7781,20 @@ app.put('/api/users/:id', async (req, res) => {
     const { id } = req.params;
     const { name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, currentPassword, newPassword } = req.body;
 
-    // Get current user - Optimize: sadece gerekli column'lar
-    const [userRows] = await poolWrapper.execute(
+    // Get current user - Try with company fields first, fallback if columns don't exist
+    let [userRows] = await poolWrapper.execute(
       'SELECT id, name, email, phone, address, password, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt, tenantId FROM users WHERE id = ? AND tenantId = ?',
       [id, req.tenant.id]
-    );
+    ).catch(async (error) => {
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        console.log('⚠️ Company columns missing, using fallback query');
+        return await poolWrapper.execute(
+          'SELECT id, name, email, phone, address, password, createdAt, tenantId FROM users WHERE id = ? AND tenantId = ?',
+          [id, req.tenant.id]
+        );
+      }
+      throw error;
+    });
 
     if (userRows.length === 0) {
       return res.status(404).json({
@@ -11244,11 +11253,20 @@ async function startServer() {
         updateValues
       );
 
-      // Get updated user data
-      const [updatedUser] = await poolWrapper.execute(
+      // Get updated user data - Try with company fields first, fallback if columns don't exist
+      let [updatedUser] = await poolWrapper.execute(
         'SELECT id, name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website, createdAt, role FROM users WHERE id = ?',
         [userId]
-      );
+      ).catch(async (error) => {
+        if (error.code === 'ER_BAD_FIELD_ERROR') {
+          console.log('⚠️ Company columns missing, using fallback query');
+          return await poolWrapper.execute(
+            'SELECT id, name, email, phone, address, createdAt, role FROM users WHERE id = ?',
+            [userId]
+          );
+        }
+        throw error;
+      });
 
       console.log(`✅ Profile updated successfully for user ${userId}`);
       res.json({
