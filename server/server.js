@@ -9319,7 +9319,7 @@ app.get('/api/products/:id', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid product id' });
     }
     // Optimize: Sadece gerekli column'lar - Public API için
-    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, rating, reviewCount, lastUpdated FROM products WHERE id = ? AND isActive = 1', [numericId]);
+    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, rating, reviewCount, lastUpdated FROM products WHERE id = ?', [numericId]);
 
     if (rows.length > 0) {
       // Clean HTML entities from single product
@@ -9683,7 +9683,7 @@ app.post('/api/products/filter', async (req, res) => {
     const { category, minPrice, maxPrice, brand, search, tekstilOnly } = req.body;
 
     // Optimize: Sadece gerekli column'lar
-    let query = 'SELECT id, name, price, image, brand, category, stock, sku, rating, reviewCount FROM products WHERE tenantId = ? AND isActive = 1';
+    let query = 'SELECT id, name, price, image, brand, category, stock, sku, rating, reviewCount FROM products WHERE tenantId = ?';
     const params = [req.tenant.id];
 
     // Tekstil ürünleri için kategori filtreleme (sadece eksplisit olarak tekstilOnly=true ise)
@@ -13374,7 +13374,7 @@ async function startServer() {
     try {
       // Optimize: Sadece gerekli column'lar
       const [rows] = await poolWrapper.execute(
-        'SELECT id, name, price, image, brand, category FROM products WHERE tenantId = ? AND isActive = 1 ORDER BY RAND() LIMIT 3',
+        'SELECT id, name, price, image, brand, category FROM products WHERE tenantId = ? ORDER BY RAND() LIMIT 3',
         [tenantId]
       );
 
