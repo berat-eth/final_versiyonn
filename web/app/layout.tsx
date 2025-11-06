@@ -193,7 +193,7 @@ export default function RootLayout({
               if ('caches' in window) {
                 caches.keys().then(function(names) {
                   names.forEach(function(name) {
-                    if (name !== 'huglu-tekstil-v3') {
+                    if (name !== 'huglu-tekstil-v4') {
                       caches.delete(name);
                     }
                   });

@@ -65,7 +65,7 @@ export function middleware(request: NextRequest) {
     [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://accounts.google.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
       "img-src 'self' data: https: blob: https://static.ticimax.cloud https://*.ticimax.cloud",
       "font-src 'self' https://fonts.gstatic.com",
       "connect-src 'self' https: https://wa.me https://api.plaxsy.com https://api.zerodaysoftware.tr https://static.ticimax.cloud https://*.ticimax.cloud https://accounts.google.com",

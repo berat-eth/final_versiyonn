@@ -1,5 +1,5 @@
 // Service Worker for caching static assets only (NOT HTML pages, NOT API calls)
-const CACHE_NAME = 'huglu-tekstil-v3'; // Version değiştirildi - eski cache temizlensin
+const CACHE_NAME = 'huglu-tekstil-v4'; // Version değiştirildi - CORS düzeltmeleri için
 const STATIC_CACHE_DURATION = 86400000; // 24 hours
 
 self.addEventListener('install', (event) => {
@@ -38,13 +38,7 @@ self.addEventListener('fetch', (event) => {
        url.pathname.endsWith('/'))) {
     event.respondWith(
       fetch(event.request, {
-        cache: 'no-store',
-        headers: {
-          ...Object.fromEntries(event.request.headers.entries()),
-          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
+        cache: 'no-store'
       }).catch(() => {
         // Network hatası durumunda bile HTML cache'leme
         return new Response('Network error', { status: 503 });
@@ -54,19 +48,15 @@ self.addEventListener('fetch', (event) => {
   }
   
   // API çağrılarını cache'leme - direkt fetch yap
+  // Not: Expires, Pragma, Cache-Control header'ları CORS preflight'ında sorun çıkarabilir
+  // Bu yüzden sadece fetch options'da cache: 'no-store' kullanıyoruz
   if (url.pathname.startsWith('/api/') || 
       url.hostname.includes('api.plaxsy.com') ||
       url.hostname.includes('api.zerodaysoftware.tr') ||
       url.hostname.includes('api.')) {
     event.respondWith(
       fetch(event.request, {
-        cache: 'no-store',
-        headers: {
-          ...Object.fromEntries(event.request.headers.entries()),
-          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
+        cache: 'no-store'
       })
     );
     return;
@@ -139,13 +129,7 @@ self.addEventListener('fetch', (event) => {
     // Diğer tüm istekler (HTML dahil) için cache yapma
     event.respondWith(
       fetch(event.request, {
-        cache: 'no-store',
-        headers: {
-          ...Object.fromEntries(event.request.headers.entries()),
-          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
+        cache: 'no-store'
       })
     );
   }
