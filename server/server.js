@@ -14762,6 +14762,12 @@ async function startServer() {
     });
   });
 
+  // Development ortamında IP skorlarını temizle
+  if (process.env.NODE_ENV !== 'production') {
+    advancedSecurity.clearAllIPScores();
+    console.log('🧹 Development ortamı: IP skorları temizlendi');
+  }
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Server is running on port ${PORT}`);
     console.log(`🌐 Local API: http://localhost:${PORT}/api`);
