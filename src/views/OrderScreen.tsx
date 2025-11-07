@@ -7,10 +7,13 @@ import {
   SafeAreaView,
   ScrollView,
   TextInput,
-  Alert,KeyboardAvoidingView,
+  Alert,
+  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CartController } from '../controllers/CartController';
@@ -37,6 +40,7 @@ interface OrderScreenProps {
       subtotal: number;
       shipping: number;
       total: number;
+      checkoutStartTime?: number; // Opsiyonel: checkout başlangıç zamanı
     };
   };
 }
@@ -44,6 +48,7 @@ interface OrderScreenProps {
 export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) => {
   const { cartItems, subtotal, shipping, total } = route.params;
   const { updateCart } = useAppContext();
+  const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -77,6 +82,11 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
   const [nfcSupported, setNfcSupported] = useState<boolean>(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loadingWallet, setLoadingWallet] = useState<boolean>(false);
+  
+  // Modal states
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showBankInfoModal, setShowBankInfoModal] = useState(false);
+  const [orderId, setOrderId] = useState<number | null>(null);
 
   const steps = [
     { title: 'Teslimat Bilgileri', icon: 'location-on' },
@@ -320,100 +330,9 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
           lastUpdated: new Date().toISOString(),
         });
 
-        // EFT/Havale seçildiyse banka bilgilerini göster
-        if (paymentMethod === 'eft') {
-          Alert.alert(
-            '✅ Sipariş Oluşturuldu!',
-            `Siparişiniz başarıyla oluşturuldu.\nSipariş No: #${result.orderId}\n\nÖdeme için banka bilgileri bir sonraki ekranda gösterilecektir.`,
-            [
-              {
-                text: 'Banka Bilgilerini Gör',
-                onPress: () => {
-                  // Banka bilgilerini göster
-                  Alert.alert(
-                    '🏦 Banka Bilgileri',
-                    `Lütfen aşağıdaki hesaba ödeme yapınız:\n\nHesap Adı: ${EFT_DETAILS.accountName}\n\nIBAN: ${EFT_DETAILS.iban}\n\nTutar: ${total.toFixed(2)} TL\n\nAçıklama: Sipariş #${result.orderId}\n\n⚠️ Önemli: Havale açıklamasına mutlaka sipariş numaranızı (#${result.orderId}) yazınız. Ödemeniz onaylandığında siparişiniz işleme alınacaktır.`,
-                    [
-                      {
-                        text: 'IBAN Kopyala',
-                        onPress: async () => {
-                          await Clipboard.setStringAsync(EFT_DETAILS.iban);
-                          Alert.alert('✅ Kopyalandı', 'IBAN panoya kopyalandı', [
-                            {
-                              text: 'Siparişlerim',
-                              onPress: () => {
-                                navigation.reset({
-                                  index: 0,
-                                  routes: [{ name: 'Home' }],
-                                });
-                                navigation.navigate('Orders');
-                              }
-                            },
-                            {
-                              text: 'Ana Sayfa',
-                              onPress: () => {
-                                navigation.reset({
-                                  index: 0,
-                                  routes: [{ name: 'Home' }],
-                                });
-                              }
-                            }
-                          ]);
-                        }
-                      },
-                      {
-                        text: 'Siparişlerim',
-                        onPress: () => {
-                          navigation.reset({
-                            index: 0,
-                            routes: [{ name: 'Home' }],
-                          });
-                          navigation.navigate('Orders');
-                        }
-                      },
-                      {
-                        text: 'Ana Sayfa',
-                        onPress: () => {
-                          navigation.reset({
-                            index: 0,
-                            routes: [{ name: 'Home' }],
-                          });
-                        }
-                      }
-                    ]
-                  );
-                }
-              }
-            ]
-          );
-        } else {
-          // Diğer ödeme yöntemleri için normal mesaj
-          Alert.alert(
-            'Sipariş Başarılı!',
-            `Siparişiniz başarıyla oluşturuldu. Sipariş No: #${result.orderId}`,
-            [
-              {
-                text: 'Siparişlerim',
-                onPress: () => {
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Home' }],
-                  });
-                  navigation.navigate('Orders');
-                }
-              },
-              {
-                text: 'Ana Sayfa',
-                onPress: () => {
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Home' }],
-                  });
-                }
-              }
-            ]
-          );
-        }
+        // Sipariş başarılı modalını göster
+        setOrderId(result.orderId || null);
+        setShowSuccessModal(true);
       } else {
         // Order creation failed
         Alert.alert('Hata', result.message);
@@ -428,235 +347,406 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
 
   const renderHeader = useCallback(() => null, []);
 
+  // Tab bar yüksekliğini hesapla (butonun tab bar'ın üstünde görünmesi için)
+  const tabBarHeight = React.useMemo(() => {
+    // Tab bar yüksekliği: 70px (tabBar height) + 8px (paddingTop) + 8px (paddingBottom) + safe area
+    const tabBarBaseHeight = 70 + 8 + 8; // 86px
+    const safeAreaBottom = Math.max(insets.bottom, 8);
+    return tabBarBaseHeight + safeAreaBottom;
+  }, [insets.bottom]);
+
+  // Bottom actions yüksekliğini hesapla (dinamik padding için)
+  const bottomActionsHeight = React.useMemo(() => {
+    const buttonHeight = 50; // paddingVertical + text height
+    const padding = Spacing.md * 2; // top + bottom padding
+    const safeAreaBottom = Math.max(insets.bottom, Spacing.md) + Spacing.md;
+    return buttonHeight + padding + safeAreaBottom + 40; // ekstra güvenlik marjı artırıldı
+  }, [insets.bottom]);
+
   const renderDeliveryStep = useCallback(() => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.stepContent} 
+      contentContainerStyle={[styles.scrollContentContainer, { paddingBottom: bottomActionsHeight }]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Modern Header Section */}
+      <View style={styles.deliveryHeader}>
+        <View style={styles.headerIconContainer}>
+          <Icon name="local-shipping" size={28} color={Colors.primary} />
+        </View>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.deliveryTitle}>Teslimat Bilgileri</Text>
+          <Text style={styles.deliverySubtitle}>Siparişinizin teslim edileceği adresi girin</Text>
+        </View>
+      </View>
+
       <View style={styles.formCard}>
-        <Text style={styles.formTitle}>Teslimat Bilgileri</Text>
+        {/* Kişisel Bilgiler Bölümü */}
+        <View style={styles.sectionHeader}>
+          <Icon name="person" size={18} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>Kişisel Bilgiler</Text>
+        </View>
         
         <View style={styles.inputRow}>
-          <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
-            <Text style={styles.inputLabel}>Ad *</Text>
+          <View style={[styles.modernInputContainer, { flex: 1, marginRight: 8 }]}>
+            <View style={styles.inputLabelContainer}>
+              <Icon name="badge" size={16} color="#6B7280" />
+              <Text style={styles.modernInputLabel}>Ad *</Text>
+            </View>
             <TextInput
-              style={styles.textInput}
+              style={styles.modernTextInput}
               value={deliveryInfo.firstName}
               onChangeText={(text) => setDeliveryInfo(prev => ({ ...prev, firstName: text }))}
               placeholder="Adınız"
-              placeholderTextColor="#999999"
+              placeholderTextColor="#9CA3AF"
             />
           </View>
-          <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-            <Text style={styles.inputLabel}>Soyad *</Text>
+          <View style={[styles.modernInputContainer, { flex: 1, marginLeft: 8 }]}>
+            <View style={styles.inputLabelContainer}>
+              <Icon name="badge" size={16} color="#6B7280" />
+              <Text style={styles.modernInputLabel}>Soyad *</Text>
+            </View>
             <TextInput
-              style={styles.textInput}
+              style={styles.modernTextInput}
               value={deliveryInfo.lastName}
               onChangeText={(text) => setDeliveryInfo(prev => ({ ...prev, lastName: text }))}
               placeholder="Soyadınız"
-              placeholderTextColor="#999999"
+              placeholderTextColor="#9CA3AF"
             />
           </View>
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Telefon *</Text>
+        <View style={styles.modernInputContainer}>
+          <View style={styles.inputLabelContainer}>
+            <Icon name="phone" size={16} color="#6B7280" />
+            <Text style={styles.modernInputLabel}>Telefon *</Text>
+          </View>
           <TextInput
-            style={styles.textInput}
+            style={styles.modernTextInput}
             value={deliveryInfo.phone}
             onChangeText={(text) => setDeliveryInfo(prev => ({ ...prev, phone: text }))}
             placeholder="0555 123 45 67"
-            placeholderTextColor="#999999"
+            placeholderTextColor="#9CA3AF"
             keyboardType="phone-pad"
           />
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>E-posta</Text>
+        <View style={styles.modernInputContainer}>
+          <View style={styles.inputLabelContainer}>
+            <Icon name="email" size={16} color="#6B7280" />
+            <Text style={styles.modernInputLabel}>E-posta</Text>
+          </View>
           <TextInput
-            style={styles.textInput}
+            style={styles.modernTextInput}
             value={deliveryInfo.email}
             onChangeText={(text) => setDeliveryInfo(prev => ({ ...prev, email: text }))}
             placeholder="ornek@email.com"
-            placeholderTextColor="#999999"
+            placeholderTextColor="#9CA3AF"
             keyboardType="email-address"
             autoCapitalize="none"
           />
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Adres *</Text>
+        {/* Adres Bilgileri Bölümü */}
+        <View style={styles.sectionDivider} />
+        <View style={styles.sectionHeader}>
+          <Icon name="location-on" size={18} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>Adres Bilgileri</Text>
+        </View>
+
+        <View style={styles.modernInputContainer}>
+          <View style={styles.inputLabelContainer}>
+            <Icon name="home" size={16} color="#6B7280" />
+            <Text style={styles.modernInputLabel}>Adres *</Text>
+          </View>
           <TextInput
-            style={[styles.textInput, styles.textArea]}
+            style={[styles.modernTextInput, styles.modernTextArea]}
             value={deliveryInfo.address}
             onChangeText={(text) => setDeliveryInfo(prev => ({ ...prev, address: text }))}
             placeholder="Mahalle, sokak, bina no, daire no"
-            placeholderTextColor="#999999"
+            placeholderTextColor="#9CA3AF"
             multiline
             numberOfLines={3}
+            textAlignVertical="top"
           />
         </View>
 
         <View style={styles.inputRow}>
-          <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
-            <Text style={styles.inputLabel}>Şehir *</Text>
+          <View style={[styles.modernInputContainer, { flex: 1, marginRight: 8 }]}>
+            <View style={styles.inputLabelContainer}>
+              <Icon name="location-city" size={16} color="#6B7280" />
+              <Text style={styles.modernInputLabel}>Şehir *</Text>
+            </View>
             <TextInput
-              style={styles.textInput}
+              style={styles.modernTextInput}
               value={deliveryInfo.city}
               onChangeText={(text) => setDeliveryInfo(prev => ({ ...prev, city: text }))}
               placeholder="İstanbul"
-              placeholderTextColor="#999999"
+              placeholderTextColor="#9CA3AF"
             />
           </View>
-          <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-            <Text style={styles.inputLabel}>İlçe *</Text>
+          <View style={[styles.modernInputContainer, { flex: 1, marginLeft: 8 }]}>
+            <View style={styles.inputLabelContainer}>
+              <Icon name="place" size={16} color="#6B7280" />
+              <Text style={styles.modernInputLabel}>İlçe *</Text>
+            </View>
             <TextInput
-              style={styles.textInput}
+              style={styles.modernTextInput}
               value={deliveryInfo.district}
               onChangeText={(text) => setDeliveryInfo(prev => ({ ...prev, district: text }))}
               placeholder="Kadıköy"
-              placeholderTextColor="#999999"
+              placeholderTextColor="#9CA3AF"
             />
           </View>
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Posta Kodu</Text>
+        <View style={styles.modernInputContainer}>
+          <View style={styles.inputLabelContainer}>
+            <Icon name="markunread-mailbox" size={16} color="#6B7280" />
+            <Text style={styles.modernInputLabel}>Posta Kodu</Text>
+          </View>
           <TextInput
-            style={styles.textInput}
+            style={styles.modernTextInput}
             value={deliveryInfo.postalCode}
             onChangeText={(text) => setDeliveryInfo(prev => ({ ...prev, postalCode: text }))}
             placeholder="34000"
-            placeholderTextColor="#999999"
+            placeholderTextColor="#9CA3AF"
             keyboardType="numeric"
           />
         </View>
       </View>
     </ScrollView>
-  ), [deliveryInfo]);
+  ), [deliveryInfo, bottomActionsHeight]);
 
   const renderPaymentStep = useCallback(() => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.formCard}>
-        <Text style={styles.formTitle}>Ödeme Yöntemi</Text>
-        
-        {/* Payment Method Selection */}
-        <View style={styles.paymentMethods}>
-          {/* Cüzdan Bakiyesi Bilgisi */}
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="account-balance-wallet" size={20} color={Colors.primary} />
-                <Text style={{ marginLeft: 8, color: '#6b7280', fontSize: 12 }}>Cüzdan Bakiyesi</Text>
-              </View>
-              {loadingWallet ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
-              ) : (
-                <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text }}>
-                  {ProductController.formatPrice((walletBalance ?? 0))}
-                </Text>
-              )}
-            </View>
-            {walletBalance != null && walletBalance < total && (
-              <Text style={{ marginTop: 6, fontSize: 12, color: '#DC2626' }}>
-                Yetersiz bakiye. {ProductController.formatPrice(total - (walletBalance || 0))} daha gerekli.
+    <ScrollView 
+      style={styles.stepContent} 
+      contentContainerStyle={[styles.scrollContentContainer, { paddingBottom: bottomActionsHeight }]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Modern Header Section */}
+      <View style={styles.paymentHeader}>
+        <View style={styles.headerIconContainer}>
+          <Icon name="payment" size={28} color={Colors.primary} />
+        </View>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.paymentTitle}>Ödeme Yöntemi</Text>
+          <Text style={styles.paymentSubtitle}>Siparişiniz için ödeme yöntemi seçin</Text>
+        </View>
+      </View>
+
+      {/* Cüzdan Bakiyesi Kartı */}
+      <View style={styles.walletBalanceCard}>
+        <View style={styles.walletBalanceHeader}>
+          <View style={styles.walletIconContainer}>
+            <Icon name="account-balance-wallet" size={24} color={Colors.primary} />
+          </View>
+          <View style={styles.walletBalanceInfo}>
+            <Text style={styles.walletBalanceLabel}>Cüzdan Bakiyesi</Text>
+            {loadingWallet ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 4 }} />
+            ) : (
+              <Text style={styles.walletBalanceAmount}>
+                {ProductController.formatPrice((walletBalance ?? 0))}
               </Text>
             )}
           </View>
+        </View>
+        {walletBalance != null && walletBalance < total && (
+          <View style={styles.walletWarning}>
+            <Icon name="warning" size={16} color="#DC2626" />
+            <Text style={styles.walletWarningText}>
+              Yetersiz bakiye. {ProductController.formatPrice(total - (walletBalance || 0))} daha gerekli.
+            </Text>
+          </View>
+        )}
+      </View>
 
+      <View style={styles.formCard}>
+        {/* Ödeme Yöntemleri Bölümü */}
+        <View style={styles.sectionHeader}>
+          <Icon name="payment" size={18} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>Ödeme Yöntemleri</Text>
+        </View>
+
+        <View style={styles.paymentMethods}>
           <TouchableOpacity
             style={[
-              styles.paymentOption,
-              paymentMethod === 'credit_card' && styles.paymentOptionSelected
+              styles.modernPaymentOption,
+              paymentMethod === 'credit_card' && styles.modernPaymentOptionSelected
             ]}
             onPress={() => setPaymentMethod('credit_card')}
           >
-            <Icon name="credit-card" size={24} color={Colors.primary} />
-            <Text style={styles.paymentOptionText}>Kredi/Banka Kartı</Text>
-            <Icon 
-              name={paymentMethod === 'credit_card' ? 'radio-button-checked' : 'radio-button-unchecked'} 
-              size={20} 
-              color={paymentMethod === 'credit_card' ? Colors.primary : '#CCCCCC'} 
-            />
+            <View style={styles.paymentOptionLeft}>
+              <View style={[
+                styles.paymentIconContainer,
+                paymentMethod === 'credit_card' && styles.paymentIconContainerActive
+              ]}>
+                <Icon name="credit-card" size={24} color={paymentMethod === 'credit_card' ? '#FFFFFF' : Colors.primary} />
+              </View>
+              <View style={styles.paymentOptionTextContainer}>
+                <Text style={[
+                  styles.modernPaymentOptionText,
+                  paymentMethod === 'credit_card' && styles.modernPaymentOptionTextActive
+                ]}>
+                  Kredi/Banka Kartı
+                </Text>
+                <Text style={styles.paymentOptionSubtext}>Visa, Mastercard, Troy</Text>
+              </View>
+            </View>
+            <View style={[
+              styles.paymentRadioButton,
+              paymentMethod === 'credit_card' && styles.paymentRadioButtonActive
+            ]}>
+              {paymentMethod === 'credit_card' && (
+                <View style={styles.paymentRadioButtonInner} />
+              )}
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
-              styles.paymentOption,
-              paymentMethod === 'eft' && styles.paymentOptionSelected
+              styles.modernPaymentOption,
+              paymentMethod === 'eft' && styles.modernPaymentOptionSelected
             ]}
             onPress={() => setPaymentMethod('eft')}
           >
-            <Icon name="account-balance" size={24} color={Colors.primary} />
-            <Text style={styles.paymentOptionText}>EFT/Havale</Text>
-            <Icon 
-              name={paymentMethod === 'eft' ? 'radio-button-checked' : 'radio-button-unchecked'} 
-              size={20} 
-              color={paymentMethod === 'eft' ? Colors.primary : '#CCCCCC'} 
-            />
+            <View style={styles.paymentOptionLeft}>
+              <View style={[
+                styles.paymentIconContainer,
+                paymentMethod === 'eft' && styles.paymentIconContainerActive
+              ]}>
+                <Icon name="account-balance" size={24} color={paymentMethod === 'eft' ? '#FFFFFF' : Colors.primary} />
+              </View>
+              <View style={styles.paymentOptionTextContainer}>
+                <Text style={[
+                  styles.modernPaymentOptionText,
+                  paymentMethod === 'eft' && styles.modernPaymentOptionTextActive
+                ]}>
+                  EFT/Havale
+                </Text>
+                <Text style={styles.paymentOptionSubtext}>Banka havalesi ile ödeme</Text>
+              </View>
+            </View>
+            <View style={[
+              styles.paymentRadioButton,
+              paymentMethod === 'eft' && styles.paymentRadioButtonActive
+            ]}>
+              {paymentMethod === 'eft' && (
+                <View style={styles.paymentRadioButtonInner} />
+              )}
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
-              styles.paymentOption,
-              paymentMethod === 'wallet' && styles.paymentOptionSelected
+              styles.modernPaymentOption,
+              paymentMethod === 'wallet' && styles.modernPaymentOptionSelected
             ]}
             onPress={() => setPaymentMethod('wallet')}
           >
-            <Icon name="account-balance-wallet" size={24} color={Colors.primary} />
-            <Text style={styles.paymentOptionText}>Cüzdan (Bakiye)</Text>
-            <Icon 
-              name={paymentMethod === 'wallet' ? 'radio-button-checked' : 'radio-button-unchecked'} 
-              size={20} 
-              color={paymentMethod === 'wallet' ? Colors.primary : '#CCCCCC'} 
-            />
+            <View style={styles.paymentOptionLeft}>
+              <View style={[
+                styles.paymentIconContainer,
+                paymentMethod === 'wallet' && styles.paymentIconContainerActive
+              ]}>
+                <Icon name="account-balance-wallet" size={24} color={paymentMethod === 'wallet' ? '#FFFFFF' : Colors.primary} />
+              </View>
+              <View style={styles.paymentOptionTextContainer}>
+                <Text style={[
+                  styles.modernPaymentOptionText,
+                  paymentMethod === 'wallet' && styles.modernPaymentOptionTextActive
+                ]}>
+                  Cüzdan (Bakiye)
+                </Text>
+                <Text style={styles.paymentOptionSubtext}>
+                  {walletBalance != null && walletBalance >= total 
+                    ? 'Yeterli bakiye mevcut' 
+                    : 'Yetersiz bakiye'}
+                </Text>
+              </View>
+            </View>
+            <View style={[
+              styles.paymentRadioButton,
+              paymentMethod === 'wallet' && styles.paymentRadioButtonActive
+            ]}>
+              {paymentMethod === 'wallet' && (
+                <View style={styles.paymentRadioButtonInner} />
+              )}
+            </View>
           </TouchableOpacity>
 
           {nfcSupported && (
             <TouchableOpacity
               style={[
-                styles.paymentOption,
-                paymentMethod === 'nfc' && styles.paymentOptionSelected
+                styles.modernPaymentOption,
+                paymentMethod === 'nfc' && styles.modernPaymentOptionSelected
               ]}
               onPress={() => {
                 console.log('📱 NFC ödeme seçeneği seçildi');
                 setPaymentMethod('nfc');
               }}
             >
-              <Icon name="nfc" size={24} color={Colors.primary} />
-              <Text style={styles.paymentOptionText}>Temassız (NFC)</Text>
-              <Icon 
-                name={paymentMethod === 'nfc' ? 'radio-button-checked' : 'radio-button-unchecked'} 
-                size={20} 
-                color={paymentMethod === 'nfc' ? Colors.primary : '#CCCCCC'} 
-              />
+              <View style={styles.paymentOptionLeft}>
+                <View style={[
+                  styles.paymentIconContainer,
+                  paymentMethod === 'nfc' && styles.paymentIconContainerActive
+                ]}>
+                  <Icon name="nfc" size={24} color={paymentMethod === 'nfc' ? '#FFFFFF' : Colors.primary} />
+                </View>
+                <View style={styles.paymentOptionTextContainer}>
+                  <Text style={[
+                    styles.modernPaymentOptionText,
+                    paymentMethod === 'nfc' && styles.modernPaymentOptionTextActive
+                  ]}>
+                    Temassız (NFC)
+                  </Text>
+                  <Text style={styles.paymentOptionSubtext}>Kartı telefonun arkasına yaklaştırın</Text>
+                </View>
+              </View>
+              <View style={[
+                styles.paymentRadioButton,
+                paymentMethod === 'nfc' && styles.paymentRadioButtonActive
+              ]}>
+                {paymentMethod === 'nfc' && (
+                  <View style={styles.paymentRadioButtonInner} />
+                )}
+              </View>
             </TouchableOpacity>
           )}
-          
-          {/* Debug: NFC durumu göster */}
-          <View style={{ marginTop: 10, padding: 10, backgroundColor: '#f0f0f0', borderRadius: 8 }}>
-            <Text style={{ fontSize: 12, color: '#666' }}>
-              NFC Durumu: {nfcSupported ? '✅ Destekleniyor' : '❌ Desteklenmiyor'}
-            </Text>
-          </View>
         </View>
 
         {/* Credit Card Form */}
         {(paymentMethod === 'credit_card') && (
-          <View style={styles.cardForm}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Kart Üzerindeki İsim *</Text>
+          <View style={styles.cardFormSection}>
+            <View style={styles.sectionDivider} />
+            <View style={styles.sectionHeader}>
+              <Icon name="credit-card" size={18} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Kart Bilgileri</Text>
+            </View>
+
+            <View style={styles.modernInputContainer}>
+              <View style={styles.inputLabelContainer}>
+                <Icon name="badge" size={16} color="#6B7280" />
+                <Text style={styles.modernInputLabel}>Kart Üzerindeki İsim *</Text>
+              </View>
               <TextInput
-                style={styles.textInput}
+                style={styles.modernTextInput}
                 value={cardInfo.cardHolder}
                 onChangeText={(text) => setCardInfo(prev => ({ ...prev, cardHolder: text.toUpperCase() }))}
-                placeholder="Ahmet Yılmaz"
-                placeholderTextColor="#999999"
+                placeholder="AHMET YILMAZ"
+                placeholderTextColor="#9CA3AF"
                 autoCapitalize="characters"
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Kart Numarası *</Text>
+            <View style={styles.modernInputContainer}>
+              <View style={styles.inputLabelContainer}>
+                <Icon name="credit-card" size={16} color="#6B7280" />
+                <Text style={styles.modernInputLabel}>Kart Numarası *</Text>
+              </View>
               <TextInput
-                style={styles.textInput}
+                style={styles.modernTextInput}
                 value={cardInfo.cardNumber}
                 onChangeText={(text) => {
                   // Format card number with spaces
@@ -666,17 +756,20 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
                   }
                 }}
                 placeholder="1234 5678 9012 3456"
-                placeholderTextColor="#999999"
+                placeholderTextColor="#9CA3AF"
                 keyboardType="numeric"
                 maxLength={19}
               />
             </View>
 
             <View style={styles.inputRow}>
-              <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.inputLabel}>Son Kullanma *</Text>
+              <View style={[styles.modernInputContainer, { flex: 1, marginRight: 8 }]}>
+                <View style={styles.inputLabelContainer}>
+                  <Icon name="calendar-today" size={16} color="#6B7280" />
+                  <Text style={styles.modernInputLabel}>Son Kullanma *</Text>
+                </View>
                 <TextInput
-                  style={styles.textInput}
+                  style={styles.modernTextInput}
                   value={cardInfo.expiryDate}
                   onChangeText={(text) => {
                     // Format MM/YY
@@ -686,15 +779,18 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
                     }
                   }}
                   placeholder="MM/YY"
-                  placeholderTextColor="#999999"
+                  placeholderTextColor="#9CA3AF"
                   keyboardType="numeric"
                   maxLength={5}
                 />
               </View>
-              <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.inputLabel}>CVV *</Text>
+              <View style={[styles.modernInputContainer, { flex: 1, marginLeft: 8 }]}>
+                <View style={styles.inputLabelContainer}>
+                  <Icon name="lock" size={16} color="#6B7280" />
+                  <Text style={styles.modernInputLabel}>CVV *</Text>
+                </View>
                 <TextInput
-                  style={styles.textInput}
+                  style={styles.modernTextInput}
                   value={cardInfo.cvv}
                   onChangeText={(text) => {
                     if (text.length <= 3) {
@@ -702,7 +798,7 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
                     }
                   }}
                   placeholder="123"
-                  placeholderTextColor="#999999"
+                  placeholderTextColor="#9CA3AF"
                   keyboardType="numeric"
                   maxLength={3}
                   secureTextEntry
@@ -711,11 +807,15 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
             </View>
 
             {nfcSupported && (
-              <View style={{ marginTop: 4 }}>
-                <TouchableOpacity onPress={handleReadCardViaNfc} style={{ alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#F3F4F6' }}>
-                  <Text style={{ color: '#1F2937', fontWeight: '600' }}>NFC ile kartı tara</Text>
+              <View style={styles.nfcButtonContainer}>
+                <TouchableOpacity 
+                  onPress={handleReadCardViaNfc} 
+                  style={styles.nfcButton}
+                >
+                  <Icon name="nfc" size={20} color="#FFFFFF" />
+                  <Text style={styles.nfcButtonText}>NFC ile Kartı Tara</Text>
                 </TouchableOpacity>
-                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Kartı telefonun arkasına yaklaştırın.</Text>
+                <Text style={styles.nfcButtonHint}>Kartı telefonun arkasına yaklaştırın</Text>
               </View>
             )}
           </View>
@@ -723,31 +823,50 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
 
         {/* NFC Payment Panel */}
         {paymentMethod === 'nfc' && (
-          <View style={styles.cardForm}>
-            <Text style={styles.inputLabel}>Temassız Ödeme</Text>
-            <Text style={{ fontSize: 14, color: '#666666', marginBottom: 10 }}>
-              Kartınızı telefonun arkasına yaklaştırın ve okutun. Bu sürümde NFC okutma sonrası kart verileri otomatik doldurulmaz; okutma onayı sonrasında kartlı ödeme akışı kullanılır.
-            </Text>
-            <Text style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10 }}>Geliştirme aşamasında</Text>
-            <TouchableOpacity onPress={handleReadCardViaNfc} style={{ alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#1A1A2E' }}>
-              <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NFC ile Tara</Text>
-            </TouchableOpacity>
+          <View style={styles.cardFormSection}>
+            <View style={styles.sectionDivider} />
+            <View style={styles.nfcInfoCard}>
+              <View style={styles.nfcIconContainer}>
+                <Icon name="nfc" size={32} color={Colors.primary} />
+              </View>
+              <Text style={styles.nfcTitle}>Temassız Ödeme</Text>
+              <Text style={styles.nfcDescription}>
+                Kartınızı telefonun arkasına yaklaştırın ve okutun. Bu sürümde NFC okutma sonrası kart verileri otomatik doldurulmaz; okutma onayı sonrasında kartlı ödeme akışı kullanılır.
+              </Text>
+              <View style={styles.nfcBadge}>
+                <Text style={styles.nfcBadgeText}>Geliştirme Aşamasında</Text>
+              </View>
+              <TouchableOpacity 
+                onPress={handleReadCardViaNfc} 
+                style={styles.nfcScanButton}
+              >
+                <Icon name="nfc" size={24} color="#FFFFFF" />
+                <Text style={styles.nfcScanButtonText}>NFC ile Tara</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
         {/* EFT/Havale Bilgi Notu */}
         {paymentMethod === 'eft' && (
-          <View style={styles.cardForm}>
-            <View style={styles.inputContainer}>
-              <View style={{ backgroundColor: '#FFF7E6', borderWidth: 1, borderColor: '#FFD700', borderRadius: 12, padding: Spacing.md, flexDirection: 'row', alignItems: 'flex-start' }}>
-                <Icon name="info" size={24} color="#FF8C00" style={{ marginRight: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#1A1A2E', marginBottom: 4 }}>
-                    Banka Bilgileri
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#666666', lineHeight: 20 }}>
-                    Sipariş tamamlandıktan sonra banka bilgileri gösterilecektir. Ödemenizi yaptıktan sonra siparişiniz işleme alınacaktır.
-                  </Text>
+          <View style={styles.cardFormSection}>
+            <View style={styles.sectionDivider} />
+            <View style={styles.eftInfoCard}>
+              <View style={styles.eftIconContainer}>
+                <Icon name="account-balance" size={28} color="#FF8C00" />
+              </View>
+              <Text style={styles.eftTitle}>Banka Bilgileri</Text>
+              <Text style={styles.eftDescription}>
+                Sipariş tamamlandıktan sonra banka bilgileri gösterilecektir. Ödemenizi yaptıktan sonra siparişiniz işleme alınacaktır.
+              </Text>
+              <View style={styles.eftFeatures}>
+                <View style={styles.eftFeature}>
+                  <Icon name="check-circle" size={18} color="#10B981" />
+                  <Text style={styles.eftFeatureText}>Güvenli ödeme</Text>
+                </View>
+                <View style={styles.eftFeature}>
+                  <Icon name="check-circle" size={18} color="#10B981" />
+                  <Text style={styles.eftFeatureText}>Hızlı onay</Text>
                 </View>
               </View>
             </View>
@@ -755,74 +874,159 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
         )}
       </View>
     </ScrollView>
-  ), [paymentMethod, cardInfo]);
+  ), [paymentMethod, cardInfo, bottomActionsHeight, walletBalance, total, loadingWallet, nfcSupported, handleReadCardViaNfc]);
 
   const renderSummaryStep = useCallback(() => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.stepContent} 
+      contentContainerStyle={[styles.scrollContentContainer, { paddingBottom: bottomActionsHeight }]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Modern Header Section */}
+      <View style={styles.summaryHeader}>
+        <View style={styles.headerIconContainer}>
+          <Icon name="receipt" size={28} color={Colors.primary} />
+        </View>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.summaryTitle}>Sipariş Özeti</Text>
+          <Text style={styles.summarySubtitle}>Siparişinizi kontrol edip onaylayın</Text>
+        </View>
+      </View>
+
+      {/* Ürünler Bölümü */}
       <View style={styles.formCard}>
-        <Text style={styles.formTitle}>Sipariş Özeti</Text>
+        <View style={styles.sectionHeader}>
+          <Icon name="shopping-cart" size={18} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>Sipariş Edilen Ürünler</Text>
+        </View>
         
-        {/* Order Items */}
-        <View style={styles.orderItems}>
+        <View style={styles.modernOrderItems}>
           {cartItems.map((item, index) => (
-            <View key={index} style={styles.orderItem}>
-              <Text style={styles.orderItemName} numberOfLines={1}>
-                {item.product?.name || 'Ürün'}
-              </Text>
-              <Text style={styles.orderItemDetails}>
-                {item.quantity} adet × {(Number(item.product?.price) || 0).toFixed(0)} TL
-              </Text>
-              <Text style={styles.orderItemTotal}>
-                {((Number(item.product?.price) || 0) * item.quantity).toFixed(0)} TL
-              </Text>
+            <View key={index} style={styles.modernOrderItem}>
+              <View style={styles.orderItemContent}>
+                <View style={styles.orderItemInfo}>
+                  <Text style={styles.modernOrderItemName} numberOfLines={2}>
+                    {item.product?.name || 'Ürün'}
+                  </Text>
+                  <Text style={styles.modernOrderItemDetails}>
+                    {item.quantity} adet × {ProductController.formatPrice(Number(item.product?.price) || 0)}
+                  </Text>
+                </View>
+                <View style={styles.orderItemPriceContainer}>
+                  <Text style={styles.modernOrderItemTotal}>
+                    {ProductController.formatPrice((Number(item.product?.price) || 0) * item.quantity)}
+                  </Text>
+                </View>
+              </View>
             </View>
           ))}
         </View>
+      </View>
 
-        {/* Price Summary */}
-        <View style={styles.priceSummary}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Ara Toplam</Text>
-            <Text style={styles.priceValue}>{(Number(subtotal) || 0).toFixed(0)} TL</Text>
-          </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Kargo</Text>
-            <Text style={styles.priceValue}>{(Number(shipping) || 0).toFixed(0)} TL</Text>
-          </View>
-          <View style={styles.priceDivider} />
-          <View style={styles.priceRow}>
-            <Text style={styles.priceTotalLabel}>Toplam</Text>
-            <Text style={styles.priceTotalValue}>{(Number(total) || 0).toFixed(0)} TL</Text>
-          </View>
+      {/* Fiyat Özeti */}
+      <View style={styles.formCard}>
+        <View style={styles.sectionHeader}>
+          <Icon name="attach-money" size={18} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>Fiyat Özeti</Text>
         </View>
 
-        {/* Delivery Info Summary */}
-        <View style={styles.infoSummary}>
-          <Text style={styles.infoSummaryTitle}>Teslimat Bilgileri</Text>
-          <Text style={styles.infoSummaryText}>
-            {deliveryInfo.firstName} {deliveryInfo.lastName}
-          </Text>
-          <Text style={styles.infoSummaryText}>{deliveryInfo.phone}</Text>
-          <Text style={styles.infoSummaryText}>
-            {deliveryInfo.address}, {deliveryInfo.city}
-          </Text>
-        </View>
-
-        {/* Payment Method Summary */}
-        <View style={styles.infoSummary}>
-          <Text style={styles.infoSummaryTitle}>Ödeme Yöntemi</Text>
-          <Text style={styles.infoSummaryText}>
-            {paymentMethod === 'credit_card' ? 'Kredi/Banka Kartı' : paymentMethod === 'eft' ? 'EFT/Havale' : paymentMethod === 'wallet' ? 'Cüzdan (Bakiye)' : 'Temassız (NFC)'}
-          </Text>
-          {paymentMethod === 'credit_card' && (
-            <Text style={styles.infoSummaryText}>
-              **** **** **** {cardInfo.cardNumber.slice(-4)}
+        <View style={styles.modernPriceSummary}>
+          <View style={styles.modernPriceRow}>
+            <View style={styles.priceLabelContainer}>
+              <Icon name="receipt" size={16} color="#6B7280" style={{ marginRight: Spacing.xs }} />
+              <Text style={styles.modernPriceLabel}>Ara Toplam</Text>
+            </View>
+            <Text style={styles.modernPriceValue}>
+              {ProductController.formatPrice(Number(subtotal) || 0)}
             </Text>
-          )}
+          </View>
+          <View style={styles.modernPriceRow}>
+            <View style={styles.priceLabelContainer}>
+              <Icon name="local-shipping" size={16} color="#6B7280" style={{ marginRight: Spacing.xs }} />
+              <Text style={styles.modernPriceLabel}>Kargo</Text>
+            </View>
+            <Text style={styles.modernPriceValue}>
+              {ProductController.formatPrice(Number(shipping) || 0)}
+            </Text>
+          </View>
+          <View style={styles.modernPriceDivider} />
+          <View style={styles.modernTotalRow}>
+            <View style={styles.totalLabelContainer}>
+              <Icon name="payments" size={20} color={Colors.primary} style={{ marginRight: Spacing.sm }} />
+              <Text style={styles.modernTotalLabel}>Toplam</Text>
+            </View>
+            <Text style={styles.modernTotalValue}>
+              {ProductController.formatPrice(Number(total) || 0)}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Teslimat Bilgileri */}
+      <View style={styles.formCard}>
+        <View style={styles.sectionHeader}>
+          <Icon name="location-on" size={18} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>Teslimat Bilgileri</Text>
+        </View>
+        
+        <View style={styles.modernInfoCard}>
+          <View style={styles.infoRow}>
+            <Icon name="person" size={18} color="#6B7280" style={{ marginRight: Spacing.sm }} />
+            <Text style={styles.modernInfoText}>
+              {deliveryInfo.firstName} {deliveryInfo.lastName}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Icon name="phone" size={18} color="#6B7280" style={{ marginRight: Spacing.sm }} />
+            <Text style={styles.modernInfoText}>{deliveryInfo.phone}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Icon name="home" size={18} color="#6B7280" style={{ marginRight: Spacing.sm }} />
+            <Text style={styles.modernInfoText} numberOfLines={2}>
+              {deliveryInfo.address}, {deliveryInfo.district}, {deliveryInfo.city}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Ödeme Yöntemi */}
+      <View style={styles.formCard}>
+        <View style={styles.sectionHeader}>
+          <Icon name="payment" size={18} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>Ödeme Yöntemi</Text>
+        </View>
+        
+        <View style={styles.modernInfoCard}>
+          <View style={styles.infoRow}>
+            <Icon 
+              name={
+                paymentMethod === 'credit_card' ? 'credit-card' : 
+                paymentMethod === 'eft' ? 'account-balance' : 
+                paymentMethod === 'wallet' ? 'account-balance-wallet' : 
+                'nfc'
+              } 
+              size={18} 
+              color={Colors.primary}
+              style={{ marginRight: Spacing.sm }}
+            />
+            <View style={styles.paymentInfoContainer}>
+              <Text style={styles.modernInfoText}>
+                {paymentMethod === 'credit_card' ? 'Kredi/Banka Kartı' : 
+                 paymentMethod === 'eft' ? 'EFT/Havale' : 
+                 paymentMethod === 'wallet' ? 'Cüzdan (Bakiye)' : 
+                 'Temassız (NFC)'}
+              </Text>
+              {paymentMethod === 'credit_card' && cardInfo.cardNumber && (
+                <Text style={styles.modernInfoSubtext}>
+                  **** **** **** {cardInfo.cardNumber.slice(-4)}
+                </Text>
+              )}
+            </View>
+          </View>
         </View>
       </View>
     </ScrollView>
-  ), [cartItems, subtotal, shipping, total, deliveryInfo, paymentMethod, cardInfo]);
+  ), [cartItems, subtotal, shipping, total, deliveryInfo, paymentMethod, cardInfo, bottomActionsHeight]);
 
   const renderStepContent = useCallback(() => {
     switch (currentStep) {
@@ -836,6 +1040,196 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
         return renderDeliveryStep();
     }
   }, [currentStep, renderDeliveryStep, renderPaymentStep, renderSummaryStep]);
+
+  // Success Modal
+  const renderSuccessModal = () => (
+    <Modal
+      visible={showSuccessModal}
+      animationType="fade"
+      transparent={true}
+      onRequestClose={() => setShowSuccessModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.successModalContent}>
+          {/* Success Icon */}
+          <View style={styles.successIconWrapper}>
+            <View style={styles.successIconCircle}>
+              <Icon name="check-circle" size={64} color="#10B981" />
+            </View>
+          </View>
+
+          {/* Title */}
+          <Text style={styles.successModalTitle}>Sipariş Oluşturuldu!</Text>
+
+          {/* Message */}
+          <View style={styles.successModalMessage}>
+            <Text style={styles.successModalText}>
+              Siparişiniz başarıyla oluşturuldu.
+            </Text>
+            <Text style={styles.successModalOrderNumber}>
+              Sipariş No: #{orderId}
+            </Text>
+            {paymentMethod === 'eft' && (
+              <Text style={styles.successModalSubtext}>
+                Ödeme için banka bilgileri bir sonraki ekranda gösterilecektir.
+              </Text>
+            )}
+          </View>
+
+          {/* Action Button */}
+          <TouchableOpacity
+            style={styles.successModalButton}
+            onPress={() => {
+              setShowSuccessModal(false);
+              if (paymentMethod === 'eft') {
+                setShowBankInfoModal(true);
+              } else {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+                navigation.navigate('Orders');
+              }
+            }}
+          >
+            <Text style={styles.successModalButtonText}>
+              {paymentMethod === 'eft' ? 'BANKA BİLGİLERİNİ GÖR' : 'SİPARİŞLERİM'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // Bank Info Modal
+  const renderBankInfoModal = () => (
+    <Modal
+      visible={showBankInfoModal}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setShowBankInfoModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.bankInfoModalContent}>
+          {/* Header */}
+          <View style={styles.bankInfoModalHeader}>
+            <View style={styles.bankInfoHeaderLeft}>
+              <View style={styles.bankInfoIconContainer}>
+                <Icon name="account-balance" size={28} color={Colors.primary} />
+              </View>
+              <View>
+                <Text style={styles.bankInfoModalTitle}>Banka Bilgileri</Text>
+                <Text style={styles.bankInfoModalSubtitle}>Ödeme için aşağıdaki bilgileri kullanın</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.bankInfoCloseButton}
+              onPress={() => setShowBankInfoModal(false)}
+            >
+              <Icon name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Bank Info Card */}
+          <ScrollView style={styles.bankInfoScroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.bankInfoCard}>
+              <View style={styles.bankInfoItem}>
+                <View style={styles.bankInfoItemHeader}>
+                  <Icon name="account-balance" size={20} color="#6B7280" style={{ marginRight: Spacing.xs }} />
+                  <Text style={styles.bankInfoLabel}>Hesap Sahibi</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.bankInfoValueContainer}
+                  onPress={() => handleCopy(EFT_DETAILS.accountName, 'Hesap Sahibi')}
+                >
+                  <Text style={styles.bankInfoValue}>{EFT_DETAILS.accountName}</Text>
+                  <Icon name="content-copy" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.bankInfoItem}>
+                <View style={styles.bankInfoItemHeader}>
+                  <Icon name="credit-card" size={20} color="#6B7280" style={{ marginRight: Spacing.xs }} />
+                  <Text style={styles.bankInfoLabel}>IBAN</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.bankInfoValueContainer}
+                  onPress={() => handleCopy(EFT_DETAILS.iban, 'IBAN')}
+                >
+                  <Text style={styles.bankInfoValue}>{EFT_DETAILS.iban}</Text>
+                  <Icon name="content-copy" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.bankInfoItem}>
+                <View style={styles.bankInfoItemHeader}>
+                  <Icon name="attach-money" size={20} color="#6B7280" style={{ marginRight: Spacing.xs }} />
+                  <Text style={styles.bankInfoLabel}>Tutar</Text>
+                </View>
+                <Text style={styles.bankInfoAmount}>
+                  {ProductController.formatPrice(total)}
+                </Text>
+              </View>
+
+              <View style={styles.bankInfoItem}>
+                <View style={styles.bankInfoItemHeader}>
+                  <Icon name="description" size={20} color="#6B7280" style={{ marginRight: Spacing.xs }} />
+                  <Text style={styles.bankInfoLabel}>Açıklama</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.bankInfoValueContainer}
+                  onPress={() => handleCopy(`Sipariş #${orderId}`, 'Açıklama')}
+                >
+                  <Text style={styles.bankInfoValue}>Sipariş #{orderId}</Text>
+                  <Icon name="content-copy" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Warning Card */}
+            <View style={styles.bankInfoWarningCard}>
+              <View style={styles.bankInfoWarningHeader}>
+                <Icon name="warning" size={24} color="#F59E0B" />
+                <Text style={styles.bankInfoWarningTitle}>Önemli</Text>
+              </View>
+              <Text style={styles.bankInfoWarningText}>
+                Havale açıklamasına mutlaka sipariş numaranızı (#{orderId}) yazınız. Ödemeniz onaylandığında siparişiniz işleme alınacaktır.
+              </Text>
+            </View>
+          </ScrollView>
+
+          {/* Action Buttons */}
+          <View style={styles.bankInfoModalActions}>
+            <TouchableOpacity
+              style={styles.bankInfoSecondaryButton}
+              onPress={() => {
+                setShowBankInfoModal(false);
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+              }}
+            >
+              <Text style={styles.bankInfoSecondaryButtonText}>Ana Sayfa</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.bankInfoPrimaryButton}
+              onPress={() => {
+                setShowBankInfoModal(false);
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+                navigation.navigate('Orders');
+              }}
+            >
+              <Text style={styles.bankInfoPrimaryButtonText}>Siparişlerim</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   const handleStepAction = useCallback(() => {
     if (currentStep === 0) {
@@ -855,38 +1249,49 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView 
-        style={styles.container} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {/* header kaldırıldı */}
         
         <View style={styles.content}>
           {renderStepContent()}
         </View>
-
-        {/* Bottom Actions */}
-        <View style={styles.bottomActions}>
-          {currentStep > 0 && (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handlePrevStep}
-            >
-              <Text style={styles.backButtonText}>Geri</Text>
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity
-            style={[styles.nextButton, currentStep === 0 && styles.nextButtonFull]}
-            onPress={handleStepAction}
-            disabled={loading}
-          >
-            <Text style={styles.nextButtonText}>
-              {loading ? 'İşleniyor...' : 
-               currentStep === 2 ? 'Siparişi Onayla' : 'Devam Et'}
-            </Text>
-          </TouchableOpacity>
-        </View>
       </KeyboardAvoidingView>
+      
+      {/* Bottom Actions - SafeAreaView içinde ama KeyboardAvoidingView dışında */}
+      <View style={[
+        styles.bottomActions, 
+        { 
+          bottom: tabBarHeight, // Tab bar'ın üstüne yerleştir
+          paddingBottom: Math.max(insets.bottom, Spacing.sm) + Spacing.sm 
+        }
+      ]}>
+        {currentStep > 0 && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handlePrevStep}
+          >
+            <Text style={styles.backButtonText}>Geri</Text>
+          </TouchableOpacity>
+        )}
+        
+        <TouchableOpacity
+          style={[styles.nextButton, currentStep === 0 && styles.nextButtonFull]}
+          onPress={handleStepAction}
+          disabled={loading}
+        >
+          <Text style={styles.nextButtonText}>
+            {loading ? 'İşleniyor...' : 
+             currentStep === 2 ? 'Siparişi Onayla' : 'Devam Et'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Modals */}
+      {renderSuccessModal()}
+      {renderBankInfoModal()}
     </SafeAreaView>
   );
 };
@@ -971,16 +1376,130 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
 
+  // KeyboardAvoidingView
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   // Content
   content: {
     flex: 1,
+    paddingBottom: 120, // Bottom actions için alan (artırıldı)
   },
   stepContent: {
     flex: 1,
     padding: Spacing.md,
   },
+  scrollContentContainer: {
+    paddingBottom: 100, // Varsayılan değer, dinamik olarak override edilecek
+  },
 
   // Form Styles
+  deliveryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.medium,
+  },
+  headerIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  deliveryTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  deliverySubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  paymentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.medium,
+  },
+  paymentTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  paymentSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  walletBalanceCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    ...Shadows.medium,
+  },
+  walletBalanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  walletIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  walletBalanceInfo: {
+    flex: 1,
+  },
+  walletBalanceLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  walletBalanceAmount: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  walletWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: Spacing.sm,
+    borderRadius: 8,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  walletWarningText: {
+    fontSize: 12,
+    color: '#DC2626',
+    marginLeft: Spacing.xs,
+    flex: 1,
+    fontWeight: '500',
+  },
   formCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -994,6 +1513,24 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginBottom: Spacing.lg,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginLeft: Spacing.sm,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: Spacing.lg,
+    marginHorizontal: -Spacing.lg,
+  },
   inputContainer: {
     marginBottom: Spacing.md,
   },
@@ -1006,6 +1543,20 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginBottom: Spacing.xs,
   },
+  modernInputContainer: {
+    marginBottom: Spacing.lg,
+  },
+  inputLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  modernInputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginLeft: 6,
+  },
   textInput: {
     borderWidth: 1,
     borderColor: '#E0E0E0',
@@ -1015,6 +1566,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333333',
     backgroundColor: '#FFFFFF',
+  },
+  modernTextInput: {
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md + 2,
+    fontSize: 15,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+  },
+  modernTextArea: {
+    height: 100,
+    textAlignVertical: 'top',
+    paddingTop: Spacing.md + 2,
   },
   textArea: {
     height: 80,
@@ -1046,10 +1612,230 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginLeft: Spacing.md,
   },
+  modernPaymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.md + 4,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    marginBottom: Spacing.md,
+    backgroundColor: '#FFFFFF',
+    ...Shadows.small,
+  },
+  modernPaymentOptionSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + '08',
+    ...Shadows.medium,
+  },
+  paymentOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  paymentIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  paymentIconContainerActive: {
+    backgroundColor: Colors.primary,
+  },
+  paymentOptionTextContainer: {
+    flex: 1,
+  },
+  modernPaymentOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  modernPaymentOptionTextActive: {
+    color: Colors.primary,
+  },
+  paymentOptionSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  paymentRadioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: Spacing.sm,
+  },
+  paymentRadioButtonActive: {
+    borderColor: Colors.primary,
+  },
+  paymentRadioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.primary,
+  },
   cardForm: {
     marginTop: Spacing.md,
   },
+  cardFormSection: {
+    marginTop: Spacing.lg,
+  },
+  nfcButtonContainer: {
+    marginTop: Spacing.md,
+    alignItems: 'center',
+  },
+  nfcButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    gap: Spacing.sm,
+    ...Shadows.small,
+  },
+  nfcButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  nfcButtonHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: Spacing.xs,
+    textAlign: 'center',
+  },
+  nfcInfoCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  nfcIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  nfcTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: Spacing.sm,
+  },
+  nfcDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+  nfcBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 20,
+    marginBottom: Spacing.lg,
+  },
+  nfcBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  nfcScanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md + 4,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: 12,
+    gap: Spacing.sm,
+    ...Shadows.medium,
+  },
+  nfcScanButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  eftInfoCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+  },
+  eftIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FF8C00' + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  eftTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: Spacing.sm,
+  },
+  eftDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: Spacing.lg,
+  },
+  eftFeatures: {
+    flexDirection: 'row',
+    gap: Spacing.lg,
+    marginTop: Spacing.sm,
+  },
+  eftFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  eftFeatureText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '500',
+  },
 
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.medium,
+  },
+  summaryTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  summarySubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
   // Order Summary
   orderItems: {
     marginBottom: Spacing.lg,
@@ -1080,7 +1866,45 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     minWidth: 80,
   },
-
+  modernOrderItems: {
+    marginTop: Spacing.sm,
+  },
+  modernOrderItem: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  orderItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  orderItemInfo: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  modernOrderItemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: Spacing.xs,
+    lineHeight: 20,
+  },
+  modernOrderItemDetails: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  orderItemPriceContainer: {
+    alignItems: 'flex-end',
+  },
+  modernOrderItemTotal: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
   // Price Summary
   priceSummary: {
     marginBottom: Spacing.lg,
@@ -1100,6 +1924,60 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333333',
   },
+  modernPriceSummary: {
+    marginTop: Spacing.sm,
+  },
+  modernPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+  },
+  priceLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modernPriceLabel: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  modernPriceValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  modernPriceDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: Spacing.sm,
+  },
+  modernTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingTop: Spacing.lg,
+    backgroundColor: Colors.primary + '08',
+    marginHorizontal: -Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    marginTop: Spacing.sm,
+  },
+  totalLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modernTotalLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modernTotalValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
   priceDivider: {
     height: 1,
     backgroundColor: '#E0E0E0',
@@ -1115,7 +1993,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.primary,
   },
-
   // Info Summary
   infoSummary: {
     marginBottom: Spacing.lg,
@@ -1131,42 +2008,324 @@ const styles = StyleSheet.create({
     color: '#666666',
     marginBottom: 2,
   },
+  modernInfoCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.md,
+  },
+  modernInfoText: {
+    fontSize: 15,
+    color: '#1F2937',
+    fontWeight: '500',
+    flex: 1,
+    lineHeight: 22,
+  },
+  modernInfoSubtext: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  paymentInfoContainer: {
+    flex: 1,
+  },
 
   // Bottom Actions
   bottomActions: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
     ...Shadows.medium,
+    zIndex: 9999, // Çok yüksek z-index - butonun her zaman görünür olması için
+    elevation: 50, // Android için yüksek elevation
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   backButton: {
     flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: 25,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: 12,
     backgroundColor: '#F0F0F0',
     alignItems: 'center',
     marginRight: Spacing.sm,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   backButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#666666',
   },
   nextButton: {
     flex: 2,
-    paddingVertical: Spacing.md,
-    borderRadius: 25,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: 12,
     backgroundColor: '#1A1A2E',
     alignItems: 'center',
-    ...Shadows.medium,
+    minHeight: 44,
+    justifyContent: 'center',
+    ...Shadows.small,
   },
   nextButtonFull: {
     flex: 1,
     marginRight: 0,
   },
   nextButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  
+  // Success Modal
+  successModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: Spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    ...Shadows.large,
+  },
+  successIconWrapper: {
+    marginBottom: Spacing.lg,
+  },
+  successIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#10B981' + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  successModalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: Spacing.md,
+    textAlign: 'center',
+  },
+  successModalMessage: {
+    marginBottom: Spacing.xl,
+    alignItems: 'center',
+  },
+  successModalText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    lineHeight: 24,
+  },
+  successModalOrderNumber: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primary,
+    marginBottom: Spacing.sm,
+  },
+  successModalSubtext: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+    lineHeight: 20,
+  },
+  successModalButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    width: '100%',
+    alignItems: 'center',
+    ...Shadows.medium,
+  },
+  successModalButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+
+  // Bank Info Modal
+  bankInfoModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '90%',
+    ...Shadows.large,
+  },
+  bankInfoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  bankInfoHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  bankInfoIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  bankInfoModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  bankInfoModalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  bankInfoCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  bankInfoScroll: {
+    flex: 1,
+  },
+  bankInfoCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    margin: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  bankInfoItem: {
+    marginBottom: Spacing.lg,
+  },
+  bankInfoItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  bankInfoLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  bankInfoValueContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginTop: Spacing.xs,
+  },
+  bankInfoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  bankInfoAmount: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.primary,
+    marginTop: Spacing.xs,
+  },
+  bankInfoWarningCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    margin: Spacing.lg,
+    marginTop: 0,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  bankInfoWarningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  bankInfoWarningTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+    marginLeft: Spacing.xs,
+  },
+  bankInfoWarningText: {
+    fontSize: 14,
+    color: '#78350F',
+    lineHeight: 20,
+  },
+  bankInfoModalActions: {
+    flexDirection: 'row',
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  bankInfoSecondaryButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  bankInfoSecondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  bankInfoPrimaryButton: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    ...Shadows.medium,
+  },
+  bankInfoPrimaryButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',

@@ -371,15 +371,14 @@ export const AddressesScreen: React.FC<AddressesScreenProps> = ({ navigation, ro
             <Text style={styles.modalTitle}>
               {editingAddress ? 'Adresi Düzenle' : 'Yeni Adres Ekle'}
             </Text>
-            <TouchableOpacity
-              onPress={handleSaveAddress}
-              style={styles.modalSaveButton}
-            >
-              <Text style={styles.modalSaveButtonText}>Kaydet</Text>
-            </TouchableOpacity>
+            <View style={styles.modalHeaderPlaceholder} />
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.modalContent} 
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Adres Türü</Text>
               <View style={styles.addressTypeSelector}>
@@ -501,6 +500,14 @@ export const AddressesScreen: React.FC<AddressesScreenProps> = ({ navigation, ro
               </TouchableOpacity>
             </View>
           </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <ModernButton
+              title={editingAddress ? 'Güncelle' : 'Kaydet'}
+              onPress={handleSaveAddress}
+              style={styles.submitButton}
+            />
+          </View>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -707,17 +714,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text,
   },
-  modalSaveButton: {
-    padding: Spacing.sm,
+  modalHeaderPlaceholder: {
+    width: 60,
   },
-  modalSaveButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
+  modalFooter: {
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  submitButton: {
+    width: '100%',
   },
   modalContent: {
     flex: 1,
     padding: Spacing.lg,
+  },
+  modalScrollContent: {
+    paddingBottom: 100, // Modal footer butonu için alan
   },
   formGroup: {
     marginBottom: Spacing.lg,

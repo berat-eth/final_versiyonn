@@ -42,9 +42,9 @@ export const ModernTabBar: React.FC<TabBarProps> = ({ state, descriptors, naviga
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View style={styles.container}>
       {/* Modern Background with Shadow */}
-      <View style={styles.tabBarContainer}>
+      <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 0) }]}>
         {/* Top border line with gradient */}
         <LinearGradient
           colors={['#3b82f6', '#8b5cf6', '#ec4899']}
@@ -207,6 +207,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     ...Platform.select({
       ios: {
         shadowColor: '#000',

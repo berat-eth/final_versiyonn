@@ -1718,7 +1718,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   scrollContent: {
-    paddingBottom: 100, // Footer için alan bırak
+    paddingBottom: 120, // Footer için alan bırak (artırıldı)
   },
   footer: {
     position: 'absolute',

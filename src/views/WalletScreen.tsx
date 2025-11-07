@@ -509,6 +509,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
     <SafeAreaView style={styles.modernContainer}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -777,17 +778,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
               <Icon name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Bakiye Transferi</Text>
-            <TouchableOpacity
-              onPress={handleTransfer}
-              style={[styles.modalSaveButton, (!selectedUser || !transferAmount || transferLoading) && styles.modalSaveButtonDisabled]}
-              disabled={!selectedUser || !transferAmount || transferLoading}
-            >
-              {transferLoading ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Text style={styles.modalSaveButtonText}>Gönder</Text>
-              )}
-            </TouchableOpacity>
+            <View style={styles.modalHeaderPlaceholder} />
           </View>
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
@@ -899,6 +890,20 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
               </Text>
             </View>
           </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              onPress={handleTransfer}
+              style={[styles.submitButton, (!selectedUser || !transferAmount || transferLoading) && styles.submitButtonDisabled]}
+              disabled={!selectedUser || !transferAmount || transferLoading}
+            >
+              {transferLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.submitButtonText}>Gönder</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </Modal>
       
@@ -957,10 +962,13 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
                 onChangeText={setRefundNote}
               />
             </View>
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmitRefund}>
-              <Text style={styles.submitButtonText}>Talep Gönder</Text>
-            </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={styles.modalFooter}>
+          <TouchableOpacity style={styles.submitButton} onPress={handleSubmitRefund}>
+            <Text style={styles.submitButtonText}>Talep Gönder</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
 
@@ -980,17 +988,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
               <Icon name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Hediye Çeki Oluştur</Text>
-            <TouchableOpacity
-              onPress={handleGiftCardSubmit}
-              style={[styles.modalSaveButton, (!giftCardAmount || !giftCardRecipient || giftCardLoading) && styles.modalSaveButtonDisabled]}
-              disabled={!giftCardAmount || !giftCardRecipient || giftCardLoading}
-            >
-              {giftCardLoading ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Text style={styles.modalSaveButtonText}>Oluştur</Text>
-              )}
-            </TouchableOpacity>
+            <View style={styles.modalHeaderPlaceholder} />
           </View>
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
@@ -1118,6 +1116,20 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ navigation }) => {
               </Text>
             </View>
           </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              onPress={handleGiftCardSubmit}
+              style={[styles.submitButton, (!giftCardAmount || !giftCardRecipient || giftCardLoading) && styles.submitButtonDisabled]}
+              disabled={!giftCardAmount || !giftCardRecipient || giftCardLoading}
+            >
+              {giftCardLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.submitButtonText}>Oluştur</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -1333,6 +1345,9 @@ const styles = StyleSheet.create({
   modernContainer: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  scrollContent: {
+    paddingBottom: 100, // Hpay+ butonu için alan
   },
   bottomBar: {
     position: 'absolute',
@@ -1761,6 +1776,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: 'white',
+  },
+  modalHeaderPlaceholder: {
+    width: 60,
+  },
+  modalFooter: {
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
   modalContent: {
     flex: 1,

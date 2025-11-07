@@ -804,6 +804,21 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
         <View style={styles.emptyContainer}>
+          {/* White Background */}
+          <View style={styles.emptyGradientBackground} />
+          
+          {/* Decorative Geometric Shapes */}
+          <View style={styles.emptyBackgroundPattern}>
+            <View style={styles.emptyCircle1} />
+            <View style={styles.emptyCircle2} />
+            <View style={styles.emptyCircle3} />
+            <View style={styles.emptyCircle4} />
+            <View style={styles.emptyCircle5} />
+            <View style={styles.emptyCircle6} />
+            <View style={styles.emptyCircle7} />
+            <View style={styles.emptyCircle8} />
+          </View>
+          
           <View style={styles.emptyStateContainer}>
             <View style={styles.emptyIconContainer}>
               <Icon name="shopping-cart" size={80} color={Colors.textMuted} />
@@ -1193,10 +1208,107 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+  emptyGradientBackground: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+  },
+  emptyBackgroundPattern: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
+  emptyCircle1: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    top: -80,
+    right: -60,
+  },
+  emptyCircle2: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    bottom: 60,
+    left: -30,
+  },
+  emptyCircle3: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(78, 205, 196, 0.12)',
+    top: '30%',
+    right: 15,
+  },
+  emptyCircle4: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255, 193, 7, 0.12)',
+    top: '10%',
+    left: -20,
+  },
+  emptyCircle5: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    bottom: '20%',
+    right: 25,
+  },
+  emptyCircle6: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(236, 72, 153, 0.12)',
+    top: '55%',
+    right: -30,
+  },
+  emptyCircle7: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    bottom: '10%',
+    right: 60,
+  },
+  emptyCircle8: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(251, 146, 60, 0.12)',
+    top: '70%',
+    left: 40,
   },
   emptyStateContainer: {
     alignItems: 'center',
     paddingVertical: Spacing.xxl,
+    zIndex: 1,
+    position: 'relative',
   },
   emptyIconContainer: {
     backgroundColor: '#FFFFFF',

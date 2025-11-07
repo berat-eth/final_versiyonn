@@ -222,7 +222,10 @@ export const ReturnRequestsScreen: React.FC<ReturnRequestsScreenProps> = ({ navi
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.modalContent}>
+        <ScrollView 
+          style={styles.modalContent}
+          contentContainerStyle={styles.modalScrollContent}
+        >
           {selectedOrderItem && (
             <View style={styles.selectedProductContainer}>
               <Text style={styles.sectionTitle}>Seçilen Ürün</Text>
@@ -275,13 +278,15 @@ export const ReturnRequestsScreen: React.FC<ReturnRequestsScreenProps> = ({ navi
             numberOfLines={4}
             textAlignVertical="top"
           />
+        </ScrollView>
 
+        <View style={styles.modalFooter}>
           <ModernButton
             title="İade Talebi Oluştur"
             onPress={handleNewRequest}
-            style={{ marginTop: Spacing.xl }}
+            style={styles.submitButton}
           />
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </Modal>
   );
@@ -363,7 +368,10 @@ export const ReturnRequestsScreen: React.FC<ReturnRequestsScreenProps> = ({ navi
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView 
+            style={styles.modalContent}
+            contentContainerStyle={styles.modalScrollContent}
+          >
             <Text style={styles.sectionTitle}>İade Edilebilir Ürünler</Text>
             <Text style={styles.infoText}>
               Sadece teslim edilmiş siparişlerdeki ürünleri iade edebilirsiniz.
@@ -634,6 +642,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
   },
+  modalScrollContent: {
+    paddingBottom: 100, // Modal footer butonu için alan
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -791,5 +802,14 @@ const styles = StyleSheet.create({
   selectedProductPrice: {
     fontSize: 14,
     color: Colors.textLight,
+  },
+  modalFooter: {
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  submitButton: {
+    width: '100%',
   },
 });
