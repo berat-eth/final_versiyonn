@@ -68,8 +68,11 @@ export class ShareUtils {
       }
 
       // Fiyat biçimlendirici
-      const formatPrice = (price: number) =>
-        new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(price);
+      const formatPrice = (price: number) => {
+        const formatted = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(price);
+        // Eğer çıktıda $ sembolü varsa ₺ ile değiştir
+        return formatted.replace(/\$/g, '₺');
+      };
 
       // Açıklamayı kısalt
       const shortDescription = (productData.productDescription || '')

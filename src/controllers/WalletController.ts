@@ -169,12 +169,14 @@ export class WalletController {
    * Format wallet balance for display
    */
   static formatBalance(balance: number, currency: string = 'TRY'): string {
-    return new Intl.NumberFormat('tr-TR', {
+    const formatted = new Intl.NumberFormat('tr-TR', {
       style: 'currency',
-      currency: currency,
+      currency: 'TRY', // Her zaman TRY kullan
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(balance);
+    // Eğer çıktıda $ sembolü varsa ₺ ile değiştir
+    return formatted.replace(/\$/g, '₺');
   }
 
   /**

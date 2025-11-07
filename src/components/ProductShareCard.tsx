@@ -29,10 +29,12 @@ export const ProductShareCard: React.FC<ProductShareCardProps> = ({
   height = 300,
 }) => {
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('tr-TR', {
+    const formatted = new Intl.NumberFormat('tr-TR', {
       style: 'currency',
       currency: 'TRY',
     }).format(price);
+    // Eğer çıktıda $ sembolü varsa ₺ ile değiştir
+    return formatted.replace(/\$/g, '₺');
   };
 
   return (

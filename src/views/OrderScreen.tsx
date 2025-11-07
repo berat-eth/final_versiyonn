@@ -79,6 +79,7 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
     cvv: '',
     cardHolder: '',
   });
+  const [nfcCardData, setNfcCardData] = useState<NfcCardData | null>(null);
   const [nfcSupported, setNfcSupported] = useState<boolean>(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loadingWallet, setLoadingWallet] = useState<boolean>(false);
@@ -182,8 +183,11 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
       navigation.navigate('NfcScan', {
         onResult: (data: NfcCardData | null) => {
           if (!data || !data.pan) {
+            Alert.alert('Hata', 'Kart okunamadı. Lütfen tekrar deneyin.');
             return;
           }
+          // NFC ile okunan kart bilgilerini kaydet
+          setNfcCardData(data);
           const formattedPan = data.pan.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
           const expiry = data.expiryMonth && data.expiryYear
             ? `${data.expiryMonth}/${data.expiryYear.slice(-2)}`
@@ -193,11 +197,18 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
             cardNumber: formattedPan || prev.cardNumber,
             expiryDate: expiry || prev.expiryDate,
           }));
-          setPaymentMethod('credit_card');
+          // NFC ödeme yöntemine geç
+          setPaymentMethod('nfc');
+          Alert.alert(
+            'Kart Okundu',
+            'Kart bilgileri okundu. Ödeme için CVC kodunu girmeniz gerekiyor.',
+            [{ text: 'Tamam' }]
+          );
         }
       });
     } catch (error) {
       console.error('❌ NFC okuma navigasyon hatası:', error);
+      Alert.alert('Hata', 'NFC okuma başlatılamadı.');
     }
   }, [navigation]);
 
@@ -238,9 +249,23 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
         Alert.alert('Geçersiz Kart', 'Lütfen geçerli bir kart numarası girin.');
         return false;
       }
+    } else if (paymentMethod === 'nfc') {
+      // NFC ödeme için kontrol
+      if (!nfcCardData || !nfcCardData.pan) {
+        Alert.alert('Eksik Bilgi', 'Lütfen NFC ile kartınızı okutun.');
+        return false;
+      }
+      if (!cardInfo.cvv || cardInfo.cvv.length < 3) {
+        Alert.alert('Eksik Bilgi', 'Lütfen CVC kodunu girin.');
+        return false;
+      }
+      if (!cardInfo.cardHolder || cardInfo.cardHolder.trim().length < 3) {
+        Alert.alert('Eksik Bilgi', 'Lütfen kart sahibi adını girin.');
+        return false;
+      }
     }
     return true;
-  }, [paymentMethod, cardInfo]);
+  }, [paymentMethod, cardInfo, nfcCardData]);
 
   const handleCompleteOrder = useCallback(async () => {
     setLoading(true);
@@ -269,18 +294,48 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
 
       if (result.success) {
         // Order created successfully
-        if (paymentMethod === 'credit_card') {
+        if (paymentMethod === 'credit_card' || paymentMethod === 'nfc') {
           // Process payment via İyzico
-          const [expMonthRaw, expYearRaw] = (cardInfo.expiryDate || '').split('/')
-            .map(part => (part || '').replace(/\D/g, ''));
-          const expireMonth = (expMonthRaw || '').padStart(2, '0');
-          const expireYear = (expYearRaw && expYearRaw.length === 2) ? `20${expYearRaw}` : (expYearRaw || '');
+          // NFC ile okunan kart bilgilerini kullan
+          let expireMonth = '';
+          let expireYear = '';
+          
+          if (paymentMethod === 'nfc' && nfcCardData) {
+            // NFC'den okunan tarih bilgilerini kullan
+            expireMonth = (nfcCardData.expiryMonth || '').padStart(2, '0');
+            expireYear = nfcCardData.expiryYear || '';
+          } else {
+            // Manuel girilen tarih bilgilerini kullan
+            const [expMonthRaw, expYearRaw] = (cardInfo.expiryDate || '').split('/')
+              .map(part => (part || '').replace(/\D/g, ''));
+            expireMonth = (expMonthRaw || '').padStart(2, '0');
+            expireYear = (expYearRaw && expYearRaw.length === 2) ? `20${expYearRaw}` : (expYearRaw || '');
+          }
+          
+          // CVC kontrolü
+          if (!cardInfo.cvv || cardInfo.cvv.length < 3) {
+            Alert.alert('Eksik Bilgi', 'Lütfen CVC kodunu girin.');
+            setLoading(false);
+            return;
+          }
+          
+          // Kart sahibi adı kontrolü
+          if (!cardInfo.cardHolder || cardInfo.cardHolder.trim().length < 3) {
+            Alert.alert('Eksik Bilgi', 'Lütfen kart sahibi adını girin.');
+            setLoading(false);
+            return;
+          }
+
+          // NFC ile okunan kart numarasını kullan
+          const cardNumber = paymentMethod === 'nfc' && nfcCardData?.pan 
+            ? nfcCardData.pan.replace(/\s/g, '')
+            : cardInfo.cardNumber.replace(/\s/g, '');
 
           const paymentResponse = await PaymentService.processPayment({
             orderId: result.orderId!,
             paymentCard: {
               cardHolderName: cardInfo.cardHolder.trim(),
-              cardNumber: cardInfo.cardNumber.replace(/\s/g, ''),
+              cardNumber: cardNumber,
               expireMonth,
               expireYear,
               cvc: cardInfo.cvv
@@ -676,44 +731,72 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
             </View>
           </TouchableOpacity>
 
-          {nfcSupported && (
-            <TouchableOpacity
-              style={[
-                styles.modernPaymentOption,
-                paymentMethod === 'nfc' && styles.modernPaymentOptionSelected
-              ]}
-              onPress={() => {
-                console.log('📱 NFC ödeme seçeneği seçildi');
-                setPaymentMethod('nfc');
-              }}
-            >
-              <View style={styles.paymentOptionLeft}>
-                <View style={[
-                  styles.paymentIconContainer,
-                  paymentMethod === 'nfc' && styles.paymentIconContainerActive
-                ]}>
-                  <Icon name="nfc" size={24} color={paymentMethod === 'nfc' ? '#FFFFFF' : Colors.primary} />
-                </View>
-                <View style={styles.paymentOptionTextContainer}>
-                  <Text style={[
-                    styles.modernPaymentOptionText,
-                    paymentMethod === 'nfc' && styles.modernPaymentOptionTextActive
-                  ]}>
-                    Temassız (NFC)
-                  </Text>
-                  <Text style={styles.paymentOptionSubtext}>Kartı telefonun arkasına yaklaştırın</Text>
-                </View>
-              </View>
+          <TouchableOpacity
+            style={[
+              styles.modernPaymentOption,
+              paymentMethod === 'nfc' && styles.modernPaymentOptionSelected,
+              !nfcSupported && styles.modernPaymentOptionDisabled
+            ]}
+            onPress={() => {
+              if (!nfcSupported) {
+                Alert.alert(
+                  'NFC Desteklenmiyor',
+                  'Bu cihazda NFC özelliği desteklenmiyor veya etkin değil. Lütfen NFC ayarlarını kontrol edin veya başka bir ödeme yöntemi seçin.',
+                  [{ text: 'Tamam' }]
+                );
+                return;
+              }
+              console.log('📱 NFC ödeme seçeneği seçildi');
+              setPaymentMethod('nfc');
+            }}
+            disabled={!nfcSupported}
+          >
+            <View style={styles.paymentOptionLeft}>
               <View style={[
-                styles.paymentRadioButton,
-                paymentMethod === 'nfc' && styles.paymentRadioButtonActive
+                styles.paymentIconContainer,
+                paymentMethod === 'nfc' && styles.paymentIconContainerActive,
+                !nfcSupported && styles.paymentIconContainerDisabled
               ]}>
-                {paymentMethod === 'nfc' && (
-                  <View style={styles.paymentRadioButtonInner} />
-                )}
+                <Icon 
+                  name="nfc" 
+                  size={24} 
+                  color={
+                    !nfcSupported 
+                      ? '#9CA3AF' 
+                      : paymentMethod === 'nfc' 
+                        ? '#FFFFFF' 
+                        : Colors.primary
+                  } 
+                />
               </View>
-            </TouchableOpacity>
-          )}
+              <View style={styles.paymentOptionTextContainer}>
+                <Text style={[
+                  styles.modernPaymentOptionText,
+                  paymentMethod === 'nfc' && styles.modernPaymentOptionTextActive,
+                  !nfcSupported && styles.modernPaymentOptionTextDisabled
+                ]}>
+                  Temassız (NFC)
+                </Text>
+                <Text style={[
+                  styles.paymentOptionSubtext,
+                  !nfcSupported && styles.paymentOptionSubtextDisabled
+                ]}>
+                  {nfcSupported 
+                    ? 'Kartı telefonun arkasına yaklaştırın' 
+                    : 'NFC desteklenmiyor'}
+                </Text>
+              </View>
+            </View>
+            <View style={[
+              styles.paymentRadioButton,
+              paymentMethod === 'nfc' && styles.paymentRadioButtonActive,
+              !nfcSupported && styles.paymentRadioButtonDisabled
+            ]}>
+              {paymentMethod === 'nfc' && nfcSupported && (
+                <View style={styles.paymentRadioButtonInner} />
+              )}
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Credit Card Form */}
@@ -829,20 +912,74 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
               <View style={styles.nfcIconContainer}>
                 <Icon name="nfc" size={32} color={Colors.primary} />
               </View>
-              <Text style={styles.nfcTitle}>Temassız Ödeme</Text>
-              <Text style={styles.nfcDescription}>
-                Kartınızı telefonun arkasına yaklaştırın ve okutun. Bu sürümde NFC okutma sonrası kart verileri otomatik doldurulmaz; okutma onayı sonrasında kartlı ödeme akışı kullanılır.
-              </Text>
-              <View style={styles.nfcBadge}>
-                <Text style={styles.nfcBadgeText}>Geliştirme Aşamasında</Text>
-              </View>
-              <TouchableOpacity 
-                onPress={handleReadCardViaNfc} 
-                style={styles.nfcScanButton}
-              >
-                <Icon name="nfc" size={24} color="#FFFFFF" />
-                <Text style={styles.nfcScanButtonText}>NFC ile Tara</Text>
-              </TouchableOpacity>
+              <Text style={styles.nfcTitle}>Temassız Ödeme (NFC)</Text>
+              {nfcCardData && nfcCardData.pan ? (
+                <>
+                  <View style={styles.nfcCardInfoContainer}>
+                    <View style={styles.nfcCardInfoRow}>
+                      <Icon name="credit-card" size={20} color="#6B7280" />
+                      <Text style={styles.nfcCardInfoLabel}>Kart Numarası:</Text>
+                      <Text style={styles.nfcCardInfoValue}>
+                        {cardInfo.cardNumber || 'Okunamadı'}
+                      </Text>
+                    </View>
+                    {cardInfo.expiryDate && (
+                      <View style={styles.nfcCardInfoRow}>
+                        <Icon name="calendar-today" size={20} color="#6B7280" />
+                        <Text style={styles.nfcCardInfoLabel}>Son Kullanma:</Text>
+                        <Text style={styles.nfcCardInfoValue}>{cardInfo.expiryDate}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.nfcDescription}>
+                    Kart bilgileri okundu. Ödeme için lütfen CVC kodunu girin.
+                  </Text>
+                  <View style={styles.nfcCvcContainer}>
+                    <Text style={styles.nfcCvcLabel}>CVC Kodu *</Text>
+                    <TextInput
+                      style={styles.modernTextInput}
+                      placeholder="123"
+                      placeholderTextColor="#9CA3AF"
+                      value={cardInfo.cvv}
+                      onChangeText={(text) => setCardInfo(prev => ({ ...prev, cvv: text.replace(/\D/g, '').slice(0, 4) }))}
+                      keyboardType="numeric"
+                      maxLength={4}
+                      secureTextEntry
+                    />
+                  </View>
+                  <View style={styles.nfcCvcContainer}>
+                    <Text style={styles.nfcCvcLabel}>Kart Sahibi Adı *</Text>
+                    <TextInput
+                      style={styles.modernTextInput}
+                      placeholder="Ad Soyad"
+                      placeholderTextColor="#9CA3AF"
+                      value={cardInfo.cardHolder}
+                      onChangeText={(text) => setCardInfo(prev => ({ ...prev, cardHolder: text }))}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                  <TouchableOpacity 
+                    onPress={handleReadCardViaNfc} 
+                    style={styles.nfcRescanButton}
+                  >
+                    <Icon name="refresh" size={20} color={Colors.primary} />
+                    <Text style={styles.nfcRescanButtonText}>Kartı Tekrar Tara</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.nfcDescription}>
+                    Kartınızı telefonun arkasına yaklaştırın ve okutun. iyzico ile güvenli ödeme yapabilirsiniz.
+                  </Text>
+                  <TouchableOpacity 
+                    onPress={handleReadCardViaNfc} 
+                    style={styles.nfcScanButton}
+                  >
+                    <Icon name="nfc" size={24} color="#FFFFFF" />
+                    <Text style={styles.nfcScanButtonText}>NFC ile Kartı Tara</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         )}
@@ -1131,7 +1268,11 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
           </View>
 
           {/* Bank Info Card */}
-          <ScrollView style={styles.bankInfoScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.bankInfoScroll} 
+            contentContainerStyle={styles.bankInfoScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.bankInfoCard}>
               <View style={styles.bankInfoItem}>
                 <View style={styles.bankInfoItemHeader}>
@@ -1167,7 +1308,7 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
                   <Text style={styles.bankInfoLabel}>Tutar</Text>
                 </View>
                 <Text style={styles.bankInfoAmount}>
-                  {ProductController.formatPrice(total)}
+                  {ProductController.formatPrice(total).replace(/\$/g, '₺')}
                 </Text>
               </View>
 
@@ -1663,6 +1804,21 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
+  paymentOptionSubtextDisabled: {
+    color: '#9CA3AF',
+  },
+  modernPaymentOptionDisabled: {
+    opacity: 0.6,
+  },
+  paymentIconContainerDisabled: {
+    backgroundColor: '#F3F4F6',
+  },
+  modernPaymentOptionTextDisabled: {
+    color: '#9CA3AF',
+  },
+  paymentRadioButtonDisabled: {
+    borderColor: '#D1D5DB',
+  },
   paymentRadioButton: {
     width: 24,
     height: 24,
@@ -1769,6 +1925,56 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  nfcCardInfoContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: Spacing.md,
+    marginVertical: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    width: '100%',
+  },
+  nfcCardInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  nfcCardInfoLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginLeft: Spacing.xs,
+    marginRight: Spacing.sm,
+  },
+  nfcCardInfoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+  },
+  nfcCvcContainer: {
+    marginTop: Spacing.md,
+    width: '100%',
+  },
+  nfcCvcLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: Spacing.xs,
+  },
+  nfcRescanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  nfcRescanButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginLeft: Spacing.xs,
   },
   eftInfoCard: {
     backgroundColor: '#FFFBEB',
@@ -2179,7 +2385,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     width: '100%',
     maxWidth: 500,
-    maxHeight: '90%',
+    height: '90%',
+    flexDirection: 'column',
     ...Shadows.large,
   },
   bankInfoModalHeader: {
@@ -2225,6 +2432,9 @@ const styles = StyleSheet.create({
   },
   bankInfoScroll: {
     flex: 1,
+  },
+  bankInfoScrollContent: {
+    paddingBottom: 20,
   },
   bankInfoCard: {
     backgroundColor: '#F9FAFB',

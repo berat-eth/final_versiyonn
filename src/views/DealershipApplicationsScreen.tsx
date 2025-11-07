@@ -159,10 +159,12 @@ const DealershipApplicationsScreen: React.FC<{ navigation: any }> = ({ navigatio
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('tr-TR', {
+    const formatted = new Intl.NumberFormat('tr-TR', {
       style: 'currency',
       currency: 'TRY'
     }).format(amount);
+    // Eğer çıktıda $ sembolü varsa ₺ ile değiştir
+    return formatted.replace(/\$/g, '₺');
   };
 
   const renderApplicationCard = (application: DealershipApplication) => (
