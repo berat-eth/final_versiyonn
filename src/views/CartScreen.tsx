@@ -24,6 +24,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useAppContext } from '../contexts/AppContext';
 import { CartShareButtons } from '../components/CartShareButtons';
 import { behaviorAnalytics } from '../services/BehaviorAnalytics';
+import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 
 interface CartScreenProps {
   navigation: any;
@@ -57,17 +58,82 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [flashDeals, setFlashDeals] = useState<FlashDeal[]>([]);
   
 
   useEffect(() => {
     loadCart();
+    loadFlashDeals();
     const unsubscribe = navigation.addListener('focus', () => {
       loadCart();
+      loadFlashDeals();
     });
     return unsubscribe;
   }, [navigation]);
 
-  
+  const loadFlashDeals = useCallback(async () => {
+    try {
+      const deals = await FlashDealService.getActiveFlashDeals();
+      setFlashDeals(deals || []);
+    } catch (error) {
+      console.error('Error loading flash deals:', error);
+      setFlashDeals([]);
+    }
+  }, []);
+
+  // Helper function to get flash deal discount for a product
+  const getFlashDealDiscount = useCallback((productId: number, productPrice?: number): { 
+    discountType: 'percentage' | 'fixed' | null;
+    discountValue: number;
+    originalPrice: number;
+    discountedPrice: number;
+  } => {
+    if (!flashDeals || flashDeals.length === 0) {
+      return { discountType: null, discountValue: 0, originalPrice: 0, discountedPrice: 0 };
+    }
+
+    const nowTs = Date.now();
+    
+    for (const deal of flashDeals) {
+      if (!deal.products || !Array.isArray(deal.products)) continue;
+      
+      const dealProduct = deal.products.find((p: any) => p.id === productId);
+      if (!dealProduct) continue;
+
+      // Check if deal is active
+      const endDate = deal.end_date ? new Date(deal.end_date).getTime() : 0;
+      const startDate = deal.start_date ? new Date(deal.start_date).getTime() : 0;
+      
+      if (nowTs < startDate || nowTs > endDate) continue;
+      if (!deal.is_active) continue;
+
+      const discountType = deal.discount_type || 'percentage';
+      const discountValue = Number(deal.discount_value) || 0;
+      // Use provided productPrice if available, otherwise use dealProduct.price
+      const currentPrice = productPrice || dealProduct.price || 0;
+
+      if (currentPrice <= 0) continue;
+
+      let originalPrice = currentPrice;
+      let discountedPrice = currentPrice;
+
+      if (discountType === 'percentage') {
+        if (discountValue > 0 && discountValue < 100) {
+          discountedPrice = currentPrice * (1 - discountValue / 100);
+          originalPrice = currentPrice;
+        }
+      } else if (discountType === 'fixed') {
+        if (discountValue > 0) {
+          discountedPrice = Math.max(0, currentPrice - discountValue);
+          originalPrice = currentPrice;
+        }
+      }
+
+      return { discountType, discountValue, originalPrice, discountedPrice };
+    }
+
+    return { discountType: null, discountValue: 0, originalPrice: 0, discountedPrice: 0 };
+  }, [flashDeals]);
 
   const loadCart = useCallback(async () => {
     try {
@@ -180,7 +246,18 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   };
 
   const calculateTotal = () => {
-    const subtotal = CartController.calculateSubtotal(cartItems);
+    // Calculate subtotal with flash deal discounts
+    let subtotal = 0;
+    cartItems.forEach(item => {
+      if (item.product) {
+        const flashDiscount = getFlashDealDiscount(item.product.id, item.product.price);
+        const itemPrice = flashDiscount.discountedPrice > 0 
+          ? flashDiscount.discountedPrice 
+          : item.product.price;
+        subtotal += itemPrice * item.quantity;
+      }
+    });
+    
     const discount = appliedDiscount ? appliedDiscount.amount : 0;
     return Math.max(0, subtotal - discount);
   };
@@ -382,18 +459,41 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   }, [cartItems, navigation]);
 
   const cartSummary = useCallback(() => {
-    const subtotal = CartController.calculateSubtotal(cartItems);
+    // Calculate subtotal with flash deal discounts
+    let subtotal = 0;
+    let flashDiscountTotal = 0;
+    
+    cartItems.forEach(item => {
+      if (item.product) {
+        const flashDiscount = getFlashDealDiscount(item.product.id, item.product.price);
+        if (flashDiscount.discountedPrice > 0) {
+          subtotal += flashDiscount.discountedPrice * item.quantity;
+          flashDiscountTotal += (flashDiscount.originalPrice - flashDiscount.discountedPrice) * item.quantity;
+        } else {
+          subtotal += item.product.price * item.quantity;
+        }
+      }
+    });
+    
     const shipping = CartController.calculateShipping(subtotal);
     const discount = appliedDiscount ? appliedDiscount.amount : 0;
     const total = CartController.calculateTotal(subtotal, shipping) - discount;
     const hpayBonus = Math.max(0, Number((total * 0.03).toFixed(2)));
-    return { subtotal, shipping, discount, total, hpayBonus };
-  }, [cartItems, appliedDiscount]);
+    return { subtotal, shipping, discount, total, hpayBonus, flashDiscountTotal };
+  }, [cartItems, appliedDiscount, getFlashDealDiscount]);
 
   const renderCartItem = useCallback(({ item }: { item: CartItem }) => {
     const isUpdating = updatingItems.has(item.id);
+    const flashDiscount = item.product ? getFlashDealDiscount(item.product.id, item.product.price) : null;
     const productPrice = item.product?.price || 0;
-    const itemHpay = Math.max(0, Number(((productPrice * item.quantity) * 0.03).toFixed(2)));
+    const displayPrice = flashDiscount && flashDiscount.discountedPrice > 0 
+      ? flashDiscount.discountedPrice 
+      : productPrice;
+    const originalPrice = flashDiscount && flashDiscount.originalPrice > 0 
+      ? flashDiscount.originalPrice 
+      : null;
+    const itemHpay = Math.max(0, Number(((displayPrice * item.quantity) * 0.03).toFixed(2)));
+    const hasFlashDiscount = flashDiscount && flashDiscount.discountedPrice > 0 && flashDiscount.discountedPrice < flashDiscount.originalPrice;
     
     return (
       <View style={styles.cartItemWrapper}>
@@ -408,6 +508,15 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             {isUpdating && (
               <View style={styles.loadingOverlay}>
                 <Icon name="refresh" size={14} color={Colors.primary} />
+              </View>
+            )}
+            {hasFlashDiscount && (
+              <View style={styles.flashBadge}>
+                <Text style={styles.flashBadgeText}>
+                  {flashDiscount.discountType === 'percentage' 
+                    ? `%${Math.round(flashDiscount.discountValue)}`
+                    : `${flashDiscount.discountValue.toFixed(0)} TL`}
+                </Text>
               </View>
             )}
           </View>
@@ -426,9 +535,16 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
               </Text>
             )}
             
-            <Text style={styles.productPrice}>
-              {(Number(productPrice) || 0).toFixed(0)} TL
-            </Text>
+            <View style={styles.priceContainer}>
+              {hasFlashDiscount && originalPrice && (
+                <Text style={styles.originalPrice}>
+                  {(Number(originalPrice) || 0).toFixed(0)} TL
+                </Text>
+              )}
+              <Text style={[styles.productPrice, hasFlashDiscount && styles.discountedPrice]}>
+                {(Number(displayPrice) || 0).toFixed(0)} TL
+              </Text>
+            </View>
             <Text style={styles.hpayItemNote}>
               Hpay+ kazanım: +{itemHpay.toFixed(2)} TL
             </Text>
@@ -476,7 +592,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         </View>
       </View>
     );
-  }, [updatingItems, handleUpdateQuantity]);
+  }, [updatingItems, handleUpdateQuantity, getFlashDealDiscount]);
 
 
   const renderDiscountCodeSection = useCallback(() => {
@@ -538,7 +654,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
 
 
   const renderSummary = useCallback(() => {
-    const { subtotal, shipping, discount, total, hpayBonus } = cartSummary();
+    const { subtotal, shipping, discount, total, hpayBonus, flashDiscountTotal } = cartSummary();
 
     return (
       <View style={styles.summaryContainer}>
@@ -550,6 +666,15 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             <Text style={styles.summaryValue}>{(Number(subtotal) || 0).toFixed(0)} TL</Text>
           </View>
           
+          {flashDiscountTotal > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, styles.discountLabel]}>Flash İndirim</Text>
+              <Text style={[styles.summaryValue, styles.discountValue]}>
+                -{(Number(flashDiscountTotal) || 0).toFixed(0)} TL
+              </Text>
+            </View>
+          )}
+          
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Kargo</Text>
             <Text style={styles.summaryValue}>
@@ -559,7 +684,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
           
           {discount > 0 && (
             <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, styles.discountLabel]}>İndirim</Text>
+              <Text style={[styles.summaryLabel, styles.discountLabel]}>İndirim Kodu</Text>
               <Text style={[styles.summaryValue, styles.discountValue]}>
                 -{(Number(discount) || 0).toFixed(0)} TL
               </Text>
@@ -586,6 +711,17 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
 
         <TouchableOpacity 
           style={[
+            styles.continueShoppingButton,
+            (cartItems.length === 0) && styles.continueShoppingButtonDisabled
+          ]}
+          onPress={() => navigation.navigate('Products')}
+          disabled={cartItems.length === 0}
+        >
+          <Text style={styles.continueShoppingButtonText}>Alışverişe Devam Et</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[
             styles.checkoutButton,
             (cartItems.length === 0) && styles.checkoutButtonDisabled
           ]}
@@ -604,7 +740,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         </TouchableOpacity>
       </View>
     );
-  }, [cartSummary, cartItems.length, handleCheckout]);
+  }, [cartSummary, cartItems.length, handleCheckout, navigation]);
 
   if (loading) {
     return (
@@ -1231,5 +1367,54 @@ const styles = StyleSheet.create({
   discountValue: {
     color: '#28a745',
     fontWeight: '600',
+  },
+  // Flash discount styles
+  flashBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF4444',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    zIndex: 10,
+  },
+  flashBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  originalPrice: {
+    fontSize: 12,
+    color: '#999999',
+    textDecorationLine: 'line-through',
+  },
+  discountedPrice: {
+    color: '#FF4444',
+    fontWeight: '700',
+  },
+  // Continue shopping button
+  continueShoppingButton: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  continueShoppingButtonDisabled: {
+    opacity: 0.5,
+  },
+  continueShoppingButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
   },
 });
