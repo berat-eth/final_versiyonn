@@ -251,14 +251,19 @@ export class CampaignController {
       if (options.limit) queryParams.append('limit', options.limit.toString());
       if (options.type) queryParams.append('type', options.type);
       
-      const url = `/campaigns/recommendations/${userId}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      // Backend endpoint: /api/recommendations/user/:userId
+      const url = `/recommendations/user/${userId}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
       const response = await apiService.get(url);
       
       if (response.success && response.data) {
-        console.log(`✅ Retrieved ${response.data.length} product recommendations`);
-        return response.data;
+        // Response format: { success: true, data: { recommendations: [...] } }
+        const recommendations = response.data.recommendations || response.data;
+        const recArray = Array.isArray(recommendations) ? recommendations : [];
+        console.log(`✅ Retrieved ${recArray.length} product recommendations`);
+        return recArray;
       }
       
+      console.log('⚠️ No recommendations in response');
       return [];
     } catch (error) {
       console.error('❌ CampaignController - getProductRecommendations error:', error);

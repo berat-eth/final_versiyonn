@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -36,6 +36,7 @@ import { NetworkMonitor } from '../utils/performance-utils';
 import { Chatbot } from '../components/Chatbot';
 import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 import { behaviorAnalytics } from '../services/BehaviorAnalytics';
+import { CampaignController, ProductRecommendation } from '../controllers/CampaignController';
 
 // Fallback colors if Colors import fails
 const fallbackColors = {
@@ -85,6 +86,8 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
   const [flashCountdown, setFlashCountdown] = useState<number>(0);
   const [productInteractionStartTime, setProductInteractionStartTime] = useState<number>(0);
   const [lastImageIndex, setLastImageIndex] = useState<number>(0);
+  const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   const { productId } = route.params;
 
@@ -161,6 +164,11 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       if (flashDealsResult.status === 'fulfilled' && flashDealsResult.value) {
         setFlashDeals(flashDealsResult.value || []);
       }
+
+      // Önerilen ürünleri yükle
+      if (userId > 0) {
+        loadRecommendedProducts(userId).catch(() => {});
+      }
     })();
     
     // GÜVENLİK: Gerçek izleyici sayısı backend'den alınmalı
@@ -208,6 +216,68 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
       behaviorAnalytics.trackProductDescriptionView(product.id, true);
     }
   }, [isDescriptionExpanded, product]);
+
+  // Önerilen ürünleri yükle
+  const loadRecommendedProducts = useCallback(async (userId: number) => {
+    try {
+      setLoadingRecommendations(true);
+      console.log('🔄 Loading recommended products for user:', userId);
+      
+      // Önce önerileri dene
+      const recommendations = await CampaignController.getProductRecommendations(userId, { limit: 8 });
+      console.log('📦 Recommendations received:', recommendations?.length || 0);
+      
+      let productIds: number[] = [];
+      
+      if (recommendations && recommendations.length > 0) {
+        // Önerilen ürün ID'lerini al ve mevcut ürünü hariç tut
+        productIds = recommendations
+          .map(rec => rec.productId)
+          .filter(id => id && id !== productId)
+          .slice(0, 6); // Maksimum 6 ürün göster
+      }
+      
+      // Eğer öneri yoksa veya yeterli ürün yoksa, popüler ürünlerden göster
+      if (productIds.length < 4) {
+        console.log('📦 Not enough recommendations, loading popular products...');
+        try {
+          const popularProducts = await ProductController.getAllProducts(1, 20);
+          const popularIds = popularProducts.products
+            .filter(p => p.id !== productId && p.stock > 0)
+            .map(p => p.id)
+            .slice(0, 6 - productIds.length);
+          
+          productIds = [...productIds, ...popularIds];
+        } catch (error) {
+          console.error('Error loading popular products:', error);
+        }
+      }
+      
+      if (productIds.length > 0) {
+        console.log('📦 Loading product details for IDs:', productIds);
+        // Her ürünü detaylı olarak yükle
+        const productPromises = productIds.map(id => ProductController.getProductById(id));
+        const products = await Promise.allSettled(productPromises);
+        
+        const validProducts = products
+          .filter(result => result.status === 'fulfilled' && result.value !== null)
+          .map(result => (result as PromiseFulfilledResult<Product>).value)
+          .filter(p => p && p.stock > 0) // Sadece stokta olan ürünler
+          .slice(0, 6); // Maksimum 6 ürün
+        
+        console.log('✅ Valid recommended products:', validProducts.length);
+        setRecommendedProducts(validProducts);
+      } else {
+        console.log('⚠️ No products to show');
+        setRecommendedProducts([]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading recommended products:', error);
+      setRecommendedProducts([]);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  }, [productId]);
 
   // Flash deal bilgisini kontrol et ve hesapla
   useEffect(() => {
@@ -1161,6 +1231,55 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
             </View>
           )}
 
+          {/* Size Özel Önerilenler */}
+          {recommendedProducts.length > 0 && (
+            <View style={styles.recommendedSection}>
+              <View style={styles.recommendedHeader}>
+                <Icon name="star" size={24} color="#FF6B35" />
+                <Text style={styles.recommendedTitle}>Size Özel Önerilenler</Text>
+              </View>
+              {loadingRecommendations ? (
+                <View style={styles.recommendedLoading}>
+                  <LoadingIndicator />
+                </View>
+              ) : (
+                <FlatList
+                  data={recommendedProducts}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={(item) => item.id.toString()}
+                  contentContainerStyle={styles.recommendedList}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.recommendedItem}
+                      onPress={() => {
+                        navigation.push('ProductDetail', { productId: item.id });
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={{ uri: item.image || 'https://via.placeholder.com/150x150?text=No+Image' }}
+                        style={styles.recommendedImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.recommendedInfo}>
+                        <Text style={styles.recommendedName} numberOfLines={2}>
+                          {getTranslatedProductName(item, currentLanguage)}
+                        </Text>
+                        <Text style={styles.recommendedPrice}>
+                          {ProductController.formatPrice(item.price)}
+                        </Text>
+                        {item.stock <= 5 && item.stock > 0 && (
+                          <Text style={styles.recommendedStock}>Son {item.stock} adet!</Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              )}
+            </View>
+          )}
+
           {/* Sosyal Paylaşım Bölümü */}
           <SocialShareButtons
             productId={product.id.toString()}
@@ -1685,6 +1804,70 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#1A1A1A',
     fontWeight: '500',
+  },
+  // Recommended Products Styles
+  recommendedSection: {
+    marginVertical: 20,
+    paddingHorizontal: 16,
+  },
+  recommendedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  recommendedTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  recommendedLoading: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  recommendedList: {
+    paddingRight: 16,
+  },
+  recommendedItem: {
+    width: 160,
+    marginRight: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  recommendedImage: {
+    width: '100%',
+    height: 160,
+    backgroundColor: '#F0F0F0',
+  },
+  recommendedInfo: {
+    padding: 12,
+  },
+  recommendedName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 6,
+    minHeight: 40,
+  },
+  recommendedPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FF6B35',
+    marginBottom: 4,
+  },
+  recommendedStock: {
+    fontSize: 11,
+    color: '#FF6B35',
+    fontWeight: '600',
   },
   availableSizes: {
     flexDirection: 'row',
