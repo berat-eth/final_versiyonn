@@ -7,6 +7,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons } from '@expo/vector-icons';
 import { ShareUtils, CartShareData } from '../utils/shareUtils';
 
 interface CartShareButtonsProps {
@@ -32,25 +33,29 @@ export const CartShareButtons: React.FC<CartShareButtonsProps> = ({
     {
       id: 'instagram',
       name: 'Instagram',
-      icon: 'camera-alt',
+      icon: 'logo-instagram',
+      iconType: 'ionicons',
       color: '#E4405F',
     },
     {
       id: 'facebook',
       name: 'Facebook',
-      icon: 'facebook',
+      icon: 'logo-facebook',
+      iconType: 'ionicons',
       color: '#1877F2',
     },
     {
       id: 'whatsapp',
       name: 'WhatsApp',
-      icon: 'chat',
+      icon: 'logo-whatsapp',
+      iconType: 'ionicons',
       color: '#25D366',
     },
     {
       id: 'twitter',
       name: 'Twitter',
-      icon: 'alternate-email',
+      icon: 'logo-twitter',
+      iconType: 'ionicons',
       color: '#1DA1F2',
     },
   ];
@@ -92,11 +97,12 @@ export const CartShareButtons: React.FC<CartShareButtonsProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Icon name="share" size={20} color="#1A1A1A" />
+        <Icon name="share" size={16} color="#666" />
         <Text style={styles.title}>Sepetini Paylaş</Text>
+        <View style={styles.expBadge}>
+          <Text style={styles.expText}>+25 EXP</Text>
+        </View>
       </View>
-      
-      <Text style={styles.subtitle}>Sepetini paylaş, 25 EXP kazan</Text>
       
       <View style={styles.buttonsContainer}>
         {socialPlatforms.map((platform) => (
@@ -110,23 +116,21 @@ export const CartShareButtons: React.FC<CartShareButtonsProps> = ({
             onPress={() => handleCartShare(platform.id)}
             disabled={sharing !== null}
           >
-            <Icon
-              name={platform.icon}
-              size={20}
-              color="#FFFFFF"
-            />
-            {sharing === platform.id && (
-              <Text style={styles.sharingText}>Paylaşılıyor...</Text>
+            {platform.iconType === 'ionicons' ? (
+              <Ionicons
+                name={platform.icon as any}
+                size={18}
+                color="#FFFFFF"
+              />
+            ) : (
+              <Icon
+                name={platform.icon}
+                size={18}
+                color="#FFFFFF"
+              />
             )}
           </TouchableOpacity>
         ))}
-      </View>
-      
-      <View style={styles.infoContainer}>
-        <Icon name="info" size={14} color="#8E8E93" />
-        <Text style={styles.infoText}>
-          Sepet paylaşımında 25 EXP kazanırsınız
-        </Text>
       </View>
     </View>
   );
@@ -134,67 +138,59 @@ export const CartShareButtons: React.FC<CartShareButtonsProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#F8F9FA',
-    padding: 16,
-    borderRadius: 12,
-    marginVertical: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 10,
+    marginHorizontal: 12,
+    marginVertical: 0,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    justifyContent: 'space-between',
   },
   title: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
     color: '#1A1A1A',
-    marginLeft: 8,
+    marginLeft: 6,
+    flex: 1,
   },
-  subtitle: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginBottom: 16,
+  expBadge: {
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  expText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#a855f7',
   },
   buttonsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    gap: 8,
   },
   shareButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 1,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   sharingButton: {
-    opacity: 0.7,
-  },
-  sharingText: {
-    position: 'absolute',
-    bottom: -18,
-    fontSize: 9,
-    color: '#8E8E93',
-    textAlign: 'center',
-  },
-  infoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoText: {
-    fontSize: 11,
-    color: '#8E8E93',
-    marginLeft: 6,
-    flex: 1,
-    textAlign: 'center',
+    opacity: 0.6,
   },
 });

@@ -59,6 +59,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [flashDeals, setFlashDeals] = useState<FlashDeal[]>([]);
+  const [isDiscountCodeOpen, setIsDiscountCodeOpen] = useState(false);
   
 
   useEffect(() => {
@@ -507,7 +508,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             />
             {isUpdating && (
               <View style={styles.loadingOverlay}>
-                <Icon name="refresh" size={14} color={Colors.primary} />
+                <Icon name="refresh" size={12} color={Colors.primary} />
               </View>
             )}
             {hasFlashDiscount && (
@@ -529,11 +530,26 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
               </Text>
             </View>
             
-            {item.variationString && (
-              <Text style={styles.productVariation}>
-                {item.variationString}
-              </Text>
-            )}
+            {item.variationString && (() => {
+              // variationString formatını parse et: "88541: S" -> "Beden: S"
+              let displayText = item.variationString;
+              // Eğer ":" içeriyorsa, son kısmı al (beden bilgisi)
+              if (displayText.includes(':')) {
+                const parts = displayText.split(':');
+                if (parts.length > 1) {
+                  const sizeValue = parts[parts.length - 1].trim();
+                  displayText = `Beden: ${sizeValue}`;
+                }
+              } else {
+                // Eğer sadece beden değeri varsa
+                displayText = `Beden: ${displayText.trim()}`;
+              }
+              return (
+                <Text style={styles.productVariation}>
+                  {displayText}
+                </Text>
+              );
+            })()}
             
             <View style={styles.priceContainer}>
               {hasFlashDiscount && originalPrice && (
@@ -559,7 +575,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             >
               <Icon 
                 name="remove" 
-                size={16} 
+                size={14} 
                 color={item.quantity <= 1 ? Colors.textMuted : Colors.primary} 
               />
             </TouchableOpacity>
@@ -571,7 +587,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
               onPress={() => handleUpdateQuantity(item.id, item.quantity + 1)}
               disabled={isUpdating}
             >
-              <Icon name="add" size={16} color={Colors.primary} />
+              <Icon name="add" size={14} color={Colors.primary} />
             </TouchableOpacity>
           </View>
 
@@ -584,7 +600,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             >
               <Icon 
                 name="delete-outline" 
-                size={20} 
+                size={18} 
                 color={isUpdating ? Colors.textMuted : '#FF6B6B'} 
               />
             </TouchableOpacity>
@@ -600,147 +616,179 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
 
     return (
       <View style={styles.discountSection}>
-        <View style={styles.discountHeader}>
-          <Text style={styles.discountTitle}>🏷️ İndirim Kodu</Text>
-          {discountCodes.length > 0 && (
-            <TouchableOpacity
-              style={styles.myCodesButton}
-              onPress={() => setShowDiscountModal(true)}
-            >
-              <Text style={styles.myCodesText}>Kodlarım</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {appliedDiscount ? (
-          <View style={styles.appliedDiscountCard}>
-            <View style={styles.appliedDiscountInfo}>
-              <Icon name="check-circle" size={20} color="#28a745" />
-              <Text style={styles.appliedDiscountCode}>{appliedDiscount.code}</Text>
-              <Text style={styles.appliedDiscountAmount}>
-                -{appliedDiscount.amount.toFixed(2)} TL
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.removeDiscountButton}
-              onPress={handleRemoveDiscountCode}
-            >
-              <Icon name="close" size={16} color="#dc3545" />
-            </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.discountHeader}
+          onPress={() => setIsDiscountCodeOpen(!isDiscountCodeOpen)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.discountHeaderLeft}>
+            <Icon name="local-offer" size={18} color="#666" />
+            <Text style={styles.discountTitle}>İndirim Kodu</Text>
+            {appliedDiscount && (
+              <View style={styles.appliedBadge}>
+                <Text style={styles.appliedBadgeText}>Uygulandı</Text>
+              </View>
+            )}
           </View>
-        ) : (
-          <View style={styles.discountInputContainer}>
-            <View style={styles.discountInputWrapper}>
-              <Icon name="local-offer" size={20} color="#666" style={styles.discountInputIcon} />
-              <TextInput
-                style={styles.discountInput}
-                placeholder="İndirim kodunuzu girin"
-                value={discountCode}
-                onChangeText={setDiscountCode}
-                autoCapitalize="characters"
-              />
-            </View>
-            <TouchableOpacity
-              style={styles.applyButton}
-              onPress={handleApplyDiscountCode}
-            >
-              <Text style={styles.applyButtonText}>Uygula</Text>
-            </TouchableOpacity>
+          <View style={styles.discountHeaderRight}>
+            {discountCodes.length > 0 && (
+              <TouchableOpacity
+                style={styles.myCodesButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setShowDiscountModal(true);
+                }}
+              >
+                <Text style={styles.myCodesText}>Kodlarım</Text>
+              </TouchableOpacity>
+            )}
+            <Icon
+              name={isDiscountCodeOpen ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+              size={24}
+              color="#666"
+            />
+          </View>
+        </TouchableOpacity>
+
+        {isDiscountCodeOpen && (
+          <View style={styles.discountContent}>
+            {appliedDiscount ? (
+              <View style={styles.appliedDiscountCard}>
+                <View style={styles.appliedDiscountInfo}>
+                  <Icon name="check-circle" size={20} color="#28a745" />
+                  <Text style={styles.appliedDiscountCode}>{appliedDiscount.code}</Text>
+                  <Text style={styles.appliedDiscountAmount}>
+                    -{appliedDiscount.amount.toFixed(2)} TL
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.removeDiscountButton}
+                  onPress={handleRemoveDiscountCode}
+                >
+                  <Icon name="close" size={16} color="#dc3545" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.discountInputContainer}>
+                <View style={styles.discountInputWrapper}>
+                  <Icon name="local-offer" size={20} color="#666" style={styles.discountInputIcon} />
+                  <TextInput
+                    style={styles.discountInput}
+                    placeholder="İndirim kodunuzu girin"
+                    value={discountCode}
+                    onChangeText={setDiscountCode}
+                    autoCapitalize="characters"
+                  />
+                </View>
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={handleApplyDiscountCode}
+                >
+                  <Text style={styles.applyButtonText}>Uygula</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
       </View>
     );
-  }, [cartItems.length, discountCodes.length, appliedDiscount, discountCode, handleApplyDiscountCode, handleRemoveDiscountCode]);
+  }, [cartItems.length, discountCodes.length, appliedDiscount, discountCode, isDiscountCodeOpen, handleApplyDiscountCode, handleRemoveDiscountCode]);
 
 
   const renderSummary = useCallback(() => {
     const { subtotal, shipping, discount, total, hpayBonus, flashDiscountTotal } = cartSummary();
 
     return (
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Sipariş Özeti</Text>
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Ara Toplam</Text>
-            <Text style={styles.summaryValue}>{(Number(subtotal) || 0).toFixed(0)} TL</Text>
+      <View style={styles.modernSummaryContainer}>
+        <View style={styles.modernSummaryCard}>
+          <View style={styles.modernSummaryHeader}>
+            <Icon name="receipt" size={18} color="#1A1A1A" />
+            <Text style={styles.modernSummaryTitle}>Sipariş Özeti</Text>
           </View>
           
-          {flashDiscountTotal > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, styles.discountLabel]}>Flash İndirim</Text>
-              <Text style={[styles.summaryValue, styles.discountValue]}>
-                -{(Number(flashDiscountTotal) || 0).toFixed(0)} TL
+          <View style={styles.modernSummaryContent}>
+            <View style={styles.modernSummaryItem}>
+              <Text style={styles.modernSummaryItemLabel}>Ara Toplam</Text>
+              <Text style={styles.modernSummaryItemValue}>{(Number(subtotal) || 0).toFixed(0)} TL</Text>
+            </View>
+            
+            {flashDiscountTotal > 0 && (
+              <View style={styles.modernSummaryItem}>
+                <View style={styles.modernDiscountBadge}>
+                  <Icon name="flash-on" size={12} color="#FF6B35" />
+                  <Text style={styles.modernSummaryItemLabel}>Flash İndirim</Text>
+                </View>
+                <Text style={styles.modernDiscountValue}>
+                  -{(Number(flashDiscountTotal) || 0).toFixed(0)} TL
+                </Text>
+              </View>
+            )}
+            
+            <View style={styles.modernSummaryItem}>
+              <View style={styles.modernSummaryItemLeft}>
+                <Icon name="local-shipping" size={14} color="#666" />
+                <Text style={styles.modernSummaryItemLabel}>Kargo</Text>
+              </View>
+              <Text style={[styles.modernSummaryItemValue, Number(shipping) === 0 && styles.freeShipping]}>
+                {Number(shipping) === 0 ? 'Ücretsiz' : `${(Number(shipping) || 0).toFixed(0)} TL`}
               </Text>
             </View>
-          )}
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Kargo</Text>
-            <Text style={styles.summaryValue}>
-              {Number(shipping) === 0 ? 'Ücretsiz' : `${(Number(shipping) || 0).toFixed(0)} TL`}
-            </Text>
-          </View>
-          
-          {discount > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, styles.discountLabel]}>İndirim Kodu</Text>
-              <Text style={[styles.summaryValue, styles.discountValue]}>
-                -{(Number(discount) || 0).toFixed(0)} TL
-              </Text>
-            </View>
-          )}
-          
-          <View style={styles.summaryDivider} />
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Hpay+ Kazanım (%3)</Text>
-            <View style={styles.hpayBadgeRow}>
-              <Icon name="star" size={16} color="#a855f7" />
-              <Text style={[styles.summaryValue, styles.hpayValue]}>
+            
+            {discount > 0 && (
+              <View style={styles.modernSummaryItem}>
+                <View style={styles.modernSummaryItemLeft}>
+                  <Icon name="local-offer" size={14} color="#28a745" />
+                  <Text style={styles.modernSummaryItemLabel}>İndirim Kodu</Text>
+                </View>
+                <Text style={styles.modernDiscountValue}>
+                  -{(Number(discount) || 0).toFixed(0)} TL
+                </Text>
+              </View>
+            )}
+            
+            <View style={styles.modernDivider} />
+            
+            <View style={styles.modernSummaryItem}>
+              <View style={styles.modernHpayRow}>
+                <Icon name="star" size={15} color="#a855f7" />
+                <Text style={styles.modernSummaryItemLabel}>Hpay+ Kazanım</Text>
+              </View>
+              <Text style={styles.modernHpayValue}>
                 +{(Number(hpayBonus) || 0).toFixed(2)} TL
               </Text>
             </View>
-          </View>
 
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Toplam</Text>
-            <Text style={styles.totalValue}>{(Number(total) || 0).toFixed(0)} TL</Text>
+            <View style={styles.modernTotalRow}>
+              <Text style={styles.modernTotalLabel}>Toplam</Text>
+              <Text style={styles.modernTotalValue}>{(Number(total) || 0).toFixed(0)} TL</Text>
+            </View>
           </View>
         </View>
 
         <TouchableOpacity 
           style={[
-            styles.continueShoppingButton,
-            (cartItems.length === 0) && styles.continueShoppingButtonDisabled
-          ]}
-          onPress={() => navigation.navigate('Products')}
-          disabled={cartItems.length === 0}
-        >
-          <Text style={styles.continueShoppingButtonText}>Alışverişe Devam Et</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[
-            styles.checkoutButton,
-            (cartItems.length === 0) && styles.checkoutButtonDisabled
+            styles.modernCheckoutButton,
+            (cartItems.length === 0) && styles.modernCheckoutButtonDisabled
           ]}
           onPress={handleCheckout}
           disabled={cartItems.length === 0}
         >
           <LinearGradient
             colors={(cartItems.length === 0) 
-              ? ['#6c757d', '#495057'] 
-              : ['#667eea', '#764ba2']
+              ? ['#9CA3AF', '#6B7280'] 
+              : ['#FF6B35', '#FF8C42']
             }
-            style={styles.checkoutButtonGradient}
+            style={styles.modernCheckoutButtonGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
           >
-            <Text style={styles.checkoutButtonText}>Siparişi Tamamla</Text>
+            <Icon name="payment" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.modernCheckoutButtonText}>Ödemeye Geç</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
     );
-  }, [cartSummary, cartItems.length, handleCheckout, navigation]);
+  }, [cartSummary, cartItems.length, handleCheckout]);
 
   if (loading) {
     return (
@@ -796,11 +844,38 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
+      {/* Background Pattern */}
+      <View style={styles.backgroundPattern}>
+        <View style={styles.backgroundCircle1} />
+        <View style={styles.backgroundCircle2} />
+        <View style={styles.backgroundCircle3} />
+        <View style={styles.backgroundCircle4} />
+      </View>
+      
+      {/* Fixed Header with Share Section */}
+      <View style={styles.cartHeader}>
+        <View style={{ zIndex: 1 }}>
+          <CartShareButtons
+            cartItems={cartItems.map(item => ({
+              id: item.id,
+              productName: item.product?.name || 'Ürün',
+              price: item.product?.price || 0,
+              quantity: item.quantity,
+              image: item.product?.image,
+            }))}
+            totalAmount={calculateTotal()}
+            onShareSuccess={(platform, expGained) => {
+              console.log(`Sepet paylaşımı başarılı: ${platform}, +${expGained} EXP`);
+            }}
+          />
+        </View>
+      </View>
+      
       <FlatList
         data={cartItems}
         renderItem={renderCartItem}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { zIndex: 1 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -811,23 +886,11 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
           />
         }
       />
-
-      {renderDiscountCodeSection()}
       
-      {/* Sepet Paylaşım Bölümü */}
-      <CartShareButtons
-        cartItems={cartItems.map(item => ({
-          id: item.id,
-          productName: item.product?.name || 'Ürün',
-          price: item.product?.price || 0,
-          quantity: item.quantity,
-          image: item.product?.image,
-        }))}
-        totalAmount={calculateTotal()}
-        onShareSuccess={(platform, expGained) => {
-          console.log(`Sepet paylaşımı başarılı: ${platform}, +${expGained} EXP`);
-        }}
-      />
+      {/* Discount Code Section - Above Order Summary */}
+      <View style={{ zIndex: 10 }}>
+        {renderDiscountCodeSection()}
+      </View>
       
       {renderSummary()}
     </SafeAreaView>
@@ -837,7 +900,62 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#FFFFFF',
+    position: 'relative',
+  },
+  backgroundPattern: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    zIndex: 0,
+  },
+  backgroundCircle1: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(26, 26, 46, 0.15)',
+    top: -80,
+    right: -80,
+  },
+  backgroundCircle2: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 107, 107, 0.20)',
+    bottom: 150,
+    left: -50,
+  },
+  backgroundCircle3: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(78, 205, 196, 0.18)',
+    top: '35%',
+    right: 30,
+  },
+  backgroundCircle4: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255, 171, 0, 0.18)',
+    bottom: '25%',
+    left: 20,
+  },
+  
+  // Cart Header (Fixed)
+  cartHeader: {
+    backgroundColor: '#FFFFFF',
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+    zIndex: 10,
+    elevation: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   
   // Header Styles
@@ -955,8 +1073,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   hpayItemNote: {
-    marginTop: 2,
-    fontSize: 11,
+    marginTop: 1,
+    fontSize: 10,
     color: '#a855f7',
     fontWeight: '600',
   },
@@ -964,16 +1082,16 @@ const styles = StyleSheet.create({
   // List Content
   listContent: {
     paddingVertical: Spacing.md,
-    paddingBottom: 200,
+    paddingBottom: 400,
   },
 
   // Cart Item Styles
   cartItemWrapper: {
     marginHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: Spacing.md,
+    borderRadius: 10,
+    padding: Spacing.sm,
     ...Shadows.small,
   },
   cartItemRow: {
@@ -982,12 +1100,12 @@ const styles = StyleSheet.create({
   },
   productImageWrapper: {
     position: 'relative',
-    marginRight: Spacing.md,
+    marginRight: Spacing.sm,
   },
   productImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
+    width: 50,
+    height: 50,
+    borderRadius: 6,
     backgroundColor: '#F0F0F0',
   },
   loadingOverlay: {
@@ -1003,20 +1121,20 @@ const styles = StyleSheet.create({
   },
   productDetails: {
     flex: 1,
-    marginRight: Spacing.md,
+    marginRight: Spacing.sm,
   },
   productHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   productName: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333333',
-    marginRight: 8,
+    marginRight: 6,
     flexWrap: 'nowrap',
   },
   removeButton: {
@@ -1026,12 +1144,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   productVariation: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666666',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   productPrice: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#333333',
   },
@@ -1041,17 +1159,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8F8F8',
-    borderRadius: 20,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    borderRadius: 18,
+    paddingHorizontal: 3,
+    paddingVertical: 3,
   },
   deleteWrapper: {
     marginLeft: 'auto',
   },
   quantityBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -1061,11 +1179,11 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   quantityValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333333',
-    paddingHorizontal: Spacing.md,
-    minWidth: 40,
+    paddingHorizontal: Spacing.sm,
+    minWidth: 32,
     textAlign: 'center',
   },
 
@@ -1116,8 +1234,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Summary Styles
-  summaryContainer: {
+  // Modern Summary Styles
+  modernSummaryContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -1126,9 +1244,120 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: 90,
     ...Shadows.large,
-    maxHeight: '60%',
+    minHeight: 160,
+    zIndex: 1000,
+    elevation: 20,
+  },
+  modernSummaryCard: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  modernSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+    gap: 6,
+  },
+  modernSummaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  modernSummaryContent: {
+    gap: 4,
+  },
+  modernSummaryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  modernSummaryItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  modernSummaryItemLabel: {
+    fontSize: 13,
+    color: '#666666',
+    fontWeight: '500',
+  },
+  modernSummaryItemValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  modernDiscountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  modernDiscountValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#28a745',
+  },
+  freeShipping: {
+    color: '#28a745',
+    fontWeight: '700',
+  },
+  modernDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 4,
+  },
+  modernHpayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  modernHpayValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#a855f7',
+  },
+  modernTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 4,
+    marginTop: 2,
+    borderTopWidth: 2,
+    borderTopColor: '#E5E7EB',
+  },
+  modernTotalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  modernTotalValue: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#FF6B35',
+  },
+  modernCheckoutButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    ...Shadows.medium,
+  },
+  modernCheckoutButtonDisabled: {
+    opacity: 0.6,
+  },
+  modernCheckoutButtonGradient: {
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernCheckoutButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   
   // Address Section Styles
@@ -1195,95 +1424,62 @@ const styles = StyleSheet.create({
     color: '#adb5bd',
     textAlign: 'center',
   },
-  summaryCard: {
-    marginBottom: Spacing.md,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#333333',
-    marginBottom: Spacing.md,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: '#666666',
-  },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333333',
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: '#E0E0E0',
-    marginVertical: Spacing.sm,
-  },
-  totalRow: {
-    paddingVertical: Spacing.sm,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#333333',
-  },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  hpayBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  hpayValue: {
-    color: '#a855f7',
-    fontWeight: '700',
-  },
-  checkoutButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    ...Shadows.medium,
-  },
-  checkoutButtonDisabled: {
-    opacity: 0.6,
-  },
-  checkoutButtonGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkoutButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
 
   // Discount Code Styles
   discountSection: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     marginHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
     borderRadius: 12,
-    padding: Spacing.md,
-    ...Shadows.small,
+    padding: 0,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    position: 'absolute',
+    bottom: 200,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    elevation: 2,
+    maxHeight: 150,
   },
   discountHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: '#F8F9FA',
+  },
+  discountHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  discountHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   discountTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#1A1A1A',
+  },
+  discountContent: {
+    padding: Spacing.md,
+    paddingTop: 0,
+  },
+  appliedBadge: {
+    backgroundColor: '#D4EDDA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  appliedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#155724',
   },
   myCodesButton: {
     paddingHorizontal: 12,
@@ -1371,50 +1567,31 @@ const styles = StyleSheet.create({
   // Flash discount styles
   flashBadge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: -3,
+    right: -3,
     backgroundColor: '#FF4444',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
     zIndex: 10,
   },
   flashBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
   },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   originalPrice: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#999999',
     textDecorationLine: 'line-through',
   },
   discountedPrice: {
     color: '#FF4444',
     fontWeight: '700',
-  },
-  // Continue shopping button
-  continueShoppingButton: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  continueShoppingButtonDisabled: {
-    opacity: 0.5,
-  },
-  continueShoppingButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333333',
   },
 });
