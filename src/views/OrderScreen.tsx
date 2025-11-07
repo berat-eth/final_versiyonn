@@ -908,36 +908,108 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
         {paymentMethod === 'nfc' && (
           <View style={styles.cardFormSection}>
             <View style={styles.sectionDivider} />
-            <View style={styles.nfcInfoCard}>
-              <View style={styles.nfcIconContainer}>
-                <Icon name="nfc" size={32} color={Colors.primary} />
-              </View>
-              <Text style={styles.nfcTitle}>Temassız Ödeme (NFC)</Text>
-              {nfcCardData && nfcCardData.pan ? (
-                <>
-                  <View style={styles.nfcCardInfoContainer}>
-                    <View style={styles.nfcCardInfoRow}>
-                      <Icon name="credit-card" size={20} color="#6B7280" />
-                      <Text style={styles.nfcCardInfoLabel}>Kart Numarası:</Text>
-                      <Text style={styles.nfcCardInfoValue}>
-                        {cardInfo.cardNumber || 'Okunamadı'}
+            
+            {nfcCardData && nfcCardData.pan ? (
+              // Kart Okundu - Modern Kart Görünümü
+              <View style={styles.nfcModernContainer}>
+                {/* Başarı Badge */}
+                <View style={styles.nfcSuccessBadge}>
+                  <Icon name="check-circle" size={20} color="#10B981" />
+                  <Text style={styles.nfcSuccessBadgeText}>Kart Başarıyla Okundu</Text>
+                </View>
+
+                {/* Modern Kart Görünümü */}
+                <View style={styles.nfcCardPreview}>
+                  <View style={styles.nfcCardHeader}>
+                    <View style={styles.nfcCardLogo}>
+                      <Icon name="credit-card" size={32} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.nfcCardChip}>
+                      <Icon name="nfc" size={24} color="#FFD700" />
+                    </View>
+                  </View>
+                  
+                  <View style={styles.nfcCardNumberContainer}>
+                    <Text style={styles.nfcCardNumber}>
+                      {nfcCardData.pan.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim() || 
+                       cardInfo.cardNumber || 
+                       '**** **** **** ****'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.nfcCardFooter}>
+                    <View style={styles.nfcCardFooterLeft}>
+                      <Text style={styles.nfcCardLabel}>Kart Sahibi</Text>
+                      <Text style={styles.nfcCardValue}>
+                        {nfcCardData.cardHolderName || cardInfo.cardHolder || 'AD SOYAD'}
                       </Text>
                     </View>
-                    {cardInfo.expiryDate && (
-                      <View style={styles.nfcCardInfoRow}>
-                        <Icon name="calendar-today" size={20} color="#6B7280" />
-                        <Text style={styles.nfcCardInfoLabel}>Son Kullanma:</Text>
-                        <Text style={styles.nfcCardInfoValue}>{cardInfo.expiryDate}</Text>
-                      </View>
-                    )}
+                    <View style={styles.nfcCardFooterRight}>
+                      <Text style={styles.nfcCardLabel}>Son Kullanma</Text>
+                      <Text style={styles.nfcCardValue}>
+                        {nfcCardData.expiryMonth && nfcCardData.expiryYear
+                          ? `${nfcCardData.expiryMonth.padStart(2, '0')}/${nfcCardData.expiryYear.slice(-2)}`
+                          : cardInfo.expiryDate || 'MM/YY'}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={styles.nfcDescription}>
-                    Kart bilgileri okundu. Ödeme için lütfen CVC kodunu girin.
-                  </Text>
-                  <View style={styles.nfcCvcContainer}>
-                    <Text style={styles.nfcCvcLabel}>CVC Kodu *</Text>
+                </View>
+
+                {/* Kart Bilgileri Detay */}
+                <View style={styles.nfcCardDetailsContainer}>
+                  <Text style={styles.nfcCardDetailsTitle}>Okunan Kart Bilgileri</Text>
+                  
+                  <View style={styles.nfcDetailRow}>
+                    <View style={styles.nfcDetailIconContainer}>
+                      <Icon name="credit-card" size={18} color={Colors.primary} />
+                    </View>
+                    <View style={styles.nfcDetailContent}>
+                      <Text style={styles.nfcDetailLabel}>Kart Numarası</Text>
+                      <Text style={styles.nfcDetailValue}>
+                        {nfcCardData.pan.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim() || 
+                         cardInfo.cardNumber || 
+                         'Okunamadı'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {nfcCardData.expiryMonth && nfcCardData.expiryYear && (
+                    <View style={styles.nfcDetailRow}>
+                      <View style={styles.nfcDetailIconContainer}>
+                        <Icon name="calendar-today" size={18} color={Colors.primary} />
+                      </View>
+                      <View style={styles.nfcDetailContent}>
+                        <Text style={styles.nfcDetailLabel}>Son Kullanma Tarihi</Text>
+                        <Text style={styles.nfcDetailValue}>
+                          {nfcCardData.expiryMonth.padStart(2, '0')}/{nfcCardData.expiryYear.slice(-2)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {nfcCardData.cardHolderName && (
+                    <View style={styles.nfcDetailRow}>
+                      <View style={styles.nfcDetailIconContainer}>
+                        <Icon name="person" size={18} color={Colors.primary} />
+                      </View>
+                      <View style={styles.nfcDetailContent}>
+                        <Text style={styles.nfcDetailLabel}>Kart Sahibi</Text>
+                        <Text style={styles.nfcDetailValue}>{nfcCardData.cardHolderName}</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+
+                {/* CVC ve Kart Sahibi Girişi */}
+                <View style={styles.nfcInputSection}>
+                  <Text style={styles.nfcInputSectionTitle}>Ödeme İçin Gerekli Bilgiler</Text>
+                  
+                  <View style={styles.nfcInputGroup}>
+                    <Text style={styles.nfcInputLabel}>
+                      CVC Kodu <Text style={styles.nfcRequired}>*</Text>
+                    </Text>
                     <TextInput
-                      style={styles.modernTextInput}
+                      style={styles.nfcModernInput}
                       placeholder="123"
                       placeholderTextColor="#9CA3AF"
                       value={cardInfo.cvv}
@@ -946,41 +1018,97 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
                       maxLength={4}
                       secureTextEntry
                     />
+                    <Text style={styles.nfcInputHint}>
+                      Kartınızın arkasındaki 3 haneli güvenlik kodu
+                    </Text>
                   </View>
-                  <View style={styles.nfcCvcContainer}>
-                    <Text style={styles.nfcCvcLabel}>Kart Sahibi Adı *</Text>
+
+                  <View style={styles.nfcInputGroup}>
+                    <Text style={styles.nfcInputLabel}>
+                      Kart Sahibi Adı <Text style={styles.nfcRequired}>*</Text>
+                    </Text>
                     <TextInput
-                      style={styles.modernTextInput}
+                      style={styles.nfcModernInput}
                       placeholder="Ad Soyad"
                       placeholderTextColor="#9CA3AF"
                       value={cardInfo.cardHolder}
                       onChangeText={(text) => setCardInfo(prev => ({ ...prev, cardHolder: text }))}
                       autoCapitalize="words"
                     />
+                    <Text style={styles.nfcInputHint}>
+                      Kart üzerindeki isimle aynı olmalıdır
+                    </Text>
                   </View>
-                  <TouchableOpacity 
-                    onPress={handleReadCardViaNfc} 
-                    style={styles.nfcRescanButton}
-                  >
-                    <Icon name="refresh" size={20} color={Colors.primary} />
-                    <Text style={styles.nfcRescanButtonText}>Kartı Tekrar Tara</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.nfcDescription}>
-                    Kartınızı telefonun arkasına yaklaştırın ve okutun. iyzico ile güvenli ödeme yapabilirsiniz.
+                </View>
+
+                {/* Tekrar Tara Butonu */}
+                <TouchableOpacity 
+                  onPress={handleReadCardViaNfc} 
+                  style={styles.nfcRescanButtonModern}
+                >
+                  <Icon name="refresh" size={20} color={Colors.primary} />
+                  <Text style={styles.nfcRescanButtonTextModern}>Kartı Tekrar Tara</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // Kart Okunmadı - Tarama Ekranı
+              <View style={styles.nfcModernContainer}>
+                <View style={styles.nfcScanHeader}>
+                  <View style={styles.nfcScanIconContainer}>
+                    <View style={styles.nfcScanIconCircle}>
+                      <Icon name="nfc" size={48} color={Colors.primary} />
+                    </View>
+                    <View style={styles.nfcScanPulse} />
+                  </View>
+                  <Text style={styles.nfcScanTitle}>Temassız Ödeme</Text>
+                  <Text style={styles.nfcScanSubtitle}>
+                    Kartınızı telefonun arkasına yaklaştırın
                   </Text>
-                  <TouchableOpacity 
-                    onPress={handleReadCardViaNfc} 
-                    style={styles.nfcScanButton}
-                  >
-                    <Icon name="nfc" size={24} color="#FFFFFF" />
-                    <Text style={styles.nfcScanButtonText}>NFC ile Kartı Tara</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
+                </View>
+
+                <View style={styles.nfcScanInstructions}>
+                  <View style={styles.nfcInstructionItem}>
+                    <View style={styles.nfcInstructionNumber}>
+                      <Text style={styles.nfcInstructionNumberText}>1</Text>
+                    </View>
+                    <Text style={styles.nfcInstructionText}>
+                      Kartınızı telefonun arkasına yaklaştırın
+                    </Text>
+                  </View>
+                  <View style={styles.nfcInstructionItem}>
+                    <View style={styles.nfcInstructionNumber}>
+                      <Text style={styles.nfcInstructionNumberText}>2</Text>
+                    </View>
+                    <Text style={styles.nfcInstructionText}>
+                      Kart bilgileri otomatik olarak okunacak
+                    </Text>
+                  </View>
+                  <View style={styles.nfcInstructionItem}>
+                    <View style={styles.nfcInstructionNumber}>
+                      <Text style={styles.nfcInstructionNumberText}>3</Text>
+                    </View>
+                    <Text style={styles.nfcInstructionText}>
+                      Güvenli ödeme için CVC kodunu girin
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity 
+                  onPress={handleReadCardViaNfc} 
+                  style={styles.nfcScanButtonModern}
+                >
+                  <Icon name="nfc" size={28} color="#FFFFFF" />
+                  <Text style={styles.nfcScanButtonTextModern}>NFC ile Kartı Tara</Text>
+                </TouchableOpacity>
+
+                <View style={styles.nfcSecurityBadge}>
+                  <Icon name="lock" size={16} color="#6B7280" />
+                  <Text style={styles.nfcSecurityText}>
+                    iyzico ile güvenli ödeme
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -1962,6 +2090,299 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: Spacing.xs,
+  },
+  // Modern NFC Styles
+  nfcModernContainer: {
+    width: '100%',
+  },
+  nfcSuccessBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 20,
+    marginBottom: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  nfcSuccessBadgeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#065F46',
+  },
+  nfcCardPreview: {
+    backgroundColor: Colors.primary,
+    borderRadius: 20,
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+    minHeight: 200,
+    justifyContent: 'space-between',
+    ...Shadows.large,
+  },
+  nfcCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.xl,
+  },
+  nfcCardLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nfcCardChip: {
+    width: 40,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nfcCardNumberContainer: {
+    marginBottom: Spacing.xl,
+  },
+  nfcCardNumber: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 2,
+    fontFamily: 'monospace',
+  },
+  nfcCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  nfcCardFooterLeft: {
+    flex: 1,
+  },
+  nfcCardFooterRight: {
+    alignItems: 'flex-end',
+  },
+  nfcCardLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  nfcCardValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+  },
+  nfcCardDetailsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    ...Shadows.small,
+  },
+  nfcCardDetailsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: Spacing.md,
+  },
+  nfcDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  nfcDetailIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  nfcDetailContent: {
+    flex: 1,
+  },
+  nfcDetailLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  nfcDetailValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  nfcInputSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    ...Shadows.small,
+  },
+  nfcInputSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: Spacing.md,
+  },
+  nfcInputGroup: {
+    marginBottom: Spacing.lg,
+  },
+  nfcInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: Spacing.sm,
+  },
+  nfcRequired: {
+    color: '#EF4444',
+  },
+  nfcModernInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+  nfcInputHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: Spacing.xs,
+  },
+  nfcRescanButtonModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  nfcRescanButtonTextModern: {
+    color: Colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // NFC Tarama Ekranı Stilleri
+  nfcScanHeader: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  nfcScanIconContainer: {
+    position: 'relative',
+    marginBottom: Spacing.lg,
+  },
+  nfcScanIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: Colors.primary,
+  },
+  nfcScanPulse: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.primary + '20',
+    top: 0,
+    left: 0,
+  },
+  nfcScanTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: Spacing.xs,
+  },
+  nfcScanSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  nfcScanInstructions: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  nfcInstructionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  nfcInstructionNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  nfcInstructionNumberText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  nfcInstructionText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  nfcScanButtonModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: 16,
+    gap: Spacing.md,
+    ...Shadows.large,
+    marginBottom: Spacing.lg,
+  },
+  nfcScanButtonTextModern: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  nfcSecurityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+  },
+  nfcSecurityText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   nfcRescanButton: {
     flexDirection: 'row',
