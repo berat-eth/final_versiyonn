@@ -14,6 +14,10 @@ import {
 } from 'recharts'
 import { motion } from 'framer-motion'
 
+// Cache için basit bir Map
+const analyticsCache = new Map<string, { data: any; timestamp: number }>()
+const CACHE_TTL = 30000 // 30 saniye cache
+
 export default function Analytics() {
   const { theme } = useTheme()
   const [timeRange, setTimeRange] = useState('7d')
@@ -39,52 +43,92 @@ export default function Analytics() {
     setLoading(true)
     try {
       const tenantId = 1 // Default tenant, can be made dynamic
+      const cacheKey = `${activeSection}-${timeRange}-${tenantId}`
 
-      switch (activeSection) {
-        case 'overview':
-          const overviewRes = await api.get(`/admin/analytics/overview?timeRange=${timeRange}&tenantId=${tenantId}`) as any
-          setOverview(overviewRes.data)
-          break
+      // Cache kontrolü
+      const cached = analyticsCache.get(cacheKey)
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        // Cache'den yükle
+        const data = cached.data
+        switch (activeSection) {
+          case 'overview': setOverview(data.overview || data); break
+          case 'users': setUserAnalytics(data.users || data); break
+          case 'behavior': setBehaviorAnalytics(data.behavior || data); break
+          case 'funnel': setFunnelData(data.funnel || data); break
+          case 'performance': setPerformanceMetrics(data.performance || data); break
+          case 'segments': setSegmentAnalytics(data.segments || data); break
+          case 'products': setProductAnalytics(data.products || data); break
+          case 'timeseries': setTimeSeriesData(data.timeseries || data); break
+          case 'characteristics': setCharacteristics(data.characteristics || data); break
+        }
+        setLoading(false)
+        return
+      }
 
-        case 'users':
-          const usersRes = await api.get(`/admin/analytics/users?timeRange=${timeRange}&tenantId=${tenantId}`) as any
-          setUserAnalytics(usersRes.data)
-          break
+      // Overview section için batch endpoint kullan (birden fazla veri gerekiyor)
+      if (activeSection === 'overview') {
+        const batchRes = await api.get(`/admin/analytics/batch?timeRange=${timeRange}&tenantId=${tenantId}&sections=overview,users,behavior,funnel,performance`) as any
+        const batchData = batchRes.data || {}
+        
+        setOverview(batchData.overview)
+        setUserAnalytics(batchData.users)
+        setBehaviorAnalytics(batchData.behavior)
+        setFunnelData(batchData.funnel)
+        setPerformanceMetrics(batchData.performance)
+        
+        // Cache'e kaydet
+        analyticsCache.set(cacheKey, { data: batchData, timestamp: Date.now() })
+      } else {
+        // Diğer section'lar için tek endpoint
+        let endpoint = ''
+        let dataKey = activeSection
 
-        case 'behavior':
-          const behaviorRes = await api.get(`/admin/analytics/behavior?timeRange=${timeRange}&tenantId=${tenantId}`) as any
-          setBehaviorAnalytics(behaviorRes.data)
-          break
+        switch (activeSection) {
+          case 'users':
+            endpoint = `/admin/analytics/users?timeRange=${timeRange}&tenantId=${tenantId}`
+            break
+          case 'behavior':
+            endpoint = `/admin/analytics/behavior?timeRange=${timeRange}&tenantId=${tenantId}`
+            break
+          case 'funnel':
+            endpoint = `/admin/analytics/funnel?timeRange=${timeRange}&tenantId=${tenantId}`
+            break
+          case 'performance':
+            endpoint = `/admin/analytics/performance?timeRange=${timeRange}&tenantId=${tenantId}`
+            break
+          case 'segments':
+            endpoint = `/admin/analytics/segments?timeRange=${timeRange}&tenantId=${tenantId}`
+            break
+          case 'products':
+            endpoint = `/admin/analytics/products?timeRange=${timeRange}&tenantId=${tenantId}`
+            break
+          case 'timeseries':
+            endpoint = `/admin/analytics/timeseries?metric=users&timeRange=${timeRange}&interval=day&tenantId=${tenantId}`
+            dataKey = 'timeseries'
+            break
+          case 'characteristics':
+            endpoint = `/admin/analytics/characteristics?tenantId=${tenantId}`
+            break
+        }
 
-        case 'funnel':
-          const funnelRes = await api.get(`/admin/analytics/funnel?timeRange=${timeRange}&tenantId=${tenantId}`) as any
-          setFunnelData(funnelRes.data)
-          break
+        if (endpoint) {
+          const res = await api.get(endpoint) as any
+          const data = res.data
 
-        case 'performance':
-          const perfRes = await api.get(`/admin/analytics/performance?timeRange=${timeRange}&tenantId=${tenantId}`) as any
-          setPerformanceMetrics(perfRes.data)
-          break
+          switch (activeSection) {
+            case 'users': setUserAnalytics(data); break
+            case 'behavior': setBehaviorAnalytics(data); break
+            case 'funnel': setFunnelData(data); break
+            case 'performance': setPerformanceMetrics(data); break
+            case 'segments': setSegmentAnalytics(data); break
+            case 'products': setProductAnalytics(data); break
+            case 'timeseries': setTimeSeriesData(data); break
+            case 'characteristics': setCharacteristics(data); break
+          }
 
-        case 'segments':
-          const segmentsRes = await api.get(`/admin/analytics/segments?timeRange=${timeRange}&tenantId=${tenantId}`) as any
-          setSegmentAnalytics(segmentsRes.data)
-          break
-
-        case 'products':
-          const productsRes = await api.get(`/admin/analytics/products?timeRange=${timeRange}&tenantId=${tenantId}`) as any
-          setProductAnalytics(productsRes.data)
-          break
-
-        case 'timeseries':
-          const timeseriesRes = await api.get(`/admin/analytics/timeseries?metric=users&timeRange=${timeRange}&interval=day&tenantId=${tenantId}`) as any
-          setTimeSeriesData(timeseriesRes.data)
-          break
-
-        case 'characteristics':
-          const charRes = await api.get(`/admin/analytics/characteristics?tenantId=${tenantId}`) as any
-          setCharacteristics(charRes.data)
-          break
+          // Cache'e kaydet
+          analyticsCache.set(cacheKey, { data, timestamp: Date.now() })
+        }
       }
     } catch (error) {
       console.error('❌ Error loading analytics:', error)
@@ -96,12 +140,16 @@ export default function Analytics() {
   const exportData = async (format: 'csv' | 'json') => {
     try {
       const tenantId = 1
+      const adminKey = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'}/admin/analytics/export?type=${format}&format=events&timeRange=${timeRange}&tenantId=${tenantId}`,
         {
           headers: {
-            'X-Admin-Key': sessionStorage.getItem('authToken') || '',
-            'X-API-Key': process.env.NEXT_PUBLIC_API_KEY || ''
+            'X-Admin-Key': adminKey,
+            'X-API-Key': apiKey,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
         }
       )
@@ -194,7 +242,11 @@ export default function Analytics() {
             JSON Export
           </button>
           <button
-            onClick={loadData}
+            onClick={() => {
+              // Cache'i temizle ve yeniden yükle
+              analyticsCache.clear()
+              loadData()
+            }}
             className="px-4 py-2 rounded-lg bg-slate-600 text-white hover:bg-slate-700 flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />

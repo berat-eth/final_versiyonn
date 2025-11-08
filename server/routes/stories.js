@@ -15,6 +15,14 @@ function createStoriesRouter(pool) {
 // Factory function olarak export et
 module.exports = createStoriesRouter;
 
+// poolWrapper'ı middleware ile al
+router.use((req, res, next) => {
+  if (!poolWrapper) {
+    poolWrapper = req.app.locals.poolWrapper || require('../database-schema').poolWrapper;
+  }
+  next();
+});
+
 // Aktif story'leri getir
 router.get('/', async (req, res) => {
   try {
@@ -57,7 +65,9 @@ router.get('/', async (req, res) => {
 // Tüm story'leri getir (admin için)
 router.get('/all', authenticateAdmin, async (req, res) => {
   try {
-    if (!poolWrapper) {
+    // poolWrapper'ı tekrar kontrol et
+    const currentPool = poolWrapper || req.app.locals.poolWrapper || require('../database-schema').poolWrapper;
+    if (!currentPool) {
       return res.status(500).json({
         success: false,
         message: 'Database connection not available'
@@ -65,7 +75,7 @@ router.get('/all', authenticateAdmin, async (req, res) => {
     }
 
     const { limit = 50 } = req.query;
-    const [stories] = await poolWrapper.execute(`
+    const [stories] = await currentPool.execute(`
       SELECT id, title, image, clickAction, \`order\`, isActive, expiresAt, createdAt, updatedAt
       FROM stories 
       ORDER BY \`order\` ASC

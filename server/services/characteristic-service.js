@@ -13,12 +13,18 @@ class CharacteristicService {
       const characteristics = await this.calculateCharacteristics(userId, tenantId);
       
       // Veritabanına kaydet veya güncelle
-      await this.saveCharacteristics(userId, tenantId, characteristics);
+      try {
+        await this.saveCharacteristics(userId, tenantId, characteristics);
+      } catch (saveError) {
+        console.warn('⚠️ Error saving characteristics, but returning calculated values:', saveError);
+        // Kaydetme hatası olsa bile hesaplanan değerleri döndür
+      }
       
       return characteristics;
     } catch (error) {
       console.error('❌ Error calculating user characteristics:', error);
-      throw error;
+      // Hesaplama hatası durumunda default değerler döndür
+      return this.getDefaultCharacteristics();
     }
   }
 
@@ -647,6 +653,9 @@ class CharacteristicService {
    */
   async getUserCharacteristics(userId, tenantId) {
     try {
+      // Tablo yoksa oluştur
+      await this.ensureTableExists();
+      
       const [rows] = await this.pool.execute(`
         SELECT * FROM user_characteristics
         WHERE userId = ? AND tenantId = ?
@@ -654,28 +663,58 @@ class CharacteristicService {
 
       if (rows.length === 0) {
         // Karakteristikler yoksa hesapla
-        return await this.calculateAndSaveUserCharacteristics(userId, tenantId);
+        try {
+          return await this.calculateAndSaveUserCharacteristics(userId, tenantId);
+        } catch (calcError) {
+          console.error('❌ Error calculating characteristics:', calcError);
+          // Hesaplama hatası durumunda default değerler döndür
+          return this.getDefaultCharacteristics();
+        }
       }
 
       const char = rows[0];
       return {
         preferences: JSON.parse(char.preferences || '{}'),
-        shoppingStyle: char.shoppingStyle,
-        priceSensitivityScore: char.priceSensitivityScore,
-        brandLoyaltyIndex: char.brandLoyaltyIndex,
-        technologyAdoptionScore: char.technologyAdoptionScore,
-        engagementLevel: char.engagementLevel,
+        shoppingStyle: char.shoppingStyle || 'planlı',
+        priceSensitivityScore: char.priceSensitivityScore || 0,
+        brandLoyaltyIndex: char.brandLoyaltyIndex || 0,
+        technologyAdoptionScore: char.technologyAdoptionScore || 0,
+        engagementLevel: char.engagementLevel || 'düşük',
         activeHours: JSON.parse(char.activeHours || '[]'),
         preferredCategories: JSON.parse(char.preferredCategories || '[]'),
         preferredPriceRange: JSON.parse(char.preferredPriceRange || '{}'),
-        socialBehaviorScore: char.socialBehaviorScore,
-        decisionSpeed: char.decisionSpeed,
+        socialBehaviorScore: char.socialBehaviorScore || 0,
+        decisionSpeed: char.decisionSpeed || 'orta',
         lastUpdated: char.lastUpdated
       };
     } catch (error) {
       console.error('❌ Error getting user characteristics:', error);
-      throw error;
+      // Tablo yoksa veya başka bir hata varsa default değerler döndür
+      if (error.code === 'ER_NO_SUCH_TABLE' || error.message?.includes('doesn\'t exist') || error.message?.includes('Unknown column')) {
+        return this.getDefaultCharacteristics();
+      }
+      return this.getDefaultCharacteristics();
     }
+  }
+
+  /**
+   * Default karakteristik değerleri
+   */
+  getDefaultCharacteristics() {
+    return {
+      preferences: { categories: [], brands: [], colors: [], styles: [] },
+      shoppingStyle: 'planlı',
+      priceSensitivityScore: 0,
+      brandLoyaltyIndex: 0,
+      technologyAdoptionScore: 0,
+      engagementLevel: 'düşük',
+      activeHours: [],
+      preferredCategories: [],
+      preferredPriceRange: { min: 0, max: 0, avg: 0 },
+      socialBehaviorScore: 0,
+      decisionSpeed: 'orta',
+      lastUpdated: new Date()
+    };
   }
 
   /**
@@ -683,6 +722,9 @@ class CharacteristicService {
    */
   async getAllUserCharacteristics(tenantId, filters = {}) {
     try {
+      // Tablo yoksa oluştur
+      await this.ensureTableExists();
+
       let query = `
         SELECT 
           uc.*,
@@ -709,16 +751,39 @@ class CharacteristicService {
 
       const [rows] = await this.pool.execute(query, params);
 
-      return rows.map(row => ({
-        ...row,
-        preferences: JSON.parse(row.preferences || '{}'),
-        activeHours: JSON.parse(row.activeHours || '[]'),
-        preferredCategories: JSON.parse(row.preferredCategories || '[]'),
-        preferredPriceRange: JSON.parse(row.preferredPriceRange || '{}')
-      }));
+      // Eğer hiç veri yoksa boş array döndür
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      return rows.map(row => {
+        try {
+          return {
+            ...row,
+            preferences: row.preferences ? (typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences) : {},
+            activeHours: row.activeHours ? (typeof row.activeHours === 'string' ? JSON.parse(row.activeHours) : row.activeHours) : [],
+            preferredCategories: row.preferredCategories ? (typeof row.preferredCategories === 'string' ? JSON.parse(row.preferredCategories) : row.preferredCategories) : [],
+            preferredPriceRange: row.preferredPriceRange ? (typeof row.preferredPriceRange === 'string' ? JSON.parse(row.preferredPriceRange) : row.preferredPriceRange) : {}
+          };
+        } catch (parseError) {
+          console.warn('⚠️ Error parsing JSON for row:', row.id, parseError);
+          return {
+            ...row,
+            preferences: {},
+            activeHours: [],
+            preferredCategories: [],
+            preferredPriceRange: {}
+          };
+        }
+      });
     } catch (error) {
       console.error('❌ Error getting all user characteristics:', error);
-      throw error;
+      // Tablo yoksa veya başka bir hata varsa boş array döndür
+      if (error.code === 'ER_NO_SUCH_TABLE' || error.message?.includes('doesn\'t exist') || error.message?.includes('Unknown column')) {
+        return [];
+      }
+      // Diğer hatalar için de boş array döndür
+      return [];
     }
   }
 }

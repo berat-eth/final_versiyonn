@@ -77,7 +77,7 @@ router.get('/applications', require('../middleware/auth').authenticateAdmin, (re
 });
 
 // Admin: update single application status/note
-router.put('/applications/:id/status', express.json(), (req, res) => {
+router.put('/applications/:id/status', express.json(), require('../middleware/auth').authenticateAdmin, (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { status, note } = req.body || {};
@@ -97,7 +97,7 @@ router.put('/applications/:id/status', express.json(), (req, res) => {
 });
 
 // Admin: batch update status
-router.post('/applications/batch-status', express.json(), (req, res) => {
+router.post('/applications/batch-status', express.json(), require('../middleware/auth').authenticateAdmin, (req, res) => {
   try {
     const { ids, status } = req.body || {};
     if (!Array.isArray(ids) || !ids.length || !status) return res.status(400).json({ success: false, message: 'Geçersiz istek' });

@@ -7,7 +7,7 @@ let poolWrapper = null;
 // Pool wrapper'ı set etmek için middleware
 router.use((req, res, next) => {
   if (!poolWrapper) {
-    poolWrapper = req.app.locals.poolWrapper;
+    poolWrapper = req.app.locals.poolWrapper || require('../database-schema').poolWrapper;
   }
   next();
 });

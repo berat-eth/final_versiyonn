@@ -2,6 +2,7 @@
 // UZAK SUNUCU ZORUNLU: Tüm istekler remote base URL'ye gider
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS';
 
 interface ApiRequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
@@ -10,13 +11,15 @@ interface ApiRequestOptions extends RequestInit {
 class ApiClient {
   private baseUrl: string;
   private apiKey: string;
+  private adminKey: string;
 
-  constructor(baseUrl: string, apiKey: string) {
+  constructor(baseUrl: string, apiKey: string, adminKey: string) {
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
+    this.adminKey = adminKey;
   }
 
-  private getHeaders(customHeaders?: HeadersInit): HeadersInit {
+  private getHeaders(endpoint: string, customHeaders?: HeadersInit): HeadersInit {
     const base: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -24,6 +27,13 @@ class ApiClient {
     if (this.apiKey) {
       base['X-API-Key'] = this.apiKey;
     }
+    
+    // Admin endpoint'leri için admin key ekle
+    // /admin/ veya /dealership/ (admin panelinde kullanılan) endpoint'leri için
+    if (endpoint.startsWith('/admin/') || endpoint.startsWith('/dealership/')) {
+      base['X-Admin-Key'] = this.adminKey;
+    }
+    
     // İstemci tarafında mevcutsa auth token'ı ekle
     try {
       if (typeof window !== 'undefined') {
@@ -54,7 +64,7 @@ class ApiClient {
     try {
       const response = await fetch(url, {
         ...fetchOptions,
-        headers: this.getHeaders(headers),
+        headers: this.getHeaders(endpoint, headers),
       });
 
       if (!response.ok) {
@@ -131,7 +141,7 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient(API_BASE_URL, API_KEY);
+export const api = new ApiClient(API_BASE_URL, API_KEY, ADMIN_KEY);
 
 // Type definitions
 export interface ApiResponse<T> {

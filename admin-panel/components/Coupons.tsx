@@ -480,19 +480,19 @@ export default function Coupons() {
 
   // Filtrelenmiş veriler
   const filteredCoupons = coupons.filter(c => 
-    c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    c?.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c?.description?.toLowerCase().includes(searchTerm.toLowerCase())
   )
   
   const filteredDiscountCodes = discountCodes.filter(c => 
-    c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.userName?.toLowerCase().includes(searchTerm.toLowerCase())
+    c?.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c?.userName?.toLowerCase().includes(searchTerm.toLowerCase())
   )
   
   const filteredGiftCards = giftCards.filter(c => 
-    c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.recipientEmail?.toLowerCase().includes(searchTerm.toLowerCase())
+    c?.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c?.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c?.recipientEmail?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   if (loading) {

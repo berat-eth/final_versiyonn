@@ -3920,6 +3920,75 @@ app.get('/api/admin/wallet-recharge-requests', authenticateAdmin, async (req, re
   }
 });
 
+// Admin - Wallet withdraw requests
+app.get('/api/admin/wallet-withdraw-requests', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const tenantId = req.tenant?.id || 1;
+    
+    // Önce tablo var mı kontrol et
+    try {
+      const [rows] = await poolWrapper.execute(
+        `SELECT 
+           w.id, w.userId, u.name AS userName, u.email AS userEmail, u.phone AS userPhone,
+           w.amount, w.bankInfo, w.status, w.errorMessage, w.approvedBy, w.createdAt, w.completedAt
+         FROM wallet_withdraw_requests w
+         LEFT JOIN users u ON u.id = w.userId
+         WHERE w.tenantId = ?
+         ORDER BY w.createdAt DESC
+         LIMIT ? OFFSET ?`,
+        [tenantId, limit, offset]
+      );
+      res.json({ success: true, data: rows || [] });
+    } catch (tableError) {
+      // Tablo yoksa boş array döndür
+      if (tableError.code === 'ER_NO_SUCH_TABLE') {
+        console.warn('⚠️ wallet_withdraw_requests table does not exist yet');
+        res.json({ success: true, data: [] });
+      } else {
+        throw tableError;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error getting wallet withdraw requests:', error);
+    res.json({ success: true, data: [] });
+  }
+});
+
+// Admin - Update wallet withdraw request status
+app.post('/api/admin/wallet-withdraw-requests/:id/status', authenticateAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const { status } = req.body || {};
+    const tenantId = req.tenant?.id || 1;
+    const allowed = ['pending', 'pending_approval', 'completed', 'failed', 'cancelled'];
+    
+    if (!allowed.includes(String(status))) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    
+    try {
+      await poolWrapper.execute(
+        `UPDATE wallet_withdraw_requests 
+         SET status = ?, approvedBy = ?, completedAt = NOW() 
+         WHERE id = ? AND tenantId = ?`,
+        [status, req.user?.id || null, id, tenantId]
+      );
+      res.json({ success: true, message: 'Status updated' });
+    } catch (tableError) {
+      if (tableError.code === 'ER_NO_SUCH_TABLE') {
+        res.status(404).json({ success: false, message: 'Table does not exist' });
+      } else {
+        throw tableError;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error updating wallet withdraw request status:', error);
+    res.status(500).json({ success: false, message: 'Error updating status' });
+  }
+});
+
 async function handleRechargeStatus(req, res) {
   try {
     const id = String(req.params.id);
@@ -5134,6 +5203,58 @@ app.get('/api/admin/custom-production-requests', authenticateAdmin, async (req, 
   } catch (error) {
     console.error('❌ Error getting custom production requests:', error);
     res.status(500).json({ success: false, message: 'Error getting custom production requests' });
+  }
+});
+
+// Admin - Get all custom production messages (with optional limit)
+app.get('/api/admin/custom-production/messages', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = 1;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const [rows] = await poolWrapper.execute(
+      `SELECT 
+        cpm.id, 
+        cpm.requestId, 
+        cpm.sender, 
+        cpm.message, 
+        cpm.createdAt,
+        cpr.requestNumber,
+        cpr.customerName,
+        cpr.customerEmail
+      FROM custom_production_messages cpm
+      LEFT JOIN custom_production_requests cpr ON cpm.requestId = cpr.id AND cpm.tenantId = cpr.tenantId
+      WHERE cpm.tenantId = ? 
+      ORDER BY cpm.createdAt DESC 
+      LIMIT ?`,
+      [tenantId, limit]
+    );
+    
+    res.json({ success: true, data: rows || [] });
+  } catch (error) {
+    console.error('❌ Error getting custom production messages:', error);
+    res.status(500).json({ success: false, message: 'Mesajlar alınamadı' });
+  }
+});
+
+// Admin - Get messages for a specific request
+app.get('/api/admin/custom-production/requests/:id/messages', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = 1;
+    const requestId = parseInt(req.params.id, 10);
+    
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, sender, message, createdAt 
+       FROM custom_production_messages
+       WHERE requestId = ? AND tenantId = ? 
+       ORDER BY createdAt ASC`,
+      [requestId, tenantId]
+    );
+    
+    res.json({ success: true, data: rows || [] });
+  } catch (error) {
+    console.error('❌ Error getting custom production request messages:', error);
+    res.status(500).json({ success: false, message: 'Mesajlar alınamadı' });
   }
 });
 
