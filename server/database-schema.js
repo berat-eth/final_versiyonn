@@ -2397,6 +2397,25 @@ async function createDatabaseSchema(pool) {
   }
 }
 
+// poolWrapper will be set by server.js after initialization
+let poolWrapperInstance = null;
+
+function setPoolWrapper(pool) {
+  poolWrapperInstance = pool;
+}
+
+// Getter function for poolWrapper
+function getPoolWrapper() {
+  if (!poolWrapperInstance) {
+    throw new Error('poolWrapper not initialized. Call setPoolWrapper first.');
+  }
+  return poolWrapperInstance;
+}
+
 module.exports = {
-  createDatabaseSchema
+  createDatabaseSchema,
+  get poolWrapper() {
+    return getPoolWrapper();
+  },
+  setPoolWrapper
 };

@@ -916,6 +916,10 @@ async function initializeDatabase() {
     // Create database schema
     await createDatabaseSchema(pool);
 
+    // Set poolWrapper in database-schema module so other modules can use it
+    const { setPoolWrapper } = require('./database-schema');
+    setPoolWrapper(poolWrapper);
+
     // Create user level system tables
     await createUserExpTransactionsTable();
 
