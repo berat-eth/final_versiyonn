@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { useTheme } from '@/lib/ThemeContext'
 import { 
   Brain, TrendingUp, Users, ShoppingCart, AlertTriangle, Target,
-  RefreshCw, Download, Filter, BarChart3, Zap, Activity, Eye
+  RefreshCw, Download, Filter, BarChart3, Zap, Activity, Eye, FileText, AlertCircle
 } from 'lucide-react'
 import { 
   Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, 
@@ -26,6 +26,8 @@ export default function MLInsights() {
   const [anomalies, setAnomalies] = useState<any>(null)
   const [segments, setSegments] = useState<any[]>([])
   const [models, setModels] = useState<any[]>([])
+  const [logs, setLogs] = useState<any>(null)
+  const [logType, setLogType] = useState('training')
 
   useEffect(() => {
     loadData()
@@ -68,11 +70,38 @@ export default function MLInsights() {
           const modelsRes = await api.get(`/admin/ml/models`)
           setModels(modelsRes.data || [])
           break
+
+        case 'logs':
+          await loadLogs()
+          break
       }
     } catch (error) {
       console.error('❌ Error loading ML data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadLogs = async () => {
+    try {
+      let logsRes
+      switch (logType) {
+        case 'training':
+          logsRes = await api.get(`/admin/ml/logs/training?limit=100`)
+          break
+        case 'inference':
+          logsRes = await api.get(`/admin/ml/logs/inference?limit=100`)
+          break
+        case 'errors':
+          logsRes = await api.get(`/admin/ml/logs/errors?limit=100`)
+          break
+        default:
+          logsRes = await api.get(`/admin/ml/logs/training?limit=100`)
+      }
+      setLogs(logsRes.data)
+    } catch (error) {
+      console.error('❌ Error loading logs:', error)
+      setLogs(null)
     }
   }
 
@@ -92,7 +121,8 @@ export default function MLInsights() {
     { id: 'recommendations', label: 'Öneriler', icon: ShoppingCart },
     { id: 'anomalies', label: 'Anomaliler', icon: AlertTriangle },
     { id: 'segments', label: 'Segmentler', icon: Users },
-    { id: 'models', label: 'Modeller', icon: Brain }
+    { id: 'models', label: 'Modeller', icon: Brain },
+    { id: 'logs', label: 'Loglar', icon: FileText }
   ]
 
   const timeRanges = [
@@ -182,6 +212,15 @@ export default function MLInsights() {
         )}
         {activeSection === 'models' && (
           <ModelsSection data={models} onTrain={triggerTraining} theme={theme} />
+        )}
+        {activeSection === 'logs' && (
+          <LogsSection 
+            data={logs} 
+            logType={logType} 
+            onLogTypeChange={setLogType}
+            onRefresh={loadLogs}
+            theme={theme} 
+          />
         )}
       </div>
     </div>
@@ -403,6 +442,213 @@ function SegmentsSection({ data, theme }: any) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// Logs Section
+function LogsSection({ data, logType, onLogTypeChange, onRefresh, theme }: any) {
+  const logTypes = [
+    { value: 'training', label: 'Eğitim Logları', icon: Brain },
+    { value: 'inference', label: 'Inference Logları', icon: Zap },
+    { value: 'errors', label: 'Hata Logları', icon: AlertCircle }
+  ]
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="animate-spin h-8 w-8 text-blue-600" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Log Type Selector */}
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-md">
+        <div className="flex flex-wrap gap-2 mb-4">
+          {logTypes.map(type => {
+            const Icon = type.icon
+            return (
+              <button
+                key={type.value}
+                onClick={() => onLogTypeChange(type.value)}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                  logType === type.value
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {type.label}
+              </button>
+            )
+          })}
+          <button
+            onClick={onRefresh}
+            className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Yenile
+          </button>
+        </div>
+
+        {data.total !== undefined && (
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Toplam: {data.total} kayıt
+          </p>
+        )}
+      </div>
+
+      {/* Training Logs */}
+      {logType === 'training' && data.logs && (
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+          <h3 className="text-lg font-semibold mb-4">Eğitim Logları</h3>
+          {data.logs.length === 0 ? (
+            <p className="text-slate-600 dark:text-slate-400">Henüz eğitim logu yok</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="text-left p-2">Model</th>
+                    <th className="text-left p-2">Epoch</th>
+                    <th className="text-right p-2">Loss</th>
+                    <th className="text-right p-2">Accuracy</th>
+                    <th className="text-right p-2">Val Loss</th>
+                    <th className="text-right p-2">Val Accuracy</th>
+                    <th className="text-right p-2">Learning Rate</th>
+                    <th className="text-left p-2">Tarih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.logs.map((log: any, index: number) => (
+                    <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
+                      <td className="p-2">
+                        <div>
+                          <div className="font-medium">{log.modelName}</div>
+                          <div className="text-xs text-slate-500">{log.modelType}</div>
+                        </div>
+                      </td>
+                      <td className="p-2">{log.epoch}</td>
+                      <td className="text-right p-2">{log.loss ? log.loss.toFixed(6) : '-'}</td>
+                      <td className="text-right p-2">
+                        {log.accuracy ? `${(log.accuracy * 100).toFixed(2)}%` : '-'}
+                      </td>
+                      <td className="text-right p-2">
+                        {log.validationLoss ? log.validationLoss.toFixed(6) : '-'}
+                      </td>
+                      <td className="text-right p-2">
+                        {log.validationAccuracy ? `${(log.validationAccuracy * 100).toFixed(2)}%` : '-'}
+                      </td>
+                      <td className="text-right p-2">
+                        {log.learningRate ? log.learningRate.toFixed(8) : '-'}
+                      </td>
+                      <td className="p-2 text-sm text-slate-600 dark:text-slate-400">
+                        {new Date(log.timestamp).toLocaleString('tr-TR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Inference Logs */}
+      {logType === 'inference' && data.inferences && (
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+          <h3 className="text-lg font-semibold mb-4">Inference Logları</h3>
+          {data.inferences.length === 0 ? (
+            <p className="text-slate-600 dark:text-slate-400">Henüz inference logu yok</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="text-left p-2">Kullanıcı ID</th>
+                    <th className="text-left p-2">Tahmin Türü</th>
+                    <th className="text-right p-2">Olasılık</th>
+                    <th className="text-left p-2">Tarih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.inferences.map((log: any, index: number) => (
+                    <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
+                      <td className="p-2">{log.userId || '-'}</td>
+                      <td className="p-2 capitalize">{log.predictionType}</td>
+                      <td className="text-right p-2">
+                        <span className={`font-bold ${
+                          log.probability > 0.7 ? 'text-green-600' : 
+                          log.probability > 0.4 ? 'text-yellow-600' : 
+                          'text-red-600'
+                        }`}>
+                          {(log.probability * 100).toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="p-2 text-sm text-slate-600 dark:text-slate-400">
+                        {new Date(log.createdAt).toLocaleString('tr-TR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Error Logs */}
+      {logType === 'errors' && data.errors && (
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+          <h3 className="text-lg font-semibold mb-4">Hata Logları</h3>
+          {data.errors.length === 0 ? (
+            <p className="text-slate-600 dark:text-slate-400">Henüz hata logu yok</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="text-left p-2">Kullanıcı</th>
+                    <th className="text-left p-2">Anomali Türü</th>
+                    <th className="text-right p-2">Skor</th>
+                    <th className="text-left p-2">Tarih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.errors.map((log: any, index: number) => (
+                    <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
+                      <td className="p-2">{log.userName || `User #${log.userId}`}</td>
+                      <td className="p-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          log.anomalyType === 'bot' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                          log.anomalyType === 'fraud' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                        }`}>
+                          {log.anomalyType}
+                        </span>
+                      </td>
+                      <td className="text-right p-2">
+                        <span className={`font-bold ${
+                          log.anomalyScore > 0.8 ? 'text-red-600' : 
+                          log.anomalyScore > 0.5 ? 'text-yellow-600' : 
+                          'text-green-600'
+                        }`}>
+                          {(log.anomalyScore * 100).toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="p-2 text-sm text-slate-600 dark:text-slate-400">
+                        {new Date(log.createdAt).toLocaleString('tr-TR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mlService = require('../services/ml-service');
 const { authenticateAdmin } = require('../middleware/auth');
+const { poolWrapper } = require('../database-schema');
 
 // All routes require admin authentication
 router.use(authenticateAdmin);
@@ -230,6 +231,216 @@ router.post('/train', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error triggering training'
+    });
+  }
+});
+
+/**
+ * Get ML training logs
+ * GET /api/admin/ml/logs/training?modelId=1&limit=100&offset=0
+ */
+router.get('/logs/training', async (req, res) => {
+  try {
+    const modelId = req.query.modelId ? parseInt(req.query.modelId) : null;
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
+    let query = `
+      SELECT 
+        tl.id,
+        tl.modelId,
+        m.modelName,
+        m.modelType,
+        tl.epoch,
+        tl.loss,
+        tl.accuracy,
+        tl.validationLoss,
+        tl.validationAccuracy,
+        tl.learningRate,
+        tl.timestamp
+      FROM ml_training_logs tl
+      JOIN ml_models m ON tl.modelId = m.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (modelId) {
+      query += ` AND tl.modelId = ?`;
+      params.push(modelId);
+    }
+
+    query += ` ORDER BY tl.timestamp DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const [rows] = await poolWrapper.execute(query, params);
+
+    // Get total count
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM ml_training_logs tl
+      WHERE 1=1
+    `;
+    const countParams = [];
+
+    if (modelId) {
+      countQuery += ` AND tl.modelId = ?`;
+      countParams.push(modelId);
+    }
+
+    const [countResult] = await poolWrapper.execute(countQuery, countParams);
+    const total = countResult[0]?.total || 0;
+
+    res.json({
+      success: true,
+      data: {
+        logs: rows,
+        total,
+        limit,
+        offset
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting training logs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting training logs'
+    });
+  }
+});
+
+/**
+ * Get ML service logs (inference, errors, etc.)
+ * GET /api/admin/ml/logs/service?logType=inference&limit=100&offset=0
+ */
+router.get('/logs/service', async (req, res) => {
+  try {
+    const logType = req.query.logType || 'all'; // inference, error, accuracy
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // For now, return empty as ML service logs are in-memory
+    // In production, these should be stored in database
+    res.json({
+      success: true,
+      data: {
+        logs: [],
+        total: 0,
+        limit,
+        offset,
+        message: 'Service logs are stored in ML service memory. Connect to ML service API to retrieve.'
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting service logs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting service logs'
+    });
+  }
+});
+
+/**
+ * Get ML error logs
+ * GET /api/admin/ml/logs/errors?limit=100&offset=0
+ */
+router.get('/logs/errors', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // Get errors from anomalies table (high anomaly scores)
+    const [rows] = await poolWrapper.execute(`
+      SELECT 
+        a.id,
+        a.eventId,
+        a.userId,
+        u.name as userName,
+        a.anomalyScore,
+        a.anomalyType,
+        a.metadata,
+        a.createdAt
+      FROM ml_anomalies a
+      LEFT JOIN users u ON a.userId = u.id
+      WHERE a.anomalyScore >= 0.7
+      ORDER BY a.createdAt DESC
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
+
+    // Get total count
+    const [countResult] = await poolWrapper.execute(`
+      SELECT COUNT(*) as total
+      FROM ml_anomalies
+      WHERE anomalyScore >= 0.7
+    `);
+    const total = countResult[0]?.total || 0;
+
+    res.json({
+      success: true,
+      data: {
+        errors: rows.map(row => ({
+          ...row,
+          metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : row.metadata
+        })),
+        total,
+        limit,
+        offset
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting error logs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting error logs'
+    });
+  }
+});
+
+/**
+ * Get ML inference logs (from predictions)
+ * GET /api/admin/ml/logs/inference?limit=100&offset=0
+ */
+router.get('/logs/inference', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const [rows] = await poolWrapper.execute(`
+      SELECT 
+        id,
+        userId,
+        predictionType,
+        probability,
+        metadata,
+        createdAt
+      FROM ml_predictions
+      ORDER BY createdAt DESC
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
+
+    // Get total count
+    const [countResult] = await poolWrapper.execute(`
+      SELECT COUNT(*) as total
+      FROM ml_predictions
+    `);
+    const total = countResult[0]?.total || 0;
+
+    res.json({
+      success: true,
+      data: {
+        inferences: rows.map(row => ({
+          ...row,
+          metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : row.metadata
+        })),
+        total,
+        limit,
+        offset
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting inference logs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting inference logs'
     });
   }
 });
