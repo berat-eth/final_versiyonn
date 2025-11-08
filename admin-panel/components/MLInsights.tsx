@@ -46,34 +46,34 @@ export default function MLInsights() {
 
       switch (activeSection) {
         case 'overview':
-          const statsRes = await api.get(`/admin/ml/statistics?timeRange=${timeRange}&tenantId=${tenantId}`)
+          const statsRes = await api.get(`/admin/ml/statistics?timeRange=${timeRange}&tenantId=${tenantId}`) as any
           setStatistics(statsRes.data)
           break
 
         case 'predictions':
           // Get predictions for recent users
-          const predRes = await api.get(`/admin/ml/predictions?userId=1&limit=50&tenantId=${tenantId}`)
+          const predRes = await api.get(`/admin/ml/predictions?userId=1&limit=50&tenantId=${tenantId}`) as any
           setPredictions(predRes.data || [])
           break
 
         case 'recommendations':
           // Get recommendations for recent users
-          const recRes = await api.get(`/admin/ml/recommendations?userId=1&tenantId=${tenantId}`)
+          const recRes = await api.get(`/admin/ml/recommendations?userId=1&tenantId=${tenantId}`) as any
           setRecommendations(recRes.data ? [recRes.data] : [])
           break
 
         case 'anomalies':
-          const anomRes = await api.get(`/admin/ml/anomalies?limit=100&tenantId=${tenantId}`)
+          const anomRes = await api.get(`/admin/ml/anomalies?limit=100&tenantId=${tenantId}`) as any
           setAnomalies(anomRes.data)
           break
 
         case 'segments':
-          const segRes = await api.get(`/admin/ml/segments?tenantId=${tenantId}`)
+          const segRes = await api.get(`/admin/ml/segments?tenantId=${tenantId}`) as any
           setSegments(segRes.data || [])
           break
 
         case 'models':
-          const modelsRes = await api.get(`/admin/ml/models`)
+          const modelsRes = await api.get(`/admin/ml/models`) as any
           setModels(modelsRes.data || [])
           break
 
@@ -93,16 +93,16 @@ export default function MLInsights() {
       let logsRes
       switch (logType) {
         case 'training':
-          logsRes = await api.get(`/admin/ml/logs/training?limit=100`)
+          logsRes = await api.get(`/admin/ml/logs/training?limit=100`) as any
           break
         case 'inference':
-          logsRes = await api.get(`/admin/ml/logs/inference?limit=100`)
+          logsRes = await api.get(`/admin/ml/logs/inference?limit=100`) as any
           break
         case 'errors':
-          logsRes = await api.get(`/admin/ml/logs/errors?limit=100`)
+          logsRes = await api.get(`/admin/ml/logs/errors?limit=100`) as any
           break
         default:
-          logsRes = await api.get(`/admin/ml/logs/training?limit=100`)
+          logsRes = await api.get(`/admin/ml/logs/training?limit=100`) as any
       }
       setLogs(logsRes.data)
     } catch (error) {

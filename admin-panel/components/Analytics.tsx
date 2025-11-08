@@ -42,47 +42,47 @@ export default function Analytics() {
 
       switch (activeSection) {
         case 'overview':
-          const overviewRes = await api.get(`/admin/analytics/overview?timeRange=${timeRange}&tenantId=${tenantId}`)
+          const overviewRes = await api.get(`/admin/analytics/overview?timeRange=${timeRange}&tenantId=${tenantId}`) as any
           setOverview(overviewRes.data)
           break
 
         case 'users':
-          const usersRes = await api.get(`/admin/analytics/users?timeRange=${timeRange}&tenantId=${tenantId}`)
+          const usersRes = await api.get(`/admin/analytics/users?timeRange=${timeRange}&tenantId=${tenantId}`) as any
           setUserAnalytics(usersRes.data)
           break
 
         case 'behavior':
-          const behaviorRes = await api.get(`/admin/analytics/behavior?timeRange=${timeRange}&tenantId=${tenantId}`)
+          const behaviorRes = await api.get(`/admin/analytics/behavior?timeRange=${timeRange}&tenantId=${tenantId}`) as any
           setBehaviorAnalytics(behaviorRes.data)
           break
 
         case 'funnel':
-          const funnelRes = await api.get(`/admin/analytics/funnel?timeRange=${timeRange}&tenantId=${tenantId}`)
+          const funnelRes = await api.get(`/admin/analytics/funnel?timeRange=${timeRange}&tenantId=${tenantId}`) as any
           setFunnelData(funnelRes.data)
           break
 
         case 'performance':
-          const perfRes = await api.get(`/admin/analytics/performance?timeRange=${timeRange}&tenantId=${tenantId}`)
+          const perfRes = await api.get(`/admin/analytics/performance?timeRange=${timeRange}&tenantId=${tenantId}`) as any
           setPerformanceMetrics(perfRes.data)
           break
 
         case 'segments':
-          const segmentsRes = await api.get(`/admin/analytics/segments?timeRange=${timeRange}&tenantId=${tenantId}`)
+          const segmentsRes = await api.get(`/admin/analytics/segments?timeRange=${timeRange}&tenantId=${tenantId}`) as any
           setSegmentAnalytics(segmentsRes.data)
           break
 
         case 'products':
-          const productsRes = await api.get(`/admin/analytics/products?timeRange=${timeRange}&tenantId=${tenantId}`)
+          const productsRes = await api.get(`/admin/analytics/products?timeRange=${timeRange}&tenantId=${tenantId}`) as any
           setProductAnalytics(productsRes.data)
           break
 
         case 'timeseries':
-          const timeseriesRes = await api.get(`/admin/analytics/timeseries?metric=users&timeRange=${timeRange}&interval=day&tenantId=${tenantId}`)
+          const timeseriesRes = await api.get(`/admin/analytics/timeseries?metric=users&timeRange=${timeRange}&interval=day&tenantId=${tenantId}`) as any
           setTimeSeriesData(timeseriesRes.data)
           break
 
         case 'characteristics':
-          const charRes = await api.get(`/admin/analytics/characteristics?tenantId=${tenantId}`)
+          const charRes = await api.get(`/admin/analytics/characteristics?tenantId=${tenantId}`) as any
           setCharacteristics(charRes.data)
           break
       }
