@@ -396,6 +396,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     // Track heatmap click (product card)
     if (event?.nativeEvent) {
       const { pageX, pageY } = event.nativeEvent;
+    }
     navigation.navigate('ProductDetail', { productId: product.id });
   };
 

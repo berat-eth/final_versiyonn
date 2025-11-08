@@ -9,7 +9,7 @@ interface ProductListControlsProps {
   filteredCount: number;
   totalCount: number;
   showFlashDeals: boolean;
-  sortBy: 'price-asc' | 'price-desc' | 'rating' | 'name';
+  sortBy: 'default' | 'price-asc' | 'price-desc' | 'rating' | 'name';
   viewMode: 'grid' | 'list';
   onSortPress: () => void;
   onViewModeChange: (mode: 'grid' | 'list') => void;
@@ -26,11 +26,12 @@ export const ProductListControls: React.FC<ProductListControlsProps> = ({
 }) => {
   const getSortLabel = () => {
     switch (sortBy) {
+      case 'default': return 'Varsayılan';
       case 'name': return 'İsim';
       case 'price-asc': return 'Fiyat ↑';
       case 'price-desc': return 'Fiyat ↓';
       case 'rating': return 'Puan';
-      default: return 'İsim';
+      default: return 'Varsayılan';
     }
   };
 
