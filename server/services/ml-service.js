@@ -308,7 +308,7 @@ class MLService {
           version,
           status,
           accuracy,
-          precision,
+          \`precision\`,
           recall,
           f1Score,
           trainingDataSize,

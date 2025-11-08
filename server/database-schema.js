@@ -2304,7 +2304,7 @@ async function createDatabaseSchema(pool) {
           status ENUM('training', 'active', 'inactive', 'archived') DEFAULT 'training',
           filePath VARCHAR(500),
           accuracy DECIMAL(5,4),
-          precision DECIMAL(5,4),
+          \`precision\` DECIMAL(5,4),
           recall DECIMAL(5,4),
           f1Score DECIMAL(5,4),
           trainingDataSize INT,
