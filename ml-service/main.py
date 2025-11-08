@@ -167,7 +167,7 @@ if __name__ == "__main__":
         "main:app",
         host=config.ML_SERVICE_HOST,
         port=config.ML_SERVICE_PORT,
-        reload=True,
+        reload=False,  # Disable reload to avoid file watch limit issues
         log_level=config.LOG_LEVEL.lower()
     )
 
