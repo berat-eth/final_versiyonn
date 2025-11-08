@@ -2061,7 +2061,7 @@ async function createDatabaseSchema(pool) {
             AND TABLE_NAME = 'user_behavior_events'
             AND COLUMN_NAME IN ('performanceMetrics', 'characteristics')
         `);
-        const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+        const existingColumns = columns.map((c) => c.COLUMN_NAME);
         
         if (!existingColumns.includes('performanceMetrics')) {
           await pool.execute(`
@@ -2117,7 +2117,7 @@ async function createDatabaseSchema(pool) {
             AND TABLE_NAME = 'user_sessions'
             AND COLUMN_NAME IN ('errorCount', 'avgPageLoadTime')
         `);
-        const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+        const existingColumns = columns.map((c) => c.COLUMN_NAME);
         
         if (!existingColumns.includes('errorCount')) {
           await pool.execute(`
