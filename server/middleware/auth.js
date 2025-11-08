@@ -13,15 +13,8 @@ async function authenticateAdmin(req, res, next) {
       });
     }
     
-    // Check admin key against environment variable
-    const validAdminKey = process.env.ADMIN_KEY;
-    if (!validAdminKey) {
-      console.error('❌ ADMIN_KEY environment variable is required');
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Server misconfiguration: ADMIN_KEY not set' 
-      });
-    }
+    // Check admin key against environment variable (with default fallback)
+    const validAdminKey = process.env.ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS';
     
     if (adminKey !== validAdminKey) {
       console.warn(`⚠️ Invalid admin key attempt from IP: ${req.ip}`);

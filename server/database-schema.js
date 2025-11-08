@@ -2342,6 +2342,37 @@ async function createDatabaseSchema(pool) {
       `);
       console.log('✅ ml_training_logs table ready');
 
+      // Chat Sessions table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+          id VARCHAR(36) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          messageCount INT DEFAULT 0,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_created_at (createdAt),
+          INDEX idx_updated_at (updatedAt)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ chat_sessions table ready');
+
+      // Chat Messages table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS chat_messages (
+          id VARCHAR(36) PRIMARY KEY,
+          sessionId VARCHAR(36) NOT NULL,
+          role ENUM('user', 'assistant') NOT NULL,
+          content TEXT NOT NULL,
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_session_id (sessionId),
+          INDEX idx_timestamp (timestamp),
+          INDEX idx_role (role),
+          FOREIGN KEY (sessionId) REFERENCES chat_sessions(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ chat_messages table ready');
+
       // Archive table for old events
       await pool.execute(`
         CREATE TABLE IF NOT EXISTS user_behavior_events_archive (
