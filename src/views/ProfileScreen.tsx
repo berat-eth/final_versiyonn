@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { UserController } from '../controllers/UserController';
 import apiService from '../utils/api-service';
 import { OrderController } from '../controllers/OrderController';
@@ -153,6 +154,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [termsModalVisible, setTermsModalVisible] = useState(false);
   const [dataModalVisible, setDataModalVisible] = useState(false);
 
+  // Cache kontrolü için ref
+  const lastLoadTimeRef = useRef<number>(0);
+  const CACHE_DURATION_MS = 30 * 1000; // 30 saniye cache
+
   useEffect(() => {
     checkUser();
   }, []);
@@ -160,7 +165,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const checkUser = async () => {
     try {
       setLoading(true);
-      await loadUserData();
+      await loadUserData(false);
     } catch (error) {
       console.error('Kullanıcı kontrol edilirken hata:', error);
     } finally {
@@ -168,22 +173,63 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-  const loadUserData = async () => {
+  // Kritik verileri yenile (siparişler, bakiye, favoriler)
+  const refreshCriticalData = useCallback(async () => {
+    const userId = currentUser?.id;
+    if (!userId) return;
+    
     try {
-      const user = await UserController.getCurrentUser();
+      const [
+        userOrders,
+        balanceResponse,
+        favorites
+      ] = await Promise.allSettled([
+        OrderController.getUserOrders(userId),
+        apiService.get(`/wallet/balance/${userId}`),
+        UserController.getUserFavorites(userId)
+      ]);
+
+      // Siparişleri işle
+      if (userOrders.status === 'fulfilled') {
+        setOrders(userOrders.value);
+        const shippedOrdersCount = userOrders.value.filter(order => 
+          order.status === 'shipped' || order.status === 'processing'
+        ).length;
+        setActiveOrders(shippedOrdersCount);
+      }
+
+      // Cüzdan bakiyesini işle
+      if (balanceResponse.status === 'fulfilled' && 
+          balanceResponse.value?.success && 
+          balanceResponse.value?.data) {
+        setWalletBalance(balanceResponse.value.data.balance || 0);
+      }
+
+      // Favorileri işle
+      if (favorites.status === 'fulfilled') {
+        setFavoriteCount(favorites.value.length);
+      }
+    } catch (error) {
+      console.error('Kritik veriler yenilenirken hata:', error);
+    }
+  }, [currentUser?.id]);
+
+  const loadUserData = useCallback(async (forceRefresh: boolean = false) => {
+    try {
+      // Cache kullan - sadece gerektiğinde API'ye git
+      const user = await UserController.getCurrentUser(forceRefresh);
       if (user) {
         setCurrentUser(user);
         
+        // ✅ OPTIMIZASYON: Gereksiz getUserAddresses çağrısını kaldırdık
         // ✅ OPTIMIZASYON: Tüm verileri paralel yükle
         const [
           userOrders,
-          addresses,
           balanceResponse,
           favorites,
           levelData
         ] = await Promise.allSettled([
           OrderController.getUserOrders(user.id),
-          UserController.getUserAddresses(user.id),
           apiService.get(`/wallet/balance/${user.id}`),
           UserController.getUserFavorites(user.id),
           UserLevelController.getUserLevel(user.id.toString())
@@ -219,6 +265,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           setUserLevel(levelData.value);
         }
 
+        // Cache zamanını güncelle
+        lastLoadTimeRef.current = Date.now();
+
         // Log user activity (fire-and-forget; UI'yi bloklama, hata sessiz)
         UserController.logUserActivity(user.id, 'profile_viewed', {
           timestamp: new Date().toISOString(),
@@ -228,7 +277,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     } catch (error) {
       console.error('Kullanıcı verileri yüklenirken hata:', error);
     }
-  };
+  }, []);
+
+  // Ekran focus olduğunda sadece kritik verileri yenile
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      const shouldRefresh = now - lastLoadTimeRef.current > CACHE_DURATION_MS;
+      
+      if (shouldRefresh && currentUser) {
+        // Sadece kritik verileri yenile (kullanıcı bilgisi cache'den)
+        refreshCriticalData();
+      }
+    }, [refreshCriticalData, currentUser])
+  );
 
   const handleLogin = async () => {
     const result = await UserController.login(email, password);
@@ -243,7 +305,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }
       }
       
-      await loadUserData();
+      await loadUserData(true); // Force refresh after login
       setEmail('');
       setPassword('');
       Alert.alert('Başarılı', result.message);
@@ -360,7 +422,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       await AsyncStorage.setItem('userName', mockUser.name);
       
       // Kullanıcı verilerini yenile
-      await loadUserData();
+      await loadUserData(true); // Force refresh after social login
       
       Alert.alert('Başarılı', `${provider} ile giriş yapıldı`);
       
@@ -1790,25 +1852,6 @@ const styles = StyleSheet.create({
   modernMenuSubtitle: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  modernLogoutButton: {
-    marginHorizontal: 20,
-    marginVertical: 20,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  modernLogoutGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-  },
-  modernLogoutButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-    marginLeft: 8,
   },
   
   // Agreements and Marketing Styles
