@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# Huglu + N8N Full Stack Deployment Script
+# Huglu + N8N + AI Service Full Stack Deployment Script
 # SDK Tools Disabled - Only Project Dependencies
 # Debian 11 Bullseye Optimized
 # Domains:
@@ -9,6 +9,8 @@
 #   API: api.plaxsy.com
 #   Admin: admin.plaxsy.com
 #   N8N: otomasyon.plaxsy.com
+# Services:
+#   AI/ML Service: localhost:8001 (internal only)
 # ========================================
 
 set -e
@@ -43,6 +45,11 @@ ADMIN_DIR="/root/final_versiyonn/admin-panel"
 ADMIN_PORT=3001
 ADMIN_PM2_NAME="admin-panel"
 
+# AI/ML Service
+AI_DIR="/root/final_versiyonn/ml-service"
+AI_PORT=8001
+AI_PM2_NAME="ml-service"
+
 # N8N
 N8N_DOMAIN="otomasyon.plaxsy.com"
 N8N_PORT=5678
@@ -61,6 +68,7 @@ WARNINGS=0
 SKIP_ADMIN=false
 SKIP_MAIN=false
 SKIP_N8N=false
+SKIP_AI=false
 
 # --------------------------
 # Root Check
@@ -82,6 +90,7 @@ cleanup_and_fix() {
     pm2 delete $MAIN_PM2_NAME 2>/dev/null || true
     pm2 delete $API_PM2_NAME 2>/dev/null || true
     pm2 delete $ADMIN_PM2_NAME 2>/dev/null || true
+    pm2 delete $AI_PM2_NAME 2>/dev/null || true
     # Don't remove N8N if it's running
     if ! pm2 describe n8n &>/dev/null || ! pm2 list | grep -q "n8n.*online"; then
         pm2 delete n8n 2>/dev/null || true
@@ -101,7 +110,7 @@ cleanup_and_fix
 # --------------------------
 # System Update and Packages
 # --------------------------
-echo -e "${BLUE}[1/7] Updating system...${NC}"
+echo -e "${BLUE}[1/8] Updating system...${NC}"
 apt update -y && apt upgrade -y
 
 # Required packages for Debian 11
@@ -116,6 +125,8 @@ apt install -y \
     build-essential \
     python3 \
     python3-pip \
+    python3-dev \
+    python3-venv \
     python3-certbot-nginx \
     ca-certificates \
     gnupg \
@@ -129,7 +140,7 @@ apt install -y \
 # --------------------------
 # Redis Installation and Configuration (No Password)
 # --------------------------
-echo -e "${BLUE}[2/7] Installing and configuring Redis...${NC}"
+echo -e "${BLUE}[2/8] Installing and configuring Redis...${NC}"
 
 # Stop Redis
 systemctl stop redis-server 2>/dev/null || true
@@ -271,7 +282,7 @@ fi
 # --------------------------
 # Node.js and PM2
 # --------------------------
-echo -e "${BLUE}[3/7] Installing Node.js and PM2...${NC}"
+echo -e "${BLUE}[3/8] Installing Node.js and PM2...${NC}"
 if ! command -v node &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt install -y nodejs
@@ -285,7 +296,7 @@ npm --version
 # --------------------------
 # Clone Repository and Check Directories
 # --------------------------
-echo -e "${BLUE}[4/7] Cloning repository...${NC}"
+echo -e "${BLUE}[4/8] Cloning repository...${NC}"
 if [ ! -d "/root/final_versiyonn" ]; then
     git clone https://github.com/berat-eth/final_versiyonn.git /root/final_versiyonn
 else
@@ -296,7 +307,7 @@ fi
 # --------------------------
 # Main Site Setup (plaxsy.com - Next.js)
 # --------------------------
-echo -e "${BLUE}[5/7] Setting up main site (Next.js - plaxsy.com)...${NC}"
+echo -e "${BLUE}[5/8] Setting up main site (Next.js - plaxsy.com)...${NC}"
 if [ -d "$MAIN_DIR" ]; then
     cd $MAIN_DIR
     
@@ -349,7 +360,7 @@ fi
 # --------------------------
 # API Setup
 # --------------------------
-echo -e "${BLUE}[6/7] Setting up API...${NC}"
+echo -e "${BLUE}[6/8] Setting up API...${NC}"
 if [ -d "$API_DIR" ]; then
     cd $API_DIR
     
@@ -362,19 +373,28 @@ if [ -d "$API_DIR" ]; then
             echo "REDIS_HOST=127.0.0.1" >> .env
             echo "REDIS_PORT=${REDIS_PORT}" >> .env
         fi
+        # Add AI service URL
+        if ! grep -q "AI_SERVICE_URL" .env; then
+            echo "" >> .env
+            echo "# AI/ML Service Configuration" >> .env
+            echo "AI_SERVICE_URL=http://127.0.0.1:${AI_PORT}" >> .env
+        fi
     else
         # Create .env if it doesn't exist
         cat > .env << ENVEOF
 # Redis Configuration (No Password)
 REDIS_HOST=127.0.0.1
 REDIS_PORT=${REDIS_PORT}
+
+# AI/ML Service Configuration
+AI_SERVICE_URL=http://127.0.0.1:${AI_PORT}
 ENVEOF
     fi
     
     npm install --production
     pm2 start server.js --name $API_PM2_NAME --time --log-date-format="YYYY-MM-DD HH:mm:ss" --max-memory-restart 500M
     pm2 save
-    echo -e "${GREEN}✅ API successfully installed (with Redis integration)${NC}"
+    echo -e "${GREEN}✅ API successfully installed (with Redis and AI service integration)${NC}"
 else
     echo -e "${YELLOW}⚠️  API directory not found: $API_DIR${NC}"
 fi
@@ -396,9 +416,87 @@ else
 fi
 
 # --------------------------
+# AI/ML Service Setup (Python)
+# --------------------------
+echo -e "${BLUE}[7/8] Setting up AI/ML Service (Python)...${NC}"
+if [ -d "$AI_DIR" ]; then
+    cd $AI_DIR
+    
+    echo -e "${YELLOW}Installing Python dependencies...${NC}"
+    
+    # Upgrade pip
+    python3 -m pip install --upgrade pip
+    
+    # Install requirements
+    if [ -f "requirements.txt" ]; then
+        pip3 install -r requirements.txt
+        echo -e "${GREEN}✅ Python dependencies installed${NC}"
+    else
+        echo -e "${RED}❌ requirements.txt not found in $AI_DIR${NC}"
+        SKIP_AI=true
+    fi
+    
+    # Check if main.py exists
+    if [ ! -f "main.py" ] && [ "$SKIP_AI" != true ]; then
+        echo -e "${RED}❌ main.py not found in $AI_DIR${NC}"
+        SKIP_AI=true
+    fi
+    
+    if [ "$SKIP_AI" != true ]; then
+        # Create log directory
+        mkdir -p logs
+        
+        # Create PM2 ecosystem file for Python service
+        cat > ecosystem.config.js << EOF
+module.exports = {
+  apps: [{
+    name: '${AI_PM2_NAME}',
+    script: 'python3',
+    args: 'main.py',
+    cwd: '${AI_DIR}',
+    interpreter: 'none',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '2G',
+    env: {
+      PORT: ${AI_PORT},
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: ${REDIS_PORT},
+      PYTHONUNBUFFERED: '1'
+    },
+    error_file: '${AI_DIR}/logs/error.log',
+    out_file: '${AI_DIR}/logs/out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss'
+  }]
+};
+EOF
+        
+        # Start with PM2
+        pm2 start ecosystem.config.js
+        pm2 save
+        
+        echo -e "${GREEN}✅ AI/ML Service successfully installed and started${NC}"
+        echo -e "${GREEN}   Service URL: http://localhost:${AI_PORT} (internal only)${NC}"
+        
+        # Wait a bit and check if service is running
+        sleep 3
+        if pm2 describe $AI_PM2_NAME &>/dev/null && pm2 list | grep -q "${AI_PM2_NAME}.*online"; then
+            echo -e "${GREEN}✅ AI/ML Service is running${NC}"
+        else
+            echo -e "${YELLOW}⚠️  AI/ML Service may have issues. Check logs: pm2 logs ${AI_PM2_NAME}${NC}"
+        fi
+    fi
+else
+    echo -e "${YELLOW}⚠️  AI/ML Service directory not found: $AI_DIR${NC}"
+    echo -e "${YELLOW}Skipping AI/ML Service installation...${NC}"
+    SKIP_AI=true
+fi
+
+# --------------------------
 # N8N Installation Check and Setup
 # --------------------------
-echo -e "${BLUE}Checking N8N...${NC}"
+echo -e "${BLUE}[8/8] Checking N8N...${NC}"
 
 # Check if N8N is already installed and running
 N8N_INSTALLED=false
@@ -486,7 +584,7 @@ fi
 # --------------------------
 # Nginx Configuration
 # --------------------------
-echo -e "${BLUE}[7/7] Configuring Nginx...${NC}"
+echo -e "${BLUE}Configuring Nginx...${NC}"
 
 # Main Site (plaxsy.com)
 if [ "$SKIP_MAIN" != true ]; then
@@ -705,6 +803,17 @@ if [ "$SKIP_N8N" != true ]; then
     echo -e "  N8N: https://$N8N_DOMAIN"
 fi
 echo ""
+echo -e "${GREEN}Internal Services:${NC}"
+if [ "$SKIP_AI" != true ]; then
+    echo -e "  AI/ML Service: http://localhost:${AI_PORT} (internal only)"
+fi
+echo ""
+echo -e "${BLUE}System Architecture:${NC}"
+echo -e "  Mobile App → Event tracking → MySQL + Redis queue"
+echo -e "  Redis queue → Python ML Service → Model inference → MySQL"
+echo -e "  Admin Panel → Node.js API → MySQL → ML results display"
+echo ""
 echo -e "${YELLOW}Note: SDK tools (Java, Android SDK, Gradle) were NOT installed${NC}"
 echo -e "${YELLOW}Only project dependencies were installed${NC}"
-echo -e "${GREEN}========================================${NC}"
+echo ""
+if [ "$SKIP_AI" != true
