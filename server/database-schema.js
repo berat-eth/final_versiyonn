@@ -2404,10 +2404,27 @@ function setPoolWrapper(pool) {
   poolWrapperInstance = pool;
 }
 
-// Getter function for poolWrapper
+// Getter function for poolWrapper - lazy loading
 function getPoolWrapper() {
   if (!poolWrapperInstance) {
-    throw new Error('poolWrapper not initialized. Call setPoolWrapper first.');
+    // Try to get from global if available (for cases where it's set in server.js)
+    if (typeof global !== 'undefined' && global.poolWrapper) {
+      poolWrapperInstance = global.poolWrapper;
+      return poolWrapperInstance;
+    }
+    // Return a proxy that will throw error only when actually used
+    return new Proxy({}, {
+      get(target, prop) {
+        if (!poolWrapperInstance) {
+          if (typeof global !== 'undefined' && global.poolWrapper) {
+            poolWrapperInstance = global.poolWrapper;
+            return poolWrapperInstance[prop];
+          }
+          throw new Error('poolWrapper not initialized. Call setPoolWrapper first.');
+        }
+        return poolWrapperInstance[prop];
+      }
+    });
   }
   return poolWrapperInstance;
 }

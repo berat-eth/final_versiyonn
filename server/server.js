@@ -875,6 +875,9 @@ const poolWrapper = {
   }
 };
 
+// Set poolWrapper in global early so modules can access it (will be updated when pool is created)
+global.poolWrapper = poolWrapper;
+
 // Create user_exp_transactions table if not exists
 async function createUserExpTransactionsTable() {
   try {
@@ -916,9 +919,11 @@ async function initializeDatabase() {
     // Create database schema
     await createDatabaseSchema(pool);
 
-    // Set poolWrapper in database-schema module so other modules can use it
+    // Set poolWrapper in database-schema module and global so other modules can use it
     const { setPoolWrapper } = require('./database-schema');
     setPoolWrapper(poolWrapper);
+    // Also set in global for backward compatibility
+    global.poolWrapper = poolWrapper;
 
     // Create user level system tables
     await createUserExpTransactionsTable();

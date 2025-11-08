@@ -135,7 +135,14 @@ router.delete('/clear-all', async (req, res) => {
 });
 
 // Behavior Tracking Endpoints
-const { poolWrapper } = require('../database-schema');
+// Lazy load poolWrapper to avoid initialization order issues
+function getPoolWrapper() {
+  if (global.poolWrapper) {
+    return global.poolWrapper;
+  }
+  const { poolWrapper } = require('../database-schema');
+  return poolWrapper;
+}
 const mlService = require('../services/ml-service');
 
 /**
@@ -155,6 +162,7 @@ router.post('/behavior/track', async (req, res) => {
 
     // Tenant ID'yi userId'den al veya default kullan
     let tenantId = 1;
+    const poolWrapper = getPoolWrapper();
     if (userId) {
       try {
         const [users] = await poolWrapper.execute(
@@ -240,6 +248,7 @@ router.post('/behavior/session/start', async (req, res) => {
     let tenantId = 1;
     if (userId) {
       try {
+        const poolWrapper = getPoolWrapper();
         const [users] = await poolWrapper.execute(
           'SELECT tenantId FROM users WHERE id = ?',
           [userId]
@@ -253,6 +262,7 @@ router.post('/behavior/session/start', async (req, res) => {
     }
 
     // Session'ı veritabanına kaydet
+    const poolWrapper = getPoolWrapper();
     await poolWrapper.execute(`
       INSERT INTO user_sessions 
       (userId, deviceId, sessionId, startTime, metadata)
@@ -296,6 +306,7 @@ router.post('/behavior/session/end', async (req, res) => {
     }
 
     // Session'ı güncelle
+    const poolWrapper = getPoolWrapper();
     const [result] = await poolWrapper.execute(`
       UPDATE user_sessions 
       SET endTime = NOW(),
@@ -348,6 +359,7 @@ router.post('/behavior/link-device', async (req, res) => {
     }
 
     // Tenant ID'yi userId'den al
+    const poolWrapper = getPoolWrapper();
     const [users] = await poolWrapper.execute(
       'SELECT tenantId FROM users WHERE id = ?',
       [userId]
