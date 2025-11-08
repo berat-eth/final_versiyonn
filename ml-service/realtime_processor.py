@@ -102,6 +102,7 @@ class RealtimeProcessor:
     
     async def _process_events_loop(self):
         """Main event processing loop"""
+        logger.info(f"🔄 Event processing loop started, listening on queue: {config.REDIS_QUEUE_NAME}")
         while self.running:
             try:
                 # Get event from Redis queue
@@ -110,17 +111,27 @@ class RealtimeProcessor:
                 if result:
                     queue_name, event_json = result
                     event = json.loads(event_json)
+                    logger.info(f"📥 Received event: {event.get('eventType')} from user {event.get('userId')}")
                     
                     # Add to buffer
                     self.event_buffer.append(event)
                     
-                    # Process batch if buffer is full
+                    # Process immediately if buffer reaches threshold, or process single event for real-time
                     if len(self.event_buffer) >= config.EVENT_BATCH_SIZE:
+                        logger.info(f"📦 Processing batch of {len(self.event_buffer)} events")
                         await self._process_batch(self.event_buffer)
                         self.event_buffer = []
+                    # For real-time processing, also process single events after a short delay
+                    elif len(self.event_buffer) == 1:
+                        # Process single event immediately for real-time response
+                        await asyncio.sleep(0.1)  # Small delay to allow more events to accumulate
+                        if len(self.event_buffer) > 0:
+                            await self._process_batch(self.event_buffer)
+                            self.event_buffer = []
                 
                 # Process buffer periodically even if not full
                 elif self.event_buffer:
+                    logger.info(f"⏰ Processing buffer with {len(self.event_buffer)} events (periodic)")
                     await self._process_batch(self.event_buffer)
                     self.event_buffer = []
                     
@@ -188,18 +199,26 @@ class RealtimeProcessor:
                             np.expand_dims(features, axis=0)
                         )
                         
+                        # Process each event in the batch
                         for i, event in enumerate(user_event_list):
-                            if is_anomaly[i] == 1:
-                                anomaly_type = self.anomaly_model.classify_anomaly_type(
-                                    event.get('eventData', {}),
-                                    float(anomaly_scores[i])
-                                )
+                            # Use the first anomaly result for the user's feature vector
+                            if i == 0 and is_anomaly[0] == 1:
+                                # If classify_anomaly_type is needed for more detail, use it
+                                # Otherwise use the type from detect_anomaly_hybrid
+                                anomaly_type = anomaly_types[0] if len(anomaly_types) > 0 else 'unusual_behavior'
+                                
+                                # For more detailed classification, use the method
+                                if anomaly_type == 'normal':
+                                    anomaly_type = self.anomaly_model.classify_anomaly_type(
+                                        event.get('eventData', {}),
+                                        float(anomaly_scores[0])
+                                    )
                                 
                                 anomalies.append({
                                     'eventId': event.get('id'),
                                     'userId': user_id,
                                     'tenantId': 1,
-                                    'anomalyScore': float(anomaly_scores[i]),
+                                    'anomalyScore': float(anomaly_scores[0]),
                                     'anomalyType': anomaly_type,
                                     'metadata': json.dumps(event.get('eventData', {}))
                                 })
@@ -248,14 +267,22 @@ class RealtimeProcessor:
                         # For now, use placeholder
                         product_ids = np.array([1, 2, 3, 4, 5])  # TODO: Get from database
                         
+                        # Map user_id to model's expected range (0 to num_users)
+                        # Note: This is a simplified approach. In production, you should
+                        # save and load the user_id mapping from training time
+                        mapped_user_id = int(user_id) % (self.recommendation_model.num_users + 1)
+                        
+                        # Ensure product_ids are within model's expected range
+                        mapped_product_ids = (product_ids % (self.recommendation_model.num_products + 1)).astype(int)
+                        
                         top_products, top_scores = self.recommendation_model.recommend(
-                            user_id,
-                            product_ids,
+                            mapped_user_id,
+                            mapped_product_ids,
                             top_k=5
                         )
                         
                         recommendations.append({
-                            'userId': user_id,
+                            'userId': user_id,  # Store original user_id
                             'tenantId': 1,
                             'productIds': top_products.tolist(),
                             'scores': top_scores.tolist(),
@@ -263,14 +290,14 @@ class RealtimeProcessor:
                         })
                         self.recommendations_generated += 1
                     except Exception as e:
-                        logger.error(f"Recommendation error: {e}")
+                        logger.error(f"Recommendation error for user {user_id}: {e}")
                 
                 if recommendations:
                     await self.db.insert_recommendations(recommendations)
             
             self.events_processed += len(events)
-            logger.debug(f"Processed {len(events)} events")
+            logger.info(f"✅ Processed {len(events)} events | Total: {self.events_processed} | Predictions: {self.predictions_made} | Anomalies: {self.anomalies_detected} | Recommendations: {self.recommendations_generated}")
             
         except Exception as e:
-            logger.error(f"Error processing batch: {e}")
+            logger.error(f"Error processing batch: {e}", exc_info=True)
 

@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
 import logging
+import json
+from datetime import datetime
 from config import config
 from utils.redis_connector import RedisConnector
 from utils.db_connector import DBConnector
@@ -140,8 +142,41 @@ async def get_stats():
         "predictions_made": realtime_processor.predictions_made,
         "recommendations_generated": realtime_processor.recommendations_generated,
         "anomalies_detected": realtime_processor.anomalies_detected,
-        "segments_updated": realtime_processor.segments_updated
+        "segments_updated": realtime_processor.segments_updated,
+        "running": realtime_processor.running,
+        "buffer_size": len(realtime_processor.event_buffer)
     }
+
+@app.post("/api/test-event")
+async def test_event():
+    """Test endpoint to send a test event to ML queue"""
+    if not redis_connector:
+        raise HTTPException(status_code=503, detail="Redis not connected")
+    
+    try:
+        import time
+        test_event = {
+            "id": f"test_{int(time.time() * 1000)}",
+            "userId": 1,
+            "deviceId": "test_device",
+            "eventType": "product_view",
+            "screenName": "test",
+            "eventData": {"productId": 1, "test": True},
+            "sessionId": "test_session",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        await redis_connector.lpush(config.REDIS_QUEUE_NAME, json.dumps(test_event))
+        logger.info(f"🧪 Test event sent: {test_event['eventType']}")
+        
+        return {
+            "success": True,
+            "message": "Test event sent to queue",
+            "event": test_event
+        }
+    except Exception as e:
+        logger.error(f"Error sending test event: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

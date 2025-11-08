@@ -33,8 +33,8 @@ class Config:
     LEARNING_RATE = float(os.getenv('LEARNING_RATE', 0.001))
     
     # Real-time Processing
-    EVENT_BATCH_SIZE = int(os.getenv('EVENT_BATCH_SIZE', 100))
-    PROCESSING_INTERVAL = int(os.getenv('PROCESSING_INTERVAL', 5))  # seconds
+    EVENT_BATCH_SIZE = int(os.getenv('EVENT_BATCH_SIZE', 10))  # Smaller batch for faster processing
+    PROCESSING_INTERVAL = int(os.getenv('PROCESSING_INTERVAL', 2))  # seconds - faster polling
     
     # Model Settings
     USE_TENSORFLOW = os.getenv('USE_TENSORFLOW', 'true').lower() == 'true'

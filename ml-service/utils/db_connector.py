@@ -45,7 +45,8 @@ class DBConnector:
         """Check database connection"""
         try:
             if self.pool:
-                self.pool.ping(reconnect=True)
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, self.pool.ping, True)
                 return True
             return False
         except:

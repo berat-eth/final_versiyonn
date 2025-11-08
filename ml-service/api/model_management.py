@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
 import logging
 
@@ -8,11 +8,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class TrainRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     model_type: str
     epochs: Optional[int] = None
     batch_size: Optional[int] = None
 
 class DeployRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     model_name: str
     version: str
 
