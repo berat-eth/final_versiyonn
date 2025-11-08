@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
         raise
     
     try:
+        logger.info(f"🔌 Connecting to database: {config.DB_HOST}:{config.DB_PORT}/{config.DB_NAME} as {config.DB_USER}")
         db_connector = DBConnector(
             host=config.DB_HOST,
             port=config.DB_PORT,
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Database connected")
     except Exception as e:
         logger.error(f"❌ Database connection failed: {e}")
+        logger.error(f"   Host: {config.DB_HOST}, Port: {config.DB_PORT}, User: {config.DB_USER}, Database: {config.DB_NAME}")
         raise
     
     # Initialize realtime processor

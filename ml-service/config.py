@@ -1,15 +1,20 @@
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+# Load .env from parent directory (server directory) or current directory
+env_path = Path(__file__).parent.parent / '.env'
+if not env_path.exists():
+    env_path = Path(__file__).parent / '.env'
+load_dotenv(env_path)
 
 class Config:
-    # Database
-    DB_HOST = os.getenv('DB_HOST', 'localhost')
+    # Database - Uzak veritabanı ayarları (server-production.js'deki ayarlarla aynı)
+    DB_HOST = os.getenv('DB_HOST', '92.113.22.70')
     DB_PORT = int(os.getenv('DB_PORT', 3306))
-    DB_USER = os.getenv('DB_USER', 'root')
-    DB_PASSWORD = os.getenv('DB_PASSWORD', '')
-    DB_NAME = os.getenv('DB_NAME', 'huglu_outdoor')
+    DB_USER = os.getenv('DB_USER', 'u987029066_Admin')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', '38cdfD8217..')
+    DB_NAME = os.getenv('DB_NAME', 'u987029066_mobil')
     
     # Redis
     REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
