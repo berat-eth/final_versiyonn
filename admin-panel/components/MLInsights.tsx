@@ -33,6 +33,12 @@ export default function MLInsights() {
     loadData()
   }, [timeRange, activeSection])
 
+  useEffect(() => {
+    if (activeSection === 'logs') {
+      loadLogs()
+    }
+  }, [logType])
+
   const loadData = async () => {
     setLoading(true)
     try {
