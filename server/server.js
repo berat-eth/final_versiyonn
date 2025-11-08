@@ -923,38 +923,6 @@ async function initializeDatabase() {
     xmlSyncService = new XmlSyncService(pool);
     console.log('📡 XML Sync Service initialized');
 
-    // Initialize User Behavior Processor
-    try {
-      const getProcessor = require('./services/user-behavior-processor');
-      const behaviorProcessor = getProcessor(poolWrapper);
-      // Inject processor into user-data routes
-      userDataRoutes.setProcessor(behaviorProcessor);
-      console.log('✅ User Behavior Processor initialized');
-
-      // Initialize Event Queue
-      const getEventQueue = require('./services/event-queue');
-      const eventQueue = getEventQueue();
-      await eventQueue.initialize();
-      eventQueue.startWorker(behaviorProcessor, 1000);
-      console.log('✅ Event Queue initialized');
-
-      // Initialize Real-time Analytics
-      const getRealtimeAnalytics = require('./services/realtime-analytics');
-      const realtimeAnalytics = getRealtimeAnalytics();
-      console.log('✅ Real-time Analytics initialized');
-    } catch (error) {
-      console.error('❌ User Behavior Processor initialization error:', error);
-    }
-
-    // Initialize Advanced Analytics Routes
-    try {
-      const advancedAnalyticsRoutes = require('./routes/advanced-analytics');
-      advancedAnalyticsRoutes.setServices(poolWrapper);
-      app.use('/api/analytics', advancedAnalyticsRoutes);
-      console.log('✅ Advanced Analytics routes mounted at /api/analytics');
-    } catch (error) {
-      console.error('❌ Advanced Analytics routes initialization error:', error);
-    }
 
     // Initialize Profile Scheduler (every 30 minutes)
     try {
@@ -1002,6 +970,82 @@ async function initializeDatabase() {
       console.log('⏱️ Profile Scheduler started (every 30 minutes)');
     } catch (e) {
       console.warn('⚠️ Could not start Profile Scheduler:', e.message);
+    }
+
+    // Initialize Analytics Aggregation Scheduler
+    try {
+      const AggregationService = require('./services/aggregation-service');
+      const aggregationService = new AggregationService();
+
+      // Günlük özet - Her gün saat 02:00'de çalışır
+      const dailyAggregationInterval = 24 * 60 * 60 * 1000; // 24 saat
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(2, 0, 0, 0);
+      const msUntilTomorrow = tomorrow.getTime() - now.getTime();
+
+      setTimeout(() => {
+        // İlk çalıştırma
+        aggregationService.aggregateAllTenantsDaily().catch(err => {
+          console.error('❌ Daily aggregation error:', err);
+        });
+
+        // Sonraki çalıştırmalar için interval
+        setInterval(() => {
+          aggregationService.aggregateAllTenantsDaily().catch(err => {
+            console.error('❌ Daily aggregation error:', err);
+          });
+        }, dailyAggregationInterval);
+      }, msUntilTomorrow);
+
+      // Haftalık özet - Her Pazartesi saat 03:00'de çalışır
+      const weeklyAggregationInterval = 7 * 24 * 60 * 60 * 1000; // 7 gün
+      const nextMonday = new Date(now);
+      const dayOfWeek = now.getDay();
+      const daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek) % 7 || 7;
+      nextMonday.setDate(now.getDate() + daysUntilMonday);
+      nextMonday.setHours(3, 0, 0, 0);
+      const msUntilMonday = nextMonday.getTime() - now.getTime();
+
+      setTimeout(() => {
+        // İlk çalıştırma
+        aggregationService.aggregateAllTenantsWeekly().catch(err => {
+          console.error('❌ Weekly aggregation error:', err);
+        });
+
+        // Sonraki çalıştırmalar için interval
+        setInterval(() => {
+          aggregationService.aggregateAllTenantsWeekly().catch(err => {
+            console.error('❌ Weekly aggregation error:', err);
+          });
+        }, weeklyAggregationInterval);
+      }, msUntilMonday);
+
+      // Aylık özet - Her ayın 1'i saat 04:00'de çalışır
+      const nextMonth = new Date(now);
+      nextMonth.setMonth(now.getMonth() + 1);
+      nextMonth.setDate(1);
+      nextMonth.setHours(4, 0, 0, 0);
+      const msUntilNextMonth = nextMonth.getTime() - now.getTime();
+
+      setTimeout(() => {
+        // İlk çalıştırma
+        aggregationService.aggregateAllTenantsMonthly().catch(err => {
+          console.error('❌ Monthly aggregation error:', err);
+        });
+
+        // Sonraki çalıştırmalar için interval (yaklaşık 30 gün)
+        setInterval(() => {
+          aggregationService.aggregateAllTenantsMonthly().catch(err => {
+            console.error('❌ Monthly aggregation error:', err);
+          });
+        }, 30 * 24 * 60 * 60 * 1000);
+      }, msUntilNextMonth);
+
+      console.log('⏱️ Analytics Aggregation Scheduler started');
+    } catch (e) {
+      console.warn('⚠️ Could not start Analytics Aggregation Scheduler:', e.message);
     }
 
     // Log security initialization
@@ -1384,6 +1428,24 @@ try {
   console.log('✅ Scrapers routes mounted at /api/admin/scrapers');
 } catch (e) {
   console.warn('⚠️ Scrapers routes could not be mounted:', e.message);
+}
+
+// Analytics Routes
+try {
+  const analyticsRoutes = require('./routes/analytics');
+  app.use('/api/admin/analytics', analyticsRoutes);
+  console.log('✅ Analytics routes mounted at /api/admin/analytics');
+} catch (e) {
+  console.warn('⚠️ Analytics routes could not be mounted:', e.message);
+}
+
+// ML Routes
+try {
+  const mlRoutes = require('./routes/ml');
+  app.use('/api/admin/ml', mlRoutes);
+  console.log('✅ ML routes mounted at /api/admin/ml');
+} catch (e) {
+  console.warn('⚠️ ML routes could not be mounted:', e.message);
 }
 
 // Helper: generate unique 8-digit user_id
@@ -3034,22 +3096,36 @@ app.get('/api/admin/analytics/monthly', authenticateAdmin, async (req, res) => {
   try {
     const months = parseInt(req.query.months || '12');
     
-    // Son N ayın gelir ve gider verileri
+    // Son N ayın listesini JavaScript'te oluştur
+    const monthList = [];
+    const now = new Date();
+    for (let i = months - 1; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = date.toISOString().slice(0, 7); // YYYY-MM formatı
+      const monthLabel = date.toLocaleDateString('tr-TR', { month: 'short', year: 'numeric' });
+      monthList.push({ month, monthLabel });
+    }
+    
+    // Ay listesini SQL'de kullanmak için UNION ALL ile oluştur
+    const monthUnions = monthList.map(() => 'SELECT ? as month, ? as monthLabel').join(' UNION ALL ');
+    const monthParams = monthList.flatMap(m => [m.month, m.monthLabel]);
+    
+    // Son N ayın tümünü (veri olsun olmasın) göster - LEFT JOIN ile
     const [monthlyData] = await poolWrapper.execute(`
       SELECT 
-        DATE_FORMAT(createdAt, '%Y-%m') as month,
-        DATE_FORMAT(createdAt, '%b %Y') as monthLabel,
-        COALESCE(SUM(CASE WHEN status != 'cancelled' THEN totalAmount ELSE 0 END), 0) as gelir,
-        COALESCE(SUM(CASE WHEN status = 'cancelled' THEN totalAmount ELSE 0 END), 0) as gider,
-        COALESCE(SUM(CASE WHEN status != 'cancelled' THEN totalAmount ELSE 0 END), 0) - 
-        COALESCE(SUM(CASE WHEN status = 'cancelled' THEN totalAmount ELSE 0 END), 0) as kar,
-        COUNT(CASE WHEN status != 'cancelled' THEN 1 END) as orders,
-        COUNT(DISTINCT userId) as customers
-      FROM orders
-      WHERE createdAt >= DATE_SUB(NOW(), INTERVAL ? MONTH)
-      GROUP BY DATE_FORMAT(createdAt, '%Y-%m'), DATE_FORMAT(createdAt, '%b %Y')
-      ORDER BY month ASC
-    `, [months]);
+        ml.month,
+        ml.monthLabel,
+        COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.totalAmount ELSE 0 END), 0) as gelir,
+        COALESCE(SUM(CASE WHEN o.status = 'cancelled' THEN o.totalAmount ELSE 0 END), 0) as gider,
+        COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.totalAmount ELSE 0 END), 0) - 
+        COALESCE(SUM(CASE WHEN o.status = 'cancelled' THEN o.totalAmount ELSE 0 END), 0) as kar,
+        COUNT(CASE WHEN o.status != 'cancelled' THEN 1 END) as orders,
+        COUNT(DISTINCT o.userId) as customers
+      FROM (${monthUnions}) AS ml
+      LEFT JOIN orders o ON DATE_FORMAT(o.createdAt, '%Y-%m') = ml.month
+      GROUP BY ml.month, ml.monthLabel
+      ORDER BY ml.month ASC
+    `, monthParams);
 
     res.json({
       success: true,

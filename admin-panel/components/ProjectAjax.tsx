@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, Database, Table, Search, Play, Download, Eye, Settings, BarChart3, Activity, Brain, TestTube2 } from 'lucide-react'
 import { OllamaService, OllamaConfig, OllamaMessage } from '@/lib/services/ollama-service'
-import { analyticsService, productService, orderService } from '@/lib/services'
+import { productService, orderService } from '@/lib/services'
 import { api } from '@/lib/api'
 import { aiProvidersService } from '@/lib/services/ai-providers'
 

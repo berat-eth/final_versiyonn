@@ -36,6 +36,7 @@ import { validateBirthDate } from '../utils/ageValidation';
 import { Checkbox } from '../components/Checkbox';
 import { AgreementModal } from '../components/AgreementModal';
 import { PRIVACY_POLICY_TEXT, TERMS_OF_SERVICE_TEXT } from '../utils/privacyPolicy';
+import { useAnalytics } from '../hooks/useAnalytics';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -129,6 +130,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   // Real-time updates hook
   const { networkStatus, checkNetworkStatus } = useRealTimeUpdates();
+
+  // Analytics hook
+  const analytics = useAnalytics({
+    screenName: 'ProfileScreen',
+    trackScroll: true,
+    trackPerformance: true,
+    trackClicks: true
+  });
 
   // Form states
   const [email, setEmail] = useState('');
@@ -787,7 +796,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       {/* Real-time status bar */}
       <RealTimeStatusBar />
       
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.modernScrollView}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        style={styles.modernScrollView}
+        onScroll={(event) => {
+          const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+          const scrollDepth = contentOffset.y;
+          const maxScroll = contentSize.height - layoutMeasurement.height;
+          if (maxScroll > 0) {
+            analytics.trackScroll(scrollDepth, maxScroll);
+          }
+        }}
+        scrollEventThrottle={400}
+      >
         {/* Modern Header with Gradient Background */}
         <LinearGradient
           colors={['#667eea', '#764ba2', '#f093fb']}

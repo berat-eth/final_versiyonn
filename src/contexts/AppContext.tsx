@@ -4,7 +4,6 @@ import { AppState as RNAppState, AppStateStatus } from 'react-native';
 import apiService from '../utils/api-service';
 import { UserController } from '../controllers/UserController';
 import { CartItem, Order, Product, User } from '../utils/types';
-import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 // State Types
 export interface AppState {
@@ -113,10 +112,6 @@ const initialState: AppState = {
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'SET_USER':
-      // Behavior analytics'i initialize et
-      if (action.payload && action.payload.id) {
-        behaviorAnalytics.setUserId(action.payload.id);
-      }
       return {
         ...state,
         user: action.payload,
@@ -127,10 +122,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'UPDATE_USER':
-      // Behavior analytics'i güncelle
-      if (action.payload && action.payload.id) {
-        behaviorAnalytics.setUserId(action.payload.id);
-      }
       return {
         ...state,
         user: state.user ? { ...state.user, ...action.payload } : null,
@@ -141,8 +132,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
 
     case 'LOGOUT':
-      // Behavior analytics'i temizle
-      behaviorAnalytics.flushAllData();
       return {
         ...state,
         user: null,
@@ -384,21 +373,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         else if (networkType === 'cellular') {
           mappedNetworkType = 'lte'; // Varsayılan olarak LTE
         }
-        
-        behaviorAnalytics.updateDeviceInfo({
-          networkType: mappedNetworkType
-        });
-        
-        // Battery level tracking (eğer expo-battery mevcutsa)
-        try {
-          const Battery = require('expo-battery').default;
-          const batteryLevel = await Battery.getBatteryLevelAsync();
-          behaviorAnalytics.updateDeviceInfo({
-            batteryLevel: Math.round(batteryLevel * 100)
-          });
-        } catch (batteryError) {
-          // Battery API mevcut değil, sessiz geç
-        }
       } catch (error) {
         // Device info tracking hatası uygulamayı engellemez
       }
@@ -423,18 +397,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Session tracking - App state changes (foreground/background)
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App foreground'a geldi - yeni session başlat
-        if (state.user && state.user.id) {
-          behaviorAnalytics.setUserId(state.user.id);
-        }
-      } else if (appStateRef.current === 'active' && nextAppState.match(/inactive|background/)) {
-        // App background'a gitti - session'ı bitir
-        if (state.user && state.user.id) {
-          behaviorAnalytics.endSession(scrollDepthRef.current);
-          scrollDepthRef.current = 0;
-        }
-      }
+      // App state change handling (analytics removed)
       appStateRef.current = nextAppState;
     };
 
@@ -445,14 +408,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     };
   }, [state.user]);
 
-  // Component unmount'ta session'ı bitir
-  useEffect(() => {
-    return () => {
-      if (state.user && state.user.id) {
-        behaviorAnalytics.endSession(scrollDepthRef.current);
-      }
-    };
-  }, []);
 
   // Load state from AsyncStorage
   const loadStateFromStorage = async () => {

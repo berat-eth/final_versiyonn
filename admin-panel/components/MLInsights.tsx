@@ -1,0 +1,478 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { api } from '@/lib/api'
+import { useTheme } from '@/lib/ThemeContext'
+import { 
+  Brain, TrendingUp, Users, ShoppingCart, AlertTriangle, Target,
+  RefreshCw, Download, Filter, BarChart3, Zap, Activity, Eye
+} from 'lucide-react'
+import { 
+  Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer, Legend, AreaChart, Area
+} from 'recharts'
+import { motion } from 'framer-motion'
+
+export default function MLInsights() {
+  const { theme } = useTheme()
+  const [timeRange, setTimeRange] = useState('7d')
+  const [activeSection, setActiveSection] = useState('overview')
+  const [loading, setLoading] = useState(true)
+
+  // Data states
+  const [statistics, setStatistics] = useState<any>(null)
+  const [predictions, setPredictions] = useState<any[]>([])
+  const [recommendations, setRecommendations] = useState<any[]>([])
+  const [anomalies, setAnomalies] = useState<any>(null)
+  const [segments, setSegments] = useState<any[]>([])
+  const [models, setModels] = useState<any[]>([])
+
+  useEffect(() => {
+    loadData()
+  }, [timeRange, activeSection])
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const tenantId = 1
+
+      switch (activeSection) {
+        case 'overview':
+          const statsRes = await api.get(`/admin/ml/statistics?timeRange=${timeRange}&tenantId=${tenantId}`)
+          setStatistics(statsRes.data)
+          break
+
+        case 'predictions':
+          // Get predictions for recent users
+          const predRes = await api.get(`/admin/ml/predictions?userId=1&limit=50&tenantId=${tenantId}`)
+          setPredictions(predRes.data || [])
+          break
+
+        case 'recommendations':
+          // Get recommendations for recent users
+          const recRes = await api.get(`/admin/ml/recommendations?userId=1&tenantId=${tenantId}`)
+          setRecommendations(recRes.data ? [recRes.data] : [])
+          break
+
+        case 'anomalies':
+          const anomRes = await api.get(`/admin/ml/anomalies?limit=100&tenantId=${tenantId}`)
+          setAnomalies(anomRes.data)
+          break
+
+        case 'segments':
+          const segRes = await api.get(`/admin/ml/segments?tenantId=${tenantId}`)
+          setSegments(segRes.data || [])
+          break
+
+        case 'models':
+          const modelsRes = await api.get(`/admin/ml/models`)
+          setModels(modelsRes.data || [])
+          break
+      }
+    } catch (error) {
+      console.error('❌ Error loading ML data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const triggerTraining = async (modelType: string) => {
+    try {
+      await api.post('/admin/ml/train', { modelType })
+      alert(`${modelType} model eğitimi başlatıldı`)
+    } catch (error) {
+      console.error('❌ Training error:', error)
+      alert('Eğitim başlatılamadı')
+    }
+  }
+
+  const sections = [
+    { id: 'overview', label: 'Genel Bakış', icon: BarChart3 },
+    { id: 'predictions', label: 'Tahminler', icon: TrendingUp },
+    { id: 'recommendations', label: 'Öneriler', icon: ShoppingCart },
+    { id: 'anomalies', label: 'Anomaliler', icon: AlertTriangle },
+    { id: 'segments', label: 'Segmentler', icon: Users },
+    { id: 'models', label: 'Modeller', icon: Brain }
+  ]
+
+  const timeRanges = [
+    { value: '1h', label: 'Son 1 Saat' },
+    { value: '24h', label: 'Son 24 Saat' },
+    { value: '7d', label: 'Son 7 Gün' },
+    { value: '30d', label: 'Son 30 Gün' }
+  ]
+
+  if (loading && !statistics) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <RefreshCw className="animate-spin h-8 w-8 text-blue-600" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-4 sm:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
+            ML Insights
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-1">
+            Makine öğrenmesi tahminleri, önerileri ve analizleri
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+          >
+            {timeRanges.map(range => (
+              <option key={range.value} value={range.value}>{range.label}</option>
+            ))}
+          </select>
+          <button
+            onClick={loadData}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Yenile
+          </button>
+        </div>
+      </div>
+
+      {/* Section Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700">
+        {sections.map(section => {
+          const Icon = section.icon
+          return (
+            <button
+              key={section.id}
+              onClick={() => setActiveSection(section.id)}
+              className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+                activeSection === section.id
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span className="hidden sm:inline">{section.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Content */}
+      <div className="mt-6">
+        {activeSection === 'overview' && statistics && (
+          <OverviewSection data={statistics} theme={theme} />
+        )}
+        {activeSection === 'predictions' && (
+          <PredictionsSection data={predictions} theme={theme} />
+        )}
+        {activeSection === 'recommendations' && (
+          <RecommendationsSection data={recommendations} theme={theme} />
+        )}
+        {activeSection === 'anomalies' && anomalies && (
+          <AnomaliesSection data={anomalies} theme={theme} />
+        )}
+        {activeSection === 'segments' && (
+          <SegmentsSection data={segments} theme={theme} />
+        )}
+        {activeSection === 'models' && (
+          <ModelsSection data={models} onTrain={triggerTraining} theme={theme} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Overview Section
+function OverviewSection({ data, theme }: any) {
+  const kpiCards = [
+    { label: 'Toplam Tahmin', value: data.totalPredictions, icon: TrendingUp, color: 'blue' },
+    { label: 'Toplam Öneri', value: data.totalRecommendations, icon: ShoppingCart, color: 'green' },
+    { label: 'Tespit Edilen Anomali', value: data.totalAnomalies, icon: AlertTriangle, color: 'red' },
+    { label: 'Ort. Tahmin Olasılığı', value: `${(data.avgPredictionProbability * 100).toFixed(1)}%`, icon: Target, color: 'purple' }
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpiCards.map((kpi, index) => {
+          const Icon = kpi.icon
+          return (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-md"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{kpi.label}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+                    {kpi.value}
+                  </p>
+                </div>
+                <Icon className={`w-8 h-8 text-${kpi.color}-600`} />
+              </div>
+            </motion.div>
+          )
+        })}
+      </div>
+
+      {data.topAnomalyTypes && data.topAnomalyTypes.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+          <h3 className="text-lg font-semibold mb-4">Anomali Türleri</h3>
+          <div className="space-y-2">
+            {data.topAnomalyTypes.map((item: any, index: number) => (
+              <div key={index} className="flex justify-between items-center">
+                <span className="capitalize">{item.anomalyType}</span>
+                <span className="font-bold">{item.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Predictions Section
+function PredictionsSection({ data, theme }: any) {
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+        <h3 className="text-lg font-semibold mb-4">Kullanıcı Tahminleri</h3>
+        {data.length === 0 ? (
+          <p className="text-slate-600 dark:text-slate-400">Henüz tahmin verisi yok</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-700">
+                  <th className="text-left p-2">Kullanıcı ID</th>
+                  <th className="text-left p-2">Tahmin Türü</th>
+                  <th className="text-right p-2">Olasılık</th>
+                  <th className="text-left p-2">Tarih</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.slice(0, 50).map((pred: any, index: number) => (
+                  <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
+                    <td className="p-2">{pred.userId}</td>
+                    <td className="p-2 capitalize">{pred.predictionType}</td>
+                    <td className="text-right p-2">
+                      <span className={`font-bold ${pred.probability > 0.7 ? 'text-green-600' : pred.probability > 0.4 ? 'text-yellow-600' : 'text-red-600'}`}>
+                        {(pred.probability * 100).toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="p-2 text-sm text-slate-600 dark:text-slate-400">
+                      {new Date(pred.createdAt).toLocaleDateString('tr-TR')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Recommendations Section
+function RecommendationsSection({ data, theme }: any) {
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+        <h3 className="text-lg font-semibold mb-4">Ürün Önerileri</h3>
+        {data.length === 0 ? (
+          <p className="text-slate-600 dark:text-slate-400">Henüz öneri verisi yok</p>
+        ) : (
+          <div className="space-y-4">
+            {data.map((rec: any, index: number) => (
+              <div key={index} className="border-b border-slate-200 dark:border-slate-700 pb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Kullanıcı ID: {rec.userId}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                    {new Date(rec.updatedAt).toLocaleDateString('tr-TR')}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {rec.productIds?.slice(0, 10).map((productId: number, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded">
+                      <span>Ürün #{productId}</span>
+                      <span className="text-sm font-bold text-blue-600">
+                        {(rec.scores[idx] * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Anomalies Section
+function AnomaliesSection({ data, theme }: any) {
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+        <h3 className="text-lg font-semibold mb-4">Tespit Edilen Anomaliler</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+          Toplam: {data.total} anomali
+        </p>
+        {data.anomalies && data.anomalies.length === 0 ? (
+          <p className="text-slate-600 dark:text-slate-400">Henüz anomali tespit edilmedi</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-700">
+                  <th className="text-left p-2">Kullanıcı</th>
+                  <th className="text-left p-2">Anomali Türü</th>
+                  <th className="text-right p-2">Skor</th>
+                  <th className="text-left p-2">Tarih</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.anomalies?.slice(0, 100).map((anom: any, index: number) => (
+                  <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
+                    <td className="p-2">{anom.userName || `User #${anom.userId}`}</td>
+                    <td className="p-2">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        anom.anomalyType === 'bot' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                        anom.anomalyType === 'fraud' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                      }`}>
+                        {anom.anomalyType}
+                      </span>
+                    </td>
+                    <td className="text-right p-2">
+                      <span className={`font-bold ${anom.anomalyScore > 0.8 ? 'text-red-600' : anom.anomalyScore > 0.5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                        {(anom.anomalyScore * 100).toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="p-2 text-sm text-slate-600 dark:text-slate-400">
+                      {new Date(anom.createdAt).toLocaleDateString('tr-TR')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Segments Section
+function SegmentsSection({ data, theme }: any) {
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+        <h3 className="text-lg font-semibold mb-4">Kullanıcı Segmentleri</h3>
+        {data.length === 0 ? (
+          <p className="text-slate-600 dark:text-slate-400">Henüz segment verisi yok</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {data.map((segment: any, index: number) => (
+              <div key={index} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                <h4 className="font-semibold mb-2">{segment.segmentName}</h4>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Kullanıcı Sayısı</span>
+                    <span className="font-bold">{segment.userCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Ort. Güven</span>
+                    <span className="font-bold">{(segment.avgConfidence * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Models Section
+function ModelsSection({ data, onTrain, theme }: any) {
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Model Durumu</h3>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onTrain('purchase_prediction')}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+            >
+              Purchase Model Eğit
+            </button>
+            <button
+              onClick={() => onTrain('recommendation')}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+            >
+              Recommendation Model Eğit
+            </button>
+          </div>
+        </div>
+        {data.length === 0 ? (
+          <p className="text-slate-600 dark:text-slate-400">Henüz model yok</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-700">
+                  <th className="text-left p-2">Model Adı</th>
+                  <th className="text-left p-2">Tür</th>
+                  <th className="text-left p-2">Versiyon</th>
+                  <th className="text-left p-2">Durum</th>
+                  <th className="text-right p-2">Accuracy</th>
+                  <th className="text-right p-2">Precision</th>
+                  <th className="text-right p-2">Recall</th>
+                  <th className="text-right p-2">F1 Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((model: any, index: number) => (
+                  <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
+                    <td className="p-2">{model.modelName}</td>
+                    <td className="p-2">{model.modelType}</td>
+                    <td className="p-2">{model.version}</td>
+                    <td className="p-2">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        model.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        model.status === 'training' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                      }`}>
+                        {model.status}
+                      </span>
+                    </td>
+                    <td className="text-right p-2">{model.accuracy ? (model.accuracy * 100).toFixed(1) + '%' : '-'}</td>
+                    <td className="text-right p-2">{model.precision ? (model.precision * 100).toFixed(1) + '%' : '-'}</td>
+                    <td className="text-right p-2">{model.recall ? (model.recall * 100).toFixed(1) + '%' : '-'}</td>
+                    <td className="text-right p-2">{model.f1Score ? (model.f1Score * 100).toFixed(1) + '%' : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+

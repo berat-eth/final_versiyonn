@@ -5,7 +5,6 @@ import { Order, OrderStatus } from '../utils/types';
 import { apiService } from '../utils/api-service';
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue, OfflineQueueItem } from '../utils/database';
 import { detailedActivityLogger } from '../services/DetailedActivityLogger';
-import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 
 export class OrderController {
   static async createOrder(
@@ -156,29 +155,6 @@ export class OrderController {
           console.warn('⚠️ Order logging failed:', logError);
         }
         
-        // Wishlist purchase tracking - siparişteki ürünler favorilerde mi kontrol et
-        try {
-          for (const item of cartItems) {
-            const isFavorite = await UserController.isProductFavorite(userId, item.productId);
-            if (isFavorite) {
-              // Favoriden satın alındı - wishlist purchase tracking
-              behaviorAnalytics.trackWishlist('purchase', item.productId);
-            }
-          }
-        } catch (wishlistError) {
-          // Tracking hatası siparişi engellemez
-          console.warn('Wishlist purchase tracking error:', wishlistError);
-        }
-        
-        // LTV tracking - sipariş başarılı oldu
-        try {
-          behaviorAnalytics.updateLTV(totalAmount, 1); // İlk sipariş için totalAmount ve 1 purchase
-          
-          // User segment güncelle - premium alışveriş ve kategori bağımlılığı
-          behaviorAnalytics.calculateUserSegments();
-        } catch (ltvError) {
-          console.warn('LTV tracking error:', ltvError);
-        }
         
         // Sipariş oluşturulduktan sonra sepeti temizle
         // Kredi kartı ödemelerinde temizlik, ödeme başarıyla tamamlandıktan sonra UI katmanında yapılır

@@ -10,7 +10,6 @@ import Sidebar from '@/components/Sidebar'
 import Products from '@/components/Products'
 import Orders from '@/components/Orders'
 import Customers from '@/components/Customers'
-import Analytics from '@/components/Analytics'
 import Header from '@/components/Header'
 import Cart from '@/components/Cart'
 import Campaigns from '@/components/Campaigns'
@@ -59,6 +58,8 @@ import CRM from '@/components/CRM'
 import GoogleMapsScraper from '@/components/GoogleMapsScraper'
 import SEO from '@/components/SEO'
 import Popups from '@/components/Popups'
+import Analytics from '@/components/Analytics'
+import MLInsights from '@/components/MLInsights'
 
 
 export default function DashboardPage() {
@@ -247,6 +248,7 @@ export default function DashboardPage() {
           {activeTab === 'segments' && <Segments />}
 
           {activeTab === 'analytics' && <Analytics />}
+          {activeTab === 'ml-insights' && <MLInsights />}
           {activeTab === 'live-data' && <LiveData />}
           {activeTab === 'live-users' && <LiveUsers />}
           {activeTab === 'server-stats' && <ServerStats />}

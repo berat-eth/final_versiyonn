@@ -23,7 +23,6 @@ import { DiscountWheelController, DiscountCode } from '../controllers/DiscountWh
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useAppContext } from '../contexts/AppContext';
 import { CartShareButtons } from '../components/CartShareButtons';
-import { behaviorAnalytics } from '../services/BehaviorAnalytics';
 import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 
 interface CartScreenProps {
@@ -203,9 +202,6 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       const userId = await UserController.getCurrentUserId();
       const subtotal = CartController.calculateSubtotal(cartItems);
       
-      // Kupon deneme tracking
-      behaviorAnalytics.trackPaymentAction('coupon_try', discountCode.trim());
-      
       const result = await DiscountWheelController.validateDiscountCode(
         discountCode.trim(),
         userId,
@@ -220,19 +216,8 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
           value: result.data.discountValue
         });
         
-      // Kupon başarılı tracking
-      behaviorAnalytics.trackPaymentAction('coupon_success', discountCode.trim(), 'success');
-      
-      // User segment güncelle - kupon kullanımı
-      behaviorAnalytics.calculateUserSegments();
-      
       Alert.alert('Başarılı', `${result.data.discountAmount.toFixed(2)} TL indirim uygulandı!`);
       } else {
-        // Kupon başarısız tracking
-        const failReason = result.message?.includes('geçersiz') ? 'invalid' : 
-                          result.message?.includes('süresi') ? 'expired' : 'failed';
-        behaviorAnalytics.trackPaymentAction('coupon_fail', discountCode.trim(), failReason);
-        
         Alert.alert('Hata', result.message);
       }
     } catch (error) {
@@ -294,19 +279,6 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       lastUpdated: new Date().toISOString(),
     });
     
-    // Sepet davranışı tracking
-    if (oldItem && oldItem.product) {
-      const oldSubtotal = CartController.calculateSubtotal(oldItems);
-      const oldItemCount = oldItems.reduce((total, item) => total + item.quantity, 0);
-      behaviorAnalytics.trackCartAction(
-        newQuantity === 0 ? 'remove' : 'update_quantity',
-        oldItem.product.id,
-        newQuantity,
-        oldItemCount,
-        oldSubtotal,
-        oldQuantity
-      );
-    }
     
     setUpdatingItems(prev => new Set(prev.add(cartItemId)));
     
@@ -380,21 +352,6 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
             });
             
             // Sepet davranışı tracking
-            if (removedItem && removedItem.product) {
-              const oldSubtotal = CartController.calculateSubtotal(oldItems);
-              const oldItemCount = oldItems.reduce((total, item) => total + item.quantity, 0);
-              behaviorAnalytics.trackCartAction(
-                'remove',
-                removedItem.product.id,
-                0,
-                oldItemCount,
-                oldSubtotal,
-                removedItem.quantity,
-                undefined,
-                undefined,
-                'user_removed' // Varsayılan neden
-              );
-            }
             
             setUpdatingItems(prev => new Set(prev.add(cartItemId)));
             

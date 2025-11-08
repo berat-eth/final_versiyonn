@@ -36,7 +36,6 @@ import { ProductListControls } from '../components/ProductListControls';
 import { FlashDealsHeader } from '../components/FlashDealsHeader';
 import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 import { Chatbot } from '../components/Chatbot';
-import { useBehaviorTracking } from '../hooks/useBehaviorTracking';
 
 interface ProductListScreenProps {
   navigation: any;
@@ -50,14 +49,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [cachedUserId, setCachedUserId] = useState<number | null>(null);
 
-  // Behavior tracking
-  const { handleScroll, trackFilter, trackSort, handleHeatMapClick } = useBehaviorTracking({
-    screenName: 'ProductList',
-    category: route.params?.category || selectedCategory || undefined,
-    trackScroll: true,
-    trackHeatMap: true,
-    enableTracking: true
-  });
+  // Behavior tracking removed
 
   useEffect(() => {
     let mounted = true;
@@ -404,11 +396,6 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     // Track heatmap click (product card)
     if (event?.nativeEvent) {
       const { pageX, pageY } = event.nativeEvent;
-      handleHeatMapClick('product', pageX, pageY, `product-${product.id}`, event);
-    } else {
-      // Fallback: sadece element tracking
-      handleHeatMapClick('product', 50, 50, `product-${product.id}`);
-    }
     navigation.navigate('ProductDetail', { productId: product.id });
   };
 
@@ -458,13 +445,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       const userId = cachedUserId || await UserController.getCurrentUserId();
       const isFavorite = favoriteProducts.includes(product.id);
       
-      const { behaviorAnalytics } = await import('../services/BehaviorAnalytics');
-      
       if (isFavorite) {
         const success = await UserController.removeFromFavorites(userId, product.id);
         if (success) {
           setFavoriteProducts(prev => prev.filter(id => id !== product.id));
-          behaviorAnalytics.trackWishlist('remove', product.id);
           Alert.alert('Başarılı', 'Ürün favorilerden çıkarıldı');
         } else {
           Alert.alert('Hata', 'Ürün favorilerden çıkarılamadı');
@@ -484,7 +468,6 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         });
         if (success) {
           setFavoriteProducts(prev => [...prev, product.id]);
-          behaviorAnalytics.trackWishlist('add', product.id);
           Alert.alert('Başarılı', 'Ürün favorilere eklendi');
         } else {
           Alert.alert('Hata', 'Ürün favorilere eklenemedi');
@@ -530,8 +513,6 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             const currentIndex = options.indexOf(sortBy);
             const newSort = options[(currentIndex + 1) % options.length];
             setSortBy(newSort);
-            // Track sort preference
-            trackSort(newSort);
   };
 
   const handleViewModeChange = (mode: 'grid' | 'list') => {
@@ -730,7 +711,6 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
           (showFlashDeals ? getFlashDealProducts() : filteredProducts).length === 0 && styles.emptyList,
         ]}
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
         scrollEventThrottle={400}
         refreshControl={
           <RefreshControl
@@ -768,22 +748,6 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
           visible={filterModalVisible}
           onClose={() => setFilterModalVisible(false)}
           onApply={(newFilters) => {
-            // Track filter usage
-            if (newFilters.minPrice !== undefined && newFilters.minPrice > 0) {
-              trackFilter('price', `min-${newFilters.minPrice}`);
-            }
-            if (newFilters.maxPrice !== undefined && newFilters.maxPrice < 10000) {
-              trackFilter('price', `max-${newFilters.maxPrice}`);
-            }
-            if (newFilters.brands && newFilters.brands.length > 0) {
-              newFilters.brands.forEach((brand: string) => {
-                trackFilter('brand', brand);
-              });
-            }
-            if (newFilters.inStock) {
-              trackFilter('stock', 'inStock');
-            }
-            
             setFilters({
               minPrice: newFilters.minPrice ?? 0,
               maxPrice: newFilters.maxPrice ?? 10000,

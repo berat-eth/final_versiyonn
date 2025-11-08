@@ -2037,16 +2037,50 @@ async function createDatabaseSchema(pool) {
           timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           ipAddress VARCHAR(45),
           userAgent VARCHAR(500),
+          performanceMetrics JSON,
+          characteristics JSON,
           INDEX idx_userId (userId),
           INDEX idx_deviceId (deviceId),
           INDEX idx_eventType (eventType),
           INDEX idx_timestamp (timestamp),
           INDEX idx_sessionId (sessionId),
           INDEX idx_user_device (userId, deviceId),
+          INDEX idx_event_timestamp (eventType, timestamp),
+          INDEX idx_device_timestamp (deviceId, timestamp),
           FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
       console.log('✅ user_behavior_events table ready');
+
+      // Check and add new columns if they don't exist
+      try {
+        const [columns] = await pool.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'user_behavior_events'
+            AND COLUMN_NAME IN ('performanceMetrics', 'characteristics')
+        `);
+        const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+        
+        if (!existingColumns.includes('performanceMetrics')) {
+          await pool.execute(`
+            ALTER TABLE user_behavior_events 
+            ADD COLUMN performanceMetrics JSON AFTER eventData
+          `);
+          console.log('✅ Added performanceMetrics column to user_behavior_events');
+        }
+        
+        if (!existingColumns.includes('characteristics')) {
+          await pool.execute(`
+            ALTER TABLE user_behavior_events 
+            ADD COLUMN characteristics JSON AFTER performanceMetrics
+          `);
+          console.log('✅ Added characteristics column to user_behavior_events');
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not add columns to user_behavior_events:', error.message);
+      }
 
       // User sessions table - Kullanıcı oturumları (hem logged-in hem anonymous)
       await pool.execute(`
@@ -2060,16 +2094,49 @@ async function createDatabaseSchema(pool) {
           duration INT DEFAULT 0,
           pageCount INT DEFAULT 0,
           scrollDepth DECIMAL(5,2) DEFAULT 0,
+          errorCount INT DEFAULT 0,
+          avgPageLoadTime INT DEFAULT 0,
           metadata JSON,
           INDEX idx_userId (userId),
           INDEX idx_deviceId (deviceId),
           INDEX idx_sessionId (sessionId),
           INDEX idx_startTime (startTime),
           INDEX idx_user_device (userId, deviceId),
+          INDEX idx_start_time_range (startTime, endTime),
           FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
       console.log('✅ user_sessions table ready');
+
+      // Check and add new columns if they don't exist
+      try {
+        const [columns] = await pool.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'user_sessions'
+            AND COLUMN_NAME IN ('errorCount', 'avgPageLoadTime')
+        `);
+        const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+        
+        if (!existingColumns.includes('errorCount')) {
+          await pool.execute(`
+            ALTER TABLE user_sessions 
+            ADD COLUMN errorCount INT DEFAULT 0 AFTER scrollDepth
+          `);
+          console.log('✅ Added errorCount column to user_sessions');
+        }
+        
+        if (!existingColumns.includes('avgPageLoadTime')) {
+          await pool.execute(`
+            ALTER TABLE user_sessions 
+            ADD COLUMN avgPageLoadTime INT DEFAULT 0 AFTER errorCount
+          `);
+          console.log('✅ Added avgPageLoadTime column to user_sessions');
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not add columns to user_sessions:', error.message);
+      }
 
       // Device analytics aggregates table - Periyodik olarak hesaplanan aggregate veriler
       await pool.execute(`
@@ -2096,6 +2163,184 @@ async function createDatabaseSchema(pool) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
       console.log('✅ device_analytics_aggregates table ready');
+
+      // Analytics aggregates table - Günlük/haftalık özet veriler
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_aggregates (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          tenantId INT NOT NULL,
+          aggregateDate DATE NOT NULL,
+          aggregateType ENUM('daily', 'weekly', 'monthly') NOT NULL,
+          totalUsers INT DEFAULT 0,
+          activeUsers INT DEFAULT 0,
+          totalSessions INT DEFAULT 0,
+          totalEvents INT DEFAULT 0,
+          totalRevenue DECIMAL(10,2) DEFAULT 0,
+          avgSessionDuration INT DEFAULT 0,
+          bounceRate DECIMAL(5,2) DEFAULT 0,
+          dau INT DEFAULT 0,
+          wau INT DEFAULT 0,
+          mau INT DEFAULT 0,
+          newUsers INT DEFAULT 0,
+          returningUsers INT DEFAULT 0,
+          retentionRate DECIMAL(5,2) DEFAULT 0,
+          churnRate INT DEFAULT 0,
+          productViews INT DEFAULT 0,
+          addToCart INT DEFAULT 0,
+          checkout INT DEFAULT 0,
+          purchase INT DEFAULT 0,
+          avgPageLoadTime INT DEFAULT 0,
+          errorRate DECIMAL(5,2) DEFAULT 0,
+          crashRate INT DEFAULT 0,
+          metadata JSON,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY unique_tenant_date_type (tenantId, aggregateDate, aggregateType),
+          INDEX idx_tenant (tenantId),
+          INDEX idx_date (aggregateDate),
+          INDEX idx_type (aggregateType),
+          FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ analytics_aggregates table ready');
+
+      // ML Predictions table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS ml_predictions (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          userId INT NULL,
+          tenantId INT NOT NULL DEFAULT 1,
+          predictionType ENUM('purchase', 'churn', 'session_duration', 'engagement') NOT NULL,
+          probability DECIMAL(5,4) NOT NULL,
+          metadata JSON,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_userId (userId),
+          INDEX idx_tenantId (tenantId),
+          INDEX idx_predictionType (predictionType),
+          INDEX idx_createdAt (createdAt),
+          INDEX idx_user_tenant (userId, tenantId),
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ ml_predictions table ready');
+
+      // ML Recommendations table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS ml_recommendations (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          userId INT NOT NULL,
+          tenantId INT NOT NULL DEFAULT 1,
+          productIds TEXT NOT NULL,
+          scores TEXT NOT NULL,
+          metadata JSON,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_userId (userId),
+          INDEX idx_tenantId (tenantId),
+          INDEX idx_createdAt (createdAt),
+          UNIQUE KEY unique_user_tenant (userId, tenantId),
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ ml_recommendations table ready');
+
+      // ML Anomalies table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS ml_anomalies (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          eventId BIGINT NULL,
+          userId INT NULL,
+          tenantId INT NOT NULL DEFAULT 1,
+          anomalyScore DECIMAL(5,4) NOT NULL,
+          anomalyType ENUM('bot', 'fraud', 'unusual_behavior', 'performance_issue') NOT NULL,
+          metadata JSON,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_eventId (eventId),
+          INDEX idx_userId (userId),
+          INDEX idx_tenantId (tenantId),
+          INDEX idx_anomalyType (anomalyType),
+          INDEX idx_anomalyScore (anomalyScore),
+          INDEX idx_createdAt (createdAt),
+          FOREIGN KEY (eventId) REFERENCES user_behavior_events(id) ON DELETE SET NULL,
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ ml_anomalies table ready');
+
+      // ML Segments table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS ml_segments (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          userId INT NOT NULL,
+          tenantId INT NOT NULL DEFAULT 1,
+          segmentId INT NOT NULL,
+          segmentName VARCHAR(255) NOT NULL,
+          confidence DECIMAL(5,4) NOT NULL,
+          metadata JSON,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_userId (userId),
+          INDEX idx_tenantId (tenantId),
+          INDEX idx_segmentId (segmentId),
+          INDEX idx_segmentName (segmentName),
+          INDEX idx_updatedAt (updatedAt),
+          UNIQUE KEY unique_user_tenant (userId, tenantId),
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ ml_segments table ready');
+
+      // ML Models table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS ml_models (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          modelName VARCHAR(255) NOT NULL,
+          modelType ENUM('purchase_prediction', 'recommendation', 'anomaly_detection', 'segmentation') NOT NULL,
+          version VARCHAR(50) NOT NULL,
+          status ENUM('training', 'active', 'inactive', 'archived') DEFAULT 'training',
+          filePath VARCHAR(500),
+          accuracy DECIMAL(5,4),
+          precision DECIMAL(5,4),
+          recall DECIMAL(5,4),
+          f1Score DECIMAL(5,4),
+          trainingDataSize INT,
+          trainingDuration INT,
+          hyperparameters JSON,
+          metadata JSON,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          deployedAt TIMESTAMP NULL,
+          INDEX idx_modelType (modelType),
+          INDEX idx_status (status),
+          INDEX idx_version (version),
+          UNIQUE KEY unique_model_version (modelName, version)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ ml_models table ready');
+
+      // ML Training Logs table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS ml_training_logs (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          modelId INT NOT NULL,
+          epoch INT NOT NULL,
+          loss DECIMAL(10,6),
+          accuracy DECIMAL(5,4),
+          validationLoss DECIMAL(10,6),
+          validationAccuracy DECIMAL(5,4),
+          learningRate DECIMAL(10,8),
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_modelId (modelId),
+          INDEX idx_epoch (epoch),
+          INDEX idx_timestamp (timestamp),
+          FOREIGN KEY (modelId) REFERENCES ml_models(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ ml_training_logs table ready');
 
       // Archive table for old events
       await pool.execute(`

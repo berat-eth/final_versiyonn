@@ -62,13 +62,6 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
   }, [loadNotifications]);
 
   const handleNotificationPress = async (notification: Notification) => {
-    // Notification tracking - opened
-    try {
-      const { behaviorAnalytics } = await import('../services/BehaviorAnalytics');
-      behaviorAnalytics.trackNotification('opened', notification.id?.toString(), notification.type);
-    } catch (error) {
-      console.warn('Notification tracking error:', error);
-    }
     
     if (!notification.isRead) {
       await NotificationService.markAsRead(notification.id);

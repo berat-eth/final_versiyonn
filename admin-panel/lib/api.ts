@@ -58,8 +58,17 @@ class ApiClient {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Request failed' }));
-        throw new Error(error.message || `HTTP ${response.status}`);
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          // JSON parse hatası, status text kullan
+          errorMessage = response.statusText || errorMessage;
+        }
+        const error = new Error(errorMessage);
+        (error as any).status = response.status;
+        throw error;
       }
 
       const data = await response.json();

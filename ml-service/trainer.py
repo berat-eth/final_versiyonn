@@ -1,0 +1,392 @@
+import numpy as np
+import pandas as pd
+import logging
+from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta
+import asyncio
+from config import config
+from utils.db_connector import DBConnector
+from data_processor import DataProcessor
+from models.purchase_prediction import PurchasePredictionModel
+from models.recommendation import RecommendationModel
+from models.anomaly_detection import AnomalyDetectionModel
+from models.segmentation import SegmentationModel
+from utils.model_loader import ModelLoader
+
+logger = logging.getLogger(__name__)
+
+class ModelTrainer:
+    """Model training pipeline"""
+    
+    def __init__(self, db_connector: DBConnector):
+        self.db = db_connector
+        self.data_processor = DataProcessor(
+            sequence_length=config.SEQUENCE_LENGTH,
+            embedding_dim=config.EMBEDDING_DIM
+        )
+        self.model_loader = ModelLoader()
+    
+    async def prepare_training_data_purchase(self, days: int = 30) -> tuple:
+        """Prepare training data for purchase prediction"""
+        try:
+            # Get events from database
+            query = """
+                SELECT 
+                    ube.userId,
+                    ube.eventType,
+                    ube.eventData,
+                    ube.timestamp,
+                    ube.sessionId
+                FROM user_behavior_events ube
+                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                    AND ube.userId IS NOT NULL
+                ORDER BY ube.userId, ube.timestamp
+            """
+            events = await self.db.execute(query, (days,))
+            
+            # Get purchase labels
+            purchase_query = """
+                SELECT 
+                    userId,
+                    createdAt as purchaseDate
+                FROM orders
+                WHERE createdAt >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                    AND status = 'completed'
+            """
+            purchases = await self.db.execute(purchase_query, (days,))
+            
+            # Group events by user
+            user_events = {}
+            for event in events:
+                user_id = event['userId']
+                if user_id not in user_events:
+                    user_events[user_id] = []
+                user_events[user_id].append(event)
+            
+            # Create sequences and labels
+            sequences = []
+            features = []
+            labels = []
+            
+            for user_id, events_list in user_events.items():
+                # Check if user made purchase
+                user_purchases = [p for p in purchases if p['userId'] == user_id]
+                has_purchase = len(user_purchases) > 0
+                
+                # Create sequence
+                sequence = self.data_processor.create_user_sequence(events_list)
+                feature = self.data_processor.create_user_features(events_list)
+                
+                sequences.append(sequence)
+                features.append(feature)
+                labels.append(1 if has_purchase else 0)
+            
+            return np.array(sequences), np.array(features), np.array(labels)
+            
+        except Exception as e:
+            logger.error(f"Error preparing purchase training data: {e}")
+            raise
+    
+    async def prepare_training_data_recommendation(self, days: int = 30) -> tuple:
+        """Prepare training data for recommendation"""
+        try:
+            # Get user-product interactions
+            query = """
+                SELECT DISTINCT
+                    ube.userId,
+                    JSON_EXTRACT(ube.eventData, '$.productId') as productId,
+                    CASE 
+                        WHEN ube.eventType = 'purchase' THEN 1
+                        WHEN ube.eventType = 'add_to_cart' THEN 0.7
+                        WHEN ube.eventType = 'product_view' THEN 0.3
+                        ELSE 0.1
+                    END as rating
+                FROM user_behavior_events ube
+                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                    AND ube.userId IS NOT NULL
+                    AND JSON_EXTRACT(ube.eventData, '$.productId') IS NOT NULL
+            """
+            interactions = await self.db.execute(query, (days,))
+            
+            if not interactions:
+                return None, None, None
+            
+            # Create mappings
+            user_ids = list(set([int(i['userId']) for i in interactions]))
+            product_ids = list(set([int(i['productId']) for i in interactions if i['productId']]))
+            
+            user_map = {uid: idx for idx, uid in enumerate(user_ids)}
+            product_map = {pid: idx for idx, pid in enumerate(product_ids)}
+            
+            # Create arrays
+            user_array = np.array([user_map[int(i['userId'])] for i in interactions])
+            product_array = np.array([product_map[int(i['productId'])] for i in interactions if i['productId']])
+            ratings = np.array([float(i['rating']) for i in interactions if i['productId']])
+            
+            return user_array, product_array, ratings, len(user_ids), len(product_ids)
+            
+        except Exception as e:
+            logger.error(f"Error preparing recommendation training data: {e}")
+            raise
+    
+    async def prepare_training_data_anomaly(self, days: int = 30) -> np.ndarray:
+        """Prepare training data for anomaly detection"""
+        try:
+            # Get normal events (non-anomalous)
+            query = """
+                SELECT 
+                    ube.eventData,
+                    ube.eventType
+                FROM user_behavior_events ube
+                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                    AND ube.userId IS NOT NULL
+                LIMIT 10000
+            """
+            events = await self.db.execute(query, (days,))
+            
+            # Create features
+            features = []
+            for event in events:
+                feature = self.data_processor.create_user_features([event])
+                features.append(feature)
+            
+            return np.array(features)
+            
+        except Exception as e:
+            logger.error(f"Error preparing anomaly training data: {e}")
+            raise
+    
+    async def prepare_training_data_segmentation(self, days: int = 30) -> np.ndarray:
+        """Prepare training data for segmentation"""
+        try:
+            # Get user features
+            query = """
+                SELECT 
+                    ube.userId,
+                    ube.eventType,
+                    ube.eventData,
+                    ube.timestamp
+                FROM user_behavior_events ube
+                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                    AND ube.userId IS NOT NULL
+                ORDER BY ube.userId, ube.timestamp
+            """
+            events = await self.db.execute(query, (days,))
+            
+            # Group by user
+            user_events = {}
+            for event in events:
+                user_id = event['userId']
+                if user_id not in user_events:
+                    user_events[user_id] = []
+                user_events[user_id].append(event)
+            
+            # Create features
+            features = []
+            for user_id, events_list in user_events.items():
+                feature = self.data_processor.create_user_features(events_list)
+                features.append(feature)
+            
+            return np.array(features)
+            
+        except Exception as e:
+            logger.error(f"Error preparing segmentation training data: {e}")
+            raise
+    
+    async def train_purchase_model(self, version: str = None):
+        """Train purchase prediction model"""
+        try:
+            logger.info("Starting purchase prediction model training...")
+            
+            # Prepare data
+            sequences, features, labels = await self.prepare_training_data_purchase()
+            
+            if len(sequences) == 0:
+                logger.warning("No training data available")
+                return
+            
+            # Create model
+            model = PurchasePredictionModel(
+                sequence_length=config.SEQUENCE_LENGTH,
+                embedding_dim=config.EMBEDDING_DIM
+            )
+            
+            num_event_types = sequences.shape[2] if len(sequences.shape) > 2 else 10
+            feature_dim = features.shape[1] if len(features.shape) > 1 else 50
+            model.build_model(num_event_types, feature_dim)
+            
+            # Train
+            history = model.train(sequences, features, labels)
+            
+            # Save model
+            version = version or f"v{int(datetime.now().timestamp())}"
+            model_path = self.model_loader.get_model_path('purchase_model', version)
+            model.save(model_path)
+            
+            # Save metadata
+            metadata = {
+                "model_type": "purchase_prediction",
+                "version": version,
+                "trained_at": datetime.now().isoformat(),
+                "training_samples": len(sequences),
+                "accuracy": float(history.history.get('accuracy', [0])[-1]),
+                "loss": float(history.history.get('loss', [0])[-1])
+            }
+            self.model_loader.save_model_metadata('purchase_model', version, metadata)
+            
+            logger.info("Purchase prediction model trained successfully")
+            
+        except Exception as e:
+            logger.error(f"Error training purchase model: {e}")
+            raise
+    
+    async def train_recommendation_model(self, version: str = None):
+        """Train recommendation model"""
+        try:
+            logger.info("Starting recommendation model training...")
+            
+            # Prepare data
+            result = await self.prepare_training_data_recommendation()
+            if result is None:
+                logger.warning("No training data available")
+                return
+            
+            user_ids, product_ids, ratings, num_users, num_products = result
+            
+            # Create model
+            model = RecommendationModel(
+                num_users=num_users,
+                num_products=num_products,
+                embedding_dim=config.EMBEDDING_DIM
+            )
+            model.build_model()
+            
+            # Train
+            history = model.train(user_ids, product_ids, ratings)
+            
+            # Save model
+            version = version or f"v{int(datetime.now().timestamp())}"
+            model_path = self.model_loader.get_model_path('recommendation_model', version)
+            model.save(model_path)
+            
+            # Save metadata
+            metadata = {
+                "model_type": "recommendation",
+                "version": version,
+                "trained_at": datetime.now().isoformat(),
+                "training_samples": len(user_ids),
+                "num_users": num_users,
+                "num_products": num_products,
+                "accuracy": float(history.history.get('accuracy', [0])[-1])
+            }
+            self.model_loader.save_model_metadata('recommendation_model', version, metadata)
+            
+            logger.info("Recommendation model trained successfully")
+            
+        except Exception as e:
+            logger.error(f"Error training recommendation model: {e}")
+            raise
+    
+    async def train_anomaly_model(self, version: str = None):
+        """Train anomaly detection model"""
+        try:
+            logger.info("Starting anomaly detection model training...")
+            
+            # Prepare data
+            data = await self.prepare_training_data_anomaly()
+            
+            if len(data) == 0:
+                logger.warning("No training data available")
+                return
+            
+            # Create model
+            model = AnomalyDetectionModel(input_dim=data.shape[1])
+            model.build_autoencoder()
+            
+            # Train autoencoder
+            model.train_autoencoder(data)
+            
+            # Train isolation forest
+            model.train_isolation_forest(data)
+            
+            # Save model
+            version = version or f"v{int(datetime.now().timestamp())}"
+            model_path = self.model_loader.get_model_path('anomaly_model', version)
+            model.save(model_path)
+            
+            # Save metadata
+            metadata = {
+                "model_type": "anomaly_detection",
+                "version": version,
+                "trained_at": datetime.now().isoformat(),
+                "training_samples": len(data)
+            }
+            self.model_loader.save_model_metadata('anomaly_model', version, metadata)
+            
+            logger.info("Anomaly detection model trained successfully")
+            
+        except Exception as e:
+            logger.error(f"Error training anomaly model: {e}")
+            raise
+    
+    async def train_segmentation_model(self, version: str = None):
+        """Train segmentation model"""
+        try:
+            logger.info("Starting segmentation model training...")
+            
+            # Prepare data
+            data = await self.prepare_training_data_segmentation()
+            
+            if len(data) == 0:
+                logger.warning("No training data available")
+                return
+            
+            # Create model
+            model = SegmentationModel(num_segments=config.NUM_SEGMENTS)
+            
+            # Train autoencoder
+            model.train_autoencoder(data)
+            
+            # Train K-means
+            model.train_kmeans(data, use_autoencoder=True)
+            
+            # Save model
+            version = version or f"v{int(datetime.now().timestamp())}"
+            model_path = self.model_loader.get_model_path('segmentation_model', version)
+            model.save(model_path)
+            
+            # Save metadata
+            metadata = {
+                "model_type": "segmentation",
+                "version": version,
+                "trained_at": datetime.now().isoformat(),
+                "training_samples": len(data),
+                "num_segments": config.NUM_SEGMENTS
+            }
+            self.model_loader.save_model_metadata('segmentation_model', version, metadata)
+            
+            logger.info("Segmentation model trained successfully")
+            
+        except Exception as e:
+            logger.error(f"Error training segmentation model: {e}")
+            raise
+    
+    async def train_all_models(self):
+        """Train all models"""
+        try:
+            logger.info("Starting training for all models...")
+            
+            await asyncio.gather(
+                self.train_purchase_model(),
+                self.train_recommendation_model(),
+                self.train_anomaly_model(),
+                self.train_segmentation_model(),
+                return_exceptions=True
+            )
+            
+            logger.info("All models trained")
+            
+        except Exception as e:
+            logger.error(f"Error training all models: {e}")
+            raise
+

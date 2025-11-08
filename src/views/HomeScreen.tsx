@@ -571,13 +571,10 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
       const userId = await UserController.getCurrentUserId(); // Get current user ID
       const isFavorite = favoriteProducts.includes(product.id);
       
-      const { behaviorAnalytics } = await import('../services/BehaviorAnalytics');
-      
       if (isFavorite) {
         const success = await UserController.removeFromFavorites(userId, product.id);
         if (success) {
           setFavoriteProducts((prev: number[]) => prev.filter(id => id !== product.id));
-          behaviorAnalytics.trackWishlist('remove', product.id);
           Alert.alert('Başarılı', 'Ürün favorilerden çıkarıldı');
         } else {
           Alert.alert('Hata', 'Ürün favorilerden çıkarılamadı');
@@ -597,7 +594,6 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         });
         if (success) {
           setFavoriteProducts((prev: number[]) => [...prev, product.id]);
-          behaviorAnalytics.trackWishlist('add', product.id);
           Alert.alert('Başarılı', 'Ürün favorilere eklendi');
         } else {
           Alert.alert('Hata', 'Ürün favorilere eklenemedi');
@@ -677,11 +673,6 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         onMomentumScrollEnd={(event: any) => {
           const slide = Math.round(event.nativeEvent.contentOffset.x / width);
           setCurrentSlide(slide);
-          // Banner view tracking
-          if (sliderData[slide]) {
-            const { behaviorAnalytics } = require('../services/BehaviorAnalytics');
-            behaviorAnalytics.trackCampaign('banner', 'view', sliderData[slide].id?.toString());
-          }
         }}
         scrollEventThrottle={16}
       >
@@ -701,8 +692,6 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
                   <ModernButton
                     title={slide.buttonText}
                     onPress={() => {
-                      const { behaviorAnalytics } = require('../services/BehaviorAnalytics');
-                      behaviorAnalytics.trackCampaign('banner', 'click', slide.id?.toString());
                       
                       if (slide.clickAction?.type === 'product' && slide.clickAction.value) {
                         navigation.navigate('ProductDetail', { productId: parseInt(slide.clickAction.value) });
@@ -1021,8 +1010,6 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
                 key={`camp-${c.id}`}
                 style={[styles.offerCard, { backgroundColor: getOfferColor(c.type) }]}
                 onPress={() => {
-                  const { behaviorAnalytics } = require('../services/BehaviorAnalytics');
-                  behaviorAnalytics.trackCampaign(campaignType, 'click', c.id?.toString());
                   if (c.actionUrl) {
                     Linking.openURL(c.actionUrl);
                   }
@@ -1124,12 +1111,6 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
             <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Flash İndirimler</Text>
           </View>
           <TouchableOpacity onPress={() => {
-            const { behaviorAnalytics } = require('../services/BehaviorAnalytics');
-            flashDeals.forEach((deal: FlashDeal) => {
-              behaviorAnalytics.trackCampaign('flash_deal', 'view', deal.id?.toString());
-            });
-            // User segment güncelle - indirim avcısı kontrolü
-            behaviorAnalytics.calculateUserSegments();
             navigation.navigate('ProductList', {
               title: 'Flash İndirimler',
               showFlashDeals: true

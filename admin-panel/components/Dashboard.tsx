@@ -7,7 +7,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useTheme } from '@/lib/ThemeContext'
 import { formatDDMMYYYY } from '@/lib/date'
 import dynamic from 'next/dynamic'
-import { analyticsService, productService } from '@/lib/services'
+import { productService } from '@/lib/services'
 import { api } from '@/lib/api'
 import AIAlertWidget from './AIAlertWidget'
 
@@ -77,7 +77,7 @@ export default function Dashboard() {
   const [categoryPerformance, setCategoryPerformance] = useState<Array<{ name: string; satis: number; kar: number; stok: number; siparisler: number }>>([])
   const [topProducts, setTopProducts] = useState<Array<{ name: string; sales: number; revenue: number; trend: number }>>([])
   const [recentOrders, setRecentOrders] = useState<Array<{ id: string; customer: string; product: string; amount: number; status: 'completed' | 'processing' | 'pending' }>>([])
-  const [revenueData, setRevenueData] = useState<Array<{ month: string; gelir: number; gider: number; kar: number; hedef: number }>>([])
+  const [revenueData, setRevenueData] = useState<Array<{ month: string; monthLabel?: string; gelir: number; gider: number; kar: number; hedef: number }>>([])
   const [customerBehavior, setCustomerBehavior] = useState<Array<{ metric: string; value: number }>>([])
   const [hourlyActivity, setHourlyActivity] = useState<Array<{ hour: string; orders: number; visitors: number }>>([])
   const [realtimeActivities, setRealtimeActivities] = useState<Array<any>>([])
@@ -107,8 +107,7 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [statsRes, productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes] = await Promise.all([
-          analyticsService.getStats(),
+        const [productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes] = await Promise.all([
           productService.getProducts(1, 50),
           api.get<any>('/admin/orders'),
           api.get<any>('/admin/categories'),
@@ -204,25 +203,14 @@ export default function Dashboard() {
           setCustomProdTotal(0); setCustomProdInProgress(0); setCustomProdCompleted(0); setCustomProdAmount(0)
         }
 
-        if (statsRes.success && statsRes.data) {
-          // Sadece stoğu olan ürünleri say
-          const activeProducts = productsRes.data?.products?.filter((p: any) => (p.stock ?? 0) > 0) || []
-          setTotalProducts(activeProducts.length)
-          setTotalOrders(Number(statsRes.data.totalOrders) || 0)
-          setTotalCustomers(Number(statsRes.data.totalCustomers) || 0)
-          setTotalRevenue(Number((statsRes.data as any).totalRevenue) || 0)
-        }
-
         // Siparişlerden türeyen metrikler (admin endpoint)
         if ((adminOrders as any)?.success && (adminOrders as any).data) {
           const orders = (adminOrders as any).data as any[]
-          if (!statsRes.success || !statsRes.data) {
-            // Sadece stoğu olan ürünleri say
-            const activeProducts = productsRes.data?.products?.filter((p: any) => (p.stock ?? 0) > 0) || []
-            setTotalProducts(activeProducts.length)
-            setTotalOrders(orders.length)
-            setTotalRevenue(orders.reduce((s: number, o: any) => s + (Number(o.totalAmount) || 0), 0))
-          }
+          // Sadece stoğu olan ürünleri say
+          const activeProducts = productsRes.data?.products?.filter((p: any) => (p.stock ?? 0) > 0) || []
+          setTotalProducts(activeProducts.length)
+          setTotalOrders(orders.length)
+          setTotalRevenue(orders.reduce((s: number, o: any) => s + (Number(o.totalAmount) || 0), 0))
 
           const lower = (s: any) => (typeof s === 'string' ? s.toLowerCase() : '')
           const delivered = orders.filter(o => lower(o.status) === 'completed')
@@ -257,15 +245,96 @@ export default function Dashboard() {
           orders.forEach((o:any)=>{ const h = new Date(o.createdAt).getHours(); byHour[h]++ })
           setHourlyActivity(byHour.map((v, i)=>({ hour: `${i}:00`, orders: v, visitors: Math.max(v*3, v) })))
 
-          // Revenue by month (yıl bazlı basit özet)
-          const byMonth = new Map<string, number>()
-          orders.forEach((o:any)=>{ 
-            const date = new Date(o.createdAt);
-            const m = `${date.getMonth()+1}-${date.getFullYear()}`; 
-            byMonth.set(m, (byMonth.get(m)||0) + (Number(o.totalAmount)||0)) 
-          })
-          const months = Array.from(byMonth.entries()).sort((a,b)=>a[0]<b[0]? -1:1).slice(-6)
-          setRevenueData(months.map(([month, gelir])=>({ month, gelir, gider: Math.round(gelir*0.6), kar: Math.round(gelir*0.4), hedef: Math.round(gelir*1.05) })))
+          // Revenue by month - Siparişlerden hesapla
+          try {
+            // Siparişlerden aylık veri hesapla
+            const monthlyMap = new Map<string, number>()
+            orders.forEach((o: any) => {
+              const d = new Date(o.createdAt)
+              const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+              const monthLabel = `${d.toLocaleString('tr-TR', { month: 'short' })} ${d.getFullYear()}`
+              const current = monthlyMap.get(monthKey) || 0
+              monthlyMap.set(monthKey, current + (Number(o.totalAmount) || 0))
+            })
+            
+            if (monthlyMap.size > 0) {
+              // Map'ten array'e çevir ve son 12 ayı al
+              const backendData = Array.from(monthlyMap.entries())
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .slice(-12)
+                .map(([monthKey, revenue]) => {
+                  const [year, month] = monthKey.split('-')
+                  const d = new Date(parseInt(year), parseInt(month) - 1)
+                  return {
+                    month: monthKey,
+                    monthLabel: `${d.toLocaleString('tr-TR', { month: 'short' })} ${year}`,
+                    gelir: revenue,
+                    gider: Math.round(revenue * 0.7),
+                    kar: Math.round(revenue * 0.3),
+                    hedef: Math.round(revenue * 1.05)
+                  }
+                });
+              
+              // Eksik ayları kontrol et ve doldur (ek güvenlik)
+              const now = new Date()
+              const expectedMonths = 12
+              const monthSet = new Set(backendData.map((d: any) => d.month))
+              
+              // Son 12 ayın listesini oluştur
+              const allMonths: string[] = []
+              for (let i = expectedMonths - 1; i >= 0; i--) {
+                const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+                const month = date.toISOString().slice(0, 7) // YYYY-MM formatı
+                allMonths.push(month)
+              }
+              
+              // Eksik ayları ekle
+              const completeData = [...backendData]
+              allMonths.forEach(month => {
+                if (!monthSet.has(month)) {
+                  const date = new Date(month + '-01')
+                  const monthLabel = date.toLocaleDateString('tr-TR', { month: 'short', year: 'numeric' })
+                  completeData.push({
+                    month,
+                    monthLabel,
+                    gelir: 0,
+                    gider: 0,
+                    kar: 0,
+                    hedef: 0
+                  })
+                }
+              })
+              
+              // Aylara göre sırala
+              completeData.sort((a, b) => a.month.localeCompare(b.month))
+              
+              setRevenueData(completeData)
+            } else {
+              // Fallback: Client-side hesaplama (tüm ayları göster)
+              const byMonth = new Map<string, number>()
+              orders.forEach((o:any)=>{ 
+                const date = new Date(o.createdAt);
+                const m = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2, '0')}`; 
+                byMonth.set(m, (byMonth.get(m)||0) + (Number(o.totalAmount)||0)) 
+              })
+              const months = Array.from(byMonth.entries()).sort((a,b)=>a[0]<b[0]? -1:1)
+              setRevenueData(months.map(([month, gelir])=>{
+                const date = new Date(month + '-01')
+                const monthLabel = date.toLocaleDateString('tr-TR', { month: 'short', year: 'numeric' })
+                return { month, monthLabel, gelir, gider: Math.round(gelir*0.6), kar: Math.round(gelir*0.4), hedef: Math.round(gelir*1.05) }
+              }))
+            }
+          } catch (error) {
+            // Fallback: Client-side hesaplama (tüm ayları göster)
+            const byMonth = new Map<string, number>()
+            orders.forEach((o:any)=>{ 
+              const date = new Date(o.createdAt);
+              const m = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2, '0')}`; 
+              byMonth.set(m, (byMonth.get(m)||0) + (Number(o.totalAmount)||0)) 
+            })
+            const months = Array.from(byMonth.entries()).sort((a,b)=>a[0]<b[0]? -1:1)
+            setRevenueData(months.map(([month, gelir])=>({ month, gelir, gider: Math.round(gelir*0.6), kar: Math.round(gelir*0.4), hedef: Math.round(gelir*1.05) })))
+          }
         }
 
         // Basit KPI ve kaynak dağılımını statülerden türet
@@ -1124,7 +1193,7 @@ export default function Dashboard() {
             {revenueData && revenueData.length > 0 ? (
             <ComposedChart data={revenueData}>
               <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#334155' : '#f0f0f0'} />
-              <XAxis dataKey="month" stroke="#94a3b8" />
+              <XAxis dataKey="monthLabel" stroke="#94a3b8" />
               <YAxis stroke={theme === 'dark' ? '#cbd5e1' : '#94a3b8'} />
               <Tooltip
                 contentStyle={{
