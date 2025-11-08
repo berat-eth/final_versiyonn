@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from sklearn.ensemble import IsolationForest
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import logging
 import os
 from config import config
