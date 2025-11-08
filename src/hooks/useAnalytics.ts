@@ -15,7 +15,7 @@ interface UseAnalyticsOptions {
  * Analytics hook - Ekran bazlı tracking
  */
 export function useAnalytics(options: UseAnalyticsOptions) {
-  const { screenName, trackScroll = true, trackPerformance = true, trackClicks = true } = options;
+  const { screenName, trackScroll: trackScrollEnabled = true, trackPerformance = true, trackClicks = true } = options;
   const navigation = useNavigation();
   const { user } = useAppContext();
   const sessionIdRef = useRef<string | null>(null);
@@ -111,7 +111,7 @@ export function useAnalytics(options: UseAnalyticsOptions) {
    * Scroll derinliği kaydet
    */
   const trackScroll = useCallback((scrollDepth: number, maxScroll: number) => {
-    if (!trackScroll) return;
+    if (!trackScrollEnabled) return;
 
     const depthPercentage = maxScroll > 0 ? (scrollDepth / maxScroll) * 100 : 0;
     scrollDepthRef.current = Math.max(scrollDepthRef.current, depthPercentage);
@@ -142,7 +142,7 @@ export function useAnalytics(options: UseAnalyticsOptions) {
         timestamp: new Date().toISOString()
       }, user?.id || null, sessionIdRef.current || null);
     }
-  }, [screenName, user?.id, trackScroll]);
+  }, [screenName, user?.id, trackScrollEnabled]);
 
   /**
    * Ürün görüntüleme kaydet
