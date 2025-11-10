@@ -313,6 +313,30 @@ export default function MobilUygulamaPage() {
                 <div className="max-w-4xl mx-auto w-full space-y-6">
                   {[
                     {
+                      version: 'v3.0.0',
+                      date: '10 Kasım 2025',
+                      badge: 'Büyük Güncelleme',
+                      badgeColor: 'from-orange-500 to-red-600',
+                      updates: [
+                        'Yenilenen kullanıcı arayüzü - daha modern ve kullanıcı dostu tasarım',
+                        'Gelişmiş arama özellikleri - daha hızlı ve akıllı ürün arama',
+                        'Yeni ödeme yöntemleri - taksit seçenekleri ve cüzdan entegrasyonu',
+                        'Gelişmiş favoriler sistemi - kategorilere göre organize edilmiş listeler',
+                        'Yeni bildirim merkezi - tüm bildirimleri tek yerden yönetme',
+                        'Performans iyileştirmeleri - uygulama açılış hızı %50 iyileştirildi',
+                        'Gelişmiş filtreleme seçenekleri - fiyat, renk, beden, marka filtreleri',
+                        'Yeni ürün değerlendirme sistemi - fotoğraf ile detaylı yorumlar',
+                        'Geliştirilmiş sepet yönetimi - kaydedilmiş sepetler ve hızlı sipariş',
+                        'Geliştirilmiş hesap yönetimi - detaylı sipariş geçmişi',
+                        'Ürün hatırlatıcıları - stokta olmayan ürünler için bildirim',
+                        'Geliştirilmiş ödeme güvenliği - güvenli ödeme altyapısı',
+                        'Hızlı sipariş özelliği - tek tıkla tekrar sipariş verme',
+                        'Çoklu adres yönetimi - sınırsız adres ekleme ve düzenleme',
+                        'Görsel yükleme optimizasyonu - daha hızlı görsel yükleme',
+                        'Geliştirilmiş kullanıcı deneyimi - daha akıcı navigasyon'
+                      ]
+                    },
+                    {
                       version: 'v2.6.0',
                       date: '23 Ekim 2025',
                       badge: 'Yeni',

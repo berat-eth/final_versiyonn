@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { productsApi } from '@/utils/api'
+import { productsApi, listsApi } from '@/utils/api'
+import { useAuth } from '@/contexts/AuthContext'
 import Image from 'next/image'
 import Link from 'next/link'
 import Header from '@/components/Header'
@@ -22,9 +23,18 @@ interface Product {
   reviewCount?: number;
 }
 
+interface UserList {
+  id: number
+  name: string
+  description: string
+  createdAt: string
+  items: any[]
+}
+
 export default function ProductDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const { user, isAuthenticated } = useAuth()
   const productId = params?.id ? Number(params.id) : null
   
   const [product, setProduct] = useState<Product | null>(null)
@@ -37,6 +47,12 @@ export default function ProductDetailPage() {
   const [loadingRecommendations, setLoadingRecommendations] = useState(false)
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [itemsPerView, setItemsPerView] = useState(2) // Mobil için varsayılan
+  const [showListModal, setShowListModal] = useState(false)
+  const [lists, setLists] = useState<UserList[]>([])
+  const [loadingLists, setLoadingLists] = useState(false)
+  const [showCreateListForm, setShowCreateListForm] = useState(false)
+  const [newListName, setNewListName] = useState('')
+  const [newListDescription, setNewListDescription] = useState('')
 
   const loadProduct = useCallback(async () => {
     if (!productId) return
@@ -146,6 +162,78 @@ export default function ProductDetailPage() {
     return () => window.removeEventListener('resize', updateItemsPerView)
   }, [])
 
+  const loadLists = useCallback(async () => {
+    if (!isAuthenticated || !user?.id) return
+    
+    try {
+      setLoadingLists(true)
+      const response = await listsApi.getUserLists(user.id)
+      if (response.success && response.data) {
+        const formattedLists: UserList[] = response.data.map((list: any) => ({
+          id: list.id,
+          name: list.name,
+          description: list.description || '',
+          createdAt: list.createdAt,
+          items: []
+        }))
+        setLists(formattedLists)
+      }
+    } catch (error) {
+      console.error('Listeler yüklenemedi:', error)
+    } finally {
+      setLoadingLists(false)
+    }
+  }, [isAuthenticated, user?.id])
+
+  const handleAddToList = async (listId: number) => {
+    if (!product || !user?.id) return
+    
+    try {
+      const response = await listsApi.addProductToList(listId, user.id, product.id)
+      if (response.success) {
+        alert(`${product.name} "${lists.find(l => l.id === listId)?.name}" listesine eklendi!`)
+        setShowListModal(false)
+      } else {
+        alert(response.message || 'Ürün listeye eklenemedi')
+      }
+    } catch (error) {
+      console.error('Ürün listeye eklenemedi:', error)
+      alert('Ürün listeye eklenemedi. Lütfen tekrar deneyin.')
+    }
+  }
+
+  const handleCreateListAndAdd = async () => {
+    if (!newListName.trim() || !product || !user?.id) {
+      alert('Lütfen liste adı girin')
+      return
+    }
+
+    try {
+      const response = await listsApi.createList(user.id, newListName, newListDescription)
+      if (response.success && response.data) {
+        const newList: UserList = {
+          id: response.data.id,
+          name: response.data.name,
+          description: response.data.description || '',
+          createdAt: new Date().toISOString(),
+          items: []
+        }
+        setLists([...lists, newList])
+        setNewListName('')
+        setNewListDescription('')
+        setShowCreateListForm(false)
+        
+        // Yeni oluşturulan listeye ürünü ekle
+        await handleAddToList(newList.id)
+      } else {
+        alert(response.message || 'Liste oluşturulamadı')
+      }
+    } catch (error) {
+      console.error('Liste oluşturulamadı:', error)
+      alert('Liste oluşturulamadı. Lütfen tekrar deneyin.')
+    }
+  }
+
   useEffect(() => {
     if (productId) {
       loadProduct()
@@ -153,6 +241,12 @@ export default function ProductDetailPage() {
       setCurrentSlideIndex(0) // Slider'ı sıfırla
     }
   }, [productId, loadProduct, loadRecommendedProducts])
+
+  useEffect(() => {
+    if (showListModal && isAuthenticated) {
+      loadLists()
+    }
+  }, [showListModal, isAuthenticated, loadLists])
 
   // currentSlideIndex'i maksimum değerle sınırla
   useEffect(() => {
@@ -407,6 +501,16 @@ export default function ProductDetailPage() {
                     <span>Teklif Al</span>
                   </Link>
 
+                  {isAuthenticated && (
+                    <button
+                      onClick={() => setShowListModal(true)}
+                      className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl hover:shadow-xl hover:scale-105 transition-all duration-300"
+                    >
+                      <span className="material-symbols-outlined text-2xl">list</span>
+                      <span>Listeye Ekle</span>
+                    </button>
+                  )}
+
                   <Link
                     href="/urunler"
                     className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
@@ -590,6 +694,151 @@ export default function ProductDetailPage() {
       </main>
 
       <Footer />
+
+      {/* Listeye Ekle Modal */}
+      {showListModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Listeye Ekle
+              </h2>
+              <button
+                onClick={() => {
+                  setShowListModal(false)
+                  setShowCreateListForm(false)
+                  setNewListName('')
+                  setNewListDescription('')
+                }}
+                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {!showCreateListForm ? (
+                <>
+                  {loadingLists ? (
+                    <div className="flex items-center justify-center py-12">
+                      <span className="material-symbols-outlined animate-spin text-4xl text-blue-600 dark:text-blue-400">
+                        sync
+                      </span>
+                    </div>
+                  ) : lists.length === 0 ? (
+                    <div className="text-center py-12">
+                      <span className="material-symbols-outlined text-6xl text-gray-400 dark:text-gray-500 mb-4">
+                        list
+                      </span>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                        Henüz liste oluşturmadınız
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                        Hızlıca yeni bir liste oluşturup ürünü ekleyebilirsiniz
+                      </p>
+                      <button
+                        onClick={() => setShowCreateListForm(true)}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl hover:shadow-lg transition-all"
+                      >
+                        Liste Oluştur
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {lists.map((list) => (
+                        <button
+                          key={list.id}
+                          onClick={() => handleAddToList(list.id)}
+                          className="w-full p-4 text-left bg-gray-50 dark:bg-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <h3 className="font-bold text-gray-900 dark:text-white mb-1">
+                                {list.name}
+                              </h3>
+                              {list.description && (
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  {list.description}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                                {(list as any).itemCount || 0} ürün
+                              </p>
+                            </div>
+                            <span className="material-symbols-outlined text-gray-400 dark:text-gray-500">
+                              chevron_right
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                      
+                      <button
+                        onClick={() => setShowCreateListForm(true)}
+                        className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-center"
+                      >
+                        <span className="material-symbols-outlined text-2xl text-gray-400 dark:text-gray-500 mb-2 block">
+                          add
+                        </span>
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Yeni Liste Oluştur
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Liste Adı <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newListName}
+                      onChange={(e) => setNewListName(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white"
+                      placeholder="Örn: Yaz Koleksiyonu"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Açıklama
+                    </label>
+                    <textarea
+                      value={newListDescription}
+                      onChange={(e) => setNewListDescription(e.target.value)}
+                      rows={3}
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white resize-none"
+                      placeholder="Liste hakkında kısa bir açıklama (opsiyonel)"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => {
+                        setShowCreateListForm(false)
+                        setNewListName('')
+                        setNewListDescription('')
+                      }}
+                      className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      İptal
+                    </button>
+                    <button
+                      onClick={handleCreateListAndAdd}
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all"
+                    >
+                      Oluştur ve Ekle
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox Modal */}
       {isLightboxOpen && productImages.length > 0 && (

@@ -276,49 +276,35 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Testimonials */}
+              {/* References */}
               <div className="flex flex-col gap-10 px-4 py-16 @container">
                 <div className="flex flex-col gap-6 items-center text-center">
                   <div className="flex flex-col gap-4">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-full border border-green-200/50 dark:border-green-500/30 mb-2 mx-auto">
-                      <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-sm">reviews</span>
-                      <span className="text-sm font-semibold text-green-600 dark:text-green-400">Müşteri Yorumları</span>
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-full border border-blue-200/50 dark:border-blue-500/30 mb-2 mx-auto">
+                      <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-sm">business</span>
+                      <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">Referanslarımız</span>
                     </div>
                     <h1 className="text-[#0d141b] dark:text-slate-50 tracking-tight text-4xl md:text-5xl font-black leading-tight max-w-[720px]">
                       <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">Referanslarımız</span>
                     </h1>
                     <p className="text-gray-600 dark:text-gray-300 text-lg font-normal leading-relaxed max-w-[720px]">
-                      Bize güvenen ve kalitemizi tercih eden değerli müşterilerimiz.
+                      Bize güvenen ve kalitemizi tercih eden değerli kurumlarımız.
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6 p-0">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-0 max-w-5xl mx-auto">
                   {[
-                    { name: 'Ahmet Yılmaz', role: 'Restoran Sahibi', quote: 'Huğlu Tekstil Atölyesi, beklentilerimizin ötesinde bir hizmet sundu. Kıyafetlerin kalitesi ve tasarımları harika.', color: 'blue' },
-                    { name: 'Ayşe Kaya', role: 'Otel Müdürü', quote: 'Hızlı teslimat ve profesyonel yaklaşımları için teşekkür ederiz. Çalışanlarımız yeni üniformalarından çok memnun.', color: 'purple' },
-                    { name: 'Mehmet Öztürk', role: 'Kafe İşletmecisi', quote: 'Özel tasarım taleplerimize anında çözüm buldular. Tam istediğimiz gibi, markamızı yansıtan ürünler ortaya çıktı.', color: 'pink' }
-                  ].map((testimonial, i) => (
-                    <div key={i} className="group relative flex flex-col gap-4 p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/50 hover:shadow-2xl hover:scale-105 transition-all duration-300">
-                      <div className="absolute top-6 right-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <span className="material-symbols-outlined text-6xl text-gray-400">format_quote</span>
+                    { name: 'Türkiye Futbol Federasyonu', color: 'from-blue-500 to-blue-600' },
+                    { name: 'Nükte Treyler', color: 'from-purple-500 to-purple-600' },
+                    { name: 'Konya Büyükşehir Belediyesi', color: 'from-pink-500 to-pink-600' }
+                  ].map((reference, i) => (
+                    <div key={i} className="group relative flex flex-col items-center justify-center gap-4 p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/50 hover:shadow-2xl hover:scale-105 transition-all duration-300 min-h-[200px]">
+                      <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${reference.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                        <span className="material-symbols-outlined text-white text-3xl">business</span>
                       </div>
-                      <div className="relative z-10">
-                        <div className="flex gap-1 mb-4">
-                          {[...Array(5)].map((_, j) => (
-                            <span key={j} className="material-symbols-outlined text-yellow-400 text-xl">star</span>
-                          ))}
-                        </div>
-                        <blockquote className="text-gray-700 dark:text-gray-300 text-base font-normal leading-relaxed mb-6">&quot;{testimonial.quote}&quot;</blockquote>
-                        <div className="flex items-center gap-3">
-                          <div className={`w-12 h-12 rounded-full bg-gradient-to-br from-${testimonial.color}-400 to-${testimonial.color}-600 flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
-                            {testimonial.name.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="font-bold text-[#0d141b] dark:text-slate-50 text-base">{testimonial.name}</p>
-                            <p className="text-gray-500 dark:text-gray-400 text-sm">{testimonial.role}</p>
-                          </div>
-                        </div>
-                      </div>
+                      <h3 className="font-bold text-[#0d141b] dark:text-slate-50 text-lg text-center leading-tight">
+                        {reference.name}
+                      </h3>
                     </div>
                   ))}
                 </div>

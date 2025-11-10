@@ -484,20 +484,20 @@ function TeklifAlForm() {
                               <span className="font-semibold text-gray-900 dark:text-gray-100">Toptan</span>
                             </div>
                           </label>
-
-                          <label className="flex items-center gap-3 p-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-orange-500 dark:hover:border-orange-500 transition-all has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50 dark:has-[:checked]:bg-orange-900/20">
-                            <input
-                              type="checkbox"
-                              checked={formData.fabricProvidedByCustomer}
-                              onChange={(e) => setFormData({ ...formData, fabricProvidedByCustomer: e.target.checked })}
-                              className="w-5 h-5 text-orange-600 rounded focus:ring-2 focus:ring-orange-500"
-                            />
-                            <div className="flex items-center gap-2">
-                              <span className="material-symbols-outlined text-orange-600 dark:text-orange-400">checkroom</span>
-                              <span className="font-semibold text-gray-900 dark:text-gray-100">Kumaş benim tarafımdan karşılanacak</span>
-                            </div>
-                          </label>
                         </div>
+                        
+                        <label className="flex items-center gap-3 p-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-orange-500 dark:hover:border-orange-500 transition-all has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50 dark:has-[:checked]:bg-orange-900/20">
+                          <input
+                            type="checkbox"
+                            checked={formData.fabricProvidedByCustomer}
+                            onChange={(e) => setFormData({ ...formData, fabricProvidedByCustomer: e.target.checked })}
+                            className="w-5 h-5 text-orange-600 rounded focus:ring-2 focus:ring-orange-500"
+                          />
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-orange-600 dark:text-orange-400">checkroom</span>
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">Kumaş benim tarafımdan karşılanacak</span>
+                          </div>
+                        </label>
                       </div>
 
                       {/* Nakış Detayları */}

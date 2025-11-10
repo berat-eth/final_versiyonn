@@ -109,7 +109,7 @@ export default function Iletisim() {
                 {
                   icon: 'schedule',
                   title: 'Çalışma Saatleri',
-                  content: 'Hafta içi: 09:00 - 18:00',
+                  content: 'Hafta içi: 07:30 - 17:30',
                   gradient: 'from-green-500 to-emerald-500'
                 }
               ].map((item, i) => (

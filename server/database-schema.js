@@ -26,6 +26,7 @@ async function createDatabaseSchema(pool) {
       const requiredTables = [
           'tenants', 'users', 'user_addresses', 'products', 'product_variations', 'product_variation_options',
           'cart', 'orders', 'order_items', 'reviews', 'user_wallets', 'wallet_transactions',
+          'user_lists', 'user_list_items',
           'return_requests', 'payment_transactions', 'custom_production_messages', 'custom_production_requests',
           'custom_production_items', 'customer_segments', 'campaigns', 'customer_segment_assignments',
           'campaign_usage', 'customer_analytics', 'discount_wheel_spins', 'chatbot_analytics',
@@ -773,6 +774,47 @@ async function createDatabaseSchema(pool) {
   `);
       console.log('✅ Wallet transactions table ready');
 
+      // User Lists table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_lists (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      userId INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_tenant_lists (tenantId),
+      INDEX idx_user_lists (userId),
+      INDEX idx_list_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ User lists table ready');
+
+      // User List Items table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_list_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      listId INT NOT NULL,
+      productId INT NOT NULL,
+      quantity INT DEFAULT 1,
+      notes TEXT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (listId) REFERENCES user_lists(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
+      INDEX idx_tenant_list_items (tenantId),
+      INDEX idx_list_items (listId),
+      INDEX idx_product_items (productId),
+      UNIQUE KEY unique_list_product (listId, productId)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ User list items table ready');
+
       // Return Requests table
       await pool.execute(`
     CREATE TABLE IF NOT EXISTS return_requests (
@@ -853,7 +895,7 @@ async function createDatabaseSchema(pool) {
     CREATE TABLE IF NOT EXISTS custom_production_requests (
       id INT AUTO_INCREMENT PRIMARY KEY,
       tenantId INT NOT NULL,
-      userId INT NOT NULL,
+      userId INT NULL,
       requestNumber VARCHAR(50) NOT NULL,
       status ENUM('pending', 'review', 'design', 'production', 'shipped', 'completed', 'cancelled') DEFAULT 'pending',
       totalQuantity INT NOT NULL,
@@ -867,7 +909,7 @@ async function createDatabaseSchema(pool) {
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL,
       INDEX idx_tenant_requests (tenantId),
       INDEX idx_user_requests (userId),
       INDEX idx_request_number (requestNumber),

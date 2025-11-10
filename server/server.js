@@ -5788,14 +5788,100 @@ app.post('/api/quote-requests', async (req, res) => {
     if (printing && printingDetails) notes += `\nBaskı Detayları:\n${printingDetails}\n`;
     if (sizeDistribution) notes += `\nBeden Dağılımı:\n${sizeDistribution}\n`;
 
-    // Create custom production request (userId null, çünkü form dolduran kullanıcı giriş yapmamış olabilir)
+    // Try to get userId from auth token if user is logged in
+    let userId = null;
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        // Decode token to get userId
+        try {
+          const JWTAuth = require('./security/jwt-auth');
+          const jwtAuth = new JWTAuth();
+          const decoded = jwtAuth.decodeToken(token);
+          if (decoded && decoded.userId) {
+            userId = decoded.userId;
+          }
+        } catch (e) {
+          // Token decode edilemediyse basit decode dene
+          try {
+            const jwt = require('jsonwebtoken');
+            const decoded = jwt.decode(token);
+            if (decoded && decoded.userId) {
+              userId = decoded.userId;
+            }
+          } catch (e2) {
+            // Token decode edilemediyse devam et, userId null kalır
+          }
+        }
+      }
+    } catch (e) {
+      // Auth kontrolü başarısız olursa devam et, userId null kalır
+    }
+
+    // Ensure userId column allows NULL (migration)
+    try {
+      const [userIdCol] = await poolWrapper.execute(`
+        SELECT IS_NULLABLE, COLUMN_TYPE 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'custom_production_requests' 
+        AND COLUMN_NAME = 'userId'
+      `);
+      if (userIdCol.length > 0 && userIdCol[0].IS_NULLABLE === 'NO') {
+        // userId column'u NULL yapılabilir hale getir
+        await poolWrapper.execute(`
+          ALTER TABLE custom_production_requests 
+          MODIFY COLUMN userId INT NULL
+        `);
+        // Foreign key constraint'i güncelle (ON DELETE SET NULL)
+        try {
+          await poolWrapper.execute(`
+            ALTER TABLE custom_production_requests 
+            DROP FOREIGN KEY custom_production_requests_ibfk_2
+          `);
+        } catch (e) {
+          // Foreign key constraint adı farklı olabilir, tüm constraint'leri kontrol et
+          const [fks] = await poolWrapper.execute(`
+            SELECT CONSTRAINT_NAME 
+            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'custom_production_requests' 
+            AND COLUMN_NAME = 'userId' 
+            AND REFERENCED_TABLE_NAME IS NOT NULL
+          `);
+          for (const fk of fks) {
+            try {
+              await poolWrapper.execute(`
+                ALTER TABLE custom_production_requests 
+                DROP FOREIGN KEY ${fk.CONSTRAINT_NAME}
+              `);
+            } catch (e2) {
+              // Constraint silinemezse devam et
+            }
+          }
+        }
+        // Foreign key'i yeniden ekle (ON DELETE SET NULL ile)
+        await poolWrapper.execute(`
+          ALTER TABLE custom_production_requests 
+          ADD CONSTRAINT custom_production_requests_userId_fk 
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
+        `);
+      }
+    } catch (e) {
+      // Migration hatası olursa devam et
+      console.warn('⚠️ Could not migrate userId column:', e.message);
+    }
+
+    // Create custom production request (userId null olabilir, çünkü form dolduran kullanıcı giriş yapmamış olabilir)
     const [requestResult] = await poolWrapper.execute(
       `INSERT INTO custom_production_requests 
        (tenantId, userId, requestNumber, status, totalQuantity, totalAmount, 
         customerName, customerEmail, customerPhone, companyName, notes, source) 
-       VALUES (?, NULL, ?, 'pending', ?, 0, ?, ?, ?, ?, ?, 'quote-form')`,
+       VALUES (?, ?, ?, 'pending', ?, 0, ?, ?, ?, ?, ?, 'quote-form')`,
       [
         tenantId,
+        userId,
         requestNumber,
         parseInt(quantity) || 0,
         name,
@@ -8467,6 +8553,403 @@ app.delete('/api/favorites/product/:productId', async (req, res) => {
   } catch (error) {
     console.error('❌ Error removing from favorites:', error);
     res.status(500).json({ success: false, message: 'Error removing from favorites' });
+  }
+});
+
+// ========== User Lists Endpoints ==========
+// Get user lists
+app.get('/api/lists/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const tenantId = req.tenant?.id || 1;
+
+    const [lists] = await poolWrapper.execute(`
+      SELECT 
+        ul.id,
+        ul.name,
+        ul.description,
+        ul.createdAt,
+        ul.updatedAt,
+        COUNT(uli.id) as itemCount
+      FROM user_lists ul
+      LEFT JOIN user_list_items uli ON ul.id = uli.listId AND uli.tenantId = ?
+      WHERE ul.userId = ? AND ul.tenantId = ?
+      GROUP BY ul.id
+      ORDER BY ul.createdAt DESC
+    `, [tenantId, userId, tenantId]);
+
+    res.json({ success: true, data: lists });
+  } catch (error) {
+    console.error('❌ Error getting user lists:', error);
+    res.status(500).json({ success: false, message: 'Error getting user lists' });
+  }
+});
+
+// Get list by ID with items
+app.get('/api/lists/:listId', async (req, res) => {
+  try {
+    const { listId } = req.params;
+    const { userId } = req.query;
+    const tenantId = req.tenant?.id || 1;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    // Get list info
+    const [lists] = await poolWrapper.execute(`
+      SELECT id, name, description, createdAt, updatedAt
+      FROM user_lists
+      WHERE id = ? AND userId = ? AND tenantId = ?
+    `, [listId, userId, tenantId]);
+
+    if (lists.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'List not found'
+      });
+    }
+
+    // Get list items with product info
+    const [items] = await poolWrapper.execute(`
+      SELECT 
+        uli.id,
+        uli.productId,
+        uli.quantity,
+        uli.notes,
+        uli.createdAt,
+        p.name as productName,
+        p.price as productPrice,
+        p.image as productImage,
+        p.stock as productStock
+      FROM user_list_items uli
+      JOIN products p ON uli.productId = p.id AND p.tenantId = ?
+      WHERE uli.listId = ? AND uli.tenantId = ?
+      ORDER BY uli.createdAt DESC
+    `, [tenantId, listId, tenantId]);
+
+    res.json({
+      success: true,
+      data: {
+        ...lists[0],
+        items: items
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting list:', error);
+    res.status(500).json({ success: false, message: 'Error getting list' });
+  }
+});
+
+// Create new list
+app.post('/api/lists', async (req, res) => {
+  try {
+    const { userId, name, description } = req.body;
+
+    if (!userId || !name) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and list name are required'
+      });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+
+    const [result] = await poolWrapper.execute(
+      'INSERT INTO user_lists (tenantId, userId, name, description) VALUES (?, ?, ?, ?)',
+      [tenantId, userId, name, description || null]
+    );
+
+    res.json({
+      success: true,
+      data: { id: result.insertId, name, description },
+      message: 'List created successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error creating list:', error);
+    res.status(500).json({ success: false, message: 'Error creating list' });
+  }
+});
+
+// Update list
+app.put('/api/lists/:listId', async (req, res) => {
+  try {
+    const { listId } = req.params;
+    const { userId, name, description } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+
+    // Verify ownership
+    const [lists] = await poolWrapper.execute(
+      'SELECT id FROM user_lists WHERE id = ? AND userId = ? AND tenantId = ?',
+      [listId, userId, tenantId]
+    );
+
+    if (lists.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'List not found or not owned by user'
+      });
+    }
+
+    // Update list
+    const updateFields = [];
+    const updateValues = [];
+
+    if (name !== undefined) {
+      updateFields.push('name = ?');
+      updateValues.push(name);
+    }
+    if (description !== undefined) {
+      updateFields.push('description = ?');
+      updateValues.push(description);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No fields to update'
+      });
+    }
+
+    updateValues.push(listId, userId, tenantId);
+    await poolWrapper.execute(
+      `UPDATE user_lists SET ${updateFields.join(', ')} WHERE id = ? AND userId = ? AND tenantId = ?`,
+      updateValues
+    );
+
+    res.json({ success: true, message: 'List updated successfully' });
+  } catch (error) {
+    console.error('❌ Error updating list:', error);
+    res.status(500).json({ success: false, message: 'Error updating list' });
+  }
+});
+
+// Delete list
+app.delete('/api/lists/:listId', async (req, res) => {
+  try {
+    const { listId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+
+    // Verify ownership
+    const [lists] = await poolWrapper.execute(
+      'SELECT id FROM user_lists WHERE id = ? AND userId = ? AND tenantId = ?',
+      [listId, userId, tenantId]
+    );
+
+    if (lists.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'List not found or not owned by user'
+      });
+    }
+
+    // Delete list (items will be deleted automatically due to CASCADE)
+    await poolWrapper.execute(
+      'DELETE FROM user_lists WHERE id = ? AND userId = ? AND tenantId = ?',
+      [listId, userId, tenantId]
+    );
+
+    res.json({ success: true, message: 'List deleted successfully' });
+  } catch (error) {
+    console.error('❌ Error deleting list:', error);
+    res.status(500).json({ success: false, message: 'Error deleting list' });
+  }
+});
+
+// Add product to list
+app.post('/api/lists/:listId/items', async (req, res) => {
+  try {
+    const { listId } = req.params;
+    const { userId, productId, quantity, notes } = req.body;
+
+    if (!userId || !productId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and product ID are required'
+      });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+
+    // Verify list ownership
+    const [lists] = await poolWrapper.execute(
+      'SELECT id FROM user_lists WHERE id = ? AND userId = ? AND tenantId = ?',
+      [listId, userId, tenantId]
+    );
+
+    if (lists.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'List not found or not owned by user'
+      });
+    }
+
+    // Check if product exists
+    const [products] = await poolWrapper.execute(
+      'SELECT id FROM products WHERE id = ? AND tenantId = ?',
+      [productId, tenantId]
+    );
+
+    if (products.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Check if product already in list
+    const [existing] = await poolWrapper.execute(
+      'SELECT id FROM user_list_items WHERE listId = ? AND productId = ? AND tenantId = ?',
+      [listId, productId, tenantId]
+    );
+
+    if (existing.length > 0) {
+      // Update quantity if already exists
+      await poolWrapper.execute(
+        'UPDATE user_list_items SET quantity = quantity + ?, notes = COALESCE(?, notes) WHERE id = ?',
+        [quantity || 1, notes || null, existing[0].id]
+      );
+      return res.json({
+        success: true,
+        message: 'Product quantity updated in list'
+      });
+    }
+
+    // Add to list
+    const [result] = await poolWrapper.execute(
+      'INSERT INTO user_list_items (tenantId, listId, productId, quantity, notes) VALUES (?, ?, ?, ?, ?)',
+      [tenantId, listId, productId, quantity || 1, notes || null]
+    );
+
+    res.json({
+      success: true,
+      data: { id: result.insertId },
+      message: 'Product added to list'
+    });
+  } catch (error) {
+    console.error('❌ Error adding product to list:', error);
+    res.status(500).json({ success: false, message: 'Error adding product to list' });
+  }
+});
+
+// Remove product from list
+app.delete('/api/lists/:listId/items/:itemId', async (req, res) => {
+  try {
+    const { listId, itemId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+
+    // Verify list ownership
+    const [lists] = await poolWrapper.execute(
+      'SELECT id FROM user_lists WHERE id = ? AND userId = ? AND tenantId = ?',
+      [listId, userId, tenantId]
+    );
+
+    if (lists.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'List not found or not owned by user'
+      });
+    }
+
+    // Delete item
+    await poolWrapper.execute(
+      'DELETE FROM user_list_items WHERE id = ? AND listId = ? AND tenantId = ?',
+      [itemId, listId, tenantId]
+    );
+
+    res.json({ success: true, message: 'Product removed from list' });
+  } catch (error) {
+    console.error('❌ Error removing product from list:', error);
+    res.status(500).json({ success: false, message: 'Error removing product from list' });
+  }
+});
+
+// Update list item quantity
+app.put('/api/lists/:listId/items/:itemId', async (req, res) => {
+  try {
+    const { listId, itemId } = req.params;
+    const { userId, quantity, notes } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    const tenantId = req.tenant?.id || 1;
+
+    // Verify list ownership
+    const [lists] = await poolWrapper.execute(
+      'SELECT id FROM user_lists WHERE id = ? AND userId = ? AND tenantId = ?',
+      [listId, userId, tenantId]
+    );
+
+    if (lists.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'List not found or not owned by user'
+      });
+    }
+
+    const updateFields = [];
+    const updateValues = [];
+
+    if (quantity !== undefined) {
+      updateFields.push('quantity = ?');
+      updateValues.push(quantity);
+    }
+    if (notes !== undefined) {
+      updateFields.push('notes = ?');
+      updateValues.push(notes);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No fields to update'
+      });
+    }
+
+    updateValues.push(itemId, listId, tenantId);
+    await poolWrapper.execute(
+      `UPDATE user_list_items SET ${updateFields.join(', ')} WHERE id = ? AND listId = ? AND tenantId = ?`,
+      updateValues
+    );
+
+    res.json({ success: true, message: 'List item updated successfully' });
+  } catch (error) {
+    console.error('❌ Error updating list item:', error);
+    res.status(500).json({ success: false, message: 'Error updating list item' });
   }
 });
 

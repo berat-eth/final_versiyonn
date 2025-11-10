@@ -379,6 +379,49 @@ export const productsApi = {
   },
 };
 
+// Lists API methods
+export const listsApi = {
+  getUserLists: async (userId: number): Promise<ApiResponse<any[]>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.get<ApiResponse<any[]>>(`/lists/user/${userId}`, { requiresAuth: true });
+  },
+
+  getListById: async (listId: number, userId: number): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.get<ApiResponse<any>>(`/lists/${listId}`, { params: { userId }, requiresAuth: true });
+  },
+
+  createList: async (userId: number, name: string, description?: string): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.post<ApiResponse<any>>('/lists', { userId, name, description }, { requiresAuth: true });
+  },
+
+  updateList: async (listId: number, userId: number, name?: string, description?: string): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.put<ApiResponse<any>>(`/lists/${listId}`, { userId, name, description }, { requiresAuth: true });
+  },
+
+  deleteList: async (listId: number, userId: number): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.delete<ApiResponse<any>>(`/lists/${listId}`, { params: { userId }, requiresAuth: true });
+  },
+
+  addProductToList: async (listId: number, userId: number, productId: number, quantity?: number, notes?: string): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.post<ApiResponse<any>>(`/lists/${listId}/items`, { userId, productId, quantity, notes }, { requiresAuth: true });
+  },
+
+  removeProductFromList: async (listId: number, itemId: number, userId: number): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.delete<ApiResponse<any>>(`/lists/${listId}/items/${itemId}`, { params: { userId }, requiresAuth: true });
+  },
+
+  updateListItem: async (listId: number, itemId: number, userId: number, quantity?: number, notes?: string): Promise<ApiResponse<any>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.put<ApiResponse<any>>(`/lists/${listId}/items/${itemId}`, { userId, quantity, notes }, { requiresAuth: true });
+  },
+};
+
 // Export default client instance
 export const apiClient = new ApiClient(API_BASE_URL);
 export default apiClient;

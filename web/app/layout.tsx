@@ -114,8 +114,8 @@ export default function RootLayout({
               openingHoursSpecification: {
                 '@type': 'OpeningHoursSpecification',
                 dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-                opens: '09:00',
-                closes: '18:00'
+                opens: '07:30',
+                closes: '17:30'
               },
               sameAs: [
                 'https://www.facebook.com/hugluoutdoor',
