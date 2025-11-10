@@ -336,7 +336,7 @@ class MLService {
    */
   async getStatistics(tenantId = 1, timeRange = '7d') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
 
       const [
         totalPredictions,
@@ -345,11 +345,11 @@ class MLService {
         avgPredictionProbability,
         topAnomalyTypes
       ] = await Promise.all([
-        this.getTotalPredictions(tenantId, dateFilter),
-        this.getTotalRecommendations(tenantId, dateFilter),
-        this.getTotalAnomalies(tenantId, dateFilter),
-        this.getAvgPredictionProbability(tenantId, dateFilter),
-        this.getTopAnomalyTypes(tenantId, dateFilter)
+        this.getTotalPredictions(tenantId, dateValue),
+        this.getTotalRecommendations(tenantId, dateValue),
+        this.getTotalAnomalies(tenantId, dateValue),
+        this.getAvgPredictionProbability(tenantId, dateValue),
+        this.getTopAnomalyTypes(tenantId, dateValue)
       ]);
 
       return {
@@ -388,56 +388,57 @@ class MLService {
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    return `>= '${startDate.toISOString().slice(0, 19).replace('T', ' ')}'`;
+    // SQL Injection koruması: Artık sadece date value döndürüyoruz
+    return startDate.toISOString().slice(0, 19).replace('T', ' ');
   }
 
-  async getTotalPredictions(tenantId, dateFilter) {
+  async getTotalPredictions(tenantId, dateValue) {
     const [rows] = await poolWrapper.execute(`
       SELECT COUNT(*) as count
       FROM ml_predictions
-      WHERE tenantId = ? AND createdAt ${dateFilter}
-    `, [tenantId]);
+      WHERE tenantId = ? AND createdAt >= ?
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getTotalRecommendations(tenantId, dateFilter) {
+  async getTotalRecommendations(tenantId, dateValue) {
     const [rows] = await poolWrapper.execute(`
       SELECT COUNT(*) as count
       FROM ml_recommendations
-      WHERE tenantId = ? AND updatedAt ${dateFilter}
-    `, [tenantId]);
+      WHERE tenantId = ? AND updatedAt >= ?
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getTotalAnomalies(tenantId, dateFilter) {
+  async getTotalAnomalies(tenantId, dateValue) {
     const [rows] = await poolWrapper.execute(`
       SELECT COUNT(*) as count
       FROM ml_anomalies
-      WHERE tenantId = ? AND createdAt ${dateFilter}
-    `, [tenantId]);
+      WHERE tenantId = ? AND createdAt >= ?
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getAvgPredictionProbability(tenantId, dateFilter) {
+  async getAvgPredictionProbability(tenantId, dateValue) {
     const [rows] = await poolWrapper.execute(`
       SELECT AVG(probability) as avg
       FROM ml_predictions
-      WHERE tenantId = ? AND createdAt ${dateFilter}
-    `, [tenantId]);
+      WHERE tenantId = ? AND createdAt >= ?
+    `, [tenantId, dateValue]);
     return parseFloat(rows[0]?.avg || 0);
   }
 
-  async getTopAnomalyTypes(tenantId, dateFilter, limit = 5) {
+  async getTopAnomalyTypes(tenantId, dateValue, limit = 5) {
     const [rows] = await poolWrapper.execute(`
       SELECT 
         anomalyType,
         COUNT(*) as count
       FROM ml_anomalies
-      WHERE tenantId = ? AND createdAt ${dateFilter}
+      WHERE tenantId = ? AND createdAt >= ?
       GROUP BY anomalyType
       ORDER BY count DESC
       LIMIT ?
-    `, [tenantId, limit]);
+    `, [tenantId, dateValue, limit]);
     return rows;
   }
 }

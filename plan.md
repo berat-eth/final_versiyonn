@@ -1,1 +1,0 @@
-arka planda bu verileri işlecek Bir ML Destekli bir sistem oluştursana python kullanabilirsin

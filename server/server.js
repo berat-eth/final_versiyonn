@@ -33,6 +33,11 @@ const compression = require('compression');
 const DatabaseSecurity = require('./security/database-security');
 const InputValidation = require('./security/input-validation');
 const AdvancedSecurity = require('./security/advanced-security');
+const csrfProtection = require('./security/csrf-protection');
+const { requireUserOwnership, validateUserIdMatch, enforceTenantIsolation } = require('./middleware/authorization');
+const { createSafeErrorResponse, logError, handleDatabaseError } = require('./utils/error-handler');
+const { isPathInside, createSafePath, sanitizeFileName } = require('./utils/path-security');
+const { xssProtectionMiddleware } = require('./middleware/xss-protection');
 
 // Ollama integration
 const axios = require('axios');
@@ -82,19 +87,20 @@ async function runFtpBackupNow() {
       'tenants', 'users', 'categories', 'products', 'product_variations', 'product_variation_options', 'orders', 'order_items', 'cart', 'user_wallets', 'wallet_transactions', 'wallet_recharge_requests', 'custom_production_requests', 'custom_production_items', 'reviews', 'security_events', 'chatbot_analytics', 'referral_earnings', 'recommendations', 'customer_segments', 'customer_segment_assignments', 'campaigns', 'campaign_usage', 'customer_analytics', 'discount_wheel_spins'
     ];
     const data = {};
-    const isSafeIdent = (s) => typeof s === 'string' && /^[A-Za-z0-9_]+$/.test(s);
-    const qi = (s) => {
-      if (!isSafeIdent(s)) throw new Error('Invalid identifier');
-      return '`' + s + '`';
-    };
+    // SQL Injection koruması: Table name whitelist kontrolü
     for (const t of tables) {
       try {
         let rows;
         if (t === 'tenants') {
           [rows] = await poolWrapper.execute('SELECT * FROM tenants WHERE id = ?', [tenantId]);
         } else {
-          try { [rows] = await poolWrapper.execute(`SELECT * FROM ${qi(t)} WHERE tenantId = ?`, [tenantId]); }
-          catch { [rows] = await poolWrapper.execute(`SELECT * FROM ${qi(t)}`); }
+          // Güvenli table identifier kullan
+          const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
+          try { 
+            [rows] = await poolWrapper.execute(`SELECT * FROM ${safeTableName} WHERE tenantId = ?`, [tenantId]); 
+          } catch { 
+            [rows] = await poolWrapper.execute(`SELECT * FROM ${safeTableName}`); 
+          }
         }
         data[t] = rows;
       } catch { data[t] = []; }
@@ -232,19 +238,44 @@ function getLocalIPAddress() {
 }
 
 // Middleware - Güvenlik başlıkları
+// CSP güçlendirildi - unsafe-inline ve unsafe-eval kaldırıldı
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://api.plaxsy.com", "https://admin.plaxsy.com", "https://plaxsy.com", "https://www.plaxsy.com"],
-      fontSrc: ["'self'", "data:"],
+      // unsafe-inline kaldırıldı - XSS koruması için
+      // Style'lar için nonce veya hash kullanılmalı
+      styleSrc: ["'self'", "https://fonts.googleapis.com"],
+      // unsafe-inline ve unsafe-eval kaldırıldı
+      // Script'ler için nonce veya hash kullanılmalı
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "https:", "data:"],
+      connectSrc: ["'self'", "https://api.plaxsy.com", "https://admin.plaxsy.com", "https://plaxsy.com", "https://www.plaxsy.com", "https://api.zerodaysoftware.tr"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
+      // XSS koruması için
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      // Report violations (opsiyonel)
+      reportUri: process.env.CSP_REPORT_URI || undefined
     },
+    // Development'ta daha esnek CSP (geliştirme kolaylığı için)
+    ...(process.env.NODE_ENV === 'development' ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Dev için geçici
+        imgSrc: ["'self'", "https:", "data:"],
+        connectSrc: ["'self'", "https:", "http://localhost:*"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"]
+      }
+    } : {})
   },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -287,47 +318,51 @@ app.use(compression({
   }
 }));
 
-// CORS - Tüm origin'lere izin ver (web sitesi, mobil uygulama ve admin panel için)
+// CORS - CSRF ve yetkisiz erişim koruması ile güvenli hale getirildi
 app.use(cors({
   origin: function (origin, callback) {
-    // Origin yoksa (mobil uygulama, Postman vb.) izin ver
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // İzin verilen origin'ler
-    const allowedOrigins = [
-      'https://admin.plaxsy.com',
-      'https://www.plaxsy.com',
-      'https://plaxsy.com',
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001'
-    ];
-    
-    // Origin izin verilen listede mi kontrol et
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      // Geliştirme ortamında tüm origin'lere izin ver
-      if (process.env.NODE_ENV !== 'production') {
+    // Production'da sadece whitelist'teki origin'lere izin ver
+    if (process.env.NODE_ENV === 'production') {
+      // İzin verilen origin'ler
+      const allowedOrigins = [
+        'https://admin.plaxsy.com',
+        'https://www.plaxsy.com',
+        'https://plaxsy.com',
+        'https://api.plaxsy.com',
+        'https://api.zerodaysoftware.tr'
+      ];
+      
+      // Origin yoksa (mobil uygulama için özel durum)
+      if (!origin) {
+        // Mobil uygulama için origin yok, ama API key ile korunuyor
+        return callback(null, true);
+      }
+      
+      // Origin izin verilen listede mi kontrol et
+      if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        callback(null, true); // Geçici olarak tüm origin'lere izin ver
+        // Production'da sadece whitelist
+        callback(new Error('Not allowed by CORS'));
       }
+    } else {
+      // Development ortamında tüm origin'lere izin ver
+      callback(null, true);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id', 'x-tenant-id', 'Accept', 'Origin', 'X-Requested-With'],
-  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id', 'x-tenant-id', 'X-CSRF-Token', 'csrf-token', 'Accept', 'Origin', 'X-Requested-With'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'X-CSRF-Token'],
   preflightContinue: false,
   optionsSuccessStatus: 200,
   maxAge: 86400 // 24 saat preflight cache
 }));
 
 app.use(express.json());
+
+// XSS Protection Middleware - Response'larda otomatik sanitization
+app.use(xssProtectionMiddleware);
 
 // ========== Google Auth (ID token doğrulama) ==========
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -561,6 +596,22 @@ app.use('/api', tenantCache);
 
 // Advanced Security Middleware - Saldırı tespiti ve IP reputation kontrolü
 app.use('/api', advancedSecurity.createSecurityMiddleware());
+
+// CSRF Protection - State-changing operations için
+app.use('/api', csrfProtection.createCSRFMiddleware({
+  skipMethods: ['GET', 'HEAD', 'OPTIONS'],
+  skipPaths: [
+    '/api/health',
+    '/api/admin/login',
+    '/api/users/login',
+    '/api/users', // Registration
+    '/api/auth/google/verify'
+  ],
+  requireToken: process.env.NODE_ENV === 'production' // Production'da zorunlu
+}));
+
+// Tenant Isolation - Tüm API istekleri için
+app.use('/api', enforceTenantIsolation());
 
 // Global API Key Authentication for all API routes (except health and admin login)
 app.use('/api', (req, res, next) => {
@@ -1593,7 +1644,10 @@ app.get('/api/user-addresses', async (req, res) => {
 });
 
 // Create new address
-app.post('/api/user-addresses', async (req, res) => {
+// CSRF token endpoint
+app.get('/api/csrf-token', csrfProtection.getTokenHandler.bind(csrfProtection));
+
+app.post('/api/user-addresses', validateUserIdMatch('body'), async (req, res) => {
   try {
     const { userId, addressType, fullName, phone, address, city, district, postalCode, isDefault } = req.body;
 
@@ -1636,7 +1690,7 @@ app.post('/api/user-addresses', async (req, res) => {
 });
 
 // Update address
-app.put('/api/user-addresses/:id', async (req, res) => {
+app.put('/api/user-addresses/:id', requireUserOwnership('address', 'params'), async (req, res) => {
   try {
     const { id } = req.params;
     const { addressType, fullName, phone, address, city, district, postalCode, isDefault } = req.body;
@@ -1677,7 +1731,7 @@ app.put('/api/user-addresses/:id', async (req, res) => {
 });
 
 // Delete address
-app.delete('/api/user-addresses/:id', async (req, res) => {
+app.delete('/api/user-addresses/:id', requireUserOwnership('address', 'params'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1732,7 +1786,7 @@ app.put('/api/user-addresses/:id/set-default', async (req, res) => {
 // Wallet Transfer Endpoints
 
 // Transfer money between users
-app.post('/api/wallet/transfer', async (req, res) => {
+app.post('/api/wallet/transfer', validateUserIdMatch('body'), async (req, res) => {
   try {
     // Tenant kontrolü
     if (!req.tenant || !req.tenant.id) {
@@ -1743,6 +1797,15 @@ app.post('/api/wallet/transfer', async (req, res) => {
     }
 
     let { fromUserId, toUserId, amount, description } = req.body || {};
+    
+    // CSRF ve yetkisiz erişim koruması: fromUserId kontrolü
+    // Kullanıcı sadece kendi cüzdanından transfer yapabilir
+    if (req.authenticatedUserId && fromUserId && parseInt(fromUserId) !== req.authenticatedUserId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only transfer from your own wallet'
+      });
+    }
 
     // Harici kimlik varsa iç id'ye çevir
     const tenantId = req.tenant.id;
@@ -1885,16 +1948,14 @@ app.post('/api/wallet/transfer', async (req, res) => {
       amount: req.body?.amount,
       tenantId: req.tenant?.id
     });
-    res.status(500).json({
-      success: false,
-      message: 'Error processing transfer',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
+    logError(error, 'WALLET_TRANSFER');
+    const errorResponse = createSafeErrorResponse(error, 'Error processing transfer');
+    res.status(500).json(errorResponse);
   }
 });
 
 // Create gift card
-app.post('/api/wallet/gift-card', async (req, res) => {
+app.post('/api/wallet/gift-card', validateUserIdMatch('body'), async (req, res) => {
   try {
     // Tenant kontrolü
     if (!req.tenant || !req.tenant.id) {
@@ -1905,6 +1966,15 @@ app.post('/api/wallet/gift-card', async (req, res) => {
     }
 
     const { amount, recipient, message, fromUserId, type } = req.body;
+    
+    // CSRF ve yetkisiz erişim koruması: fromUserId kontrolü
+    // Kullanıcı sadece kendi cüzdanından gift card oluşturabilir
+    if (req.authenticatedUserId && fromUserId && parseInt(fromUserId) !== req.authenticatedUserId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only create gift cards from your own wallet'
+      });
+    }
 
     if (!amount || !recipient || !fromUserId || amount <= 0) {
       return res.status(400).json({
@@ -1997,16 +2067,14 @@ app.post('/api/wallet/gift-card', async (req, res) => {
       fromUserId,
       tenantId: req.tenant?.id
     });
-    res.status(500).json({
-      success: false,
-      message: 'Error creating gift card',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
+    logError(error, 'GIFT_CARD_CREATE');
+    const errorResponse = createSafeErrorResponse(error, 'Error creating gift card');
+    res.status(500).json(errorResponse);
   }
 });
 
 // Use gift card
-app.post('/api/wallet/gift-card/use', async (req, res) => {
+app.post('/api/wallet/gift-card/use', validateUserIdMatch('body'), async (req, res) => {
   try {
     // Tenant kontrolü
     if (!req.tenant || !req.tenant.id) {
@@ -2113,11 +2181,9 @@ app.post('/api/wallet/gift-card/use', async (req, res) => {
       userId: req.body.userId,
       tenantId: req.tenant?.id
     });
-    res.status(500).json({
-      success: false,
-      message: 'Error using gift card',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
+    logError(error, 'GIFT_CARD_USE');
+    const errorResponse = createSafeErrorResponse(error, 'Error using gift card');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -2236,7 +2302,7 @@ app.get('/api/return-requests', async (req, res) => {
 });
 
 // Create new return request
-app.post('/api/return-requests', async (req, res) => {
+app.post('/api/return-requests', validateUserIdMatch('body'), async (req, res) => {
   try {
     const { userId, orderId, orderItemId, reason, description } = req.body;
 
@@ -2295,7 +2361,7 @@ app.post('/api/return-requests', async (req, res) => {
 });
 
 // Cancel return request (user can cancel pending requests)
-app.put('/api/return-requests/:id/cancel', async (req, res) => {
+app.put('/api/return-requests/:id/cancel', requireUserOwnership('return_request', 'params'), async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body;
@@ -3432,15 +3498,47 @@ app.get('/api/admin/security/login-attempts', authenticateAdmin, async (req, res
     const range = Math.max(1, Math.min(365, parseInt(req.query.range || '7')));
     const q = (req.query.q || '').toString().trim();
     const ip = (req.query.ip || '').toString().trim();
+    
+    // SQL Injection koruması: Parametreli WHERE clause
+    const conditions = [
+      ['detectedAt', '>=', `DATE_SUB(NOW(), INTERVAL ${range} DAY)`],
+      ['eventType', '=', 'BRUTE_FORCE']
+    ];
+    
+    if (q) {
+      // JSON_EXTRACT için özel işleme - parametreli sorgu
+      conditions.push(['username', 'LIKE', q]);
+      // JSON_EXTRACT için ayrı bir condition eklenemez, bu yüzden OR ile birleştiriyoruz
+    }
+    if (ip) {
+      conditions.push(['ip', 'LIKE', ip]);
+    }
+    
+    // Güvenli WHERE clause builder kullan
+    const whereParts = [];
     const params = [];
-    let where = 'WHERE detectedAt >= DATE_SUB(NOW(), INTERVAL ? DAY)';
+    
+    // Date filter için özel işleme
+    whereParts.push('detectedAt >= DATE_SUB(NOW(), INTERVAL ? DAY)');
     params.push(range);
-    if (q) { where += ' AND (username LIKE ? OR JSON_EXTRACT(details, "$.email") LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
-    if (ip) { where += ' AND ip LIKE ?'; params.push(`%${ip}%`); }
-    where += ' AND eventType = "BRUTE_FORCE"';
+    
+    whereParts.push('eventType = ?');
+    params.push('BRUTE_FORCE');
+    
+    if (q) {
+      whereParts.push('(username LIKE ? OR JSON_EXTRACT(details, "$.email") LIKE ?)');
+      params.push(`%${q}%`, `%${q}%`);
+    }
+    if (ip) {
+      whereParts.push('ip LIKE ?');
+      params.push(`%${ip}%`);
+    }
+    
+    const whereClause = 'WHERE ' + whereParts.join(' AND ');
+    
     const [rows] = await poolWrapper.execute(
       `SELECT id, eventType, username, ip, userAgent, details, severity, detectedAt, resolved, resolvedAt 
-       FROM security_events ${where} ORDER BY detectedAt DESC LIMIT 500`,
+       FROM security_events ${whereClause} ORDER BY detectedAt DESC LIMIT 500`,
       params
     );
     const data = rows.map(r => ({
@@ -3606,13 +3704,15 @@ app.get('/api/admin/backup', authenticateAdmin, async (req, res) => {
         if (t === 'tenants') {
           [rows] = await poolWrapper.execute('SELECT * FROM tenants WHERE id = ?', [tenantId]);
         } else {
+          // SQL Injection koruması: Güvenli table identifier kullan
+          const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
           // Önce tenantId filtresiyle dene
           try {
-            [rows] = await poolWrapper.execute(`SELECT * FROM ${t} WHERE tenantId = ?`, [tenantId]);
+            [rows] = await poolWrapper.execute(`SELECT * FROM ${safeTableName} WHERE tenantId = ?`, [tenantId]);
           } catch (e1) {
             // tenantId kolonu yoksa tüm satırları al (bazı ilişkisel tablolar)
             try {
-              [rows] = await poolWrapper.execute(`SELECT * FROM ${t}`);
+              [rows] = await poolWrapper.execute(`SELECT * FROM ${safeTableName}`);
             } catch (e2) {
               console.warn('Backup table skip:', t, e2.message);
               rows = [];
@@ -3660,16 +3760,23 @@ app.post('/api/admin/restore', authenticateAdmin, async (req, res) => {
       'tenants'
     ];
 
-    // Truncate then insert
+    // Truncate then insert - SQL Injection koruması
     for (const t of tableOrder) {
-      try { await conn.execute(`DELETE FROM ${t}`); } catch (_) { }
+      try { 
+        const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
+        await conn.execute(`DELETE FROM ${safeTableName}`); 
+      } catch (_) { }
     }
     for (const t of Object.keys(data)) {
+      // Table name whitelist kontrolü
+      const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
       const rows = Array.isArray(data[t]) ? data[t] : [];
       if (rows.length === 0) continue;
       const cols = Object.keys(rows[0]);
+      // Column name'leri güvenli hale getir
+      const safeCols = cols.map(c => DatabaseSecurity.safeColumnIdentifier(c));
       const placeholders = '(' + cols.map(() => '?').join(',') + ')';
-      const sql = `INSERT INTO ${t} (${cols.join(',')}) VALUES ${rows.map(() => placeholders).join(',')}`;
+      const sql = `INSERT INTO ${safeTableName} (${safeCols.join(',')}) VALUES ${rows.map(() => placeholders).join(',')}`;
       const values = [];
       rows.forEach(r => cols.forEach(c => values.push(r[c])));
       try { await conn.execute(sql, values); } catch (e) { console.warn('Restore insert warn', t, e.message); }
@@ -4189,7 +4296,7 @@ app.put('/api/notifications/:id/read', async (req, res) => {
 });
 
 // Mark all notifications as read
-app.put('/api/notifications/read-all', async (req, res) => {
+app.put('/api/notifications/read-all', validateUserIdMatch('body'), async (req, res) => {
   try {
     const userId = req.user?.id || req.body.userId;
     
@@ -4494,33 +4601,23 @@ app.get('/api/admin/sql/tables', authenticateAdmin, async (req, res) => {
 // =========================
 const SAFE_BASE_DIR = process.env.FILE_MANAGER_BASE || path.resolve(__dirname, '..');
 
-function isPathInside(base, target) {
-  const rel = path.relative(base, target);
-  // Root path için özel kontrol
-  if (rel === '') return true;
-  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
-}
+// isPathInside fonksiyonu artık utils/path-security.js'den import ediliyor
+// Eski implementasyon güvenlik açıkları içeriyordu
 
 app.get('/api/admin/files', authenticateAdmin, async (req, res) => {
   try {
     let relPath = String(req.query.path || '/');
 
-    // Path normalization ve güvenlik kontrolleri
-    if (relPath.includes('..') || relPath.includes('//')) {
-      return res.status(400).json({ success: false, message: 'Invalid path' });
-    }
-
-    // Root path için özel kontrol
-    if (relPath === '/' || relPath === '') {
-      relPath = '/';
-    }
-
-    // Root path için direkt base directory kullan
-    const targetPath = relPath === '/' ? SAFE_BASE_DIR : path.resolve(SAFE_BASE_DIR, '.' + relPath);
-
-    // Path güvenlik kontrolü
-    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
-      console.log('Path security check failed:', { SAFE_BASE_DIR, targetPath, relPath });
+    // Güvenli path oluştur (path traversal koruması ile)
+    let targetPath;
+    try {
+      if (relPath === '/' || relPath === '') {
+        targetPath = SAFE_BASE_DIR;
+      } else {
+        targetPath = createSafePath(relPath, SAFE_BASE_DIR);
+      }
+    } catch (pathError) {
+      logError(pathError, 'FILE_MANAGER_PATH');
       return res.status(400).json({ success: false, message: 'Invalid path' });
     }
 
@@ -4556,16 +4653,15 @@ app.delete('/api/admin/files', authenticateAdmin, async (req, res) => {
   try {
     let relPath = String(req.query.path || '');
 
-    // Path normalization ve güvenlik kontrolleri
-    if (relPath.includes('..') || relPath.includes('//')) {
-      return res.status(400).json({ success: false, message: 'Invalid path' });
-    }
-
-    // Root path için direkt base directory kullan
-    const targetPath = relPath === '/' ? SAFE_BASE_DIR : path.resolve(SAFE_BASE_DIR, '.' + relPath);
-
-    // Path güvenlik kontrolü
-    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+    // Güvenli path oluştur (path traversal koruması ile)
+    let targetPath;
+    try {
+      if (relPath === '/' || relPath === '') {
+        return res.status(400).json({ success: false, message: 'Cannot delete root directory' });
+      }
+      targetPath = createSafePath(relPath, SAFE_BASE_DIR);
+    } catch (pathError) {
+      logError(pathError, 'FILE_DELETE_PATH');
       return res.status(400).json({ success: false, message: 'Invalid path' });
     }
 
@@ -4581,8 +4677,9 @@ app.delete('/api/admin/files', authenticateAdmin, async (req, res) => {
     }
     res.json({ success: true });
   } catch (error) {
-    console.error('❌ file delete', error);
-    res.status(500).json({ success: false, message: 'Error deleting file' });
+    logError(error, 'FILE_DELETE');
+    const errorResponse = createSafeErrorResponse(error, 'Error deleting file');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -4591,16 +4688,15 @@ app.get('/api/admin/files/download', authenticateAdmin, async (req, res) => {
   try {
     let relPath = String(req.query.path || '');
 
-    // Path normalization ve güvenlik kontrolleri
-    if (relPath.includes('..') || relPath.includes('//')) {
-      return res.status(400).json({ success: false, message: 'Invalid path' });
-    }
-
-    // Root path için direkt base directory kullan
-    const targetPath = relPath === '/' ? SAFE_BASE_DIR : path.resolve(SAFE_BASE_DIR, '.' + relPath);
-
-    // Path güvenlik kontrolü
-    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+    // Güvenli path oluştur (path traversal koruması ile)
+    let targetPath;
+    try {
+      if (relPath === '/' || relPath === '') {
+        return res.status(400).json({ success: false, message: 'Cannot download directory' });
+      }
+      targetPath = createSafePath(relPath, SAFE_BASE_DIR);
+    } catch (pathError) {
+      logError(pathError, 'FILE_DOWNLOAD_PATH');
       return res.status(400).json({ success: false, message: 'Invalid path' });
     }
 
@@ -4610,8 +4706,9 @@ app.get('/api/admin/files/download', authenticateAdmin, async (req, res) => {
 
     return res.download(targetPath);
   } catch (error) {
-    console.error('❌ file download', error);
-    res.status(500).json({ success: false, message: 'Error downloading file' });
+    logError(error, 'FILE_DOWNLOAD');
+    const errorResponse = createSafeErrorResponse(error, 'Error downloading file');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -4624,15 +4721,15 @@ app.get('/api/admin/files/content', authenticateAdmin, async (req, res) => {
   try {
     let relPath = String(req.query.path || '');
 
-    // Path normalization ve güvenlik kontrolleri
-    if (relPath.includes('..') || relPath.includes('//')) {
-      return res.status(400).json({ success: false, message: 'Invalid path' });
-    }
-
-    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
-
-    // Path güvenlik kontrolü
-    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+    // Güvenli path oluştur (path traversal koruması ile)
+    let targetPath;
+    try {
+      if (relPath === '/' || relPath === '') {
+        return res.status(400).json({ success: false, message: 'Cannot read directory' });
+      }
+      targetPath = createSafePath(relPath, SAFE_BASE_DIR);
+    } catch (pathError) {
+      logError(pathError, 'FILE_CONTENT_READ_PATH');
       return res.status(400).json({ success: false, message: 'Invalid path' });
     }
 
@@ -4653,8 +4750,9 @@ app.get('/api/admin/files/content', authenticateAdmin, async (req, res) => {
     const content = fs.readFileSync(targetPath, 'utf8');
     res.json({ success: true, data: { content } });
   } catch (error) {
-    console.error('❌ file content read', error);
-    res.status(500).json({ success: false, message: 'Error reading file content' });
+    logError(error, 'FILE_CONTENT_READ');
+    const errorResponse = createSafeErrorResponse(error, 'Error reading file content');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -4669,15 +4767,15 @@ app.post('/api/admin/files/save-content', authenticateAdmin, async (req, res) =>
 
     let relPath = String(filePath);
 
-    // Path normalization ve güvenlik kontrolleri
-    if (relPath.includes('..') || relPath.includes('//')) {
-      return res.status(400).json({ success: false, message: 'Invalid path' });
-    }
-
-    const targetPath = path.resolve(SAFE_BASE_DIR, '.' + relPath);
-
-    // Path güvenlik kontrolü
-    if (!isPathInside(SAFE_BASE_DIR, targetPath)) {
+    // Güvenli path oluştur (path traversal koruması ile)
+    let targetPath;
+    try {
+      if (relPath === '/' || relPath === '') {
+        return res.status(400).json({ success: false, message: 'Cannot save to root directory' });
+      }
+      targetPath = createSafePath(relPath, SAFE_BASE_DIR);
+    } catch (pathError) {
+      logError(pathError, 'FILE_CONTENT_SAVE_PATH');
       return res.status(400).json({ success: false, message: 'Invalid path' });
     }
 
@@ -4686,8 +4784,9 @@ app.post('/api/admin/files/save-content', authenticateAdmin, async (req, res) =>
 
     res.json({ success: true, message: 'File saved successfully' });
   } catch (error) {
-    console.error('❌ file content save', error);
-    res.status(500).json({ success: false, message: 'Error saving file content' });
+    logError(error, 'FILE_CONTENT_SAVE');
+    const errorResponse = createSafeErrorResponse(error, 'Error saving file content');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -4700,9 +4799,14 @@ app.post('/api/admin/files/save', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Dosya adı ve içerik gerekli' });
     }
 
-    // Güvenli dosya yolu oluştur
-    const safeFileName = path.basename(fileName); // Path traversal koruması
+    // Güvenli dosya adı oluştur
+    const safeFileName = sanitizeFileName(fileName);
     const filePath = path.join(SAFE_BASE_DIR, 'code-editor', safeFileName);
+    
+    // Path güvenlik kontrolü
+    if (!isPathInside(SAFE_BASE_DIR, filePath)) {
+      return res.status(400).json({ success: false, message: 'Invalid file path' });
+    }
 
     // Klasörü oluştur
     const dir = path.dirname(filePath);
@@ -4720,47 +4824,77 @@ app.post('/api/admin/files/save', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Kod çalıştırma
+// Kod çalıştırma - GÜVENLİK: Command injection riski nedeniyle devre dışı bırakıldı
+// Bu endpoint production'da güvenlik riski oluşturur
 app.post('/api/admin/code/run', authenticateAdmin, async (req, res) => {
   try {
+    // Production ortamında bu endpoint tamamen devre dışı
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Bu özellik güvenlik nedeniyle production ortamında devre dışı bırakılmıştır' 
+      });
+    }
+
+    // Development ortamında bile sadece JavaScript kod çalıştırmaya izin ver
+    // Shell/bash komutları command injection riski taşır
     const { code, language } = req.body;
 
     if (!code) {
       return res.status(400).json({ success: false, message: 'Kod gerekli' });
     }
 
-    let output = '';
-    let command = '';
-
-    // Dil bazlı komut belirleme
-    switch (language) {
-      case 'javascript':
-        command = `node -e "${code.replace(/"/g, '\\"')}"`;
-        break;
-      case 'python':
-        command = `python3 -c "${code.replace(/"/g, '\\"')}"`;
-        break;
-      case 'bash':
-      case 'shell':
-        command = code;
-        break;
-      default:
-        return res.status(400).json({ success: false, message: 'Desteklenmeyen dil' });
+    // Sadece JavaScript'e izin ver (Node.js VM ile güvenli çalıştırma)
+    if (language !== 'javascript') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Güvenlik nedeniyle sadece JavaScript kodu çalıştırılabilir. Shell/bash komutları yasaktır.' 
+      });
     }
 
-    // Kod çalıştırma (güvenlik için sınırlı)
-    const { exec } = require('child_process');
-    exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
-      if (error) {
-        output = `Hata: ${error.message}`;
-      } else if (stderr) {
-        output = `Stderr: ${stderr}`;
-      } else {
-        output = stdout || 'Kod başarıyla çalıştırıldı';
-      }
+    // Güvenli kod çalıştırma - Node.js VM modülü kullan
+    const vm = require('vm');
+    const { createContext } = vm;
 
+    // Güvenli sandbox context
+    const sandbox = {
+      console: {
+        log: (...args) => {
+          // Console output'u topla
+          if (!sandbox._output) sandbox._output = [];
+          sandbox._output.push(args.map(a => String(a)).join(' '));
+        }
+      },
+      setTimeout: () => {},
+      setInterval: () => {},
+      setImmediate: () => {},
+      Buffer: Buffer,
+      require: () => {
+        throw new Error('require() is not allowed in sandbox');
+      },
+      process: {
+        exit: () => {
+          throw new Error('process.exit() is not allowed');
+        }
+      }
+    };
+
+    try {
+      const context = createContext(sandbox);
+      const script = new vm.Script(code);
+      
+      // Timeout ile çalıştır (5 saniye)
+      script.runInContext(context, { timeout: 5000 });
+      
+      const output = (sandbox._output || []).join('\n') || 'Kod başarıyla çalıştırıldı';
       res.json({ success: true, output });
-    });
+    } catch (error) {
+      res.json({ 
+        success: false, 
+        output: `Hata: ${error.message}`,
+        error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
 
   } catch (error) {
     console.error('❌ code run', error);
@@ -7940,6 +8074,7 @@ app.post('/api/users/login', async (req, res) => {
       if (isPasswordValid) {
         // Return user data (no decryption needed)
         // Company fields may not exist, so use optional chaining
+        // IMPORTANT: Password field is NEVER included in response
         const userData = {
           id: user.id,
           name: user.name,
@@ -7953,6 +8088,8 @@ app.post('/api/users/login', async (req, res) => {
           website: user.website || '',
           createdAt: user.createdAt
         };
+        // Explicitly remove password if somehow present
+        delete userData.password;
 
         console.log('✅ User data retrieved for login');
         console.log('📧 Email:', !!userData.email);
@@ -8128,9 +8265,15 @@ app.put('/api/users/:id', async (req, res) => {
         throw error;
       });
 
+    // IMPORTANT: Password field is NEVER included in response
+    const userData = updatedUser.length > 0 ? { ...updatedUser[0] } : null;
+    if (userData) {
+      delete userData.password;
+    }
+
     res.json({
       success: true,
-      data: updatedUser.length > 0 ? updatedUser[0] : null,
+      data: userData,
       message: 'User updated successfully'
     });
   } catch (error) {
@@ -8599,7 +8742,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-app.put('/api/orders/:id/status', async (req, res) => {
+app.put('/api/orders/:id/status', requireUserOwnership('order', 'params'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -8616,7 +8759,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-app.put('/api/orders/:id/cancel', async (req, res) => {
+app.put('/api/orders/:id/cancel', requireUserOwnership('order', 'params'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -10927,7 +11070,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/cart', async (req, res) => {
+  app.post('/api/cart', validateUserIdMatch('body'), async (req, res) => {
     try {
       const { userId, productId, quantity, variationString, selectedVariations, deviceId } = req.body;
       console.log(`🛒 Server: Adding to cart - User: ${userId}, Product: ${productId}, Quantity: ${quantity}`);
@@ -11054,7 +11197,7 @@ async function startServer() {
     }
   });
 
-  app.put('/api/cart/:cartItemId', async (req, res) => {
+  app.put('/api/cart/:cartItemId', requireUserOwnership('cart', 'params'), async (req, res) => {
     try {
       const { cartItemId } = req.params;
       const { quantity } = req.body;
@@ -11113,7 +11256,7 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/cart/:cartItemId', async (req, res) => {
+  app.delete('/api/cart/:cartItemId', requireUserOwnership('cart', 'params'), async (req, res) => {
     try {
       const { cartItemId } = req.params;
       const tenantId = req.tenant?.id || 1;
@@ -11357,7 +11500,7 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/cart/user/:userId', async (req, res) => {
+  app.delete('/api/cart/user/:userId', validateUserIdMatch('params'), async (req, res) => {
     try {
       const { userId } = req.params;
       const { deviceId } = req.query;
@@ -11385,7 +11528,7 @@ async function startServer() {
   });
 
   // User profile endpoints
-  app.put('/api/users/:userId/profile', async (req, res) => {
+  app.put('/api/users/:userId/profile', requireUserOwnership('user', 'params'), async (req, res) => {
     try {
       const { userId } = req.params;
       const { name, email, phone, address, companyName, taxOffice, taxNumber, tradeRegisterNumber, website } = req.body;
@@ -11489,7 +11632,7 @@ async function startServer() {
     }
   });
 
-  app.put('/api/users/:userId/password', async (req, res) => {
+  app.put('/api/users/:userId/password', requireUserOwnership('user', 'params'), async (req, res) => {
     try {
       const { userId } = req.params;
       const { currentPassword, newPassword } = req.body;
@@ -11619,7 +11762,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/wallet/:userId/add-money', async (req, res) => {
+  app.post('/api/wallet/:userId/add-money', requireUserOwnership('wallet', 'params'), async (req, res) => {
     try {
       const { userId } = req.params;
       const { amount, paymentMethod, description } = req.body;
@@ -14121,7 +14264,7 @@ async function startServer() {
   });
 
   // Cüzdan para yükleme isteği oluştur
-  app.post('/api/wallet/recharge-request', async (req, res) => {
+  app.post('/api/wallet/recharge-request', validateUserIdMatch('body'), async (req, res) => {
     try {
       const { userId, amount, paymentMethod, bankInfo } = req.body;
 

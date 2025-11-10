@@ -318,6 +318,129 @@ class DatabaseSecurity {
       }).length
     };
   }
+
+  /**
+   * SQL Injection Koruması - Table Name Whitelist
+   * Sadece whitelist'teki table name'lere izin verir
+   */
+  static getAllowedTables() {
+    return [
+      'tenants', 'users', 'user_addresses', 'products', 'product_variations', 
+      'product_variation_options', 'cart', 'orders', 'order_items', 'reviews',
+      'user_wallets', 'wallet_transactions', 'return_requests', 'payment_transactions',
+      'custom_production_messages', 'custom_production_requests', 'custom_production_items',
+      'customer_segments', 'campaigns', 'customer_segment_assignments', 'campaign_usage',
+      'customer_analytics', 'discount_wheel_spins', 'chatbot_analytics',
+      'wallet_recharge_requests', 'user_discount_codes', 'referral_earnings', 'user_events',
+      'user_profiles', 'categories', 'recommendations', 'gift_cards', 'security_events',
+      'segments', 'user_segments', 'segment_stats',
+      'warehouses', 'warehouse_locations', 'bins', 'inventory_items', 'inventory_movements',
+      'suppliers', 'purchase_orders', 'purchase_order_items',
+      'bill_of_materials', 'bom_items', 'workstations', 'production_orders',
+      'production_order_items', 'production_steps', 'material_issues', 'finished_goods_receipts',
+      'crm_leads', 'crm_contacts', 'crm_pipeline_stages', 'crm_deals', 'crm_activities',
+      'stories', 'sliders', 'popups',
+      'anonymous_devices', 'user_behavior_events', 'user_sessions', 'device_analytics_aggregates',
+      'ml_predictions', 'ml_recommendations', 'ml_anomalies', 'gmaps_jobs', 'gmaps_leads',
+      'chat_sessions', 'chat_messages'
+    ];
+  }
+
+  /**
+   * Güvenli table name identifier (backtick ile)
+   * Whitelist kontrolü yapar
+   */
+  static safeTableIdentifier(tableName) {
+    if (typeof tableName !== 'string') {
+      throw new Error('Table name must be a string');
+    }
+    
+    // Whitelist kontrolü
+    const allowedTables = this.getAllowedTables();
+    if (!allowedTables.includes(tableName)) {
+      throw new Error(`Table name "${tableName}" is not in whitelist`);
+    }
+    
+    // Alphanumeric ve underscore kontrolü (ekstra güvenlik)
+    if (!/^[A-Za-z0-9_]+$/.test(tableName)) {
+      throw new Error('Invalid table name format');
+    }
+    
+    return '`' + tableName + '`';
+  }
+
+  /**
+   * Güvenli column name identifier
+   */
+  static safeColumnIdentifier(columnName) {
+    if (typeof columnName !== 'string') {
+      throw new Error('Column name must be a string');
+    }
+    
+    // Alphanumeric ve underscore kontrolü
+    if (!/^[A-Za-z0-9_]+$/.test(columnName)) {
+      throw new Error('Invalid column name format');
+    }
+    
+    return '`' + columnName + '`';
+  }
+
+  /**
+   * Güvenli WHERE clause builder
+   * String concatenation yerine parametreli sorgu kullanır
+   */
+  static buildWhereClause(conditions) {
+    const clauses = [];
+    const params = [];
+    
+    for (const [field, operator, value] of conditions) {
+      const safeField = this.safeColumnIdentifier(field);
+      
+      if (operator === 'LIKE') {
+        clauses.push(`${safeField} LIKE ?`);
+        params.push(`%${value}%`);
+      } else if (operator === '=') {
+        clauses.push(`${safeField} = ?`);
+        params.push(value);
+      } else if (operator === '>=') {
+        clauses.push(`${safeField} >= ?`);
+        params.push(value);
+      } else if (operator === '<=') {
+        clauses.push(`${safeField} <= ?`);
+        params.push(value);
+      } else if (operator === '>') {
+        clauses.push(`${safeField} > ?`);
+        params.push(value);
+      } else if (operator === '<') {
+        clauses.push(`${safeField} < ?`);
+        params.push(value);
+      } else if (operator === 'IN') {
+        if (!Array.isArray(value)) {
+          throw new Error('IN operator requires an array');
+        }
+        const placeholders = value.map(() => '?').join(',');
+        clauses.push(`${safeField} IN (${placeholders})`);
+        params.push(...value);
+      } else if (operator === 'DATE_FILTER') {
+        // Date filter için özel işleme
+        if (typeof value === 'string' && value.startsWith('>=')) {
+          const dateValue = value.substring(2).trim().replace(/^['"]|['"]$/g, '');
+          clauses.push(`${safeField} >= ?`);
+          params.push(dateValue);
+        } else {
+          clauses.push(`${safeField} >= ?`);
+          params.push(value);
+        }
+      } else {
+        throw new Error(`Unsupported operator: ${operator}`);
+      }
+    }
+    
+    return {
+      clause: clauses.length > 0 ? 'WHERE ' + clauses.join(' AND ') : '',
+      params
+    };
+  }
 }
 
 module.exports = DatabaseSecurity;
