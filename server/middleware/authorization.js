@@ -234,6 +234,20 @@ function validateUserIdMatch(userIdSource = 'body') {
 function enforceTenantIsolation() {
   return async (req, res, next) => {
     try {
+      // Login ve registration endpoint'lerini skip et
+      const path = req.path || '';
+      const skipPaths = [
+        '/users/login',
+        '/users',
+        '/admin/login',
+        '/health',
+        '/auth/google/verify'
+      ];
+      
+      if (skipPaths.some(skipPath => path.startsWith(skipPath))) {
+        return next();
+      }
+      
       if (!req.tenant || !req.tenant.id) {
         return res.status(401).json({
           success: false,
