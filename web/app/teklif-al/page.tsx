@@ -23,6 +23,7 @@ function TeklifAlForm() {
     embroidery: false,
     printing: false,
     wholesale: false,
+    fabricProvidedByCustomer: false,
     embroideryDetails: '',
     printingDetails: '',
     sizeDistribution: ''
@@ -190,6 +191,7 @@ function TeklifAlForm() {
           embroidery: false,
           printing: false,
           wholesale: false,
+          fabricProvidedByCustomer: false,
           embroideryDetails: '',
           printingDetails: '',
           sizeDistribution: ''
@@ -482,6 +484,19 @@ function TeklifAlForm() {
                               <span className="font-semibold text-gray-900 dark:text-gray-100">Toptan</span>
                             </div>
                           </label>
+
+                          <label className="flex items-center gap-3 p-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-orange-500 dark:hover:border-orange-500 transition-all has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50 dark:has-[:checked]:bg-orange-900/20">
+                            <input
+                              type="checkbox"
+                              checked={formData.fabricProvidedByCustomer}
+                              onChange={(e) => setFormData({ ...formData, fabricProvidedByCustomer: e.target.checked })}
+                              className="w-5 h-5 text-orange-600 rounded focus:ring-2 focus:ring-orange-500"
+                            />
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-orange-600 dark:text-orange-400">checkroom</span>
+                              <span className="font-semibold text-gray-900 dark:text-gray-100">Kumaş benim tarafımdan karşılanacak</span>
+                            </div>
+                          </label>
                         </div>
                       </div>
 
@@ -530,6 +545,21 @@ function TeklifAlForm() {
                               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Toptan Alım</p>
                               <p className="text-xs text-gray-600 dark:text-gray-400">
                                 Toptan alımlarınızda özel indirimlerden yararlanabilirsiniz. Detaylı bilgi için sizinle iletişime geçeceğiz.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Kumaş Bilgi Mesajı */}
+                      {formData.fabricProvidedByCustomer && (
+                        <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-200 dark:border-orange-800">
+                          <div className="flex items-start gap-3">
+                            <span className="material-symbols-outlined text-orange-600 dark:text-orange-400 text-2xl">info</span>
+                            <div className="flex flex-col gap-1">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Kumaş Temini</p>
+                              <p className="text-xs text-gray-600 dark:text-gray-400">
+                                Kumaşınızı kendiniz temin edecekseniz, lütfen kumaş özelliklerini (tip, renk, gramaj vb.) proje detayları bölümünde belirtiniz.
                               </p>
                             </div>
                           </div>

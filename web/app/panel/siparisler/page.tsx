@@ -1,16 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ordersApi, customProductionApi } from '@/utils/api'
 import type { Order } from '@/lib/types'
 import Image from 'next/image'
 
 export default function OrdersPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [customRequests, setCustomRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [reorderingOrderId, setReorderingOrderId] = useState<number | null>(null)
 
   useEffect(() => {
     if (user?.id) {
@@ -72,6 +75,75 @@ export default function OrdersPage() {
     return statusMap[status.toLowerCase()] || status
   }
 
+  const handleReorder = async (order: Order) => {
+    if (!order.items || order.items.length === 0) {
+      alert('Bu siparişte ürün bulunamadı')
+      return
+    }
+
+    setReorderingOrderId(order.id)
+    
+    try {
+      // Sipariş ürünlerini localStorage'a kaydet (sepet sayfasında kullanılacak)
+      const orderItems = order.items.map(item => ({
+        productId: (item as any).productId || (item as any).id,
+        quantity: item.quantity,
+        price: item.price,
+        productName: item.productName,
+        productImage: item.productImage
+      }))
+
+      // Sepet verisini localStorage'a kaydet
+      localStorage.setItem('reorderItems', JSON.stringify({
+        orderId: order.id,
+        items: orderItems,
+        createdAt: new Date().toISOString()
+      }))
+
+      // Sepet sayfasına yönlendir
+      router.push('/sepet?reorder=true')
+    } catch (error) {
+      console.error('Sipariş tekrarı hatası:', error)
+      alert('Sipariş tekrarı sırasında bir hata oluştu')
+    } finally {
+      setReorderingOrderId(null)
+    }
+  }
+
+  // Sık sipariş edilen ürünleri hesapla
+  const getFrequentlyOrderedProducts = () => {
+    const productCounts: Record<number, { count: number; lastOrdered: Date; product: any }> = {}
+    
+    orders.forEach(order => {
+      if (order.items) {
+        order.items.forEach((item: any) => {
+          const productId = (item as any).productId || (item as any).id
+          if (productId) {
+            if (!productCounts[productId]) {
+              productCounts[productId] = {
+                count: 0,
+                lastOrdered: new Date(order.createdAt),
+                product: item
+              }
+            }
+            productCounts[productId].count += item.quantity
+            const orderDate = new Date(order.createdAt)
+            if (orderDate > productCounts[productId].lastOrdered) {
+              productCounts[productId].lastOrdered = orderDate
+            }
+          }
+        })
+      }
+    })
+
+    // En çok sipariş edilen 5 ürünü döndür
+    return Object.values(productCounts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  }
+
+  const frequentlyOrdered = getFrequentlyOrderedProducts()
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -102,8 +174,78 @@ export default function OrdersPage() {
           </a>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Sık Sipariş Edilenler */}
+          {frequentlyOrdered.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-2xl text-blue-600 dark:text-blue-400">star</span>
+                Sık Sipariş Edilenler
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {frequentlyOrdered.map((item, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                    onClick={() => {
+                      const productId = (item.product as any).productId || (item.product as any).id
+                      if (productId) {
+                        router.push(`/panel/urunler/${productId}`)
+                      }
+                    }}
+                  >
+                    {item.product.productImage ? (
+                      <Image
+                        src={item.product.productImage}
+                        alt={item.product.productName || 'Ürün'}
+                        width={50}
+                        height={50}
+                        className="rounded-lg object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-600 rounded-lg flex items-center justify-center">
+                        <span className="material-symbols-outlined text-gray-400">image</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                        {item.product.productName || 'Ürün'}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {item.count} kez sipariş edildi
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const productId = (item.product as any).productId || (item.product as any).id
+                        if (productId) {
+                          localStorage.setItem('reorderItems', JSON.stringify({
+                            items: [{
+                              productId,
+                              quantity: 1,
+                              price: item.product.price,
+                              productName: item.product.productName,
+                              productImage: item.product.productImage
+                            }]
+                          }))
+                          router.push('/sepet?reorder=true')
+                        }
+                      }}
+                      className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      title="Sepete Ekle"
+                    >
+                      <span className="material-symbols-outlined text-base">add_shopping_cart</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Custom Production Requests */}
+          <div className="space-y-4">
           {customRequests.length > 0 && (
             <>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Özel Üretim Talepleri</h2>
@@ -264,6 +406,16 @@ export default function OrdersPage() {
                             Ödeme: {order.paymentMethod}
                           </p>
                         )}
+                        <button
+                          onClick={() => handleReorder(order)}
+                          disabled={reorderingOrderId === order.id}
+                          className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="material-symbols-outlined text-base">
+                            {reorderingOrderId === order.id ? 'sync' : 'refresh'}
+                          </span>
+                          {reorderingOrderId === order.id ? 'Ekleniyor...' : 'Siparişi Tekrarla'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -306,6 +458,7 @@ export default function OrdersPage() {
               ))}
             </>
           )}
+          </div>
         </div>
       )}
     </div>

@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
       embroidery: Boolean(body.embroidery),
       printing: Boolean(body.printing),
       wholesale: Boolean(body.wholesale),
+      fabricProvidedByCustomer: Boolean(body.fabricProvidedByCustomer),
       embroideryDetails: sanitizeInput(body.embroideryDetails || ''),
       printingDetails: sanitizeInput(body.printingDetails || ''),
       sizeDistribution: sanitizeInput(body.sizeDistribution || ''),

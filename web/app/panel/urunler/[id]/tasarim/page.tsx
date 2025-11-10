@@ -36,6 +36,11 @@ interface DesignElement {
   rotation?: number;
   zIndex?: number;
   shadow?: boolean;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  shadowColor?: string;
+  borderRadius?: number;
 }
 
 export default function DesignEditorPage() {
@@ -115,6 +120,7 @@ export default function DesignEditorPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [skipDesign, setSkipDesign] = useState(false)
+  const [fabricProvidedByCustomer, setFabricProvidedByCustomer] = useState(false)
   const [personalInfo, setPersonalInfo] = useState({
     name: '',
     email: '',
@@ -300,15 +306,36 @@ export default function DesignEditorPage() {
     saveToHistory(newElements)
   }
 
-  const handleAddShape = (shapeType: 'circle' | 'square' | 'line') => {
+  const handleAddShape = (shapeType: 'circle' | 'square' | 'line' | 'triangle' | 'star' | 'arrow' | 'ellipse') => {
+    // Şekil boyutlarını belirle
+    let width = 100
+    let height = 100
+    
+    if (shapeType === 'line') {
+      width = 100
+      height = 5
+    } else if (shapeType === 'arrow') {
+      width = 80
+      height = 80
+    } else if (shapeType === 'triangle') {
+      width = 100
+      height = 100
+    } else if (shapeType === 'star') {
+      width = 100
+      height = 100
+    } else if (shapeType === 'ellipse') {
+      width = 120
+      height = 80
+    }
+    
     const newElement: DesignElement = {
       id: `shape-${Date.now()}`,
       type: 'shape',
       content: shapeType,
-      x: canvasSize.width / 2 - 50,
-      y: canvasSize.height / 2 - 50,
-      width: shapeType === 'line' ? 100 : 100,
-      height: shapeType === 'line' ? 5 : 100,
+      x: canvasSize.width / 2 - width / 2,
+      y: canvasSize.height / 2 - height / 2,
+      width: width,
+      height: height,
       color: '#000000',
       backgroundColor: shapeType === 'line' ? '#000000' : '#FF0000',
       borderColor: '#000000',
@@ -564,14 +591,18 @@ export default function DesignEditorPage() {
         .filter(([_, qty]) => qty > 0)
         .map(([size, qty]) => ({ size, quantity: qty }))
 
-      // Customizations objesi
+      // Customizations objesi - productId'yi de ekle (fallback için)
       const customizations = skipDesign ? {
+        productId: productId, // Fallback için productId ekle
         sizes: sizeQuantities,
-        skipDesign: true
+        skipDesign: true,
+        fabricProvidedByCustomer: fabricProvidedByCustomer
       } : {
+        productId: productId, // Fallback için productId ekle
         design: designData,
         designImage: designImage,
-        sizes: sizeQuantities
+        sizes: sizeQuantities,
+        fabricProvidedByCustomer: fabricProvidedByCustomer
       }
 
       // Custom production request oluştur
@@ -586,7 +617,7 @@ export default function DesignEditorPage() {
         customerName: personalInfo.name || user?.name || '',
         customerEmail: personalInfo.email || user?.email || '',
         customerPhone: personalInfo.phone || user?.phone || '',
-        notes: `Tasarım Editöründen Oluşturuldu. Bedenler: ${sizeQuantities.map(s => `${s.size}: ${s.quantity}`).join(', ')}${personalInfo.address ? `\nAdres: ${personalInfo.address}` : ''}`
+        notes: `Tasarım Editöründen Oluşturuldu. Bedenler: ${sizeQuantities.map(s => `${s.size}: ${s.quantity}`).join(', ')}${fabricProvidedByCustomer ? '\nKumaş müşteri tarafından karşılanacak.' : ''}${personalInfo.address ? `\nAdres: ${personalInfo.address}` : ''}`
       })
 
       if (response.success) {
@@ -786,6 +817,11 @@ export default function DesignEditorPage() {
                       <option value="Courier New">Courier</option>
                       <option value="Georgia">Georgia</option>
                       <option value="Verdana">Verdana</option>
+                      <option value="Roboto">Roboto</option>
+                      <option value="Open Sans">Open Sans</option>
+                      <option value="Montserrat">Montserrat</option>
+                      <option value="Poppins">Poppins</option>
+                      <option value="Playfair Display">Playfair Display</option>
                     </select>
                     <button
                       onClick={() => setFontWeight(fontWeight === 'bold' ? 'normal' : 'bold')}
@@ -854,7 +890,7 @@ export default function DesignEditorPage() {
                     <span>Şekil</span>
                   </button>
                 ) : (
-                  <div className="flex items-center gap-1.5 p-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-1.5 p-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 flex-wrap">
                     <button
                       onClick={() => handleAddShape('circle')}
                       className="p-2 bg-white dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
@@ -868,6 +904,34 @@ export default function DesignEditorPage() {
                       title="Kare"
                     >
                       <span className="material-symbols-outlined text-base">square</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddShape('ellipse')}
+                      className="p-2 bg-white dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                      title="Elips"
+                    >
+                      <span className="material-symbols-outlined text-base">radio_button_unchecked</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddShape('triangle')}
+                      className="p-2 bg-white dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                      title="Üçgen"
+                    >
+                      <span className="material-symbols-outlined text-base">change_history</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddShape('star')}
+                      className="p-2 bg-white dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                      title="Yıldız"
+                    >
+                      <span className="material-symbols-outlined text-base">star</span>
+                    </button>
+                    <button
+                      onClick={() => handleAddShape('arrow')}
+                      className="p-2 bg-white dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                      title="Ok"
+                    >
+                      <span className="material-symbols-outlined text-base">arrow_forward</span>
                     </button>
                     <button
                       onClick={() => handleAddShape('line')}
@@ -1070,7 +1134,10 @@ export default function DesignEditorPage() {
                         transform: `rotate(${element.rotation || 0}deg)`,
                         zIndex: 10 + (element.zIndex || 0) + (selectedElement === element.id ? 100 : 0),
                         opacity: element.opacity || 1,
-                        pointerEvents: 'auto'
+                        pointerEvents: 'auto',
+                        filter: element.shadow 
+                          ? `drop-shadow(${element.shadowOffsetX || 2}px ${element.shadowOffsetY || 2}px ${element.shadowBlur || 5}px ${element.shadowColor || 'rgba(0,0,0,0.3)'})`
+                          : 'none'
                       }}
                     >
                       {element.type === 'logo' ? (
@@ -1099,15 +1166,68 @@ export default function DesignEditorPage() {
                         </div>
                       ) : element.type === 'shape' ? (
                         <div
-                          className="w-full h-full"
+                          className="w-full h-full relative"
                           style={{
-                            backgroundColor: element.backgroundColor || '#FF0000',
+                            backgroundColor: element.content === 'line' ? element.backgroundColor || '#000000' : 'transparent',
                             borderColor: element.borderColor || '#000000',
                             borderWidth: `${element.borderWidth || 2}px`,
                             borderStyle: 'solid',
-                            borderRadius: element.content === 'circle' ? '50%' : '0',
+                            borderRadius: element.content === 'circle' || element.content === 'ellipse' 
+                              ? '50%' 
+                              : element.borderRadius 
+                                ? `${element.borderRadius}px` 
+                                : '0',
                           }}
-                        />
+                        >
+                          {element.content === 'triangle' && (
+                            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              <polygon
+                                points="50,10 90,90 10,90"
+                                fill={element.backgroundColor || '#FF0000'}
+                                stroke={element.borderColor || '#000000'}
+                                strokeWidth={element.borderWidth || 2}
+                              />
+                            </svg>
+                          )}
+                          {element.content === 'star' && (
+                            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                              <polygon
+                                points="50,5 61,35 95,35 68,57 79,91 50,70 21,91 32,57 5,35 39,35"
+                                fill={element.backgroundColor || '#FF0000'}
+                                stroke={element.borderColor || '#000000'}
+                                strokeWidth={element.borderWidth || 2}
+                              />
+                            </svg>
+                          )}
+                          {element.content === 'arrow' && (
+                            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                              <path
+                                d="M 10 50 L 70 50 M 70 50 L 50 30 M 70 50 L 50 70"
+                                stroke={element.borderColor || '#000000'}
+                                strokeWidth={element.borderWidth || 2}
+                                fill="none"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          )}
+                          {element.content === 'line' && (
+                            <div className="w-full h-full bg-current" style={{ color: element.backgroundColor || '#000000' }} />
+                          )}
+                          {(element.content === 'circle' || element.content === 'square' || element.content === 'ellipse') && (
+                            <div 
+                              className="w-full h-full" 
+                              style={{ 
+                                backgroundColor: element.backgroundColor || '#FF0000',
+                                borderRadius: element.content === 'circle' || element.content === 'ellipse' 
+                                  ? '50%' 
+                                  : element.borderRadius 
+                                    ? `${element.borderRadius}px` 
+                                    : '0'
+                              }} 
+                            />
+                          )}
+                        </div>
                       ) : null}
                       
                       {/* Selection Indicator - Modern */}
@@ -1278,6 +1398,108 @@ export default function DesignEditorPage() {
                     />
                   </div>
 
+                  {/* Shadow Controls */}
+                  <div>
+                    <label className="flex items-center gap-2 mb-1.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedElementData.shadow || false}
+                        onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { 
+                          shadow: e.target.checked,
+                          shadowBlur: e.target.checked ? (selectedElementData.shadowBlur || 5) : 0,
+                          shadowOffsetX: e.target.checked ? (selectedElementData.shadowOffsetX || 2) : 0,
+                          shadowOffsetY: e.target.checked ? (selectedElementData.shadowOffsetY || 2) : 0,
+                          shadowColor: e.target.checked ? (selectedElementData.shadowColor || 'rgba(0,0,0,0.3)') : 'rgba(0,0,0,0)'
+                        })}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Gölge</span>
+                    </label>
+                    {selectedElementData.shadow && (
+                      <div className="mt-2 space-y-2 pl-6">
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-500 mb-1">
+                            Gölge Bulanıklığı: {selectedElementData.shadowBlur || 5}px
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="20"
+                            step="1"
+                            value={selectedElementData.shadowBlur || 5}
+                            onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { shadowBlur: Number(e.target.value) })}
+                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-500 mb-1">
+                            X Ofseti: {selectedElementData.shadowOffsetX || 2}px
+                          </label>
+                          <input
+                            type="range"
+                            min="-10"
+                            max="10"
+                            step="1"
+                            value={selectedElementData.shadowOffsetX || 2}
+                            onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { shadowOffsetX: Number(e.target.value) })}
+                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-500 mb-1">
+                            Y Ofseti: {selectedElementData.shadowOffsetY || 2}px
+                          </label>
+                          <input
+                            type="range"
+                            min="-10"
+                            max="10"
+                            step="1"
+                            value={selectedElementData.shadowOffsetY || 2}
+                            onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { shadowOffsetY: Number(e.target.value) })}
+                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-500 mb-1">
+                            Gölge Rengi
+                          </label>
+                          <input
+                            type="color"
+                            value={selectedElementData.shadowColor?.replace('rgba(', '').replace(')', '').split(',')[0] === '0' && selectedElementData.shadowColor?.includes('rgba') 
+                              ? '#000000' 
+                              : selectedElementData.shadowColor?.replace('rgba(', '').replace(')', '') || '#000000'}
+                            onChange={(e) => {
+                              const hex = e.target.value
+                              const r = parseInt(hex.slice(1, 3), 16)
+                              const g = parseInt(hex.slice(3, 5), 16)
+                              const b = parseInt(hex.slice(5, 7), 16)
+                              selectedElement && handleUpdateElement(selectedElement, { shadowColor: `rgba(${r},${g},${b},0.3)` })
+                            }}
+                            className="w-full h-8 border border-gray-300 dark:border-gray-600 rounded-md cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Border Radius Control - Sadece şekiller için */}
+                  {selectedElementData.type === 'shape' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                        Kenar Yumuşatma: {selectedElementData.borderRadius || 0}px
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="50"
+                        step="1"
+                        value={selectedElementData.borderRadius || 0}
+                        onChange={(e) => selectedElement && handleUpdateElement(selectedElement, { borderRadius: Number(e.target.value) })}
+                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                      />
+                    </div>
+                  )}
+
                   {/* Layer Controls */}
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
@@ -1425,6 +1647,35 @@ export default function DesignEditorPage() {
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Kumaş Alanı */}
+                  <div className="flex flex-col gap-4">
+                    <label className="flex items-center gap-3 p-4 border-2 border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-orange-500 dark:hover:border-orange-500 transition-all has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50 dark:has-[:checked]:bg-orange-900/20">
+                      <input
+                        type="checkbox"
+                        checked={fabricProvidedByCustomer}
+                        onChange={(e) => setFabricProvidedByCustomer(e.target.checked)}
+                        className="w-5 h-5 text-orange-600 rounded focus:ring-2 focus:ring-orange-500"
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-orange-600 dark:text-orange-400">checkroom</span>
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">Kumaş benim tarafımdan karşılanacak</span>
+                      </div>
+                    </label>
+                    {fabricProvidedByCustomer && (
+                      <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-200 dark:border-orange-800">
+                        <div className="flex items-start gap-3">
+                          <span className="material-symbols-outlined text-orange-600 dark:text-orange-400 text-2xl">info</span>
+                          <div className="flex flex-col gap-1">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Kumaş Temini</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              Kumaşınızı kendiniz temin edecekseniz, lütfen kumaş özelliklerini (tip, renk, gramaj vb.) notlar bölümünde belirtiniz.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Size Quantities */}

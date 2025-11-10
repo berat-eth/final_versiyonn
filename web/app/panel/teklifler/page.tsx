@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { customProductionApi } from '@/utils/api'
+import { customProductionApi, productsApi } from '@/utils/api'
 import { FileText, Download, CheckCircle, XCircle } from 'lucide-react'
 
 export default function QuotesPage() {
@@ -13,6 +13,7 @@ export default function QuotesPage() {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [productNames, setProductNames] = useState<Record<number, string>>({})
 
   useEffect(() => {
     if (user?.id) {
@@ -20,13 +21,152 @@ export default function QuotesPage() {
     }
   }, [user])
 
+  // Ürün bilgilerini render sonrası çek (cache'de yoksa)
+  useEffect(() => {
+    if (requests.length === 0) return
+    
+    // productNames state'ini kontrol etmek için bir kez oku
+    setProductNames(prev => {
+      const missingProductIds: number[] = []
+      const productIdSet = new Set<number>()
+      
+      requests.forEach((request: any) => {
+        if (request.items && Array.isArray(request.items)) {
+          request.items.forEach((item: any) => {
+            let productId = item.productId
+            
+            // Customizations'dan productId çıkarmaya çalış
+            if (!productId && item.customizations) {
+              try {
+                const customizations = typeof item.customizations === 'string' 
+                  ? JSON.parse(item.customizations) 
+                  : item.customizations
+                if (customizations?.productId) {
+                  productId = customizations.productId
+                }
+              } catch (e) {
+                // Parse hatası, devam et
+              }
+            }
+            
+            // Eğer productId varsa ama productName yoksa ve cache'de yoksa, listeye ekle
+            if (productId && !item.productName && !productIdSet.has(productId) && !prev[productId]) {
+              missingProductIds.push(productId)
+              productIdSet.add(productId)
+            }
+          })
+        }
+      })
+      
+      // Eksik ürün bilgilerini çek
+      if (missingProductIds.length > 0) {
+        console.log('🔄 Fetching missing product names:', missingProductIds)
+        const productPromises = missingProductIds.map(async (productId) => {
+          try {
+            const productResponse = await productsApi.getProductById(productId)
+            if (productResponse.success && productResponse.data?.name) {
+              return { productId, name: productResponse.data.name }
+            }
+          } catch (error) {
+            console.error(`❌ Ürün ${productId} yüklenemedi:`, error)
+          }
+          return null
+        })
+        
+        Promise.all(productPromises).then((results) => {
+          const newProductNames: Record<number, string> = {}
+          results.forEach((result) => {
+            if (result) {
+              newProductNames[result.productId] = result.name
+            }
+          })
+          if (Object.keys(newProductNames).length > 0) {
+            console.log('✅ Fetched product names:', newProductNames)
+            setProductNames(current => ({ ...current, ...newProductNames }))
+          }
+        })
+      }
+      
+      return prev
+    })
+  }, [requests])
+
   const loadRequests = async () => {
     if (!user?.id) return
     try {
       setLoading(true)
       const response = await customProductionApi.getUserRequests(user.id)
+      console.log('📥 Backend response:', response)
       if (response.success && response.data) {
-        setRequests(response.data as any[])
+        const requestsData = response.data as any[]
+        console.log('📋 Requests data:', requestsData)
+        requestsData.forEach((req: any, idx: number) => {
+          console.log(`📦 Request ${idx} (ID: ${req.id}):`, {
+            id: req.id,
+            requestNumber: req.requestNumber,
+            itemsCount: req.items?.length || 0,
+            items: req.items
+          })
+        })
+        setRequests(requestsData)
+        
+        // Ürün bilgilerini çek (productId varsa ama productName yoksa)
+        const productIdsToFetch: number[] = []
+        const productIdSet = new Set<number>()
+        
+        requestsData.forEach((request: any) => {
+          if (request.items && Array.isArray(request.items)) {
+            request.items.forEach((item: any) => {
+              // productId her zaman olmalı (backend'de NOT NULL), ama kontrol edelim
+              let productId = item.productId
+              
+              // Customizations'dan productId çıkarmaya çalış (fallback)
+              if (!productId && item.customizations) {
+                try {
+                  const customizations = typeof item.customizations === 'string' 
+                    ? JSON.parse(item.customizations) 
+                    : item.customizations
+                  if (customizations?.productId) {
+                    productId = customizations.productId
+                  }
+                } catch (e) {
+                  // Parse hatası, devam et
+                }
+              }
+              
+              // Eğer productId varsa ama productName yoksa ve daha önce eklenmemişse, listeye ekle
+              // Hem item.productId hem de customizations.productId için kontrol et
+              if (productId && !item.productName && !productIdSet.has(productId) && !productNames[productId]) {
+                productIdsToFetch.push(productId)
+                productIdSet.add(productId)
+              }
+            })
+          }
+        })
+        
+        // Ürün bilgilerini paralel olarak çek
+        if (productIdsToFetch.length > 0) {
+          const productPromises = productIdsToFetch.map(async (productId) => {
+            try {
+              const productResponse = await productsApi.getProductById(productId)
+              if (productResponse.success && productResponse.data) {
+                return { productId, name: productResponse.data.name || `Ürün #${productId}` }
+              }
+            } catch (error) {
+              console.error(`Ürün ${productId} yüklenemedi:`, error)
+            }
+            return { productId, name: `Ürün #${productId}` }
+          })
+          
+          const productResults = await Promise.all(productPromises)
+          const newProductNames: Record<number, string> = {}
+          productResults.forEach(({ productId, name }) => {
+            newProductNames[productId] = name
+          })
+          
+          // Cache'i güncelle
+          setProductNames(prev => ({ ...prev, ...newProductNames }))
+        }
       }
     } catch (error) {
       console.error('Teklifler yüklenemedi:', error)
@@ -156,11 +296,77 @@ export default function QuotesPage() {
                 <div className="mb-4">
                   <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Ürünler:</p>
                   <div className="space-y-1">
-                    {request.items.slice(0, 3).map((item: any, idx: number) => (
-                      <p key={idx} className="text-sm text-gray-600 dark:text-gray-400">
-                        • {item.productName || `Ürün #${item.productId}`} - {item.quantity} adet
-                      </p>
-                    ))}
+                    {request.items.slice(0, 3).map((item: any, idx: number) => {
+                      // Debug: Tüm item verisini logla
+                      console.log('🔍 Item data:', {
+                        id: item.id,
+                        productId: item.productId,
+                        productName: item.productName,
+                        quantity: item.quantity,
+                        customizations: item.customizations
+                      });
+                      
+                      // Ürün bilgisini çıkarmaya çalış
+                      let productName = item.productName;
+                      let productId = item.productId;
+                      
+                      // Customizations'ı parse et
+                      let parsedCustomizations: any = null;
+                      if (item.customizations) {
+                        try {
+                          parsedCustomizations = typeof item.customizations === 'string' 
+                            ? JSON.parse(item.customizations) 
+                            : item.customizations;
+                          console.log('📦 Parsed customizations:', parsedCustomizations);
+                          
+                          // Customizations'dan productId çıkarmaya çalış
+                          if (!productId && parsedCustomizations?.productId) {
+                            productId = parsedCustomizations.productId;
+                            console.log('✅ productId customizations\'dan bulundu:', productId);
+                          }
+                        } catch (e) {
+                          console.error('❌ Customizations parse error:', e);
+                        }
+                      }
+                      
+                      // Toplam adet hesapla - önce customizations'dan sizes array'inden, yoksa item.quantity kullan
+                      let quantity = 0;
+                      if (parsedCustomizations?.sizes && Array.isArray(parsedCustomizations.sizes) && parsedCustomizations.sizes.length > 0) {
+                        // sizes array'inden toplam adet hesapla
+                        quantity = parsedCustomizations.sizes.reduce((sum: number, s: any) => {
+                          const qty = typeof s.quantity === 'number' ? s.quantity : Number(s.quantity) || 0;
+                          return sum + qty;
+                        }, 0);
+                        console.log('📊 Quantity from sizes:', quantity);
+                      } else {
+                        // sizes yoksa, item.quantity kullan
+                        quantity = Number(item.quantity) || 0;
+                        console.log('📊 Quantity from item.quantity:', quantity);
+                      }
+                      
+                      // Ürün adını belirle
+                      let displayName = productName;
+                      if (!displayName && productId) {
+                        // Önce cache'den kontrol et
+                        if (productNames[productId]) {
+                          displayName = productNames[productId];
+                          console.log('✅ Product name from cache:', displayName);
+                        } else {
+                          // Cache'de yoksa, productId göster (useEffect'te çekilecek)
+                          displayName = `Ürün #${productId}`;
+                          console.log('⏳ Product name not in cache, showing ID:', displayName);
+                        }
+                      } else if (!displayName && !productId) {
+                        displayName = 'Özel Üretim Ürünü';
+                        console.log('⚠️ No productId found, showing default name');
+                      }
+                      
+                      return (
+                        <p key={idx} className="text-sm text-gray-600 dark:text-gray-400">
+                          • {displayName} - {quantity} adet
+                        </p>
+                      );
+                    })}
                     {request.items.length > 3 && (
                       <p className="text-sm text-gray-500 dark:text-gray-500">
                         + {request.items.length - 3} ürün daha...
@@ -237,7 +443,63 @@ export default function QuotesPage() {
                       // Detayları backend'den çek
                       const response = await customProductionApi.getRequestById(request.id, user!.id)
                       if (response.success && response.data) {
-                        setSelectedRequest(response.data)
+                        const requestData = response.data
+                        setSelectedRequest(requestData)
+                        
+                        // Ürün bilgilerini çek (productId varsa ama productName yoksa)
+                        if (requestData.items && Array.isArray(requestData.items)) {
+                          const productIdsToFetch: number[] = []
+                          const productNameMap: Record<number, string> = {}
+                          
+                          requestData.items.forEach((item: any) => {
+                            let productId = item.productId
+                            
+                            // Customizations'dan productId çıkarmaya çalış
+                            if (!productId && item.customizations) {
+                              try {
+                                const customizations = typeof item.customizations === 'string' 
+                                  ? JSON.parse(item.customizations) 
+                                  : item.customizations
+                                if (customizations?.productId) {
+                                  productId = customizations.productId
+                                }
+                              } catch (e) {
+                                // Parse hatası, devam et
+                              }
+                            }
+                            
+                            // Eğer productId varsa ama productName yoksa, çekmek için listeye ekle
+                            if (productId && !item.productName && !productNames[productId]) {
+                              productIdsToFetch.push(productId)
+                            } else if (productId && productNames[productId]) {
+                              // Zaten cache'de varsa kullan
+                              productNameMap[productId] = productNames[productId]
+                            }
+                          })
+                          
+                          // Ürün bilgilerini paralel olarak çek
+                          if (productIdsToFetch.length > 0) {
+                            const productPromises = productIdsToFetch.map(async (productId) => {
+                              try {
+                                const productResponse = await productsApi.getProductById(productId)
+                                if (productResponse.success && productResponse.data) {
+                                  return { productId, name: productResponse.data.name || `Ürün #${productId}` }
+                                }
+                              } catch (error) {
+                                console.error(`Ürün ${productId} yüklenemedi:`, error)
+                              }
+                              return { productId, name: `Ürün #${productId}` }
+                            })
+                            
+                            const productResults = await Promise.all(productPromises)
+                            productResults.forEach(({ productId, name }) => {
+                              productNameMap[productId] = name
+                            })
+                            
+                            // Cache'i güncelle
+                            setProductNames(prev => ({ ...prev, ...productNameMap }))
+                          }
+                        }
                       } else {
                         // Fallback: Liste'den gelen veriyi kullan
                         setSelectedRequest(request)
@@ -514,10 +776,9 @@ export default function QuotesPage() {
                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ürünler</h4>
                   <div className="space-y-4">
                     {selectedRequest.items.map((item: any, idx: number) => {
-                      // productId null ise veya productName yoksa, customizations'dan bilgi çıkar
+                      // productId her zaman olmalı (backend'de NOT NULL), ama kontrol edelim
                       let productName = item.productName;
                       let productId = item.productId;
-                      let quantity = item.quantity || 0;
                       
                       // Eğer productId null ise ve customizations varsa, oradan bilgi al
                       if (!productId && item.customizations) {
@@ -525,9 +786,6 @@ export default function QuotesPage() {
                           const customizations = typeof item.customizations === 'string' 
                             ? JSON.parse(item.customizations) 
                             : item.customizations;
-                          if (customizations?.productName) {
-                            productName = customizations.productName;
-                          }
                           if (customizations?.productId) {
                             productId = customizations.productId;
                           }
@@ -536,8 +794,16 @@ export default function QuotesPage() {
                         }
                       }
                       
-                      // Toplam adet hesapla (eğer beden dağılımı varsa)
-                      let totalQuantity = quantity;
+                      // Eğer productId varsa ama productName yoksa, cache'den kontrol et
+                      if (productId && !productName) {
+                        // Önce cache'den kontrol et
+                        if (productNames[productId]) {
+                          productName = productNames[productId];
+                        }
+                      }
+                      
+                      // Toplam adet hesapla - önce customizations'dan sizes array'inden, yoksa item.quantity kullan
+                      let totalQuantity = 0;
                       let sizeDistribution: any[] = [];
                       
                       if (item.customizations) {
@@ -547,20 +813,67 @@ export default function QuotesPage() {
                             : item.customizations;
                           if (customizations?.sizes && Array.isArray(customizations.sizes) && customizations.sizes.length > 0) {
                             sizeDistribution = customizations.sizes;
-                            totalQuantity = customizations.sizes.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0);
+                            // sizes array'inden toplam adet hesapla
+                            totalQuantity = customizations.sizes.reduce((sum: number, s: any) => {
+                              const qty = typeof s.quantity === 'number' ? s.quantity : Number(s.quantity) || 0;
+                              return sum + qty;
+                            }, 0);
+                          } else {
+                            // sizes yoksa, item.quantity kullan
+                            totalQuantity = Number(item.quantity) || 0;
                           }
                         } catch (e) {
                           console.error('Customizations parse error:', e);
+                          // Hata durumunda item.quantity kullan
+                          totalQuantity = Number(item.quantity) || 0;
+                        }
+                      } else {
+                        // customizations yoksa, item.quantity kullan
+                        totalQuantity = Number(item.quantity) || 0;
+                      }
+                      
+                      // Ürün adını belirle (modal için)
+                      let modalDisplayName = productName;
+                      if (!modalDisplayName) {
+                        if (productId) {
+                          if (productNames[productId]) {
+                            modalDisplayName = productNames[productId];
+                          } else {
+                            modalDisplayName = `Ürün #${productId}`;
+                          }
+                        } else {
+                          // productId yoksa, customizations'dan tekrar kontrol et
+                          if (item.customizations) {
+                            try {
+                              const customizations = typeof item.customizations === 'string' 
+                                ? JSON.parse(item.customizations) 
+                                : item.customizations;
+                              if (customizations?.productId) {
+                                const fallbackProductId = customizations.productId;
+                                if (productNames[fallbackProductId]) {
+                                  modalDisplayName = productNames[fallbackProductId];
+                                } else {
+                                  modalDisplayName = `Ürün #${fallbackProductId}`;
+                                }
+                              } else {
+                                modalDisplayName = 'Ürün Bilgisi Yok';
+                              }
+                            } catch (e) {
+                              modalDisplayName = 'Ürün Bilgisi Yok';
+                            }
+                          } else {
+                            modalDisplayName = 'Ürün Bilgisi Yok';
+                          }
                         }
                       }
                       
                       return (
                         <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                           <p className="font-semibold text-gray-900 dark:text-white mb-2">
-                            {productName || (productId ? `Ürün #${productId}` : 'Ürün Bilgisi Yok')}
+                            {modalDisplayName}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                            Adet: {totalQuantity > 0 ? totalQuantity : quantity}
+                            Adet: {totalQuantity}
                           </p>
                           {sizeDistribution.length > 0 && (
                             <div className="mt-2">

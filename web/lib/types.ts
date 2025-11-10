@@ -33,6 +33,9 @@ export interface Order {
   shippingAddress?: string;
   paymentMethod?: string;
   items?: OrderItem[];
+  trackingNumber?: string;
+  cargoCompany?: string;
+  cargoStatus?: 'preparing' | 'shipped' | 'in-transit' | 'delivered';
 }
 
 export interface OrderItem {
@@ -40,6 +43,8 @@ export interface OrderItem {
   price: number;
   productName?: string;
   productImage?: string;
+  productId?: number;
+  id?: number;
 }
 
 export interface CartItem {

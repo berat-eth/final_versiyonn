@@ -12019,6 +12019,28 @@ async function startServer() {
             [request.id]
           );
 
+          console.log(`📦 Request ${request.id} items:`, items?.length || 0, items);
+
+          // Parse JSON fields in items (customizations)
+          const parsedItems = (items || []).map((item) => {
+            // Debug: Item verisini logla
+            console.log(`🔍 Raw item for request ${request.id}:`, {
+              id: item?.id,
+              productId: item?.productId,
+              quantity: item?.quantity,
+              customizations: item?.customizations ? (typeof item.customizations === 'string' ? 'string' : 'object') : 'null'
+            });
+            
+            if (item && item.customizations && typeof item.customizations === 'string') {
+              try {
+                item.customizations = JSON.parse(item.customizations);
+              } catch (e) {
+                console.error('Error parsing item customizations:', e);
+              }
+            }
+            return item;
+          });
+
           // Parse JSON fields if they exist
           if (request.proformaQuoteData && typeof request.proformaQuoteData === 'string') {
             try {
@@ -12037,7 +12059,7 @@ async function startServer() {
 
           return {
             ...request,
-            items: items || []
+            items: parsedItems
           };
         })
       );

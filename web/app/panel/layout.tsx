@@ -40,10 +40,12 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
     { href: '/panel/urunler', label: 'Ürünler', icon: 'shopping_bag' },
     { href: '/panel/profil', label: 'Profil', icon: 'person' },
     { href: '/panel/siparisler', label: 'Siparişlerim', icon: 'receipt_long' },
+    { href: '/panel/kargo-takibi', label: 'Kargo Takibi', icon: 'local_shipping' },
     { href: '/panel/adresler', label: 'Adreslerim', icon: 'location_on' },
     { href: '/panel/teklifler', label: 'Tekliflerim', icon: 'description' },
     { href: '/panel/destek', label: 'Destek', icon: 'support_agent' },
     { href: '/panel/odeme-gecmisi', label: 'Ödeme Geçmişi', icon: 'credit_card' },
+    { href: '/panel/ayarlar', label: 'Ayarlar', icon: 'settings' },
   ]
 
   return (
