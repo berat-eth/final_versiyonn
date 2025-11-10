@@ -1464,42 +1464,6 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
   };
 
 
-  const renderRecommendedProducts = () => {
-    if (!personalizedContent || personalizedContent.recommendedProducts.length === 0) {
-      return null;
-    }
-
-    return (
-      <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>⭐ Size Önerilen Ürünler</Text>
-            <Text style={styles.sectionSubtitle}>Kişiselleştirilmiş öneriler</Text>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('PersonalizedOffers')}>
-            <Text style={styles.seeAll}>Tümü →</Text>
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          horizontal
-          data={personalizedContent.recommendedProducts.slice(0, 6)}
-          renderItem={renderProductCard}
-          keyExtractor={(item: Product) => `recommended-${item.id}`}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.productList}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={3}
-          windowSize={5}
-          initialNumToRender={3}
-          getItemLayout={(data, index) => ({
-            length: 200,
-            offset: 200 * index,
-            index,
-          })}
-        />
-      </View>
-    );
-  };
 
 
   if (loading || languageLoading) {
@@ -1535,7 +1499,6 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         {renderDiscountOffers()}
         {renderCampaigns()}
         {renderPersonalizedOffers()}
-        {renderRecommendedProducts()}
         {renderPopularProducts()}
         {renderNewProducts()}
         <View style={{ height: Spacing.xxl }} />
