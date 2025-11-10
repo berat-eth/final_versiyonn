@@ -632,6 +632,7 @@ app.use('/api', (req, res, next) => {
     '/tenants', // Tenant creation doesn't require API key
     '/users', // User registration doesn't require API key
     '/users/login', // User login doesn't require API key
+    '/api/users/login', // User login doesn't require API key
     '/auth/google/verify' // Google OAuth doesn't require API key
   ];
 
