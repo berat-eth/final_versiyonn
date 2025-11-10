@@ -249,10 +249,31 @@ function enforceTenantIsolation() {
       }
       
       if (!req.tenant || !req.tenant.id) {
-        return res.status(401).json({
-          success: false,
-          message: 'Tenant authentication required'
-        });
+        // Tenant yoksa default tenant'ı kullan (id: 1)
+        try {
+          const [defaultTenantRows] = await poolWrapper.execute(
+            'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
+          );
+          if (defaultTenantRows && defaultTenantRows.length > 0) {
+            req.tenant = defaultTenantRows[0];
+            if (req.tenant.settings) {
+              try { req.tenant.settings = JSON.parse(req.tenant.settings); } catch (_) { }
+            }
+            // Default tenant bulundu, devam et
+          } else {
+            // Default tenant da yoksa hata ver
+            return res.status(401).json({
+              success: false,
+              message: 'Tenant authentication required'
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error getting default tenant:', error);
+          return res.status(401).json({
+            success: false,
+            message: 'Tenant authentication required'
+          });
+        }
       }
 
       // User ID varsa, tenant kontrolü yap

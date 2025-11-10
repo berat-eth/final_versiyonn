@@ -687,6 +687,18 @@ app.use('/api', (req, res, next) => {
           [apiKey]
         );
         if (!rows || rows.length === 0) {
+          // API key bulunamazsa default tenant'ı kullan (id: 1)
+          console.log(`⚠️ API key not found in database, using default tenant (id: 1) for key: ${apiKey.substring(0, 10)}...`);
+          const [defaultTenantRows] = await poolWrapper.execute(
+            'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
+          );
+          if (defaultTenantRows && defaultTenantRows.length > 0) {
+            req.tenant = defaultTenantRows[0];
+            if (req.tenant.settings) {
+              try { req.tenant.settings = JSON.parse(req.tenant.settings); } catch (_) { }
+            }
+            return next();
+          }
           // CORS header'larını set et
           const origin = req.headers.origin;
           if (origin) {
@@ -710,6 +722,18 @@ app.use('/api', (req, res, next) => {
         [apiKey]
       );
       if (rows.length === 0) {
+        // API key bulunamazsa default tenant'ı kullan (id: 1)
+        console.log(`⚠️ API key not found in database (fallback), using default tenant (id: 1) for key: ${apiKey.substring(0, 10)}...`);
+        const [defaultTenantRows] = await poolWrapper.execute(
+          'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
+        );
+        if (defaultTenantRows && defaultTenantRows.length > 0) {
+          req.tenant = defaultTenantRows[0];
+          if (req.tenant.settings) {
+            try { req.tenant.settings = JSON.parse(req.tenant.settings); } catch (_) { }
+          }
+          return next();
+        }
         // CORS header'larını set et
         const origin = req.headers.origin;
         if (origin) {
@@ -731,13 +755,26 @@ app.use('/api', (req, res, next) => {
         [apiKey]
       ).then(([rows]) => {
         if (rows.length === 0) {
-          // CORS header'larını set et
-          const origin = req.headers.origin;
-          if (origin) {
-            res.setHeader('Access-Control-Allow-Origin', origin);
-            res.setHeader('Access-Control-Allow-Credentials', 'true');
-          }
-          return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
+          // API key bulunamazsa default tenant'ı kullan (id: 1)
+          console.log(`⚠️ API key not found in database (error fallback), using default tenant (id: 1) for key: ${apiKey.substring(0, 10)}...`);
+          return poolWrapper.execute(
+            'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
+          ).then(([defaultTenantRows]) => {
+            if (defaultTenantRows && defaultTenantRows.length > 0) {
+              req.tenant = defaultTenantRows[0];
+              if (req.tenant.settings) {
+                try { req.tenant.settings = JSON.parse(req.tenant.settings); } catch (_) { }
+              }
+              return next();
+            }
+            // CORS header'larını set et
+            const origin = req.headers.origin;
+            if (origin) {
+              res.setHeader('Access-Control-Allow-Origin', origin);
+              res.setHeader('Access-Control-Allow-Credentials', 'true');
+            }
+            return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
+          });
         }
         req.tenant = rows[0];
         if (req.tenant.settings) {
