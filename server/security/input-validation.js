@@ -273,19 +273,60 @@ class InputValidation {
   }
 
   /**
-   * XSS koruması
+   * XSS koruması - DOMPurify kullanarak güçlendirilmiş versiyon
    */
   sanitizeForXSS(input) {
     if (typeof input !== 'string') return input;
     
-    return input
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;')
-      .replace(/\//g, '&#x2F;')
-      .replace(/javascript:/gi, '')
-      .replace(/on\w+\s*=/gi, '');
+    // DOMPurify kullan (eğer mevcut değilse fallback)
+    try {
+      const { sanitizeHTML } = require('../utils/xss-sanitizer');
+      return sanitizeHTML(input);
+    } catch (error) {
+      // Fallback: Basit escape (DOMPurify yüklenmemişse)
+      console.warn('⚠️ DOMPurify not available, using basic XSS protection');
+      return input
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;')
+        .replace(/\//g, '&#x2F;')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+\s*=/gi, '')
+        .replace(/data:/gi, '')
+        .replace(/vbscript:/gi, '');
+    }
+  }
+
+  /**
+   * Rich text editor içeriği için sanitization
+   */
+  sanitizeRichText(input) {
+    if (typeof input !== 'string') return input;
+    
+    try {
+      const { sanitizeRichText } = require('../utils/xss-sanitizer');
+      return sanitizeRichText(input);
+    } catch (error) {
+      // Fallback: Basit sanitization
+      return this.sanitizeForXSS(input);
+    }
+  }
+
+  /**
+   * Plain text için sanitization
+   */
+  sanitizePlainText(input) {
+    if (typeof input !== 'string') return input;
+    
+    try {
+      const { sanitizePlainText } = require('../utils/xss-sanitizer');
+      return sanitizePlainText(input);
+    } catch (error) {
+      // Fallback: HTML tag'lerini kaldır
+      return input.replace(/<[^>]*>/g, '').trim();
+    }
   }
 
   /**

@@ -10,7 +10,7 @@ class AnalyticsService {
    */
   async getOverview(tenantId, timeRange = '7d') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
       
       const [
         totalUsers,
@@ -21,13 +21,13 @@ class AnalyticsService {
         avgSessionDuration,
         bounceRate
       ] = await Promise.all([
-        this.getTotalUsers(tenantId, dateFilter).catch(() => 0),
-        this.getActiveUsers(tenantId, dateFilter).catch(() => 0),
-        this.getTotalSessions(tenantId, dateFilter).catch(() => 0),
-        this.getTotalEvents(tenantId, dateFilter).catch(() => 0),
-        this.getTotalRevenue(tenantId, dateFilter).catch(() => 0),
-        this.getAvgSessionDuration(tenantId, dateFilter).catch(() => 0),
-        this.getBounceRate(tenantId, dateFilter).catch(() => 0)
+        this.getTotalUsers(tenantId, dateValue).catch(() => 0),
+        this.getActiveUsers(tenantId, dateValue).catch(() => 0),
+        this.getTotalSessions(tenantId, dateValue).catch(() => 0),
+        this.getTotalEvents(tenantId, dateValue).catch(() => 0),
+        this.getTotalRevenue(tenantId, dateValue).catch(() => 0),
+        this.getAvgSessionDuration(tenantId, dateValue).catch(() => 0),
+        this.getBounceRate(tenantId, dateValue).catch(() => 0)
       ]);
 
       return {
@@ -60,7 +60,7 @@ class AnalyticsService {
    */
   async getUserAnalytics(tenantId, timeRange = '7d') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
       
       const [
         dau,
@@ -71,31 +71,31 @@ class AnalyticsService {
         retentionRate,
         churnRate
       ] = await Promise.all([
-        this.getDAU(tenantId, dateFilter).catch(err => {
+        this.getDAU(tenantId, dateValue).catch(err => {
           console.warn('⚠️ Error getting DAU:', err.message);
           return 0;
         }),
-        this.getWAU(tenantId, dateFilter).catch(err => {
+        this.getWAU(tenantId, dateValue).catch(err => {
           console.warn('⚠️ Error getting WAU:', err.message);
           return 0;
         }),
-        this.getMAU(tenantId, dateFilter).catch(err => {
+        this.getMAU(tenantId, dateValue).catch(err => {
           console.warn('⚠️ Error getting MAU:', err.message);
           return 0;
         }),
-        this.getNewUsers(tenantId, dateFilter).catch(err => {
+        this.getNewUsers(tenantId, dateValue).catch(err => {
           console.warn('⚠️ Error getting new users:', err.message);
           return 0;
         }),
-        this.getReturningUsers(tenantId, dateFilter).catch(err => {
+        this.getReturningUsers(tenantId, dateValue).catch(err => {
           console.warn('⚠️ Error getting returning users:', err.message);
           return 0;
         }),
-        this.getRetentionRate(tenantId, dateFilter).catch(err => {
+        this.getRetentionRate(tenantId, dateValue).catch(err => {
           console.warn('⚠️ Error getting retention rate:', err.message);
           return 0;
         }),
-        this.getChurnRate(tenantId, dateFilter).catch(err => {
+        this.getChurnRate(tenantId, dateValue).catch(err => {
           console.warn('⚠️ Error getting churn rate:', err.message);
           return 0;
         })
@@ -130,7 +130,7 @@ class AnalyticsService {
    */
   async getBehaviorAnalytics(tenantId, timeRange = '7d') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
       
       const [
         screenViews,
@@ -139,11 +139,11 @@ class AnalyticsService {
         navigationPaths,
         scrollDepth
       ] = await Promise.all([
-        this.getScreenViews(tenantId, dateFilter).catch(() => 0),
-        this.getTopScreens(tenantId, dateFilter).catch(() => []),
-        this.getAvgTimeOnScreen(tenantId, dateFilter).catch(() => 0),
-        this.getNavigationPaths(tenantId, dateFilter).catch(() => []),
-        this.getScrollDepth(tenantId, dateFilter).catch(() => ({ avg: 0, max: 0 }))
+        this.getScreenViews(tenantId, dateValue).catch(() => 0),
+        this.getTopScreens(tenantId, dateValue).catch(() => []),
+        this.getAvgTimeOnScreen(tenantId, dateValue).catch(() => 0),
+        this.getNavigationPaths(tenantId, dateValue).catch(() => []),
+        this.getScrollDepth(tenantId, dateValue).catch(() => ({ avg: 0, max: 0 }))
       ]);
 
       return {
@@ -170,7 +170,7 @@ class AnalyticsService {
    */
   async getFunnelAnalysis(tenantId, timeRange = '7d') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
       
       const [
         productViews,
@@ -178,10 +178,10 @@ class AnalyticsService {
         checkout,
         purchase
       ] = await Promise.all([
-        this.getProductViews(tenantId, dateFilter).catch(() => 0),
-        this.getAddToCart(tenantId, dateFilter).catch(() => 0),
-        this.getCheckout(tenantId, dateFilter).catch(() => 0),
-        this.getPurchase(tenantId, dateFilter).catch(() => 0)
+        this.getProductViews(tenantId, dateValue).catch(() => 0),
+        this.getAddToCart(tenantId, dateValue).catch(() => 0),
+        this.getCheckout(tenantId, dateValue).catch(() => 0),
+        this.getPurchase(tenantId, dateValue).catch(() => 0)
       ]);
 
       const viewToCartRate = productViews > 0 ? (addToCart / productViews) * 100 : 0;
@@ -237,7 +237,7 @@ class AnalyticsService {
    */
   async getPerformanceMetrics(tenantId, timeRange = '7d') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
       
       const [
         avgPageLoadTime,
@@ -247,12 +247,12 @@ class AnalyticsService {
         errorRate,
         crashRate
       ] = await Promise.all([
-        this.getAvgPageLoadTime(tenantId, dateFilter).catch(() => 0),
-        this.getP95PageLoadTime(tenantId, dateFilter).catch(() => 0),
-        this.getP99PageLoadTime(tenantId, dateFilter).catch(() => 0),
-        this.getAvgApiResponseTime(tenantId, dateFilter).catch(() => 0),
-        this.getErrorRate(tenantId, dateFilter).catch(() => 0),
-        this.getCrashRate(tenantId, dateFilter).catch(() => 0)
+        this.getAvgPageLoadTime(tenantId, dateValue).catch(() => 0),
+        this.getP95PageLoadTime(tenantId, dateValue).catch(() => 0),
+        this.getP99PageLoadTime(tenantId, dateValue).catch(() => 0),
+        this.getAvgApiResponseTime(tenantId, dateValue).catch(() => 0),
+        this.getErrorRate(tenantId, dateValue).catch(() => 0),
+        this.getCrashRate(tenantId, dateValue).catch(() => 0)
       ]);
 
       return {
@@ -289,8 +289,14 @@ class AnalyticsService {
    */
   async getSegmentAnalytics(tenantId, segmentId = null, timeRange = '7d') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
-      const segmentFilter = segmentId ? `AND us.segmentId = ${segmentId}` : '';
+      // SQL Injection koruması: Parametreli sorgu kullan
+      const dateValue = this.getDateFilter(timeRange);
+      const params = [tenantId, dateValue];
+      let segmentCondition = '';
+      if (segmentId) {
+        segmentCondition = 'AND us.segmentId = ?';
+        params.push(segmentId);
+      }
       
       const [rows] = await this.pool.execute(`
         SELECT 
@@ -302,10 +308,10 @@ class AnalyticsService {
           COALESCE(AVG(o.totalAmount), 0) as avgOrderValue
         FROM segments s
         LEFT JOIN user_segments us ON s.id = us.segmentId AND s.tenantId = us.tenantId
-        LEFT JOIN orders o ON us.userId = o.userId AND s.tenantId = o.tenantId ${dateFilter}
-        WHERE s.tenantId = ? ${segmentFilter}
+        LEFT JOIN orders o ON us.userId = o.userId AND s.tenantId = o.tenantId AND o.createdAt >= ?
+        WHERE s.tenantId = ? ${segmentCondition}
         GROUP BY s.id, s.name
-      `, [tenantId]);
+      `, [dateValue, tenantId, ...(segmentId ? [segmentId] : [])]);
 
       return rows || [];
     } catch (error) {
@@ -421,7 +427,7 @@ class AnalyticsService {
    */
   async getSessionAnalytics(tenantId, timeRange = '7d') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
       
       const [
         totalSessions,
@@ -430,11 +436,11 @@ class AnalyticsService {
         sessionsPerUser,
         returningVsNew
       ] = await Promise.all([
-        this.getTotalSessions(tenantId, dateFilter),
-        this.getAvgSessionDuration(tenantId, dateFilter),
-        this.getAvgPageViewsPerSession(tenantId, dateFilter),
-        this.getSessionsPerUser(tenantId, dateFilter),
-        this.getReturningVsNew(tenantId, dateFilter)
+        this.getTotalSessions(tenantId, dateValue),
+        this.getAvgSessionDuration(tenantId, dateValue),
+        this.getAvgPageViewsPerSession(tenantId, dateValue),
+        this.getSessionsPerUser(tenantId, dateValue),
+        this.getReturningVsNew(tenantId, dateValue)
       ]);
 
       return {
@@ -455,7 +461,7 @@ class AnalyticsService {
    */
   async getProductAnalytics(tenantId, timeRange = '7d', limit = 20) {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
       
       // En çok görüntülenen ürünler
       const [topViewed] = await this.pool.execute(`
@@ -467,7 +473,7 @@ class AnalyticsService {
         JOIN products p ON JSON_EXTRACT(ube.eventData, '$.productId') = p.id
         LEFT JOIN users u ON ube.userId = u.id
         WHERE ube.eventType = 'product_view' 
-          AND ube.timestamp ${dateFilter}
+          AND ube.timestamp >= ?
           AND p.tenantId = ?
           AND (u.tenantId = ? OR ube.userId IS NULL)
         GROUP BY p.id, p.name
@@ -485,7 +491,7 @@ class AnalyticsService {
         JOIN products p ON JSON_EXTRACT(ube.eventData, '$.productId') = p.id
         LEFT JOIN users u ON ube.userId = u.id
         WHERE ube.eventType = 'add_to_cart' 
-          AND ube.timestamp ${dateFilter}
+          AND ube.timestamp >= ?
           AND p.tenantId = ?
           AND (u.tenantId = ? OR ube.userId IS NULL)
         GROUP BY p.id, p.name
@@ -504,7 +510,7 @@ class AnalyticsService {
         FROM order_items oi
         JOIN products p ON oi.productId = p.id
         JOIN orders o ON oi.orderId = o.id
-        WHERE o.createdAt ${dateFilter}
+        WHERE o.createdAt >= ?
           AND p.tenantId = ?
         GROUP BY p.id, p.name
         ORDER BY purchaseCount DESC
@@ -531,7 +537,7 @@ class AnalyticsService {
    */
   async getTimeSeries(tenantId, metric = 'users', timeRange = '7d', interval = 'day') {
     try {
-      const dateFilter = this.getDateFilter(timeRange);
+      const dateValue = this.getDateFilter(timeRange);
       // DATE_FORMAT için format string'i direkt SQL'e yazmalıyız (parametre olarak geçilemez)
       const dateFormat = interval === 'hour' ? '%Y-%m-%d %H:00:00' : 
                          interval === 'day' ? '%Y-%m-%d' : 
@@ -548,7 +554,7 @@ class AnalyticsService {
               COUNT(DISTINCT ube.userId) as value
             FROM user_behavior_events ube
             LEFT JOIN users u ON ube.userId = u.id
-            WHERE ube.timestamp ${dateFilter}
+            WHERE ube.timestamp >= ?
               AND (u.tenantId = ? OR ube.userId IS NULL)
             GROUP BY DATE_FORMAT(ube.timestamp, '${dateFormat}')
             ORDER BY date ASC
@@ -563,7 +569,7 @@ class AnalyticsService {
               COUNT(*) as value
             FROM user_sessions us
             LEFT JOIN users u ON us.userId = u.id
-            WHERE us.startTime ${dateFilter}
+            WHERE us.startTime >= ?
               AND (u.tenantId = ? OR us.userId IS NULL)
             GROUP BY DATE_FORMAT(us.startTime, '${dateFormat}')
             ORDER BY date ASC
@@ -578,7 +584,7 @@ class AnalyticsService {
               COUNT(*) as value
             FROM user_behavior_events ube
             LEFT JOIN users u ON ube.userId = u.id
-            WHERE ube.timestamp ${dateFilter}
+            WHERE ube.timestamp >= ?
               AND (u.tenantId = ? OR ube.userId IS NULL)
             GROUP BY DATE_FORMAT(ube.timestamp, '${dateFormat}')
             ORDER BY date ASC
@@ -592,7 +598,7 @@ class AnalyticsService {
               DATE_FORMAT(createdAt, '${dateFormat}') as date,
               COALESCE(SUM(totalAmount), 0) as value
             FROM orders
-            WHERE createdAt ${dateFilter}
+            WHERE createdAt >= ?
               AND tenantId = ?
             GROUP BY DATE_FORMAT(createdAt, '${dateFormat}')
             ORDER BY date ASC
@@ -648,26 +654,27 @@ class AnalyticsService {
           startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       }
 
+      // SQL Injection koruması: Artık sadece date value döndürüyoruz
       // MySQL datetime formatı: 'YYYY-MM-DD HH:MM:SS'
       const formattedDate = startDate.toISOString().slice(0, 19).replace('T', ' ');
-      return `>= '${formattedDate}'`;
+      return formattedDate;
     } catch (error) {
       console.error('❌ Error in getDateFilter:', error);
       // Default olarak son 7 gün
       const defaultDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const formattedDate = defaultDate.toISOString().slice(0, 19).replace('T', ' ');
-      return `>= '${formattedDate}'`;
+      return formattedDate;
     }
   }
 
-  async getTotalUsers(tenantId, dateFilter) {
+  async getTotalUsers(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(DISTINCT ube.userId) as count
         FROM user_behavior_events ube
         LEFT JOIN users u ON ube.userId = u.id
-        WHERE (u.tenantId = ? OR ube.userId IS NULL) AND ube.timestamp ${dateFilter}
-      `, [tenantId]);
+        WHERE (u.tenantId = ? OR ube.userId IS NULL) AND ube.timestamp >= ?
+      `, [tenantId, dateValue]);
       return rows[0]?.count || 0;
     } catch (error) {
       console.warn('⚠️ Error in getTotalUsers:', error.message);
@@ -675,14 +682,14 @@ class AnalyticsService {
     }
   }
 
-  async getActiveUsers(tenantId, dateFilter) {
+  async getActiveUsers(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(DISTINCT us.userId) as count
         FROM user_sessions us
         LEFT JOIN users u ON us.userId = u.id
-        WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime ${dateFilter}
-      `, [tenantId]);
+        WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime >= ?
+      `, [tenantId, dateValue]);
       return rows[0]?.count || 0;
     } catch (error) {
       console.warn('⚠️ Error in getActiveUsers:', error.message);
@@ -690,14 +697,14 @@ class AnalyticsService {
     }
   }
 
-  async getTotalSessions(tenantId, dateFilter) {
+  async getTotalSessions(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(*) as count
         FROM user_sessions us
         LEFT JOIN users u ON us.userId = u.id
-        WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime ${dateFilter}
-      `, [tenantId]);
+        WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime >= ?
+      `, [tenantId, dateValue]);
       return rows[0]?.count || 0;
     } catch (error) {
       console.warn('⚠️ Error in getTotalSessions:', error.message);
@@ -705,14 +712,14 @@ class AnalyticsService {
     }
   }
 
-  async getTotalEvents(tenantId, dateFilter) {
+  async getTotalEvents(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(*) as count
         FROM user_behavior_events ube
         LEFT JOIN users u ON ube.userId = u.id
-        WHERE (u.tenantId = ? OR ube.userId IS NULL) AND ube.timestamp ${dateFilter}
-      `, [tenantId]);
+        WHERE (u.tenantId = ? OR ube.userId IS NULL) AND ube.timestamp >= ?
+      `, [tenantId, dateValue]);
       return rows[0]?.count || 0;
     } catch (error) {
       console.warn('⚠️ Error in getTotalEvents:', error.message);
@@ -720,13 +727,13 @@ class AnalyticsService {
     }
   }
 
-  async getTotalRevenue(tenantId, dateFilter) {
+  async getTotalRevenue(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COALESCE(SUM(totalAmount), 0) as total
         FROM orders
-        WHERE tenantId = ? AND createdAt ${dateFilter}
-      `, [tenantId]);
+        WHERE tenantId = ? AND createdAt >= ?
+      `, [tenantId, dateValue]);
       return parseFloat(rows[0]?.total || 0);
     } catch (error) {
       console.warn('⚠️ Error in getTotalRevenue:', error.message);
@@ -734,13 +741,13 @@ class AnalyticsService {
     }
   }
 
-  async getAvgSessionDuration(tenantId, dateFilter) {
+  async getAvgSessionDuration(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT AVG(us.duration) as avg
         FROM user_sessions us
         LEFT JOIN users u ON us.userId = u.id
-        WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime ${dateFilter} AND us.duration > 0
+        WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime >= ? AND us.duration > 0
       `, [tenantId]);
       return Math.round(rows[0]?.avg || 0);
     } catch (error) {
@@ -749,7 +756,7 @@ class AnalyticsService {
     }
   }
 
-  async getBounceRate(tenantId, dateFilter) {
+  async getBounceRate(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT 
@@ -757,8 +764,8 @@ class AnalyticsService {
           SUM(CASE WHEN us.pageCount = 1 THEN 1 ELSE 0 END) as bounced
         FROM user_sessions us
         LEFT JOIN users u ON us.userId = u.id
-        WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime ${dateFilter}
-      `, [tenantId]);
+        WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime >= ?
+      `, [tenantId, dateValue]);
       
       const total = rows[0]?.total || 0;
       const bounced = rows[0]?.bounced || 0;
@@ -769,7 +776,7 @@ class AnalyticsService {
     }
   }
 
-  async getDAU(tenantId, dateFilter) {
+  async getDAU(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(DISTINCT us.userId) as count
@@ -786,7 +793,7 @@ class AnalyticsService {
     }
   }
 
-  async getWAU(tenantId, dateFilter) {
+  async getWAU(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(DISTINCT us.userId) as count
@@ -803,7 +810,7 @@ class AnalyticsService {
     }
   }
 
-  async getMAU(tenantId, dateFilter) {
+  async getMAU(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(DISTINCT us.userId) as count
@@ -820,13 +827,13 @@ class AnalyticsService {
     }
   }
 
-  async getNewUsers(tenantId, dateFilter) {
+  async getNewUsers(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(DISTINCT u.id) as count
         FROM users u
-        WHERE u.tenantId = ? AND u.createdAt ${dateFilter}
-      `, [tenantId]);
+        WHERE u.tenantId = ? AND u.createdAt >= ?
+      `, [tenantId, dateValue]);
       return rows[0]?.count || 0;
     } catch (error) {
       console.warn('⚠️ Error in getNewUsers:', error.message);
@@ -834,14 +841,14 @@ class AnalyticsService {
     }
   }
 
-  async getReturningUsers(tenantId, dateFilter) {
+  async getReturningUsers(tenantId, dateValue) {
     try {
       const [rows] = await this.pool.execute(`
         SELECT COUNT(DISTINCT us.userId) as count
         FROM user_sessions us
         LEFT JOIN users u ON us.userId = u.id
         WHERE (u.tenantId = ? OR us.userId IS NULL)
-          AND us.startTime ${dateFilter}
+          AND us.startTime >= ?
           AND us.userId IS NOT NULL
           AND us.userId IN (
             SELECT DISTINCT us2.userId 
@@ -858,11 +865,11 @@ class AnalyticsService {
     }
   }
 
-  async getRetentionRate(tenantId, dateFilter) {
+  async getRetentionRate(tenantId, dateValue) {
     try {
       // Basit retention hesaplama - gerçek retention daha karmaşık olabilir
-      const newUsers = await this.getNewUsers(tenantId, dateFilter);
-      const returningUsers = await this.getReturningUsers(tenantId, dateFilter);
+      const newUsers = await this.getNewUsers(tenantId, dateValue);
+      const returningUsers = await this.getReturningUsers(tenantId, dateValue);
       const totalActive = newUsers + returningUsers;
       return totalActive > 0 ? (returningUsers / totalActive) * 100 : 0;
     } catch (error) {
@@ -871,7 +878,7 @@ class AnalyticsService {
     }
   }
 
-  async getChurnRate(tenantId, dateFilter) {
+  async getChurnRate(tenantId, dateValue) {
     try {
       // Churn rate hesaplama - son 30 günde aktif olan ama son 7 günde aktif olmayan kullanıcılar
       const [rows] = await this.pool.execute(`
@@ -903,19 +910,19 @@ class AnalyticsService {
     }
   }
 
-  async getScreenViews(tenantId, dateFilter) {
+  async getScreenViews(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT COUNT(*) as count
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'screen_view' 
-        AND ube.timestamp ${dateFilter}
-    `, [tenantId]);
+        AND ube.timestamp >= ?
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getTopScreens(tenantId, dateFilter, limit = 10) {
+  async getTopScreens(tenantId, dateValue, limit = 10) {
     const [rows] = await this.pool.execute(`
       SELECT 
         ube.screenName,
@@ -924,29 +931,29 @@ class AnalyticsService {
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'screen_view' 
-        AND ube.timestamp ${dateFilter}
+        AND ube.timestamp >= ?
         AND ube.screenName IS NOT NULL
       GROUP BY ube.screenName
       ORDER BY viewCount DESC
       LIMIT ?
-    `, [tenantId, limit]);
+    `, [tenantId, dateValue, limit]);
     return rows;
   }
 
-  async getAvgTimeOnScreen(tenantId, dateFilter) {
+  async getAvgTimeOnScreen(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT AVG(JSON_EXTRACT(ube.eventData, '$.timeOnScreen')) as avg
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'screen_view' 
-        AND ube.timestamp ${dateFilter}
+        AND ube.timestamp >= ?
         AND JSON_EXTRACT(ube.eventData, '$.timeOnScreen') IS NOT NULL
-    `, [tenantId]);
+    `, [tenantId, dateValue]);
     return Math.round(rows[0]?.avg || 0);
   }
 
-  async getNavigationPaths(tenantId, dateFilter, limit = 10) {
+  async getNavigationPaths(tenantId, dateValue, limit = 10) {
     // Basit navigation path analizi
     const [rows] = await this.pool.execute(`
       SELECT 
@@ -956,16 +963,16 @@ class AnalyticsService {
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'navigation' 
-        AND ube.timestamp ${dateFilter}
+        AND ube.timestamp >= ?
         AND JSON_EXTRACT(ube.eventData, '$.navigationPath') IS NOT NULL
       GROUP BY JSON_EXTRACT(ube.eventData, '$.navigationPath')
       ORDER BY count DESC
       LIMIT ?
-    `, [tenantId, limit]);
+    `, [tenantId, dateValue, limit]);
     return rows;
   }
 
-  async getScrollDepth(tenantId, dateFilter) {
+  async getScrollDepth(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT 
         AVG(JSON_EXTRACT(ube.eventData, '$.scrollDepth')) as avg,
@@ -974,76 +981,76 @@ class AnalyticsService {
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'scroll' 
-        AND ube.timestamp ${dateFilter}
+        AND ube.timestamp >= ?
         AND JSON_EXTRACT(ube.eventData, '$.scrollDepth') IS NOT NULL
-    `, [tenantId]);
+    `, [tenantId, dateValue]);
     return {
       avg: Math.round(rows[0]?.avg || 0),
       max: Math.round(rows[0]?.max || 0)
     };
   }
 
-  async getProductViews(tenantId, dateFilter) {
+  async getProductViews(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT COUNT(*) as count
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'product_view' 
-        AND ube.timestamp ${dateFilter}
-    `, [tenantId]);
+        AND ube.timestamp >= ?
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getAddToCart(tenantId, dateFilter) {
+  async getAddToCart(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT COUNT(*) as count
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'add_to_cart' 
-        AND ube.timestamp ${dateFilter}
-    `, [tenantId]);
+        AND ube.timestamp >= ?
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getCheckout(tenantId, dateFilter) {
+  async getCheckout(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT COUNT(*) as count
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'checkout_start' 
-        AND ube.timestamp ${dateFilter}
-    `, [tenantId]);
+        AND ube.timestamp >= ?
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getPurchase(tenantId, dateFilter) {
+  async getPurchase(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT COUNT(*) as count
       FROM orders
       WHERE tenantId = ? 
-        AND createdAt ${dateFilter}
+        AND createdAt >= ?
         AND status = 'completed'
-    `, [tenantId]);
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getAvgPageLoadTime(tenantId, dateFilter) {
+  async getAvgPageLoadTime(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT AVG(JSON_EXTRACT(ube.eventData, '$.pageLoadTime')) as avg
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'performance' 
-        AND ube.timestamp ${dateFilter}
+        AND ube.timestamp >= ?
         AND JSON_EXTRACT(ube.eventData, '$.pageLoadTime') IS NOT NULL
-    `, [tenantId]);
+    `, [tenantId, dateValue]);
     return Math.round(rows[0]?.avg || 0);
   }
 
-  async getP95PageLoadTime(tenantId, dateFilter) {
+  async getP95PageLoadTime(tenantId, dateValue) {
     // P95 hesaplama için tüm değerleri alıp sıralayacağız
     const [rows] = await this.pool.execute(`
       SELECT JSON_EXTRACT(ube.eventData, '$.pageLoadTime') as loadTime
@@ -1051,47 +1058,47 @@ class AnalyticsService {
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'performance' 
-        AND ube.timestamp ${dateFilter}
+        AND ube.timestamp >= ?
         AND JSON_EXTRACT(ube.eventData, '$.pageLoadTime') IS NOT NULL
       ORDER BY JSON_EXTRACT(ube.eventData, '$.pageLoadTime')
-    `, [tenantId]);
+    `, [tenantId, dateValue]);
     
     if (rows.length === 0) return 0;
     const index = Math.floor(rows.length * 0.95);
     return Math.round(rows[index]?.loadTime || 0);
   }
 
-  async getP99PageLoadTime(tenantId, dateFilter) {
+  async getP99PageLoadTime(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT JSON_EXTRACT(ube.eventData, '$.pageLoadTime') as loadTime
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'performance' 
-        AND ube.timestamp ${dateFilter}
+        AND ube.timestamp >= ?
         AND JSON_EXTRACT(ube.eventData, '$.pageLoadTime') IS NOT NULL
       ORDER BY JSON_EXTRACT(ube.eventData, '$.pageLoadTime')
-    `, [tenantId]);
+    `, [tenantId, dateValue]);
     
     if (rows.length === 0) return 0;
     const index = Math.floor(rows.length * 0.99);
     return Math.round(rows[index]?.loadTime || 0);
   }
 
-  async getAvgApiResponseTime(tenantId, dateFilter) {
+  async getAvgApiResponseTime(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT AVG(JSON_EXTRACT(ube.eventData, '$.apiResponseTime')) as avg
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'performance' 
-        AND ube.timestamp ${dateFilter}
+        AND ube.timestamp >= ?
         AND JSON_EXTRACT(ube.eventData, '$.apiResponseTime') IS NOT NULL
-    `, [tenantId]);
+    `, [tenantId, dateValue]);
     return Math.round(rows[0]?.avg || 0);
   }
 
-  async getErrorRate(tenantId, dateFilter) {
+  async getErrorRate(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT 
         COUNT(*) as total,
@@ -1099,52 +1106,52 @@ class AnalyticsService {
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
-        AND ube.timestamp ${dateFilter}
-    `, [tenantId]);
+        AND ube.timestamp >= ?
+    `, [tenantId, dateValue]);
     
     const total = rows[0]?.total || 0;
     const errors = rows[0]?.errors || 0;
     return total > 0 ? (errors / total) * 100 : 0;
   }
 
-  async getCrashRate(tenantId, dateFilter) {
+  async getCrashRate(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT COUNT(*) as count
       FROM user_behavior_events ube
       LEFT JOIN users u ON ube.userId = u.id
       WHERE (u.tenantId = ? OR ube.userId IS NULL)
         AND ube.eventType = 'crash' 
-        AND ube.timestamp ${dateFilter}
-    `, [tenantId]);
+        AND ube.timestamp >= ?
+    `, [tenantId, dateValue]);
     return rows[0]?.count || 0;
   }
 
-  async getAvgPageViewsPerSession(tenantId, dateFilter) {
+  async getAvgPageViewsPerSession(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT AVG(us.pageCount) as avg
       FROM user_sessions us
       LEFT JOIN users u ON us.userId = u.id
-      WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime ${dateFilter} AND us.pageCount > 0
-    `, [tenantId]);
+      WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime >= ? AND us.pageCount > 0
+    `, [tenantId, dateValue]);
     return Math.round(rows[0]?.avg || 0);
   }
 
-  async getSessionsPerUser(tenantId, dateFilter) {
+  async getSessionsPerUser(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT 
         COUNT(DISTINCT us.userId) as users,
         COUNT(*) as sessions
       FROM user_sessions us
       LEFT JOIN users u ON us.userId = u.id
-      WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime ${dateFilter} AND us.userId IS NOT NULL
-    `, [tenantId]);
+      WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime >= ? AND us.userId IS NOT NULL
+    `, [tenantId, dateValue]);
     
     const users = rows[0]?.users || 0;
     const sessions = rows[0]?.sessions || 0;
     return users > 0 ? (sessions / users).toFixed(2) : 0;
   }
 
-  async getReturningVsNew(tenantId, dateFilter) {
+  async getReturningVsNew(tenantId, dateValue) {
     const [rows] = await this.pool.execute(`
       SELECT 
         COUNT(DISTINCT CASE 
@@ -1167,7 +1174,7 @@ class AnalyticsService {
         END) as new
       FROM user_sessions us
       LEFT JOIN users u ON us.userId = u.id
-      WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime ${dateFilter} AND us.userId IS NOT NULL
+      WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime >= ? AND us.userId IS NOT NULL
     `, [tenantId, tenantId, tenantId]);
     
     return {
