@@ -252,7 +252,7 @@ const cspDirectives = {
   fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
   objectSrc: ["'none'"],
   mediaSrc: ["'self'"],
-  frameSrc: ["'self'", "https://www.dhlecommerce.com.tr"],
+  frameSrc: ["'self'"],
   // XSS koruması için
   baseUri: ["'self'"],
   formAction: ["'self'"],
