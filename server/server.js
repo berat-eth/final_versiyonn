@@ -239,43 +239,50 @@ function getLocalIPAddress() {
 
 // Middleware - Güvenlik başlıkları
 // CSP güçlendirildi - unsafe-inline ve unsafe-eval kaldırıldı
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  // unsafe-inline kaldırıldı - XSS koruması için
+  // Style'lar için nonce veya hash kullanılmalı
+  styleSrc: ["'self'", "https://fonts.googleapis.com"],
+  // unsafe-inline ve unsafe-eval kaldırıldı
+  // Script'ler için nonce veya hash kullanılmalı
+  scriptSrc: ["'self'"],
+  imgSrc: ["'self'", "https:", "data:"],
+  connectSrc: ["'self'", "https://api.plaxsy.com", "https://admin.plaxsy.com", "https://plaxsy.com", "https://www.plaxsy.com", "https://api.zerodaysoftware.tr"],
+  fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+  objectSrc: ["'none'"],
+  mediaSrc: ["'self'"],
+  frameSrc: ["'self'", "https://www.dhlecommerce.com.tr"],
+  // XSS koruması için
+  baseUri: ["'self'"],
+  formAction: ["'self'"],
+  frameAncestors: ["'none'"]
+}
+
+// Report violations (sadece URL varsa ekle)
+if (process.env.CSP_REPORT_URI) {
+  cspDirectives.reportUri = process.env.CSP_REPORT_URI
+}
+
+// Development için CSP direktifleri
+const devCspDirectives = process.env.NODE_ENV === 'development' ? {
+  defaultSrc: ["'self'"],
+  styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+  scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Dev için geçici
+  imgSrc: ["'self'", "https:", "data:"],
+  connectSrc: ["'self'", "https:", "http://localhost:*"],
+  fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+  objectSrc: ["'none'"],
+  mediaSrc: ["'self'"],
+  frameSrc: ["'self'", "https://www.dhlecommerce.com.tr"]
+} : null
+
+// Development modunda devCspDirectives kullan, değilse cspDirectives kullan
+const finalCspDirectives = devCspDirectives || cspDirectives
+
 app.use(helmet({
   contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      // unsafe-inline kaldırıldı - XSS koruması için
-      // Style'lar için nonce veya hash kullanılmalı
-      styleSrc: ["'self'", "https://fonts.googleapis.com"],
-      // unsafe-inline ve unsafe-eval kaldırıldı
-      // Script'ler için nonce veya hash kullanılmalı
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "https:", "data:"],
-      connectSrc: ["'self'", "https://api.plaxsy.com", "https://admin.plaxsy.com", "https://plaxsy.com", "https://www.plaxsy.com", "https://api.zerodaysoftware.tr"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-      // XSS koruması için
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      frameAncestors: ["'none'"],
-      // Report violations (opsiyonel)
-      reportUri: process.env.CSP_REPORT_URI || undefined
-    },
-    // Development'ta daha esnek CSP (geliştirme kolaylığı için)
-    ...(process.env.NODE_ENV === 'development' ? {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Dev için geçici
-        imgSrc: ["'self'", "https:", "data:"],
-        connectSrc: ["'self'", "https:", "http://localhost:*"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-        objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
-        frameSrc: ["'none'"]
-      }
-    } : {})
+    directives: finalCspDirectives
   },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
