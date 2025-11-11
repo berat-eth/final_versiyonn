@@ -814,11 +814,24 @@ app.use('/api', (req, res, next) => {
       const cacheKey = `tenant:apikey:${sha256(String(apiKey))}`;
       const cached = await getJson(cacheKey);
       if (cached && cached.id) {
-        req.tenant = cached;
-        if (cached.settings && typeof cached.settings === 'string') {
-          try { req.tenant.settings = JSON.parse(cached.settings); } catch (_) { }
+        // GÜVENLİK: Cache'den gelen tenant'ın API key'ini doğrula
+        // Eski cache'lerde geçersiz key'ler için default tenant olabilir
+        const [verifyRows] = await poolWrapper.execute(
+          'SELECT id FROM tenants WHERE apiKey = ? AND id = ? AND isActive = true',
+          [apiKey, cached.id]
+        );
+        if (verifyRows.length === 0) {
+          // Cache'deki tenant bu API key'e ait değil, cache'i sil ve DB'den kontrol et
+          try { await delKey(cacheKey); } catch (_) { }
+          // Cache'i atla, DB kontrolüne devam et
+        } else {
+          // Cache geçerli, kullan
+          req.tenant = cached;
+          if (cached.settings && typeof cached.settings === 'string') {
+            try { req.tenant.settings = JSON.parse(cached.settings); } catch (_) { }
+          }
+          return next();
         }
-        return next();
       }
 
       const lockKey = `${cacheKey}:lock`;
