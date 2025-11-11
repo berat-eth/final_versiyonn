@@ -555,7 +555,7 @@ async function createDatabaseSchema(pool) {
     FROM INFORMATION_SCHEMA.COLUMNS 
     WHERE TABLE_SCHEMA = DATABASE() 
     AND TABLE_NAME = 'orders'
-    AND COLUMN_NAME IN ('city', 'district', 'fullAddress', 'updatedAt', 'customerName', 'customerEmail', 'customerPhone', 'paymentStatus', 'paymentId', 'paymentProvider', 'paidAt')
+    AND COLUMN_NAME IN ('city', 'district', 'fullAddress', 'updatedAt', 'customerName', 'customerEmail', 'customerPhone', 'paymentStatus', 'paymentId', 'paymentProvider', 'paidAt', 'paymentMeta')
   `);
 
       const existingColumns = columns.map(col => col.COLUMN_NAME);
@@ -613,6 +613,11 @@ async function createDatabaseSchema(pool) {
       if (!existingColumns.includes('paidAt')) {
           await pool.execute('ALTER TABLE orders ADD COLUMN paidAt TIMESTAMP NULL');
           console.log('✅ Added paidAt column to orders table');
+      }
+
+      if (!existingColumns.includes('paymentMeta')) {
+          await pool.execute('ALTER TABLE orders ADD COLUMN paymentMeta JSON');
+          console.log('✅ Added paymentMeta column to orders table');
       }
       console.log('✅ Orders table ready');
 

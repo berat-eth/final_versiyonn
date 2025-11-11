@@ -6953,9 +6953,10 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
           continue;
         }
         
+        // JSON kolonunda arama için JSON_EXTRACT kullan
         const [existingOrders] = await poolWrapper.execute(
-          'SELECT id FROM orders WHERE tenantId = ? AND paymentMeta LIKE ?',
-          [tenantId, `%"externalOrderId":"${orderNumber}"%`]
+          'SELECT id FROM orders WHERE tenantId = ? AND JSON_EXTRACT(paymentMeta, "$.externalOrderId") = ?',
+          [tenantId, orderNumber]
         );
         
         if (existingOrders.length > 0) {
