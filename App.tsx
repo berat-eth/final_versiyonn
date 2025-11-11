@@ -28,6 +28,11 @@ export default function App() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [backendReady, setBackendReady] = useState<null | boolean>(null);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
+  const [maintenanceMode, setMaintenanceMode] = useState<{
+    enabled: boolean;
+    message: string;
+    estimatedEndTime: string | null;
+  } | null>(null);
 
   useEffect(() => {
     // Install global error monitor early
@@ -76,6 +81,40 @@ export default function App() {
               persistApiKey(DEFAULT_TENANT_API_KEY).catch(() => { });
             }
           } catch { }
+          
+          // Bakım modu kontrolü
+          try {
+            const maintenanceController = new AbortController();
+            const maintenanceTimeoutId = setTimeout(() => maintenanceController.abort(), 2000);
+            const maintenanceResp = await fetch(`${getApiBaseUrl()}/maintenance/status`, {
+              method: 'GET',
+              signal: maintenanceController.signal,
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                ...(DEFAULT_TENANT_API_KEY ? { 'X-API-Key': DEFAULT_TENANT_API_KEY } : {}),
+                ...(DEFAULT_TENANT_ID ? { 'X-Tenant-Id': DEFAULT_TENANT_ID } : {})
+              }
+            });
+            clearTimeout(maintenanceTimeoutId);
+            
+            if (maintenanceResp.ok) {
+              const maintenanceData = await maintenanceResp.json();
+              if (maintenanceData?.success && maintenanceData?.data?.enabled) {
+                setMaintenanceMode({
+                  enabled: true,
+                  message: maintenanceData.data.message || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
+                  estimatedEndTime: maintenanceData.data.estimatedEndTime || null
+                });
+                setBackendReady(true); // Backend hazır ama bakım modunda
+                return;
+              }
+            }
+          } catch (e) {
+            // Bakım modu kontrolü başarısız olsa bile devam et
+            console.log('Bakım modu kontrolü yapılamadı:', e);
+          }
+          
           setBackendReady(true);
         } catch (e) {
           setBackendReady(false);
@@ -137,6 +176,73 @@ export default function App() {
   // Yönlendirme sayacı ve WebView fallback kaldırıldı
 
   // Yönlendirme ekranı kaldırıldı
+
+  // Bakım modu ekranı
+  if (maintenanceMode?.enabled && backendReady === true) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', padding: 24 }} edges={['top', 'bottom']}>
+          <View style={{ width: '92%', maxWidth: 480, backgroundColor: '#fff', borderRadius: 16, padding: 24, gap: 16, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6 }}>
+            <View style={{ alignItems: 'center' }}>
+              <Image source={require('./assets/logo-removebg-preview.png')} style={{ width: 180, height: 180, marginBottom: 16, resizeMode: 'contain' }} />
+              <Text style={{ fontSize: 24, fontWeight: '700', color: '#111', marginBottom: 8 }}>Bakım Modu</Text>
+            </View>
+
+            <View style={{ alignItems: 'center', gap: 12 }}>
+              <Text style={{ fontSize: 16, color: '#333', textAlign: 'center', lineHeight: 24 }}>
+                {maintenanceMode.message}
+              </Text>
+              {maintenanceMode.estimatedEndTime && (
+                <View style={{ marginTop: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#FFF7CC', borderWidth: 1, borderColor: '#FFE899' }}>
+                  <Text style={{ fontSize: 14, color: '#8A6D00', textAlign: 'center' }}>
+                    Tahmini Bitiş: {new Date(maintenanceMode.estimatedEndTime).toLocaleString('tr-TR')}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={{ marginTop: 8 }}>
+              <TouchableOpacity 
+                onPress={async () => {
+                  // Bakım modu durumunu tekrar kontrol et
+                  try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 2000);
+                    const resp = await fetch(`${getApiBaseUrl()}/maintenance/status`, {
+                      method: 'GET',
+                      signal: controller.signal,
+                      headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        ...(DEFAULT_TENANT_API_KEY ? { 'X-API-Key': DEFAULT_TENANT_API_KEY } : {}),
+                        ...(DEFAULT_TENANT_ID ? { 'X-Tenant-Id': DEFAULT_TENANT_ID } : {})
+                      }
+                    });
+                    clearTimeout(timeoutId);
+                    
+                    if (resp.ok) {
+                      const data = await resp.json();
+                      if (data?.success && !data?.data?.enabled) {
+                        // Bakım modu kapatılmış, uygulamayı yeniden başlat
+                        setMaintenanceMode(null);
+                        // Sayfayı yenilemek için backendReady'i resetle
+                        setBackendReady(null);
+                      }
+                    }
+                  } catch (e) {
+                    console.log('Bakım modu kontrolü başarısız:', e);
+                  }
+                }} 
+                style={{ backgroundColor: '#111', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 10 }}
+              >
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', textAlign: 'center' }}>Tekrar Dene</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
 
   if (backendReady === false) {
     const handleRetry = async () => {

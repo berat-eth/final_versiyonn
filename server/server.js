@@ -1454,6 +1454,85 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Bakım Modu - Durum kontrolü (herkese açık)
+app.get('/api/maintenance/status', async (req, res) => {
+  try {
+    const cfgPath = path.join(__dirname, '..', 'admin-panel', 'config.json');
+    let config = {};
+    try {
+      const raw = fs.readFileSync(cfgPath, 'utf-8');
+      config = JSON.parse(raw);
+    } catch (_) {
+      // Config dosyası yoksa bakım modu kapalı
+    }
+    
+    const maintenanceMode = {
+      enabled: !!(config.MAINTENANCE_MODE && config.MAINTENANCE_MODE.enabled),
+      message: (config.MAINTENANCE_MODE && config.MAINTENANCE_MODE.message) || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
+      estimatedEndTime: (config.MAINTENANCE_MODE && config.MAINTENANCE_MODE.estimatedEndTime) || null
+    };
+
+    res.json({
+      success: true,
+      data: maintenanceMode
+    });
+  } catch (error) {
+    console.error('❌ Maintenance status check error:', error);
+    res.json({
+      success: true,
+      data: {
+        enabled: false,
+        message: 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
+        estimatedEndTime: null
+      }
+    });
+  }
+});
+
+// Bakım Modu - Aç/Kapat (sadece admin)
+app.post('/api/admin/maintenance/toggle', authenticateAdmin, async (req, res) => {
+  try {
+    const { enabled, message, estimatedEndTime } = req.body || {};
+    const cfgPath = path.join(__dirname, '..', 'admin-panel', 'config.json');
+    
+    let current = {};
+    try {
+      const raw = fs.readFileSync(cfgPath, 'utf-8');
+      current = JSON.parse(raw);
+    } catch (_) {
+      // Config dosyası yoksa yeni oluştur
+    }
+
+    const maintenanceConfig = {
+      enabled: !!enabled,
+      message: message || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
+      estimatedEndTime: estimatedEndTime || null,
+      updatedAt: new Date().toISOString()
+    };
+
+    const merged = {
+      ...current,
+      MAINTENANCE_MODE: maintenanceConfig
+    };
+
+    fs.writeFileSync(cfgPath, JSON.stringify(merged, null, 2), 'utf-8');
+    
+    console.log(`🔧 Bakım modu ${enabled ? 'açıldı' : 'kapatıldı'}`);
+    
+    return res.json({
+      success: true,
+      message: `Bakım modu ${enabled ? 'açıldı' : 'kapatıldı'}`,
+      data: maintenanceConfig
+    });
+  } catch (e) {
+    console.error('❌ Maintenance toggle error:', e);
+    res.status(500).json({
+      success: false,
+      message: 'Bakım modu ayarı kaydedilemedi'
+    });
+  }
+});
+
 // Ollama API endpoints
 app.get('/api/ollama/health', async (req, res) => {
   try {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Bell, Lock, Globe, Palette, Database, Mail, Smartphone, Shield, Save, Eye, EyeOff, UserPlus, Edit, Trash2, CheckCircle, XCircle, X, Brain, TestTube2 } from 'lucide-react'
+import { Settings as SettingsIcon, User, Bell, Lock, Globe, Palette, Database, Mail, Smartphone, Shield, Save, Eye, EyeOff, UserPlus, Edit, Trash2, CheckCircle, XCircle, X, Brain, TestTube2, Wrench } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
 import { aiProvidersService, type AIProvider, type AIProviderConfig } from '@/lib/services/ai-providers'
@@ -51,6 +51,79 @@ export default function Settings() {
     const [aiLoading, setAiLoading] = useState(false)
     const [aiTestMessage, setAiTestMessage] = useState<string | null>(null)
     const [availableModels, setAvailableModels] = useState<string[]>([])
+
+    // Bakım Modu State
+    const [maintenanceMode, setMaintenanceMode] = useState({
+        enabled: false,
+        message: 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
+        estimatedEndTime: ''
+    })
+    const [maintenanceLoading, setMaintenanceLoading] = useState(false)
+    const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null)
+
+    // Bakım modu durumunu yükle
+    useEffect(() => {
+        const loadMaintenanceStatus = async () => {
+            try {
+                const res = await api.get<any>('/maintenance/status')
+                if (res?.data) {
+                    setMaintenanceMode({
+                        enabled: res.data.enabled || false,
+                        message: res.data.message || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
+                        estimatedEndTime: res.data.estimatedEndTime || ''
+                    })
+                }
+            } catch (e) {
+                console.error('Bakım modu durumu yüklenemedi:', e)
+            }
+        }
+        loadMaintenanceStatus()
+    }, [])
+
+    // Bakım modu toggle
+    const toggleMaintenanceMode = async () => {
+        setMaintenanceLoading(true)
+        setMaintenanceMessage(null)
+        try {
+            const newEnabled = !maintenanceMode.enabled
+            const res = await api.post('/admin/maintenance/toggle', {
+                enabled: newEnabled,
+                message: maintenanceMode.message,
+                estimatedEndTime: maintenanceMode.estimatedEndTime || null
+            })
+            if (res?.success) {
+                setMaintenanceMode({
+                    ...maintenanceMode,
+                    enabled: newEnabled
+                })
+                setMaintenanceMessage(res.message || `Bakım modu ${newEnabled ? 'açıldı' : 'kapatıldı'}`)
+            }
+        } catch (e: any) {
+            setMaintenanceMessage(e?.message || 'Bakım modu ayarı kaydedilemedi')
+        } finally {
+            setMaintenanceLoading(false)
+        }
+    }
+
+    // Bakım modu mesajını güncelle
+    const updateMaintenanceMessage = async () => {
+        setMaintenanceLoading(true)
+        setMaintenanceMessage(null)
+        try {
+            const res = await api.post('/admin/maintenance/toggle', {
+                enabled: maintenanceMode.enabled,
+                message: maintenanceMode.message,
+                estimatedEndTime: maintenanceMode.estimatedEndTime || null
+            })
+            if (res?.success) {
+                setMaintenanceMessage('Bakım modu mesajı güncellendi')
+            }
+        } catch (e: any) {
+            setMaintenanceMessage(e?.message || 'Bakım modu mesajı güncellenemedi')
+        } finally {
+            setMaintenanceLoading(false)
+        }
+    }
 
     useEffect(() => {
         const loadAiConfig = async () => {
@@ -794,6 +867,82 @@ export default function Settings() {
                                 <div>
                                     <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">Sistem Ayarları</h3>
                                     <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Sistem ve veritabanı ayarları</p>
+                                </div>
+
+                                {/* Bakım Modu */}
+                                <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center space-x-3">
+                                            <Wrench className={`w-6 h-6 ${maintenanceMode.enabled ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
+                                            <div>
+                                                <h4 className="font-semibold text-slate-800 dark:text-slate-100">Bakım Modu</h4>
+                                                <p className="text-sm text-slate-600 dark:text-slate-400">Mobil uygulamayı bakım moduna al</p>
+                                            </div>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={maintenanceMode.enabled}
+                                                onChange={toggleMaintenanceMode}
+                                                disabled={maintenanceLoading}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-600 dark:peer-checked:bg-amber-500"></div>
+                                        </label>
+                                    </div>
+
+                                    {maintenanceMode.enabled && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="space-y-4 mt-4 pt-4 border-t border-amber-200 dark:border-amber-800"
+                                        >
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                                    Bakım Mesajı
+                                                </label>
+                                                <textarea
+                                                    value={maintenanceMode.message}
+                                                    onChange={(e) => setMaintenanceMode({ ...maintenanceMode, message: e.target.value })}
+                                                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:text-white"
+                                                    rows={3}
+                                                    placeholder="Sistem bakımda. Lütfen daha sonra tekrar deneyin."
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                                    Tahmini Bitiş Zamanı (Opsiyonel)
+                                                </label>
+                                                <input
+                                                    type="datetime-local"
+                                                    value={maintenanceMode.estimatedEndTime}
+                                                    onChange={(e) => setMaintenanceMode({ ...maintenanceMode, estimatedEndTime: e.target.value })}
+                                                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:text-white"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={updateMaintenanceMessage}
+                                                    disabled={maintenanceLoading}
+                                                    className="px-4 py-2 bg-amber-600 dark:bg-amber-700 text-white rounded-lg hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors disabled:opacity-50 text-sm font-medium"
+                                                >
+                                                    {maintenanceLoading ? 'Kaydediliyor...' : 'Mesajı Güncelle'}
+                                                </button>
+                                                {maintenanceMessage && (
+                                                    <span className="text-sm text-slate-600 dark:text-slate-400">{maintenanceMessage}</span>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    )}
+
+                                    {maintenanceMode.enabled && (
+                                        <div className="mt-4 p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                                            <p className="text-sm text-amber-800 dark:text-amber-200">
+                                                ⚠️ Bakım modu aktif. Mobil uygulama kullanıcıları bakım ekranını görecek.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-6">
