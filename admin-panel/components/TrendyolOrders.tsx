@@ -135,6 +135,8 @@ export default function TrendyolOrders() {
           cargoTrackingNumber: cargoTrackingNumber,
           cargoProviderName: cargoProviderName,
           customerName: selectedOrder.customerName,
+          customerEmail: selectedOrder.customerEmail,
+          customerPhone: selectedOrder.customerPhone,
           customerAddress: selectedOrder.shippingAddress || selectedOrder.fullAddress,
           city: selectedOrder.city,
           district: selectedOrder.district

@@ -7515,6 +7515,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       cargoTrackingNumber,
       cargoProviderName,
       customerName,
+      customerEmail,
+      customerPhone,
       customerAddress,
       city,
       district
@@ -7594,6 +7596,14 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     yPos += 20;
     if (customerName) {
       doc.fontSize(10).text(`Ad Soyad: ${customerName}`, 20, yPos);
+      yPos += 15;
+    }
+    if (customerPhone) {
+      doc.fontSize(10).text(`Telefon: ${customerPhone}`, 20, yPos);
+      yPos += 15;
+    }
+    if (customerEmail) {
+      doc.fontSize(10).text(`E-posta: ${customerEmail}`, 20, yPos);
       yPos += 15;
     }
     if (customerAddress) {
