@@ -7578,8 +7578,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     doc.rect(0, 0, 595, 70).fill('#1e293b'); // Slate-800
     doc.fontSize(28)
        .fillColor('#ffffff')
-       .font('Helvetica-Bold')
-       .text('KARGO FİŞİ', 20, 25, { align: 'center', width: 555 });
+       .font('Helvetica-Bold');
+    addUTF8Text('KARGO FİŞİ', 20, 25, { align: 'center', width: 555 });
     
     // Alt çizgi
     doc.strokeColor('#3b82f6')
@@ -7645,33 +7645,38 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
        .font('Helvetica');
     
     if (customerName) {
-      doc.fillColor('#64748b').fontSize(9).text('Ad Soyad:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold')
-         .text(customerName || '', 90, yPos, { width: 160 });
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica');
+      addUTF8Text('Ad Soyad:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold');
+      addUTF8Text(customerName || '', 90, yPos, { width: 160 });
       yPos += 18;
     }
     if (customerPhone) {
-      doc.fillColor('#64748b').fontSize(9).text('Telefon:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(10)
-         .text(customerPhone || '', 90, yPos, { width: 160 });
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica');
+      addUTF8Text('Telefon:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(10).font('Helvetica');
+      addUTF8Text(customerPhone || '', 90, yPos, { width: 160 });
       yPos += 18;
     }
     if (customerEmail) {
-      doc.fillColor('#64748b').fontSize(9).text('E-posta:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(9)
-         .text(customerEmail || '', 90, yPos, { width: 160, lineGap: 2 });
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica');
+      addUTF8Text('E-posta:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(9).font('Helvetica');
+      addUTF8Text(customerEmail || '', 90, yPos, { width: 160, lineGap: 2 });
       yPos += 20;
     }
     if (customerAddress) {
-      doc.fillColor('#64748b').fontSize(9).text('Adres:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(9)
-         .text(customerAddress || '', 90, yPos, { width: 160, lineGap: 2 });
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica');
+      addUTF8Text('Adres:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(9).font('Helvetica');
+      addUTF8Text(customerAddress || '', 90, yPos, { width: 160, lineGap: 2 });
       yPos += 25;
     }
     if (district || city) {
-      doc.fillColor('#64748b').fontSize(9).text('İlçe/İl:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(10)
-         .text(`${district || ''} ${city || ''}`.trim(), 90, yPos, { width: 160 });
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica');
+      addUTF8Text('İlçe/İl:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(10).font('Helvetica');
+      addUTF8Text(`${district || ''} ${city || ''}`.trim(), 90, yPos, { width: 160 });
       yPos += 20;
     }
 
