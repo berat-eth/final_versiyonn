@@ -401,7 +401,7 @@ export default function Invoices() {
                       </div>
                       <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
                         <DollarSign className="w-4 h-4" />
-                        <span>{invoice.totalAmount.toFixed(2)} {invoice.currency}</span>
+                        <span>{Number(invoice.totalAmount || 0).toFixed(2)} {invoice.currency}</span>
                       </div>
                     </div>
                   </div>

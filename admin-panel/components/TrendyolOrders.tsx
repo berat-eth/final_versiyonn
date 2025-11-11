@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { 
   ShoppingCart, Search, Loader2, X, User, Mail, Phone, 
-  Calendar, DollarSign, Package, MapPin, Code, FileJson
+  Calendar, DollarSign, Package, MapPin, Code, FileJson, 
+  Receipt, FileText, Download, ExternalLink, Printer
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
@@ -39,6 +40,9 @@ export default function TrendyolOrders() {
   const [loading, setLoading] = useState(true)
   const [showOrderDetailModal, setShowOrderDetailModal] = useState(false)
   const [showJsonModal, setShowJsonModal] = useState(false)
+  const [showInvoicesModal, setShowInvoicesModal] = useState(false)
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [invoicesLoading, setInvoicesLoading] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrder | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -70,6 +74,98 @@ export default function TrendyolOrders() {
   const handleOrderClick = (order: MarketplaceOrder) => {
     setSelectedOrder(order)
     setShowOrderDetailModal(true)
+  }
+
+  const handleShowInvoices = async () => {
+    try {
+      setInvoicesLoading(true)
+      const response = await api.get<ApiResponse<any[]>>('/admin/invoices')
+      if (response.success && response.data) {
+        setInvoices(response.data)
+        setShowInvoicesModal(true)
+      }
+    } catch (err: any) {
+      console.error('Faturalar yüklenemedi:', err)
+    } finally {
+      setInvoicesLoading(false)
+    }
+  }
+
+  const handleGenerateCargoSlip = async () => {
+    if (!selectedOrder) return
+    
+    try {
+      // Faturaları yükle
+      const invoicesResponse = await api.get<ApiResponse<any[]>>('/admin/invoices')
+      if (!invoicesResponse.success || !invoicesResponse.data || invoicesResponse.data.length === 0) {
+        alert('Fatura bulunamadı. Lütfen önce bir fatura yükleyin.')
+        return
+      }
+
+      // İlk faturayı seç (veya kullanıcı seçim yapabilir)
+      const selectedInvoice = invoicesResponse.data[0]
+      const invoiceUrl = selectedInvoice.shareUrl || ''
+
+      // Kargo bilgilerini al
+      const orderData = selectedOrder.orderData 
+        ? (typeof selectedOrder.orderData === 'string' 
+            ? JSON.parse(selectedOrder.orderData)
+            : selectedOrder.orderData)
+        : null
+      
+      const cargoTrackingNumber = orderData?.cargoTrackingNumber || ''
+      const cargoProviderName = orderData?.cargoProviderName || ''
+
+      // Backend'e istek gönder (blob response için doğrudan fetch)
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api'
+      const token = sessionStorage.getItem('authToken') || ''
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+      
+      const response = await fetch(`${apiBaseUrl}/admin/generate-cargo-slip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Key': token
+        },
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+          invoiceUrl: invoiceUrl,
+          cargoTrackingNumber: cargoTrackingNumber,
+          cargoProviderName: cargoProviderName,
+          customerName: selectedOrder.customerName,
+          customerAddress: selectedOrder.shippingAddress || selectedOrder.fullAddress,
+          city: selectedOrder.city,
+          district: selectedOrder.district
+        })
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `kargo-fisi-${selectedOrder.externalOrderId}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        const errorText = await response.text()
+        let errorMessage = 'Bilinmeyen hata'
+        try {
+          const error = JSON.parse(errorText)
+          errorMessage = error.message || errorMessage
+        } catch {
+          errorMessage = errorText || errorMessage
+        }
+        alert('Kargo fişi oluşturulamadı: ' + errorMessage)
+      }
+    } catch (error: any) {
+      console.error('Kargo fişi oluşturma hatası:', error)
+      alert('Kargo fişi oluşturulamadı: ' + (error.message || 'Bilinmeyen hata'))
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -272,6 +368,13 @@ export default function TrendyolOrders() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={handleShowInvoices}
+                        className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                        title="Faturaları Görüntüle"
+                      >
+                        <Receipt className="w-5 h-5" />
+                      </button>
+                      <button
                         onClick={() => {
                           setShowJsonModal(true)
                         }}
@@ -401,11 +504,10 @@ export default function TrendyolOrders() {
                       const orderData = typeof selectedOrder.orderData === 'string' 
                         ? JSON.parse(selectedOrder.orderData)
                         : selectedOrder.orderData
-                      const cargoSenderNumber = orderData?.cargoSenderNumber
                       const cargoTrackingNumber = orderData?.cargoTrackingNumber
                       const cargoProviderName = orderData?.cargoProviderName
                       
-                      if (!cargoSenderNumber && !cargoTrackingNumber && !cargoProviderName) return null
+                      if (!cargoTrackingNumber && !cargoProviderName) return null
                       
                       return (
                         <div>
@@ -424,14 +526,6 @@ export default function TrendyolOrders() {
                                 <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Kodu</label>
                                 <p className="text-slate-900 dark:text-white font-medium">
                                   {cargoTrackingNumber}
-                                </p>
-                              </div>
-                            )}
-                            {cargoSenderNumber && (
-                              <div>
-                                <label className="text-sm text-slate-600 dark:text-slate-400">Gönderici Numara</label>
-                                <p className="text-slate-900 dark:text-white font-medium">
-                                  {cargoSenderNumber}
                                 </p>
                               </div>
                             )}
@@ -545,6 +639,136 @@ export default function TrendyolOrders() {
                       Kopyala
                     </button>
                   </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Invoices Modal */}
+        <AnimatePresence>
+          {showInvoicesModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowInvoicesModal(false)}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Receipt className="w-6 h-6" />
+                        PDF Faturalar
+                      </h2>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                        Sisteme yüklenmiş tüm faturalar
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowInvoicesModal(false)
+                      }}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6">
+                  {invoicesLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    </div>
+                  ) : invoices.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                      <p className="text-slate-600 dark:text-slate-400">Henüz fatura yüklenmemiş</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {invoices.map((invoice) => (
+                        <div
+                          key={invoice.id}
+                          className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                                <h3 className="font-semibold text-slate-900 dark:text-white">
+                                  {invoice.invoiceNumber || `Fatura #${invoice.id}`}
+                                </h3>
+                                {invoice.fileName && (
+                                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                                    {invoice.fileName}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                {invoice.customerName && (
+                                  <div>
+                                    <label className="text-slate-600 dark:text-slate-400">Müşteri</label>
+                                    <p className="text-slate-900 dark:text-white">{invoice.customerName}</p>
+                                  </div>
+                                )}
+                                {invoice.totalAmount && (
+                                  <div>
+                                    <label className="text-slate-600 dark:text-slate-400">Tutar</label>
+                                    <p className="text-slate-900 dark:text-white">
+                                      {Number(invoice.totalAmount).toFixed(2)} {invoice.currency || 'TRY'}
+                                    </p>
+                                  </div>
+                                )}
+                                {invoice.invoiceDate && (
+                                  <div>
+                                    <label className="text-slate-600 dark:text-slate-400">Tarih</label>
+                                    <p className="text-slate-900 dark:text-white">
+                                      {new Date(invoice.invoiceDate).toLocaleDateString('tr-TR')}
+                                    </p>
+                                  </div>
+                                )}
+                                {invoice.fileSize && (
+                                  <div>
+                                    <label className="text-slate-600 dark:text-slate-400">Boyut</label>
+                                    <p className="text-slate-900 dark:text-white">
+                                      {(invoice.fileSize / 1024).toFixed(2)} KB
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 ml-4">
+                              {invoice.shareUrl && (
+                                <>
+                                  <a
+                                    href={invoice.shareUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                    title="Görüntüle"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                  <a
+                                    href={`${invoice.shareUrl}?download=1`}
+                                    download
+                                    className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                                    title="İndir"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </a>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </div>

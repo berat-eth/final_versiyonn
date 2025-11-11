@@ -819,10 +819,16 @@ app.use('/api', (req, res, next) => {
     '/users', // User registration doesn't require API key
     '/users/login', // User login doesn't require API key
     '/api/users/login', // User login doesn't require API key
-    '/auth/google/verify' // Google OAuth doesn't require API key
+    '/auth/google/verify', // Google OAuth doesn't require API key
+    '/invoices/share' // Public invoice share endpoints (token-based access)
   ];
 
-  if (skipApiKeyPaths.includes(path)) {
+  // Check if path matches any skip pattern (exact match or starts with)
+  const shouldSkip = skipApiKeyPaths.some(skipPath => 
+    path === skipPath || path.startsWith(skipPath + '/')
+  );
+  
+  if (shouldSkip) {
     return next();
   }
 
@@ -7497,6 +7503,179 @@ app.get('/api/invoices/share/:token/download', async (req, res) => {
   } catch (error) {
     console.error('❌ Error downloading invoice:', error);
     res.status(500).json({ success: false, message: 'Error downloading invoice' });
+  }
+});
+
+// Kargo fişi oluşturma endpoint'i
+app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) => {
+  try {
+    const {
+      orderId,
+      invoiceUrl,
+      cargoTrackingNumber,
+      cargoProviderName,
+      customerName,
+      customerAddress,
+      city,
+      district
+    } = req.body;
+
+    // PDFKit'i dinamik olarak yükle
+    let PDFDocument;
+    try {
+      PDFDocument = require('pdfkit');
+    } catch (error) {
+      console.error('❌ PDFKit yüklenemedi:', error);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'PDFKit kütüphanesi bulunamadı. Lütfen npm install pdfkit yapın.' 
+      });
+    }
+
+    // QR kod için qrcode kütüphanesi
+    let QRCode;
+    try {
+      QRCode = require('qrcode');
+    } catch (error) {
+      console.error('❌ QRCode yüklenemedi:', error);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'QRCode kütüphanesi bulunamadı. Lütfen npm install qrcode yapın.' 
+      });
+    }
+
+    // EAN-128 barkod için jsbarcode veya benzeri kütüphane
+    // Basit bir çözüm: EAN-128 formatında metin olarak göster
+
+    // A5 boyutları: 148mm x 210mm (yaklaşık 420pt x 595pt)
+    const doc = new PDFDocument({
+      size: [420, 595], // A5 boyutu
+      margins: { top: 20, bottom: 20, left: 20, right: 20 },
+      info: {
+        Title: 'Kargo Fişi',
+        Author: 'Huğlu Outdoor',
+        Subject: 'Kargo Fişi',
+        Keywords: 'kargo, fiş, cargo'
+      }
+    });
+
+    // UTF-8 desteği için font ayarları
+    doc.font('Helvetica');
+
+    // Başlık
+    doc.fontSize(18)
+       .text('KARGO FİŞİ', 20, 20, { align: 'center' });
+
+    // QR kod oluştur (invoiceUrl için)
+    let qrCodeDataUrl;
+    try {
+      qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl || 'https://example.com', {
+        width: 150,
+        margin: 1
+      });
+    } catch (error) {
+      console.error('QR kod oluşturma hatası:', error);
+      qrCodeDataUrl = null;
+    }
+
+    // QR kod ekle (ortada)
+    if (qrCodeDataUrl) {
+      const qrImage = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+      doc.image(qrImage, 135, 50, { width: 150, height: 150 });
+      doc.fontSize(8)
+         .text('Fatura Linki', 135, 205, { width: 150, align: 'center' });
+    }
+
+    // Müşteri bilgileri
+    let yPos = 220;
+    doc.fontSize(12)
+       .text('MÜŞTERİ BİLGİLERİ', 20, yPos, { underline: true });
+    
+    yPos += 20;
+    if (customerName) {
+      doc.fontSize(10).text(`Ad Soyad: ${customerName}`, 20, yPos);
+      yPos += 15;
+    }
+    if (customerAddress) {
+      doc.fontSize(10).text(`Adres: ${customerAddress}`, 20, yPos);
+      yPos += 15;
+    }
+    if (district || city) {
+      doc.fontSize(10).text(`İlçe/İl: ${district || ''} ${city || ''}`, 20, yPos);
+      yPos += 15;
+    }
+
+    // Kargo bilgileri
+    yPos += 10;
+    doc.fontSize(12)
+       .text('KARGO BİLGİLERİ', 20, yPos, { underline: true });
+    
+    yPos += 20;
+    if (cargoProviderName) {
+      doc.fontSize(10).text(`Kargo Firması: ${cargoProviderName}`, 20, yPos);
+      yPos += 15;
+    }
+    if (cargoTrackingNumber) {
+      doc.fontSize(10).text(`Kargo Kodu: ${cargoTrackingNumber}`, 20, yPos);
+      yPos += 25;
+      
+      // EAN-128 barkod için Code128 formatında QR kod oluştur
+      let barcodeDataUrl;
+      try {
+        // Code128 formatında barkod için kargo kodunu QR kod olarak oluştur
+        barcodeDataUrl = await QRCode.toDataURL(cargoTrackingNumber, {
+          width: 350,
+          margin: 1,
+          errorCorrectionLevel: 'M'
+        });
+      } catch (error) {
+        console.error('Barkod oluşturma hatası:', error);
+        barcodeDataUrl = null;
+      }
+      
+      // Barkod görseli ekle
+      if (barcodeDataUrl) {
+        const barcodeImage = Buffer.from(barcodeDataUrl.split(',')[1], 'base64');
+        doc.image(barcodeImage, 35, yPos, { width: 350, height: 60 });
+        yPos += 70;
+      } else {
+        // Fallback: Metin olarak göster
+        doc.fontSize(14)
+           .font('Courier')
+           .text(cargoTrackingNumber, 20, yPos, { 
+             align: 'center',
+             width: 380
+           });
+        yPos += 20;
+      }
+      
+      // Kargo kodu altında metin
+      doc.fontSize(8)
+         .font('Helvetica')
+         .text('EAN-128', 20, yPos, { align: 'center', width: 380 });
+    }
+
+    // Alt bilgi
+    yPos = 550;
+    doc.fontSize(8)
+       .font('Helvetica')
+       .text(`Sipariş ID: ${orderId}`, 20, yPos, { align: 'center' });
+    yPos += 10;
+    doc.text(`Oluşturulma: ${new Date().toLocaleString('tr-TR')}`, 20, yPos, { align: 'center' });
+
+    // PDF'i response olarak gönder
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="kargo-fisi-${orderId}.pdf"`);
+    
+    doc.pipe(res);
+    doc.end();
+
+  } catch (error) {
+    console.error('❌ Kargo fişi oluşturma hatası:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Kargo fişi oluşturulamadı: ' + (error.message || 'Bilinmeyen hata') 
+    });
   }
 });
 
