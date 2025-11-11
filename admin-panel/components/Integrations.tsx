@@ -2,63 +2,46 @@
 
 import { useState, useEffect } from 'react'
 import { 
-  Link2, CheckCircle2, XCircle, AlertCircle, Settings, 
-  Key, ExternalLink, RefreshCw, Plus, Edit, Trash2, 
-  Save, X, Loader2, Eye, EyeOff, Globe, Mail, 
-  Smartphone, CreditCard, Truck, MessageSquare, Zap, 
-  ShoppingCart as ShoppingCartIcon
+  ShoppingCart as ShoppingCartIcon, CheckCircle2, XCircle, AlertCircle,
+  RefreshCw, Save, X, Loader2, Eye, EyeOff, ExternalLink, Copy,
+  Settings, Package
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
 
-interface Integration {
-  id: number
-  name: string
-  type: 'payment' | 'shipping' | 'sms' | 'email' | 'api' | 'webhook' | 'marketplace' | 'other'
-  provider: string
+interface MarketplaceIntegration {
+  id?: number
+  provider: 'Trendyol' | 'HepsiBurada'
+  apiKey: string
+  apiSecret: string
+  supplierId?: string
+  merchantId?: string
   status: 'active' | 'inactive' | 'error'
-  apiKey?: string
-  apiSecret?: string
-  webhookUrl?: string
-  config?: Record<string, any>
   lastTest?: string
   testResult?: 'success' | 'error' | null
-  description?: string
-}
-
-const integrationTypes = {
-  payment: { label: 'Ödeme', icon: CreditCard, color: 'from-green-500 to-emerald-600' },
-  shipping: { label: 'Kargo', icon: Truck, color: 'from-blue-500 to-cyan-600' },
-  sms: { label: 'SMS', icon: Smartphone, color: 'from-purple-500 to-pink-600' },
-  email: { label: 'E-posta', icon: Mail, color: 'from-orange-500 to-red-600' },
-  api: { label: 'API', icon: Key, color: 'from-indigo-500 to-blue-600' },
-  webhook: { label: 'Webhook', icon: Zap, color: 'from-yellow-500 to-orange-600' },
-  marketplace: { label: 'Marketplace', icon: ShoppingCartIcon, color: 'from-pink-500 to-rose-600' },
-  other: { label: 'Diğer', icon: Link2, color: 'from-gray-500 to-slate-600' }
 }
 
 export default function Integrations() {
-  const [integrations, setIntegrations] = useState<Integration[]>([])
+  const [trendyolIntegration, setTrendyolIntegration] = useState<MarketplaceIntegration | null>(null)
+  const [hepsiburadaIntegration, setHepsiBuradaIntegration] = useState<MarketplaceIntegration | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editingIntegration, setEditingIntegration] = useState<Integration | null>(null)
-  const [showApiKey, setShowApiKey] = useState<Record<number, boolean>>({})
-  const [testing, setTesting] = useState<Record<number, boolean>>({})
-  const [syncing, setSyncing] = useState<Record<number, boolean>>({})
-  const [syncStatus, setSyncStatus] = useState<Record<number, { message: string; success: boolean }>>({})
+  const [testing, setTesting] = useState<Record<string, boolean>>({})
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({})
+  const [syncStatus, setSyncStatus] = useState<Record<string, { message: string; success: boolean }>>({})
+  const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  const [formData, setFormData] = useState({
-    name: '',
-    type: 'api' as Integration['type'],
-    provider: '',
+  const [trendyolForm, setTrendyolForm] = useState({
     apiKey: '',
     apiSecret: '',
-    webhookUrl: '',
-    description: '',
-    config: {} as Record<string, any>
+    supplierId: ''
+  })
+
+  const [hepsiburadaForm, setHepsiBuradaForm] = useState({
+    apiKey: '',
+    apiSecret: '',
+    merchantId: ''
   })
 
   useEffect(() => {
@@ -68,9 +51,30 @@ export default function Integrations() {
   const loadIntegrations = async () => {
     try {
       setLoading(true)
-      const response = await api.get<ApiResponse<Integration[]>>('/admin/integrations')
+      const response = await api.get<ApiResponse<any[]>>('/admin/integrations')
       if (response.success && response.data) {
-        setIntegrations(response.data)
+        const trendyol = response.data.find((i: any) => i.provider === 'Trendyol' && i.type === 'marketplace')
+        const hepsiburada = response.data.find((i: any) => i.provider === 'HepsiBurada' && i.type === 'marketplace')
+        
+        if (trendyol) {
+          setTrendyolIntegration(trendyol)
+          const config = typeof trendyol.config === 'string' ? JSON.parse(trendyol.config) : (trendyol.config || {})
+          setTrendyolForm({
+            apiKey: trendyol.apiKey || '',
+            apiSecret: trendyol.apiSecret || '',
+            supplierId: config.supplierId || ''
+          })
+        }
+        
+        if (hepsiburada) {
+          setHepsiBuradaIntegration(hepsiburada)
+          const config = typeof hepsiburada.config === 'string' ? JSON.parse(hepsiburada.config) : (hepsiburada.config || {})
+          setHepsiBuradaForm({
+            apiKey: hepsiburada.apiKey || '',
+            apiSecret: hepsiburada.apiSecret || '',
+            merchantId: config.merchantId || ''
+          })
+        }
       }
     } catch (err: any) {
       setError('Entegrasyonlar yüklenemedi: ' + (err.message || 'Bilinmeyen hata'))
@@ -79,68 +83,43 @@ export default function Integrations() {
     }
   }
 
-  const handleAdd = () => {
-    setFormData({
-      name: '',
-      type: 'api',
-      provider: '',
-      apiKey: '',
-      apiSecret: '',
-      webhookUrl: '',
-      description: '',
-      config: {}
-    })
-    setShowAddModal(true)
-    setError(null)
-    setSuccess(null)
-  }
-
-  const handleEdit = (integration: Integration) => {
-    setEditingIntegration(integration)
-    const config = integration.config || {}
-    setFormData({
-      name: integration.name,
-      type: integration.type,
-      provider: integration.provider,
-      apiKey: integration.apiKey || '',
-      apiSecret: integration.apiSecret || '',
-      webhookUrl: integration.webhookUrl || '',
-      description: integration.description || '',
-      config: config
-    })
-    setShowEditModal(true)
-    setError(null)
-    setSuccess(null)
-  }
-
-  const handleSave = async () => {
+  const handleSaveTrendyol = async () => {
     try {
       setError(null)
       setSuccess(null)
 
-      const payload = {
-        ...formData,
-        status: 'active'
+      if (!trendyolForm.apiKey || !trendyolForm.apiSecret || !trendyolForm.supplierId) {
+        setError('API Key, API Secret ve Supplier ID gereklidir')
+        return
       }
 
-      let response: ApiResponse<Integration>
-      if (editingIntegration) {
-        response = await api.put<ApiResponse<Integration>>(
-          `/admin/integrations/${editingIntegration.id}`,
+      const payload = {
+        name: 'Trendyol Sipariş Entegrasyonu',
+        type: 'marketplace',
+        provider: 'Trendyol',
+        apiKey: trendyolForm.apiKey,
+        apiSecret: trendyolForm.apiSecret,
+        status: 'active',
+        config: {
+          supplierId: trendyolForm.supplierId
+        }
+      }
+
+      let response: ApiResponse<any>
+      if (trendyolIntegration?.id) {
+        response = await api.put<ApiResponse<any>>(
+          `/admin/integrations/${trendyolIntegration.id}`,
           payload
         )
       } else {
-        response = await api.post<ApiResponse<Integration>>(
+        response = await api.post<ApiResponse<any>>(
           '/admin/integrations',
           payload
         )
       }
 
       if (response.success) {
-        setSuccess(editingIntegration ? 'Entegrasyon güncellendi' : 'Entegrasyon eklendi')
-        setShowAddModal(false)
-        setShowEditModal(false)
-        setEditingIntegration(null)
+        setSuccess('Trendyol entegrasyonu kaydedildi')
         loadIntegrations()
         setTimeout(() => setSuccess(null), 3000)
       } else {
@@ -151,25 +130,61 @@ export default function Integrations() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Bu entegrasyonu silmek istediğinizden emin misiniz?')) return
-
+  const handleSaveHepsiBurada = async () => {
     try {
-      const response = await api.delete<ApiResponse<void>>(`/admin/integrations/${id}`)
+      setError(null)
+      setSuccess(null)
+
+      if (!hepsiburadaForm.apiKey || !hepsiburadaForm.apiSecret || !hepsiburadaForm.merchantId) {
+        setError('API Key, API Secret ve Merchant ID gereklidir')
+        return
+      }
+
+      const payload = {
+        name: 'HepsiBurada Sipariş Entegrasyonu',
+        type: 'marketplace',
+        provider: 'HepsiBurada',
+        apiKey: hepsiburadaForm.apiKey,
+        apiSecret: hepsiburadaForm.apiSecret,
+        status: 'active',
+        config: {
+          merchantId: hepsiburadaForm.merchantId
+        }
+      }
+
+      let response: ApiResponse<any>
+      if (hepsiburadaIntegration?.id) {
+        response = await api.put<ApiResponse<any>>(
+          `/admin/integrations/${hepsiburadaIntegration.id}`,
+          payload
+        )
+      } else {
+        response = await api.post<ApiResponse<any>>(
+          '/admin/integrations',
+          payload
+        )
+      }
+
       if (response.success) {
-        setSuccess('Entegrasyon silindi')
+        setSuccess('HepsiBurada entegrasyonu kaydedildi')
         loadIntegrations()
         setTimeout(() => setSuccess(null), 3000)
       } else {
-        setError(response.message || 'Silme işlemi başarısız')
+        setError(response.message || 'İşlem başarısız')
       }
     } catch (err: any) {
-      setError(err.message || 'Silme işlemi sırasında bir hata oluştu')
+      setError(err.message || 'İşlem sırasında bir hata oluştu')
     }
   }
 
-  const handleTest = async (integration: Integration) => {
-    setTesting({ ...testing, [integration.id]: true })
+  const handleTest = async (provider: 'Trendyol' | 'HepsiBurada') => {
+    const integration = provider === 'Trendyol' ? trendyolIntegration : hepsiburadaIntegration
+    if (!integration?.id) {
+      setError('Önce entegrasyonu kaydedin')
+      return
+    }
+
+    setTesting({ ...testing, [provider]: true })
     try {
       const response = await api.post<ApiResponse<{ success: boolean; message: string }>>(
         `/admin/integrations/${integration.id}/test`
@@ -184,17 +199,19 @@ export default function Integrations() {
     } catch (err: any) {
       setError('Test sırasında hata: ' + (err.message || 'Bilinmeyen hata'))
     } finally {
-      setTesting({ ...testing, [integration.id]: false })
+      setTesting({ ...testing, [provider]: false })
     }
   }
 
-  const toggleApiKey = (id: number) => {
-    setShowApiKey({ ...showApiKey, [id]: !showApiKey[id] })
-  }
+  const handleSyncOrders = async (provider: 'Trendyol' | 'HepsiBurada') => {
+    const integration = provider === 'Trendyol' ? trendyolIntegration : hepsiburadaIntegration
+    if (!integration?.id) {
+      setError('Önce entegrasyonu kaydedin')
+      return
+    }
 
-  const handleSyncOrders = async (integration: Integration) => {
-    setSyncing({ ...syncing, [integration.id]: true })
-    setSyncStatus({ ...syncStatus, [integration.id]: { message: '', success: false } })
+    setSyncing({ ...syncing, [provider]: true })
+    setSyncStatus({ ...syncStatus, [provider]: { message: '', success: false } })
     try {
       const response = await api.post<ApiResponse<{ synced: number; skipped: number; total: number; errors?: any[] }>>(
         `/admin/integrations/${integration.id}/sync-orders`,
@@ -204,7 +221,7 @@ export default function Integrations() {
         const { synced, skipped, total } = response.data
         setSyncStatus({
           ...syncStatus,
-          [integration.id]: {
+          [provider]: {
             message: `${synced} sipariş senkronize edildi, ${skipped} sipariş atlandı (Toplam: ${total})`,
             success: true
           }
@@ -214,7 +231,7 @@ export default function Integrations() {
       } else {
         setSyncStatus({
           ...syncStatus,
-          [integration.id]: {
+          [provider]: {
             message: response.message || 'Sipariş çekme başarısız',
             success: false
           }
@@ -224,18 +241,22 @@ export default function Integrations() {
     } catch (err: any) {
       setSyncStatus({
         ...syncStatus,
-        [integration.id]: {
+        [provider]: {
           message: err.message || 'Sipariş çekme sırasında hata oluştu',
           success: false
         }
       })
       setError('Sipariş çekme sırasında hata: ' + (err.message || 'Bilinmeyen hata'))
     } finally {
-      setSyncing({ ...syncing, [integration.id]: false })
+      setSyncing({ ...syncing, [provider]: false })
     }
   }
 
-  const getStatusColor = (status: Integration['status']) => {
+  const toggleApiKey = (provider: string) => {
+    setShowApiKey({ ...showApiKey, [provider]: !showApiKey[provider] })
+  }
+
+  const getStatusColor = (status?: string) => {
     switch (status) {
       case 'active':
         return 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
@@ -246,7 +267,7 @@ export default function Integrations() {
     }
   }
 
-  const getStatusIcon = (status: Integration['status']) => {
+  const getStatusIcon = (status?: string) => {
     switch (status) {
       case 'active':
         return <CheckCircle2 className="w-4 h-4" />
@@ -270,27 +291,18 @@ export default function Integrations() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-                <Link2 className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg">
+              <ShoppingCartIcon className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-                  Entegrasyonlar
+                Marketplace Entegrasyonları
                 </h1>
                 <p className="text-sm text-slate-600 dark:text-gray-400">
-                  API ve servis entegrasyonlarını yönetin
+                Trendyol ve HepsiBurada sipariş entegrasyonlarını yönetin
                 </p>
-              </div>
             </div>
-            <button
-              onClick={handleAdd}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Yeni Entegrasyon</span>
-            </button>
           </div>
 
           {/* Alerts */}
@@ -314,122 +326,141 @@ export default function Integrations() {
           )}
         </div>
 
-        {/* Integrations Grid */}
-        {integrations.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-            <Link2 className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <p className="text-slate-600 dark:text-slate-400 mb-4">Henüz entegrasyon eklenmemiş</p>
-            <button
-              onClick={handleAdd}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              İlk Entegrasyonu Ekle
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {integrations.map((integration) => {
-              const typeInfo = integrationTypes[integration.type]
-              const TypeIcon = typeInfo.icon
-              return (
+        {/* Marketplace Integrations Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Trendyol Integration */}
                 <motion.div
-                  key={integration.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
+            className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6"
                 >
-                  <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 bg-gradient-to-br ${typeInfo.color} rounded-lg`}>
-                        <TypeIcon className="w-5 h-5 text-white" />
+                <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+                  <Package className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-slate-900 dark:text-white">
-                          {integration.name}
+                  <h3 className="font-semibold text-slate-900 dark:text-white text-lg">
+                    Trendyol
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {integration.provider}
+                    Sipariş entegrasyonu
                         </p>
                       </div>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${getStatusColor(integration.status)}`}>
-                      {getStatusIcon(integration.status)}
-                      {integration.status === 'active' ? 'Aktif' : integration.status === 'error' ? 'Hata' : 'Pasif'}
+              {trendyolIntegration && (
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${getStatusColor(trendyolIntegration.status)}`}>
+                  {getStatusIcon(trendyolIntegration.status)}
+                  {trendyolIntegration.status === 'active' ? 'Aktif' : trendyolIntegration.status === 'error' ? 'Hata' : 'Pasif'}
                     </span>
+              )}
                   </div>
 
-                  {integration.description && (
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                      {integration.description}
-                    </p>
-                  )}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  API Key <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type={showApiKey['trendyol-apiKey'] ? 'text' : 'password'}
+                    value={trendyolForm.apiKey}
+                    onChange={(e) => setTrendyolForm({ ...trendyolForm, apiKey: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    placeholder="Trendyol API Key"
+                  />
+                  <button
+                    onClick={() => toggleApiKey('trendyol-apiKey')}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  >
+                    {showApiKey['trendyol-apiKey'] ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
 
-                  {integration.apiKey && (
-                    <div className="mb-4">
-                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">
-                        API Key
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  API Secret <span className="text-red-500">*</span>
                       </label>
                       <div className="flex items-center gap-2">
                         <input
-                          type={showApiKey[integration.id] ? 'text' : 'password'}
-                          value={showApiKey[integration.id] ? integration.apiKey : '••••••••••••'}
-                          readOnly
-                          className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm"
+                    type={showApiKey['trendyol-apiSecret'] ? 'text' : 'password'}
+                    value={trendyolForm.apiSecret}
+                    onChange={(e) => setTrendyolForm({ ...trendyolForm, apiSecret: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    placeholder="Trendyol API Secret"
                         />
                         <button
-                          onClick={() => toggleApiKey(integration.id)}
+                    onClick={() => toggleApiKey('trendyol-apiSecret')}
                           className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
                         >
-                          {showApiKey[integration.id] ? (
+                    {showApiKey['trendyol-apiSecret'] ? (
                             <EyeOff className="w-4 h-4" />
                           ) : (
                             <Eye className="w-4 h-4" />
                           )}
                         </button>
                       </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Supplier ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={trendyolForm.supplierId}
+                  onChange={(e) => setTrendyolForm({ ...trendyolForm, supplierId: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  placeholder="Trendyol Supplier ID"
+                />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Trendyol Partner Panel'den alabileceğiniz Supplier ID
+                </p>
+              </div>
+
+              {syncStatus['Trendyol'] && (
+                <div className={`p-2 rounded text-xs ${
+                  syncStatus['Trendyol'].success
+                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                    : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                }`}>
+                  {syncStatus['Trendyol'].message}
                     </div>
                   )}
 
-                  {integration.lastTest && (
-                    <div className="mb-4 text-xs">
-                      <span className="text-slate-500 dark:text-slate-400">Son Test: </span>
+              {trendyolIntegration?.lastTest && (
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  <span>Son Test: </span>
                       <span className="text-slate-700 dark:text-slate-300">
-                        {new Date(integration.lastTest).toLocaleString('tr-TR')}
+                    {new Date(trendyolIntegration.lastTest).toLocaleString('tr-TR')}
                       </span>
                     </div>
                   )}
 
-                  {syncStatus[integration.id] && (
-                    <div className={`mb-4 p-2 rounded text-xs ${
-                      syncStatus[integration.id].success
-                        ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-                        : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                    }`}>
-                      {syncStatus[integration.id].message}
-                    </div>
+              <div className="flex items-center gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={() => handleSyncOrders('Trendyol')}
+                  disabled={syncing['Trendyol'] || !trendyolIntegration?.id}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-pink-50 dark:bg-pink-900/20 text-pink-700 dark:text-pink-400 rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors disabled:opacity-50"
+                >
+                  {syncing['Trendyol'] ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShoppingCartIcon className="w-4 h-4" />
                   )}
-
-                  <div className="flex items-center gap-2 mt-4">
-                    {integration.provider === 'Trendyol' && integration.type === 'marketplace' && (
-                      <button
-                        onClick={() => handleSyncOrders(integration)}
-                        disabled={syncing[integration.id]}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-pink-50 dark:bg-pink-900/20 text-pink-700 dark:text-pink-400 rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors disabled:opacity-50"
-                      >
-                        {syncing[integration.id] ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <ShoppingCartIcon className="w-4 h-4" />
-                        )}
-                        <span>{syncing[integration.id] ? 'Çekiliyor...' : 'Siparişleri Çek'}</span>
-                      </button>
-                    )}
+                  <span>{syncing['Trendyol'] ? 'Çekiliyor...' : 'Siparişleri Çek'}</span>
+                </button>
                     <button
-                      onClick={() => handleTest(integration)}
-                      disabled={testing[integration.id]}
+                  onClick={() => handleTest('Trendyol')}
+                  disabled={testing['Trendyol'] || !trendyolIntegration?.id}
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50"
                     >
-                      {testing[integration.id] ? (
+                  {testing['Trendyol'] ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <RefreshCw className="w-4 h-4" />
@@ -437,199 +468,167 @@ export default function Integrations() {
                       <span>Test Et</span>
                     </button>
                     <button
-                      onClick={() => handleEdit(integration)}
-                      className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                      title="Düzenle"
-                    >
-                      <Edit className="w-4 h-4" />
+                  onClick={handleSaveTrendyol}
+                  className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-all flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Kaydet</span>
                     </button>
-                    <button
-                      onClick={() => handleDelete(integration.id)}
-                      className="p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                      title="Sil"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+              </div>
                   </div>
                 </motion.div>
-              )
-            })}
-          </div>
-        )}
 
-        {/* Add/Edit Modal */}
-        <AnimatePresence>
-          {(showAddModal || showEditModal) && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          {/* HepsiBurada Integration */}
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {editingIntegration ? 'Entegrasyon Düzenle' : 'Yeni Entegrasyon'}
-                    </h2>
-                    <button
-                      onClick={() => {
-                        setShowAddModal(false)
-                        setShowEditModal(false)
-                        setEditingIntegration(null)
-                      }}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg">
+                  <Package className="w-5 h-5 text-white" />
                   </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white text-lg">
+                    HepsiBurada
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Sipariş entegrasyonu
+                  </p>
                 </div>
+                  </div>
+              {hepsiburadaIntegration && (
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${getStatusColor(hepsiburadaIntegration.status)}`}>
+                  {getStatusIcon(hepsiburadaIntegration.status)}
+                  {hepsiburadaIntegration.status === 'active' ? 'Aktif' : hepsiburadaIntegration.status === 'error' ? 'Hata' : 'Pasif'}
+                </span>
+              )}
+                  </div>
 
-                <div className="p-6 space-y-4">
+            <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Ad
+                  API Key <span className="text-red-500">*</span>
                     </label>
+                <div className="flex items-center gap-2">
                     <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                      placeholder="Örn: Stripe Ödeme"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Tip
-                    </label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value as Integration['type'] })}
-                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                    >
-                      {Object.entries(integrationTypes).map(([key, value]) => (
-                        <option key={key} value={key}>
-                          {value.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Sağlayıcı
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.provider}
-                      onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                      placeholder="Örn: Stripe, PayPal, MNG Kargo"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      API Key
-                    </label>
-                    <input
-                      type="password"
-                      value={formData.apiKey}
-                      onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                      placeholder="API anahtarı"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      API Secret (Opsiyonel)
-                    </label>
-                    <input
-                      type="password"
-                      value={formData.apiSecret}
-                      onChange={(e) => setFormData({ ...formData, apiSecret: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                      placeholder="API secret"
-                    />
-                  </div>
-
-                  {formData.type === 'webhook' && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        Webhook URL
-                      </label>
-                      <input
-                        type="url"
-                        value={formData.webhookUrl}
-                        onChange={(e) => setFormData({ ...formData, webhookUrl: e.target.value })}
-                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                        placeholder="https://example.com/webhook"
-                      />
-                    </div>
-                  )}
-
-                  {formData.type === 'marketplace' && formData.provider === 'Trendyol' && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        Supplier ID <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.config?.supplierId || ''}
-                        onChange={(e) => setFormData({ 
-                          ...formData, 
-                          config: { ...formData.config, supplierId: e.target.value } 
-                        })}
-                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                        placeholder="Trendyol Supplier ID"
-                      />
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        Trendyol Partner Panel'den alabileceğiniz Supplier ID
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Açıklama (Opsiyonel)
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                      rows={3}
-                      placeholder="Entegrasyon hakkında açıklama"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-3">
+                    type={showApiKey['hepsiburada-apiKey'] ? 'text' : 'password'}
+                    value={hepsiburadaForm.apiKey}
+                    onChange={(e) => setHepsiBuradaForm({ ...hepsiburadaForm, apiKey: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    placeholder="HepsiBurada API Key"
+                  />
                   <button
-                    onClick={() => {
-                      setShowAddModal(false)
-                      setShowEditModal(false)
-                      setEditingIntegration(null)
-                    }}
-                    className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    onClick={() => toggleApiKey('hepsiburada-apiKey')}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
                   >
-                    İptal
+                    {showApiKey['hepsiburada-apiKey'] ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  API Secret <span className="text-red-500">*</span>
+                    </label>
+                <div className="flex items-center gap-2">
+                    <input
+                    type={showApiKey['hepsiburada-apiSecret'] ? 'text' : 'password'}
+                    value={hepsiburadaForm.apiSecret}
+                    onChange={(e) => setHepsiBuradaForm({ ...hepsiburadaForm, apiSecret: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    placeholder="HepsiBurada API Secret"
+                  />
+                  <button
+                    onClick={() => toggleApiKey('hepsiburada-apiSecret')}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  >
+                    {showApiKey['hepsiburada-apiSecret'] ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Merchant ID <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                  type="text"
+                  value={hepsiburadaForm.merchantId}
+                  onChange={(e) => setHepsiBuradaForm({ ...hepsiburadaForm, merchantId: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  placeholder="HepsiBurada Merchant ID"
+                    />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  HepsiBurada Mağaza Panel'den alabileceğiniz Merchant ID
+                </p>
+                  </div>
+
+              {syncStatus['HepsiBurada'] && (
+                <div className={`p-2 rounded text-xs ${
+                  syncStatus['HepsiBurada'].success
+                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                    : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                }`}>
+                  {syncStatus['HepsiBurada'].message}
+                    </div>
+                  )}
+
+              {hepsiburadaIntegration?.lastTest && (
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  <span>Son Test: </span>
+                  <span className="text-slate-700 dark:text-slate-300">
+                    {new Date(hepsiburadaIntegration.lastTest).toLocaleString('tr-TR')}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={() => handleSyncOrders('HepsiBurada')}
+                  disabled={syncing['HepsiBurada'] || !hepsiburadaIntegration?.id}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50"
+                >
+                  {syncing['HepsiBurada'] ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShoppingCartIcon className="w-4 h-4" />
+                  )}
+                  <span>{syncing['HepsiBurada'] ? 'Çekiliyor...' : 'Siparişleri Çek'}</span>
+                </button>
+                  <button
+                  onClick={() => handleTest('HepsiBurada')}
+                  disabled={testing['HepsiBurada'] || !hepsiburadaIntegration?.id}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50"
+                >
+                  {testing['HepsiBurada'] ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span>Test Et</span>
                   </button>
                   <button
-                    onClick={handleSave}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all flex items-center gap-2"
+                  onClick={handleSaveHepsiBurada}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all flex items-center gap-2"
                   >
                     <Save className="w-4 h-4" />
                     <span>Kaydet</span>
                   </button>
                 </div>
-              </motion.div>
             </div>
-          )}
-        </AnimatePresence>
+          </motion.div>
+        </div>
       </div>
     </div>
   )
 }
-

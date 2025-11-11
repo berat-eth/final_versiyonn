@@ -6764,6 +6764,52 @@ app.post('/api/admin/integrations/:id/test', authenticateAdmin, async (req, res)
         });
       }
     }
+
+    // HepsiBurada entegrasyonu için özel test
+    if (integration.provider === 'HepsiBurada' && integration.type === 'marketplace') {
+      const HepsiBuradaAPIService = require('./services/hepsiburada-api');
+      const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+      const merchantId = config.merchantId;
+      
+      if (!merchantId || !integration.apiKey || !integration.apiSecret) {
+        await poolWrapper.execute(
+          'UPDATE integrations SET lastTest = CURRENT_TIMESTAMP, testResult = ? WHERE id = ? AND tenantId = ?',
+          ['error', id, tenantId]
+        );
+        return res.json({ 
+          success: true, 
+          data: { 
+            success: false, 
+            message: 'Merchant ID, API Key ve API Secret gereklidir' 
+          } 
+        });
+      }
+      
+      try {
+        const testResult = await HepsiBuradaAPIService.testConnection(
+          merchantId,
+          integration.apiKey,
+          integration.apiSecret
+        );
+        await poolWrapper.execute(
+          'UPDATE integrations SET lastTest = CURRENT_TIMESTAMP, testResult = ? WHERE id = ? AND tenantId = ?',
+          [testResult.success ? 'success' : 'error', id, tenantId]
+        );
+        return res.json({ success: true, data: testResult });
+      } catch (error) {
+        await poolWrapper.execute(
+          'UPDATE integrations SET lastTest = CURRENT_TIMESTAMP, testResult = ? WHERE id = ? AND tenantId = ?',
+          ['error', id, tenantId]
+        );
+        return res.json({ 
+          success: true, 
+          data: { 
+            success: false, 
+            message: error.error || error.message || 'Bağlantı testi başarısız' 
+          } 
+        });
+      }
+    }
     
     // Diğer entegrasyonlar için basit test
     const testResult = integration.apiKey && integration.apiSecret ? 'success' : 'error';
@@ -6796,11 +6842,11 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     
     const integration = rows[0];
     
-    // Sadece Trendyol marketplace entegrasyonları için
-    if (integration.provider !== 'Trendyol' || integration.type !== 'marketplace') {
+    // Sadece marketplace entegrasyonları için
+    if (integration.type !== 'marketplace') {
       return res.status(400).json({ 
         success: false, 
-        message: 'Bu endpoint sadece Trendyol marketplace entegrasyonları için kullanılabilir' 
+        message: 'Bu endpoint sadece marketplace entegrasyonları için kullanılabilir' 
       });
     }
     
@@ -6812,24 +6858,46 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     }
     
     const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
-    const supplierId = config.supplierId;
-    
-    if (!supplierId) {
+    let ordersResponse;
+
+    if (integration.provider === 'Trendyol') {
+      const supplierId = config.supplierId;
+      if (!supplierId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Supplier ID gereklidir. Lütfen entegrasyon ayarlarını kontrol edin.' 
+        });
+      }
+      
+      const TrendyolAPIService = require('./services/trendyol-api');
+      ordersResponse = await TrendyolAPIService.getOrders(
+        supplierId,
+        integration.apiKey,
+        integration.apiSecret,
+        { startDate, endDate, page, size }
+      );
+    } else if (integration.provider === 'HepsiBurada') {
+      const merchantId = config.merchantId;
+      if (!merchantId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Merchant ID gereklidir. Lütfen entegrasyon ayarlarını kontrol edin.' 
+        });
+      }
+      
+      const HepsiBuradaAPIService = require('./services/hepsiburada-api');
+      ordersResponse = await HepsiBuradaAPIService.getOrders(
+        merchantId,
+        integration.apiKey,
+        integration.apiSecret,
+        { startDate, endDate, page, size }
+      );
+    } else {
       return res.status(400).json({ 
         success: false, 
-        message: 'Supplier ID gereklidir. Lütfen entegrasyon ayarlarını kontrol edin.' 
+        message: 'Desteklenmeyen marketplace sağlayıcısı' 
       });
     }
-    
-    const TrendyolAPIService = require('./services/trendyol-api');
-    
-    // Trendyol'dan siparişleri çek
-    const ordersResponse = await TrendyolAPIService.getOrders(
-      supplierId,
-      integration.apiKey,
-      integration.apiSecret,
-      { startDate, endDate, page, size }
-    );
     
     if (!ordersResponse.success || !ordersResponse.data) {
       return res.status(500).json({ 
@@ -6838,16 +6906,17 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       });
     }
     
-    const trendyolOrders = ordersResponse.data.content || ordersResponse.data || [];
+    const marketplaceOrders = ordersResponse.data.content || ordersResponse.data || [];
     let syncedCount = 0;
     let skippedCount = 0;
     const errors = [];
+    const provider = integration.provider.toLowerCase();
     
     // Her siparişi işle
-    for (const trendyolOrder of trendyolOrders) {
+    for (const marketplaceOrder of marketplaceOrders) {
       try {
         // Sipariş zaten var mı kontrol et (orderNumber ile)
-        const orderNumber = trendyolOrder.orderNumber || trendyolOrder.id?.toString();
+        const orderNumber = marketplaceOrder.orderNumber || marketplaceOrder.orderId || marketplaceOrder.id?.toString();
         if (!orderNumber) {
           skippedCount++;
           continue;
@@ -6863,36 +6932,61 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
           continue; // Sipariş zaten var
         }
         
-        // Trendyol sipariş durumunu sistem durumuna çevir
-        const trendyolStatus = trendyolOrder.status || trendyolOrder.packageStatus || 'Pending';
+        // Marketplace sipariş durumunu sistem durumuna çevir
+        const marketplaceStatus = marketplaceOrder.status || marketplaceOrder.orderStatus || 'Pending';
         let systemStatus = 'pending';
-        if (trendyolStatus.includes('Shipped') || trendyolStatus.includes('Delivered')) {
+        if (marketplaceStatus.includes('Shipped') || marketplaceStatus.includes('Delivered') || marketplaceStatus.includes('Teslim')) {
           systemStatus = 'completed';
-        } else if (trendyolStatus.includes('Cancelled') || trendyolStatus.includes('Canceled')) {
+        } else if (marketplaceStatus.includes('Cancelled') || marketplaceStatus.includes('Canceled') || marketplaceStatus.includes('İptal')) {
           systemStatus = 'cancelled';
-        } else if (trendyolStatus.includes('Processing') || trendyolStatus.includes('Preparing')) {
+        } else if (marketplaceStatus.includes('Processing') || marketplaceStatus.includes('Preparing') || marketplaceStatus.includes('Hazırlanıyor')) {
           systemStatus = 'processing';
         }
         
         // Müşteri bilgileri
-        const customerInfo = trendyolOrder.customerFirstName || trendyolOrder.shipmentAddress?.firstName || '';
-        const customerSurname = trendyolOrder.customerLastName || trendyolOrder.shipmentAddress?.lastName || '';
-        const customerName = `${customerInfo} ${customerSurname}`.trim() || 'Trendyol Müşteri';
-        const customerEmail = trendyolOrder.customerEmail || '';
-        const customerPhone = trendyolOrder.customerPhone || trendyolOrder.shipmentAddress?.phoneNumber || '';
+        let customerName = 'Marketplace Müşteri';
+        let customerEmail = '';
+        let customerPhone = '';
+        let shippingAddress = 'Adres bilgisi yok';
+        let city = '';
+        let district = '';
         
-        // Adres bilgileri
-        const shipmentAddress = trendyolOrder.shipmentAddress || {};
-        const shippingAddress = [
-          shipmentAddress.address1 || '',
-          shipmentAddress.address2 || '',
-          shipmentAddress.district || '',
-          shipmentAddress.city || '',
-          shipmentAddress.country || 'Turkey'
-        ].filter(Boolean).join(', ');
+        if (provider === 'trendyol') {
+          const customerInfo = marketplaceOrder.customerFirstName || marketplaceOrder.shipmentAddress?.firstName || '';
+          const customerSurname = marketplaceOrder.customerLastName || marketplaceOrder.shipmentAddress?.lastName || '';
+          customerName = `${customerInfo} ${customerSurname}`.trim() || 'Trendyol Müşteri';
+          customerEmail = marketplaceOrder.customerEmail || '';
+          customerPhone = marketplaceOrder.customerPhone || marketplaceOrder.shipmentAddress?.phoneNumber || '';
+          
+          const shipmentAddress = marketplaceOrder.shipmentAddress || {};
+          shippingAddress = [
+            shipmentAddress.address1 || '',
+            shipmentAddress.address2 || '',
+            shipmentAddress.district || '',
+            shipmentAddress.city || '',
+            shipmentAddress.country || 'Turkey'
+          ].filter(Boolean).join(', ');
+          city = shipmentAddress.city || '';
+          district = shipmentAddress.district || '';
+        } else if (provider === 'hepsiburada') {
+          customerName = marketplaceOrder.customerName || marketplaceOrder.buyer?.name || 'HepsiBurada Müşteri';
+          customerEmail = marketplaceOrder.customerEmail || marketplaceOrder.buyer?.email || '';
+          customerPhone = marketplaceOrder.customerPhone || marketplaceOrder.buyer?.phone || '';
+          
+          const address = marketplaceOrder.shippingAddress || marketplaceOrder.address || {};
+          shippingAddress = [
+            address.addressLine1 || address.address || '',
+            address.addressLine2 || '',
+            address.district || address.districtName || '',
+            address.city || address.cityName || '',
+            address.country || 'Turkey'
+          ].filter(Boolean).join(', ');
+          city = address.city || address.cityName || '';
+          district = address.district || address.districtName || '';
+        }
         
         // Toplam tutar
-        const totalAmount = parseFloat(trendyolOrder.totalPrice || trendyolOrder.grossAmount || 0);
+        const totalAmount = parseFloat(marketplaceOrder.totalPrice || marketplaceOrder.totalAmount || marketplaceOrder.grossAmount || 0);
         
         // Siparişi oluştur
         const [orderResult] = await poolWrapper.execute(
@@ -6901,21 +6995,21 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             tenantId,
-            0, // Trendyol siparişleri için userId 0 (external order)
+            0, // Marketplace siparişleri için userId 0 (external order)
             totalAmount,
             systemStatus,
-            shippingAddress || 'Adres bilgisi yok',
-            'trendyol',
-            shipmentAddress.city || '',
-            shipmentAddress.district || '',
-            shippingAddress || 'Adres bilgisi yok',
+            shippingAddress,
+            provider,
+            city,
+            district,
+            shippingAddress,
             customerName,
             customerEmail,
             customerPhone,
             JSON.stringify({
               externalOrderId: orderNumber,
-              externalSource: 'trendyol',
-              trendyolOrder: trendyolOrder
+              externalSource: provider,
+              marketplaceOrder: marketplaceOrder
             })
           ]
         );
@@ -6923,11 +7017,11 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
         const orderId = orderResult.insertId;
         
         // Sipariş öğelerini ekle
-        const orderLines = trendyolOrder.lines || trendyolOrder.orderLines || [];
+        const orderLines = marketplaceOrder.lines || marketplaceOrder.orderLines || marketplaceOrder.items || [];
         for (const line of orderLines) {
-          const productName = line.productName || line.productTitle || 'Ürün';
+          const productName = line.productName || line.productTitle || line.name || 'Ürün';
           const quantity = parseInt(line.quantity || 1);
-          const price = parseFloat(line.price || line.salePrice || 0);
+          const price = parseFloat(line.price || line.salePrice || line.unitPrice || 0);
           
           await poolWrapper.execute(
             `INSERT INTO order_items (tenantId, orderId, productId, quantity, price, productName, productImage)
@@ -6935,20 +7029,20 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
             [
               tenantId,
               orderId,
-              0, // Trendyol ürün ID'si yoksa 0
+              0, // Marketplace ürün ID'si yoksa 0
               quantity,
               price,
               productName,
-              line.productImage || null
+              line.productImage || line.imageUrl || null
             ]
           );
         }
         
         syncedCount++;
       } catch (error) {
-        console.error('❌ Error syncing Trendyol order:', error);
+        console.error(`❌ Error syncing ${integration.provider} order:`, error);
         errors.push({
-          orderNumber: trendyolOrder.orderNumber || trendyolOrder.id,
+          orderNumber: marketplaceOrder.orderNumber || marketplaceOrder.orderId || marketplaceOrder.id,
           error: error.message
         });
       }
@@ -6965,7 +7059,7 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       data: {
         synced: syncedCount,
         skipped: skippedCount,
-        total: trendyolOrders.length,
+        total: marketplaceOrders.length,
         errors: errors.length > 0 ? errors : undefined
       },
       message: `${syncedCount} sipariş senkronize edildi, ${skippedCount} sipariş atlandı`
