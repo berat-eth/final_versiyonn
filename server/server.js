@@ -796,9 +796,10 @@ app.use('/api', (req, res, next) => {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
     }
+    // GÜVENLİK: Saldırganları yanıltmak için genel hata mesajı
     return res.status(401).json({
       success: false,
-      message: 'API key required. Please provide X-API-Key header.'
+      message: 'Authentication failed'
     });
   }
 
@@ -858,7 +859,8 @@ app.use('/api', (req, res, next) => {
             res.setHeader('Access-Control-Allow-Origin', origin);
             res.setHeader('Access-Control-Allow-Credentials', 'true');
           }
-          return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
+          // GÜVENLİK: Saldırganları yanıltmak için genel hata mesajı
+          return res.status(401).json({ success: false, message: 'Authentication failed' });
         }
         const t = rows[0];
         if (t && t.settings) { try { t.settings = JSON.parse(t.settings); } catch (_) { } }
@@ -899,7 +901,8 @@ app.use('/api', (req, res, next) => {
           res.setHeader('Access-Control-Allow-Origin', origin);
           res.setHeader('Access-Control-Allow-Credentials', 'true');
         }
-        return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
+        // GÜVENLİK: Saldırganları yanıltmak için genel hata mesajı
+        return res.status(401).json({ success: false, message: 'Authentication failed' });
       }
       req.tenant = rows[0];
       if (req.tenant.settings) {
@@ -938,7 +941,8 @@ app.use('/api', (req, res, next) => {
               res.setHeader('Access-Control-Allow-Origin', origin);
               res.setHeader('Access-Control-Allow-Credentials', 'true');
             }
-            return res.status(401).json({ success: false, message: 'Invalid or inactive API key' });
+            // GÜVENLİK: Saldırganları yanıltmak için genel hata mesajı
+          return res.status(401).json({ success: false, message: 'Authentication failed' });
           });
         }
         req.tenant = rows[0];
@@ -947,14 +951,16 @@ app.use('/api', (req, res, next) => {
         }
         next();
       }).catch(err => {
-        console.error('❌ Error authenticating API key:', err);
+        // GÜVENLİK: Log mesajı - saldırganları yanıltmak için detay gizlendi
+        console.error('❌ Authentication error:', err);
         // CORS header'larını set et
         const origin = req.headers.origin;
         if (origin) {
           res.setHeader('Access-Control-Allow-Origin', origin);
           res.setHeader('Access-Control-Allow-Credentials', 'true');
         }
-        res.status(500).json({ success: false, message: 'Error authenticating API key' });
+        // GÜVENLİK: Saldırganları yanıltmak için genel hata mesajı
+        res.status(500).json({ success: false, message: 'Service temporarily unavailable' });
       });
     }
   })();
