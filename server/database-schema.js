@@ -51,7 +51,11 @@ async function createDatabaseSchema(pool) {
           'anonymous_devices',
           'user_behavior_events',
           'user_sessions',
-          'device_analytics_aggregates'
+          'device_analytics_aggregates',
+          // Integrations
+          'integrations',
+          // Invoices
+          'invoices'
       ];
       const missingTables = requiredTables.filter(table => !existingTables.includes(table));
 
@@ -2429,6 +2433,71 @@ async function createDatabaseSchema(pool) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
       console.log('✅ chat_messages table ready');
+
+      // Integrations table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS integrations (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          tenantId INT NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          type ENUM('payment', 'shipping', 'sms', 'email', 'api', 'webhook', 'marketplace', 'other') NOT NULL DEFAULT 'api',
+          provider VARCHAR(255) NOT NULL,
+          status ENUM('active', 'inactive', 'error') NOT NULL DEFAULT 'inactive',
+          apiKey VARCHAR(500),
+          apiSecret VARCHAR(500),
+          webhookUrl VARCHAR(500),
+          config JSON,
+          lastTest TIMESTAMP NULL,
+          testResult ENUM('success', 'error') NULL,
+          description TEXT,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+          INDEX idx_tenant (tenantId),
+          INDEX idx_type (type),
+          INDEX idx_provider (provider),
+          INDEX idx_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ integrations table ready');
+
+      // Invoices table
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS invoices (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          tenantId INT NOT NULL,
+          invoiceNumber VARCHAR(100) NOT NULL,
+          customerName VARCHAR(255),
+          customerEmail VARCHAR(255),
+          customerPhone VARCHAR(50),
+          orderId INT NULL,
+          amount DECIMAL(10,2) NOT NULL,
+          taxAmount DECIMAL(10,2) DEFAULT 0,
+          totalAmount DECIMAL(10,2) NOT NULL,
+          currency VARCHAR(10) DEFAULT 'TRY',
+          invoiceDate DATE NOT NULL,
+          dueDate DATE,
+          status ENUM('draft', 'sent', 'paid', 'cancelled') DEFAULT 'draft',
+          filePath VARCHAR(500),
+          fileName VARCHAR(255),
+          fileSize INT,
+          shareToken VARCHAR(100) UNIQUE,
+          shareUrl VARCHAR(500),
+          notes TEXT,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+          FOREIGN KEY (orderId) REFERENCES orders(id) ON DELETE SET NULL,
+          INDEX idx_tenant (tenantId),
+          INDEX idx_invoice_number (invoiceNumber),
+          INDEX idx_customer_email (customerEmail),
+          INDEX idx_order (orderId),
+          INDEX idx_status (status),
+          INDEX idx_share_token (shareToken),
+          INDEX idx_invoice_date (invoiceDate)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ invoices table ready');
 
       // Archive table for old events
       await pool.execute(`

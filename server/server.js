@@ -662,6 +662,13 @@ if (!fs.existsSync(uploadsDir)) {
   console.log('✅ Uploads directory created:', uploadsDir);
 }
 
+// Invoices PDF yükleme için uploads klasörünü oluştur
+const invoicesDir = path.join(__dirname, 'uploads', 'invoices');
+if (!fs.existsSync(invoicesDir)) {
+  fs.mkdirSync(invoicesDir, { recursive: true });
+  console.log('✅ Invoices uploads directory created:', invoicesDir);
+}
+
 // GÜVENLİK: File upload security utilities
 // Not: sanitizeFileName zaten path-security.js'den import edilmiş (satır 39)
 const { validateFileUpload } = require('./utils/file-security');
@@ -727,6 +734,38 @@ const upload = multer({
     files: 5 // Maksimum 5 dosya
   },
   fileFilter: fileFilter
+});
+
+// PDF yükleme için multer yapılandırması
+const invoiceStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, invoicesDir);
+  },
+  filename: (req, file, cb) => {
+    const sanitized = sanitizeFileName(file.originalname);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(sanitized);
+    const baseName = path.basename(sanitized, ext);
+    cb(null, `${baseName}-${uniqueSuffix}${ext}`);
+  }
+});
+
+const invoiceFileFilter = (req, file, cb) => {
+  // Sadece PDF dosyalarına izin ver
+  if (file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(new Error('Sadece PDF dosyaları yüklenebilir'), false);
+  }
+};
+
+const invoiceUpload = multer({
+  storage: invoiceStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB maksimum
+    files: 1 // Tek dosya
+  },
+  fileFilter: invoiceFileFilter
 });
 
 // Statik dosya servisi (yüklenen dosyaları erişilebilir yap)
@@ -6578,6 +6617,663 @@ app.delete('/api/admin/contacts/:id', authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: 'Error deleting contact' });
   }
 });
+
+// Admin - Integrations endpoints
+app.get('/api/admin/integrations', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, name, type, provider, status, apiKey, apiSecret, webhookUrl, config, 
+              lastTest, testResult, description, createdAt, updatedAt
+       FROM integrations
+       WHERE tenantId = ?
+       ORDER BY createdAt DESC`,
+      [tenantId]
+    );
+    // API key ve secret'ları güvenlik için maskele
+    const maskedRows = rows.map(row => ({
+      ...row,
+      apiKey: row.apiKey ? (row.apiKey.length > 8 ? row.apiKey.substring(0, 4) + '***' + row.apiKey.substring(row.apiKey.length - 4) : '***') : null,
+      apiSecret: row.apiSecret ? '***' : null,
+      config: typeof row.config === 'string' ? JSON.parse(row.config) : (row.config || {})
+    }));
+    res.json({ success: true, data: maskedRows });
+  } catch (error) {
+    console.error('❌ Error fetching integrations:', error);
+    res.status(500).json({ success: false, message: 'Error fetching integrations' });
+  }
+});
+
+app.post('/api/admin/integrations', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { name, type, provider, apiKey, apiSecret, webhookUrl, description, config } = req.body || {};
+    if (!name || !type || !provider) {
+      return res.status(400).json({ success: false, message: 'Name, type, and provider are required' });
+    }
+    const configJson = config ? JSON.stringify(config) : null;
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO integrations (tenantId, name, type, provider, status, apiKey, apiSecret, webhookUrl, config, description)
+       VALUES (?, ?, ?, ?, 'inactive', ?, ?, ?, ?, ?)`,
+      [tenantId, name, type, provider, apiKey || null, apiSecret || null, webhookUrl || null, configJson, description || null]
+    );
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    console.error('❌ Error creating integration:', error);
+    res.status(500).json({ success: false, message: 'Error creating integration' });
+  }
+});
+
+app.put('/api/admin/integrations/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const { name, type, provider, status, apiKey, apiSecret, webhookUrl, description, config } = req.body || {};
+    const fields = [];
+    const params = [];
+    if (name !== undefined) { fields.push('name = ?'); params.push(name); }
+    if (type !== undefined) { fields.push('type = ?'); params.push(type); }
+    if (provider !== undefined) { fields.push('provider = ?'); params.push(provider); }
+    if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+    if (apiKey !== undefined) { fields.push('apiKey = ?'); params.push(apiKey); }
+    if (apiSecret !== undefined) { fields.push('apiSecret = ?'); params.push(apiSecret); }
+    if (webhookUrl !== undefined) { fields.push('webhookUrl = ?'); params.push(webhookUrl); }
+    if (description !== undefined) { fields.push('description = ?'); params.push(description); }
+    if (config !== undefined) { fields.push('config = ?'); params.push(JSON.stringify(config)); }
+    if (fields.length === 0) return res.json({ success: true, message: 'No changes' });
+    fields.push('updatedAt = CURRENT_TIMESTAMP');
+    params.push(id, tenantId);
+    await poolWrapper.execute(
+      `UPDATE integrations SET ${fields.join(', ')} WHERE id = ? AND tenantId = ?`,
+      params
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating integration:', error);
+    res.status(500).json({ success: false, message: 'Error updating integration' });
+  }
+});
+
+app.delete('/api/admin/integrations/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    await poolWrapper.execute('DELETE FROM integrations WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting integration:', error);
+    res.status(500).json({ success: false, message: 'Error deleting integration' });
+  }
+});
+
+app.post('/api/admin/integrations/:id/test', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const [rows] = await poolWrapper.execute(
+      'SELECT * FROM integrations WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Integration not found' });
+    }
+    const integration = rows[0];
+    
+    // Trendyol entegrasyonu için özel test
+    if (integration.provider === 'Trendyol' && integration.type === 'marketplace') {
+      const TrendyolAPIService = require('./services/trendyol-api');
+      const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+      const supplierId = config.supplierId;
+      
+      if (!supplierId || !integration.apiKey || !integration.apiSecret) {
+        await poolWrapper.execute(
+          'UPDATE integrations SET lastTest = CURRENT_TIMESTAMP, testResult = ? WHERE id = ? AND tenantId = ?',
+          ['error', id, tenantId]
+        );
+        return res.json({ 
+          success: true, 
+          data: { 
+            success: false, 
+            message: 'Supplier ID, API Key ve API Secret gereklidir' 
+          } 
+        });
+      }
+      
+      try {
+        const testResult = await TrendyolAPIService.testConnection(
+          supplierId,
+          integration.apiKey,
+          integration.apiSecret
+        );
+        await poolWrapper.execute(
+          'UPDATE integrations SET lastTest = CURRENT_TIMESTAMP, testResult = ? WHERE id = ? AND tenantId = ?',
+          [testResult.success ? 'success' : 'error', id, tenantId]
+        );
+        return res.json({ success: true, data: testResult });
+      } catch (error) {
+        await poolWrapper.execute(
+          'UPDATE integrations SET lastTest = CURRENT_TIMESTAMP, testResult = ? WHERE id = ? AND tenantId = ?',
+          ['error', id, tenantId]
+        );
+        return res.json({ 
+          success: true, 
+          data: { 
+            success: false, 
+            message: error.error || error.message || 'Bağlantı testi başarısız' 
+          } 
+        });
+      }
+    }
+    
+    // Diğer entegrasyonlar için basit test
+    const testResult = integration.apiKey && integration.apiSecret ? 'success' : 'error';
+    const testMessage = testResult === 'success' ? 'Integration test başarılı' : 'API Key veya Secret eksik';
+    await poolWrapper.execute(
+      'UPDATE integrations SET lastTest = CURRENT_TIMESTAMP, testResult = ? WHERE id = ? AND tenantId = ?',
+      [testResult, id, tenantId]
+    );
+    res.json({ success: true, data: { success: testResult === 'success', message: testMessage } });
+  } catch (error) {
+    console.error('❌ Error testing integration:', error);
+    res.status(500).json({ success: false, message: 'Error testing integration' });
+  }
+});
+
+app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const { startDate, endDate, page = 0, size = 200 } = req.body || {};
+    
+    const [rows] = await poolWrapper.execute(
+      'SELECT * FROM integrations WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Integration not found' });
+    }
+    
+    const integration = rows[0];
+    
+    // Sadece Trendyol marketplace entegrasyonları için
+    if (integration.provider !== 'Trendyol' || integration.type !== 'marketplace') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Bu endpoint sadece Trendyol marketplace entegrasyonları için kullanılabilir' 
+      });
+    }
+    
+    if (!integration.apiKey || !integration.apiSecret) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'API Key ve API Secret gereklidir' 
+      });
+    }
+    
+    const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+    const supplierId = config.supplierId;
+    
+    if (!supplierId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Supplier ID gereklidir. Lütfen entegrasyon ayarlarını kontrol edin.' 
+      });
+    }
+    
+    const TrendyolAPIService = require('./services/trendyol-api');
+    
+    // Trendyol'dan siparişleri çek
+    const ordersResponse = await TrendyolAPIService.getOrders(
+      supplierId,
+      integration.apiKey,
+      integration.apiSecret,
+      { startDate, endDate, page, size }
+    );
+    
+    if (!ordersResponse.success || !ordersResponse.data) {
+      return res.status(500).json({ 
+        success: false, 
+        message: ordersResponse.error || 'Siparişler çekilemedi' 
+      });
+    }
+    
+    const trendyolOrders = ordersResponse.data.content || ordersResponse.data || [];
+    let syncedCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+    
+    // Her siparişi işle
+    for (const trendyolOrder of trendyolOrders) {
+      try {
+        // Sipariş zaten var mı kontrol et (orderNumber ile)
+        const orderNumber = trendyolOrder.orderNumber || trendyolOrder.id?.toString();
+        if (!orderNumber) {
+          skippedCount++;
+          continue;
+        }
+        
+        const [existingOrders] = await poolWrapper.execute(
+          'SELECT id FROM orders WHERE tenantId = ? AND paymentMeta LIKE ?',
+          [tenantId, `%"externalOrderId":"${orderNumber}"%`]
+        );
+        
+        if (existingOrders.length > 0) {
+          skippedCount++;
+          continue; // Sipariş zaten var
+        }
+        
+        // Trendyol sipariş durumunu sistem durumuna çevir
+        const trendyolStatus = trendyolOrder.status || trendyolOrder.packageStatus || 'Pending';
+        let systemStatus = 'pending';
+        if (trendyolStatus.includes('Shipped') || trendyolStatus.includes('Delivered')) {
+          systemStatus = 'completed';
+        } else if (trendyolStatus.includes('Cancelled') || trendyolStatus.includes('Canceled')) {
+          systemStatus = 'cancelled';
+        } else if (trendyolStatus.includes('Processing') || trendyolStatus.includes('Preparing')) {
+          systemStatus = 'processing';
+        }
+        
+        // Müşteri bilgileri
+        const customerInfo = trendyolOrder.customerFirstName || trendyolOrder.shipmentAddress?.firstName || '';
+        const customerSurname = trendyolOrder.customerLastName || trendyolOrder.shipmentAddress?.lastName || '';
+        const customerName = `${customerInfo} ${customerSurname}`.trim() || 'Trendyol Müşteri';
+        const customerEmail = trendyolOrder.customerEmail || '';
+        const customerPhone = trendyolOrder.customerPhone || trendyolOrder.shipmentAddress?.phoneNumber || '';
+        
+        // Adres bilgileri
+        const shipmentAddress = trendyolOrder.shipmentAddress || {};
+        const shippingAddress = [
+          shipmentAddress.address1 || '',
+          shipmentAddress.address2 || '',
+          shipmentAddress.district || '',
+          shipmentAddress.city || '',
+          shipmentAddress.country || 'Turkey'
+        ].filter(Boolean).join(', ');
+        
+        // Toplam tutar
+        const totalAmount = parseFloat(trendyolOrder.totalPrice || trendyolOrder.grossAmount || 0);
+        
+        // Siparişi oluştur
+        const [orderResult] = await poolWrapper.execute(
+          `INSERT INTO orders (tenantId, userId, totalAmount, status, shippingAddress, paymentMethod, 
+           city, district, fullAddress, customerName, customerEmail, customerPhone, paymentMeta)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            tenantId,
+            0, // Trendyol siparişleri için userId 0 (external order)
+            totalAmount,
+            systemStatus,
+            shippingAddress || 'Adres bilgisi yok',
+            'trendyol',
+            shipmentAddress.city || '',
+            shipmentAddress.district || '',
+            shippingAddress || 'Adres bilgisi yok',
+            customerName,
+            customerEmail,
+            customerPhone,
+            JSON.stringify({
+              externalOrderId: orderNumber,
+              externalSource: 'trendyol',
+              trendyolOrder: trendyolOrder
+            })
+          ]
+        );
+        
+        const orderId = orderResult.insertId;
+        
+        // Sipariş öğelerini ekle
+        const orderLines = trendyolOrder.lines || trendyolOrder.orderLines || [];
+        for (const line of orderLines) {
+          const productName = line.productName || line.productTitle || 'Ürün';
+          const quantity = parseInt(line.quantity || 1);
+          const price = parseFloat(line.price || line.salePrice || 0);
+          
+          await poolWrapper.execute(
+            `INSERT INTO order_items (tenantId, orderId, productId, quantity, price, productName, productImage)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              tenantId,
+              orderId,
+              0, // Trendyol ürün ID'si yoksa 0
+              quantity,
+              price,
+              productName,
+              line.productImage || null
+            ]
+          );
+        }
+        
+        syncedCount++;
+      } catch (error) {
+        console.error('❌ Error syncing Trendyol order:', error);
+        errors.push({
+          orderNumber: trendyolOrder.orderNumber || trendyolOrder.id,
+          error: error.message
+        });
+      }
+    }
+    
+    // Entegrasyon durumunu güncelle
+    await poolWrapper.execute(
+      'UPDATE integrations SET lastTest = CURRENT_TIMESTAMP, testResult = ? WHERE id = ? AND tenantId = ?',
+      ['success', id, tenantId]
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        synced: syncedCount,
+        skipped: skippedCount,
+        total: trendyolOrders.length,
+        errors: errors.length > 0 ? errors : undefined
+      },
+      message: `${syncedCount} sipariş senkronize edildi, ${skippedCount} sipariş atlandı`
+    });
+  } catch (error) {
+    console.error('❌ Error syncing Trendyol orders:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.error || error.message || 'Sipariş senkronizasyonu başarısız' 
+    });
+  }
+});
+
+// Admin - Invoices endpoints
+app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { page = 1, limit = 50, q = '', status = '' } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const where = ['tenantId = ?'];
+    const params = [tenantId];
+    if (q) {
+      where.push('(invoiceNumber LIKE ? OR customerName LIKE ? OR customerEmail LIKE ?)');
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    if (status) {
+      where.push('status = ?');
+      params.push(status);
+    }
+    params.push(parseInt(limit), parseInt(offset));
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, invoiceNumber, customerName, customerEmail, customerPhone, orderId, 
+              amount, taxAmount, totalAmount, currency, invoiceDate, dueDate, status, 
+              fileName, fileSize, shareToken, shareUrl, notes, createdAt, updatedAt
+       FROM invoices
+       WHERE ${where.join(' AND ')}
+       ORDER BY createdAt DESC
+       LIMIT ? OFFSET ?`,
+      params
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error fetching invoices:', error);
+    res.status(500).json({ success: false, message: 'Error fetching invoices' });
+  }
+});
+
+app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'), async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const {
+      invoiceNumber,
+      customerName,
+      customerEmail,
+      customerPhone,
+      orderId,
+      amount,
+      taxAmount,
+      totalAmount,
+      currency = 'TRY',
+      invoiceDate,
+      dueDate,
+      status = 'draft',
+      notes
+    } = req.body || {};
+
+    if (!invoiceNumber || !invoiceDate || !amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fatura numarası, tarih ve tutar gereklidir'
+      });
+    }
+
+    // Share token oluştur
+    const crypto = require('crypto');
+    const shareToken = crypto.randomBytes(32).toString('hex');
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const shareUrl = `${baseUrl}/api/invoices/share/${shareToken}`;
+
+    let filePath = null;
+    let fileName = null;
+    let fileSize = null;
+
+    if (req.file) {
+      filePath = `/uploads/invoices/${req.file.filename}`;
+      fileName = req.file.originalname;
+      fileSize = req.file.size;
+    }
+
+    const [result] = await poolWrapper.execute(
+      `INSERT INTO invoices (tenantId, invoiceNumber, customerName, customerEmail, customerPhone, 
+       orderId, amount, taxAmount, totalAmount, currency, invoiceDate, dueDate, status, 
+       filePath, fileName, fileSize, shareToken, shareUrl, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        tenantId,
+        invoiceNumber,
+        customerName || null,
+        customerEmail || null,
+        customerPhone || null,
+        orderId ? parseInt(orderId) : null,
+        parseFloat(amount),
+        taxAmount ? parseFloat(taxAmount) : 0,
+        totalAmount ? parseFloat(totalAmount) : parseFloat(amount),
+        currency,
+        invoiceDate,
+        dueDate || null,
+        status,
+        filePath,
+        fileName,
+        fileSize,
+        shareToken,
+        shareUrl,
+        notes || null
+      ]
+    );
+
+    res.json({ success: true, data: { id: result.insertId } });
+  } catch (error) {
+    console.error('❌ Error creating invoice:', error);
+    // Yüklenen dosyayı sil
+    if (req.file) {
+      try {
+        fs.unlinkSync(path.join(invoicesDir, req.file.filename));
+      } catch (unlinkError) {
+        console.error('❌ Error deleting uploaded file:', unlinkError);
+      }
+    }
+    res.status(500).json({ success: false, message: 'Error creating invoice' });
+  }
+});
+
+app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file'), async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+    const {
+      invoiceNumber,
+      customerName,
+      customerEmail,
+      customerPhone,
+      orderId,
+      amount,
+      taxAmount,
+      totalAmount,
+      currency,
+      invoiceDate,
+      dueDate,
+      status,
+      notes
+    } = req.body || {};
+
+    // Mevcut faturayı kontrol et
+    const [existing] = await poolWrapper.execute(
+      'SELECT filePath FROM invoices WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+
+    const fields = [];
+    const params = [];
+
+    if (invoiceNumber !== undefined) { fields.push('invoiceNumber = ?'); params.push(invoiceNumber); }
+    if (customerName !== undefined) { fields.push('customerName = ?'); params.push(customerName); }
+    if (customerEmail !== undefined) { fields.push('customerEmail = ?'); params.push(customerEmail); }
+    if (customerPhone !== undefined) { fields.push('customerPhone = ?'); params.push(customerPhone); }
+    if (orderId !== undefined) { fields.push('orderId = ?'); params.push(orderId ? parseInt(orderId) : null); }
+    if (amount !== undefined) { fields.push('amount = ?'); params.push(parseFloat(amount)); }
+    if (taxAmount !== undefined) { fields.push('taxAmount = ?'); params.push(parseFloat(taxAmount)); }
+    if (totalAmount !== undefined) { fields.push('totalAmount = ?'); params.push(parseFloat(totalAmount)); }
+    if (currency !== undefined) { fields.push('currency = ?'); params.push(currency); }
+    if (invoiceDate !== undefined) { fields.push('invoiceDate = ?'); params.push(invoiceDate); }
+    if (dueDate !== undefined) { fields.push('dueDate = ?'); params.push(dueDate || null); }
+    if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+    if (notes !== undefined) { fields.push('notes = ?'); params.push(notes); }
+
+    // Yeni dosya yüklendiyse
+    if (req.file) {
+      // Eski dosyayı sil
+      if (existing[0].filePath) {
+        try {
+          const oldFilePath = path.join(__dirname, existing[0].filePath);
+          if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+          }
+        } catch (unlinkError) {
+          console.error('❌ Error deleting old file:', unlinkError);
+        }
+      }
+
+      const filePath = `/uploads/invoices/${req.file.filename}`;
+      fields.push('filePath = ?'); params.push(filePath);
+      fields.push('fileName = ?'); params.push(req.file.originalname);
+      fields.push('fileSize = ?'); params.push(req.file.size);
+    }
+
+    if (fields.length === 0) {
+      return res.json({ success: true, message: 'No changes' });
+    }
+
+    fields.push('updatedAt = CURRENT_TIMESTAMP');
+    params.push(id, tenantId);
+
+    await poolWrapper.execute(
+      `UPDATE invoices SET ${fields.join(', ')} WHERE id = ? AND tenantId = ?`,
+      params
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating invoice:', error);
+    if (req.file) {
+      try {
+        fs.unlinkSync(path.join(invoicesDir, req.file.filename));
+      } catch (unlinkError) {
+        console.error('❌ Error deleting uploaded file:', unlinkError);
+      }
+    }
+    res.status(500).json({ success: false, message: 'Error updating invoice' });
+  }
+});
+
+app.delete('/api/admin/invoices/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+
+    // Dosyayı sil
+    const [invoice] = await poolWrapper.execute(
+      'SELECT filePath FROM invoices WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+
+    if (invoice.length > 0 && invoice[0].filePath) {
+      try {
+        const filePath = path.join(__dirname, invoice[0].filePath);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (unlinkError) {
+        console.error('❌ Error deleting invoice file:', unlinkError);
+      }
+    }
+
+    await poolWrapper.execute('DELETE FROM invoices WHERE id = ? AND tenantId = ?', [id, tenantId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting invoice:', error);
+    res.status(500).json({ success: false, message: 'Error deleting invoice' });
+  }
+});
+
+// Public invoice share endpoint (token ile erişim)
+app.get('/api/invoices/share/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const [rows] = await poolWrapper.execute(
+      `SELECT id, invoiceNumber, customerName, customerEmail, customerPhone, 
+              amount, taxAmount, totalAmount, currency, invoiceDate, dueDate, 
+              status, filePath, fileName, shareUrl, notes
+       FROM invoices
+       WHERE shareToken = ?`,
+      [token]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+
+    const invoice = rows[0];
+    res.json({ success: true, data: invoice });
+  } catch (error) {
+    console.error('❌ Error fetching shared invoice:', error);
+    res.status(500).json({ success: false, message: 'Error fetching invoice' });
+  }
+});
+
+// Public invoice PDF download endpoint
+app.get('/api/invoices/share/:token/download', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const [rows] = await poolWrapper.execute(
+      'SELECT filePath, fileName FROM invoices WHERE shareToken = ?',
+      [token]
+    );
+
+    if (rows.length === 0 || !rows[0].filePath) {
+      return res.status(404).json({ success: false, message: 'Invoice file not found' });
+    }
+
+    const filePath = path.join(__dirname, rows[0].filePath);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'Invoice file not found' });
+    }
+
+    const fileName = rows[0].fileName || 'invoice.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('❌ Error downloading invoice:', error);
+    res.status(500).json({ success: false, message: 'Error downloading invoice' });
+  }
+});
+
 app.get('/api/admin/opportunities', authenticateAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 50, q = '', stageId = '' } = req.query;

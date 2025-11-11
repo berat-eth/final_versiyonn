@@ -42,6 +42,7 @@ import SMS from '@/components/SMS'
 import ProductionPlanning from '@/components/ProductionPlanning'
 import ProductionOrders from '@/components/ProductionOrders'
 import ProductionTracking from '@/components/ProductionTracking'
+import Invoices from '@/components/Invoices'
 import Categories from '@/components/Categories'
 import PaymentTransactions from '@/components/PaymentTransactions'
 import ReturnRequests from '@/components/ReturnRequests'
@@ -60,6 +61,7 @@ import SEO from '@/components/SEO'
 import Popups from '@/components/Popups'
 import Analytics from '@/components/Analytics'
 import MLInsights from '@/components/MLInsights'
+import Integrations from '@/components/Integrations'
 
 
 export default function DashboardPage() {
@@ -281,6 +283,8 @@ export default function DashboardPage() {
           {activeTab === 'recommendations' && <Recommendations />}
           {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
           {activeTab === 'seo' && <SEO />}
+          {activeTab === 'integrations' && <Integrations />}
+          {activeTab === 'invoices' && <Invoices />}
         </main>
       </div>
     </div>
