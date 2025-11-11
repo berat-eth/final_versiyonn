@@ -142,6 +142,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
       title: 'Entegrasyonlar',
       items: [
         { id: 'integrations', label: 'Entegrasyonlar', icon: Link2 },
+        { id: 'trendyol-orders', label: 'Trendyol Siparişleri', icon: ShoppingCart },
       ]
     },
     {

@@ -62,6 +62,7 @@ import Popups from '@/components/Popups'
 import Analytics from '@/components/Analytics'
 import MLInsights from '@/components/MLInsights'
 import Integrations from '@/components/Integrations'
+import TrendyolOrders from '@/components/TrendyolOrders'
 
 
 export default function DashboardPage() {
@@ -284,6 +285,7 @@ export default function DashboardPage() {
           {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
           {activeTab === 'seo' && <SEO />}
           {activeTab === 'integrations' && <Integrations />}
+          {activeTab === 'trendyol-orders' && <TrendyolOrders />}
           {activeTab === 'invoices' && <Invoices />}
         </main>
       </div>
