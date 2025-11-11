@@ -7021,13 +7021,14 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
         const totalAmount = parseFloat(marketplaceOrder.totalPrice || marketplaceOrder.totalAmount || marketplaceOrder.grossAmount || 0);
         
         // Siparişi oluştur
+        // Marketplace siparişleri için userId NULL (external order)
         const [orderResult] = await poolWrapper.execute(
           `INSERT INTO orders (tenantId, userId, totalAmount, status, shippingAddress, paymentMethod, 
            city, district, fullAddress, customerName, customerEmail, customerPhone, paymentMeta)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             tenantId,
-            0, // Marketplace siparişleri için userId 0 (external order)
+            null, // Marketplace siparişleri için userId NULL (external order)
             totalAmount,
             systemStatus,
             shippingAddress,

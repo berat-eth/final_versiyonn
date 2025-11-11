@@ -550,6 +550,21 @@ async function createDatabaseSchema(pool) {
       }
 
       // Check if new columns exist and add them if they don't
+      // userId kolonunun NULL olup olmadığını kontrol et
+      const [userIdColumn] = await pool.execute(`
+    SELECT IS_NULLABLE, COLUMN_DEFAULT
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_SCHEMA = DATABASE() 
+    AND TABLE_NAME = 'orders'
+    AND COLUMN_NAME = 'userId'
+  `);
+      
+      if (userIdColumn.length > 0 && userIdColumn[0].IS_NULLABLE === 'NO') {
+        // userId kolonunu NULL yapılabilir hale getir
+        await pool.execute('ALTER TABLE orders MODIFY COLUMN userId INT NULL');
+        console.log('✅ Modified userId column to allow NULL for external orders');
+      }
+
       const [columns] = await pool.execute(`
     SELECT COLUMN_NAME 
     FROM INFORMATION_SCHEMA.COLUMNS 
