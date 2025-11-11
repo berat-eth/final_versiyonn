@@ -447,7 +447,7 @@ export default function Invoices() {
                       </div>
                       <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
                         <DollarSign className="w-4 h-4" />
-                        <span>{order.totalAmount.toFixed(2)} TRY</span>
+                        <span>{Number(order.totalAmount || 0).toFixed(2)} TRY</span>
                       </div>
                     </div>
                     {order.items && order.items.length > 0 && (
@@ -460,7 +460,7 @@ export default function Invoices() {
                             <div key={item.id} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                               <span>{item.productName}</span>
                               <span className="text-slate-400">x{item.quantity}</span>
-                              <span className="ml-auto font-medium">{item.price.toFixed(2)} TRY</span>
+                              <span className="ml-auto font-medium">{Number(item.price || 0).toFixed(2)} TRY</span>
                             </div>
                           ))}
                           {order.items.length > 3 && (

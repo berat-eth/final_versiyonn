@@ -6890,13 +6890,73 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       
       const TrendyolAPIService = require('./services/trendyol-api');
       console.log('📤 Trendyol API Servisi çağrılıyor...');
-      ordersResponse = await TrendyolAPIService.getOrders(
-        supplierId,
-        integration.apiKey,
-        integration.apiSecret,
-        { startDate, endDate, page, size }
-      );
+      // Sadece Created ve Pending durumundaki siparişleri çek
+      // Trendyol API'de iki ayrı istek yapıp birleştiriyoruz
+      const [createdOrders, pendingOrders] = await Promise.all([
+        TrendyolAPIService.getOrders(
+          supplierId,
+          integration.apiKey,
+          integration.apiSecret,
+          { startDate, endDate, page, size, status: 'Created' }
+        ),
+        TrendyolAPIService.getOrders(
+          supplierId,
+          integration.apiKey,
+          integration.apiSecret,
+          { startDate, endDate, page, size, status: 'Pending' }
+        )
+      ]);
+      
+      // İki sonucu birleştir
+      const allOrders = [];
+      if (createdOrders.success && createdOrders.data?.content) {
+        allOrders.push(...createdOrders.data.content);
+      }
+      if (pendingOrders.success && pendingOrders.data?.content) {
+        allOrders.push(...pendingOrders.data.content);
+      }
+      
+      // Her sipariş için detaylı bilgi çek (tüm veriler için)
+      console.log(`📦 ${allOrders.length} sipariş bulundu, detaylar çekiliyor...`);
+      const ordersWithDetails = [];
+      for (const order of allOrders) {
+        try {
+          const orderNumber = order.orderNumber || order.id?.toString();
+          if (orderNumber) {
+            const detailResponse = await TrendyolAPIService.getOrderDetail(
+              supplierId,
+              orderNumber,
+              integration.apiKey,
+              integration.apiSecret
+            );
+            if (detailResponse.success && detailResponse.data) {
+              ordersWithDetails.push(detailResponse.data);
+            } else {
+              // Detay çekilemezse mevcut veriyi kullan
+              ordersWithDetails.push(order);
+            }
+          } else {
+            ordersWithDetails.push(order);
+          }
+        } catch (error) {
+          console.error(`❌ Sipariş detayı çekilemedi: ${order.orderNumber || order.id}`, error.message);
+          // Hata durumunda mevcut veriyi kullan
+          ordersWithDetails.push(order);
+        }
+      }
+      
+      ordersResponse = {
+        success: true,
+        data: {
+          content: ordersWithDetails,
+          totalElements: ordersWithDetails.length,
+          totalPages: 1,
+          page: 0,
+          size: ordersWithDetails.length
+        }
+      };
       console.log('📥 Trendyol API Yanıtı alındı:', ordersResponse.success ? 'Başarılı' : 'Başarısız');
+      console.log(`  Toplam ${ordersWithDetails.length} sipariş (Created + Pending)`);
     } else if (integration.provider === 'HepsiBurada') {
       const merchantId = config.merchantId;
       console.log('📦 HepsiBurada Sipariş Çekme Başlatılıyor...');
