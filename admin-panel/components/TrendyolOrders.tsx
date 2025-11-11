@@ -170,7 +170,11 @@ export default function TrendyolOrders() {
           customerAddress: selectedOrder.shippingAddress || selectedOrder.fullAddress,
           city: selectedOrder.city,
           district: selectedOrder.district,
-          items: selectedOrder.items || []
+          // Sadece productName ve productSku gönder (itemData gibi büyük alanları gönderme)
+          items: (selectedOrder.items || []).map(item => ({
+            productName: item.productName || '',
+            productSku: item.productSku || ''
+          }))
         })
       })
 
