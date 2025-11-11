@@ -7603,6 +7603,23 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     // UTF-8 desteği için font ayarları
     // Helvetica Türkçe karakterleri destekler
     doc.font('Helvetica');
+    
+    // UTF-8 encoding için text wrapper fonksiyonu
+    const addUTF8Text = (text, x, y, options = {}) => {
+      if (!text) return;
+      // Metni UTF-8 olarak encode et ve PDFKit'e gönder
+      // PDFKit otomatik olarak UTF-8'i destekler, ancak bazı karakterler için
+      // özel işlem gerekebilir
+      try {
+        // Metni normalize et (Türkçe karakterler için)
+        const normalizedText = String(text).normalize('NFC');
+        doc.text(normalizedText, x, y, options);
+      } catch (error) {
+        console.error('Text encoding hatası:', error);
+        // Fallback: orijinal metni kullan
+        doc.text(String(text), x, y, options);
+      }
+    };
 
     // Üst başlık bölümü - gradient efekti için koyu arka plan (yatay için geniş)
     doc.rect(0, 0, 595, 70).fill('#1e293b'); // Slate-800
