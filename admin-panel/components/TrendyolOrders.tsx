@@ -812,27 +812,94 @@ export default function TrendyolOrders() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 ml-4">
-                              {invoice.shareUrl && (
-                                <>
-                                  <a
-                                    href={invoice.shareUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                                    title="Görüntüle"
-                                  >
-                                    <ExternalLink className="w-4 h-4" />
-                                  </a>
-                                  <a
-                                    href={`${invoice.shareUrl}?download=1`}
-                                    download
-                                    className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-                                    title="İndir"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </a>
-                                </>
-                              )}
+                              {(() => {
+                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+                                const token = sessionStorage.getItem('authToken') || ''
+                                const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                                const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+                                
+                                // Admin endpoint ile direkt PDF erişimi
+                                const viewUrl = invoice.id 
+                                  ? `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
+                                  : invoice.shareUrl 
+                                    ? `${invoice.shareUrl}/download`
+                                    : null
+                                
+                                const downloadUrl = invoice.id
+                                  ? `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
+                                  : invoice.shareUrl
+                                    ? `${invoice.shareUrl}/download`
+                                    : null
+
+                                if (!viewUrl || !downloadUrl) return null
+
+                                return (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        // PDF'i yeni sekmede aç
+                                        const link = document.createElement('a')
+                                        link.href = viewUrl
+                                        link.target = '_blank'
+                                        link.rel = 'noopener noreferrer'
+                                        // Auth headers için fetch kullan
+                                        fetch(viewUrl, {
+                                          headers: {
+                                            'Authorization': `Bearer ${token}`,
+                                            'X-API-Key': API_KEY,
+                                            'X-Admin-Key': ADMIN_KEY
+                                          }
+                                        })
+                                          .then(res => res.blob())
+                                          .then(blob => {
+                                            const url = window.URL.createObjectURL(blob)
+                                            window.open(url, '_blank')
+                                            setTimeout(() => window.URL.revokeObjectURL(url), 100)
+                                          })
+                                          .catch(err => {
+                                            console.error('PDF görüntüleme hatası:', err)
+                                            alert('PDF görüntülenemedi')
+                                          })
+                                      }}
+                                      className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                      title="Görüntüle"
+                                    >
+                                      <ExternalLink className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        // PDF'i indir
+                                        fetch(downloadUrl, {
+                                          headers: {
+                                            'Authorization': `Bearer ${token}`,
+                                            'X-API-Key': API_KEY,
+                                            'X-Admin-Key': ADMIN_KEY
+                                          }
+                                        })
+                                          .then(res => res.blob())
+                                          .then(blob => {
+                                            const url = window.URL.createObjectURL(blob)
+                                            const a = document.createElement('a')
+                                            a.href = url
+                                            a.download = invoice.fileName || `fatura-${invoice.id}.pdf`
+                                            document.body.appendChild(a)
+                                            a.click()
+                                            window.URL.revokeObjectURL(url)
+                                            document.body.removeChild(a)
+                                          })
+                                          .catch(err => {
+                                            console.error('PDF indirme hatası:', err)
+                                            alert('PDF indirilemedi')
+                                          })
+                                      }}
+                                      className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                                      title="İndir"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )
+                              })()}
                             </div>
                           </div>
                         </div>
