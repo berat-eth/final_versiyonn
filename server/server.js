@@ -7825,9 +7825,11 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
 
     // QR kod için kutu (sayfanın en altı - footer'dan önce)
     const qrYPos = cargoYPos + 30;
+    const qrSize = 80; // QR kod boyutu
+    let qrX = 0; // QR kod X pozisyonu
+    
     if (qrCodeDataUrl) {
-      const qrSize = 80;
-      const qrX = (420 - qrSize) / 2; // Ortala
+      qrX = (420 - qrSize) / 2; // Ortala
       
       // QR kod arka plan kutusu
       doc.rect(qrX - 5, qrYPos - 5, qrSize + 10, qrSize + 25)
