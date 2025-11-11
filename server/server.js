@@ -839,7 +839,20 @@ app.use('/api', (req, res, next) => {
       await withLock(lockKey, 5, async () => {
         const again = await getJson(cacheKey);
         if (again && again.id) {
+          // GÜVENLİK: Cache'den gelen tenant'ın API key'ini doğrula
+          const [verifyRows] = await poolWrapper.execute(
+            'SELECT id FROM tenants WHERE apiKey = ? AND id = ? AND isActive = true',
+            [apiKey, again.id]
+          );
+          if (verifyRows.length === 0) {
+            // Cache geçersiz, sil ve DB kontrolüne devam et
+            try { await delKey(cacheKey); } catch (_) { }
+            return;
+          }
           req.tenant = again;
+          if (again.settings && typeof again.settings === 'string') {
+            try { req.tenant.settings = JSON.parse(again.settings); } catch (_) { }
+          }
           resolved = true;
           return;
         }
