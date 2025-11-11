@@ -30,9 +30,10 @@ class HepsiBuradaAPIService {
    * @param {string} apiSecret - HepsiBurada API Secret
    * @param {object} data - Request body (POST/PUT için)
    * @param {object} queryParams - Query parameters
+   * @param {string} merchantId - HepsiBurada Merchant ID (User-Agent için)
    * @returns {Promise<object>} API response
    */
-  static async makeRequest(method, endpoint, apiKey, apiSecret, data = null, queryParams = {}) {
+  static async makeRequest(method, endpoint, apiKey, apiSecret, data = null, queryParams = {}, merchantId = null) {
     return new Promise((resolve, reject) => {
       const authHeader = this.createAuthHeader(apiKey, apiSecret);
       
@@ -47,6 +48,8 @@ class HepsiBuradaAPIService {
       }
 
       const urlObj = new URL(url);
+      // User-Agent'ı merchantId ile oluştur
+      const userAgent = merchantId ? `${merchantId} - SelfIntegration` : ' - SelfIntegration';
       const options = {
         hostname: urlObj.hostname,
         port: urlObj.port || 443,
@@ -56,9 +59,21 @@ class HepsiBuradaAPIService {
           'Authorization': authHeader,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': 'Huğlu-Outdoor/1.0'
+          'User-Agent': userAgent
         }
       };
+
+      // Console log - İstek detayları
+      console.log('📤 HepsiBurada API İsteği:');
+      console.log('  Method:', method);
+      console.log('  URL:', url);
+      console.log('  Endpoint:', endpoint);
+      console.log('  Merchant ID:', merchantId);
+      console.log('  User-Agent:', userAgent);
+      console.log('  Query Params:', JSON.stringify(queryParams, null, 2));
+      if (data) {
+        console.log('  Request Body:', JSON.stringify(data, null, 2));
+      }
 
       const req = https.request(options, (res) => {
         let responseData = '';
@@ -70,6 +85,16 @@ class HepsiBuradaAPIService {
         res.on('end', () => {
           try {
             const jsonData = responseData ? JSON.parse(responseData) : {};
+            
+            // Console log - Yanıt detayları
+            console.log('📥 HepsiBurada API Yanıtı:');
+            console.log('  Status Code:', res.statusCode);
+            console.log('  Success:', res.statusCode >= 200 && res.statusCode < 300);
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              console.log('  Response Data:', JSON.stringify(jsonData, null, 2).substring(0, 500));
+            } else {
+              console.log('  Error:', jsonData.message || jsonData.error || 'API request failed');
+            }
             
             if (res.statusCode >= 200 && res.statusCode < 300) {
               resolve({
@@ -86,6 +111,8 @@ class HepsiBuradaAPIService {
               });
             }
           } catch (error) {
+            console.log('❌ HepsiBurada API JSON Parse Hatası:', error.message);
+            console.log('  Raw Response:', responseData.substring(0, 500));
             reject({
               success: false,
               error: 'Invalid JSON response',
@@ -97,6 +124,7 @@ class HepsiBuradaAPIService {
       });
 
       req.on('error', (error) => {
+        console.log('❌ HepsiBurada API Network Hatası:', error.message);
         reject({
           success: false,
           error: error.message || 'Network error',
@@ -148,7 +176,7 @@ class HepsiBuradaAPIService {
 
       // HepsiBurada API endpoint'i (örnek - gerçek endpoint dokümantasyondan alınmalı)
       const endpoint = `/merchants/${merchantId}/orders`;
-      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams);
+      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, merchantId);
       
       return response;
     } catch (error) {
@@ -168,7 +196,7 @@ class HepsiBuradaAPIService {
   static async getOrderDetail(merchantId, orderNumber, apiKey, apiSecret) {
     try {
       const endpoint = `/merchants/${merchantId}/orders/${orderNumber}`;
-      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret);
+      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, merchantId);
       return response;
     } catch (error) {
       console.error('❌ HepsiBurada API getOrderDetail error:', error);

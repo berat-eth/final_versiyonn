@@ -28,9 +28,10 @@ class TrendyolAPIService {
    * @param {string} apiSecret - Trendyol API Secret
    * @param {object} data - Request body (POST/PUT için)
    * @param {object} queryParams - Query parameters
+   * @param {string} supplierId - Trendyol Supplier ID (User-Agent için)
    * @returns {Promise<object>} API response
    */
-  static async makeRequest(method, endpoint, apiKey, apiSecret, data = null, queryParams = {}) {
+  static async makeRequest(method, endpoint, apiKey, apiSecret, data = null, queryParams = {}, supplierId = null) {
     return new Promise((resolve, reject) => {
       const authHeader = this.createAuthHeader(apiKey, apiSecret);
       
@@ -45,6 +46,8 @@ class TrendyolAPIService {
       }
 
       const urlObj = new URL(url);
+      // User-Agent'ı supplierId ile oluştur
+      const userAgent = supplierId ? `${supplierId} - SelfIntegration` : ' - SelfIntegration';
       const options = {
         hostname: urlObj.hostname,
         port: urlObj.port || 443,
@@ -54,9 +57,21 @@ class TrendyolAPIService {
           'Authorization': authHeader,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': 'Huğlu-Outdoor/1.0'
+          'User-Agent': userAgent
         }
       };
+
+      // Console log - İstek detayları
+      console.log('📤 Trendyol API İsteği:');
+      console.log('  Method:', method);
+      console.log('  URL:', url);
+      console.log('  Endpoint:', endpoint);
+      console.log('  Supplier ID:', supplierId);
+      console.log('  User-Agent:', userAgent);
+      console.log('  Query Params:', JSON.stringify(queryParams, null, 2));
+      if (data) {
+        console.log('  Request Body:', JSON.stringify(data, null, 2));
+      }
 
       const req = https.request(options, (res) => {
         let responseData = '';
@@ -68,6 +83,16 @@ class TrendyolAPIService {
         res.on('end', () => {
           try {
             const jsonData = responseData ? JSON.parse(responseData) : {};
+            
+            // Console log - Yanıt detayları
+            console.log('📥 Trendyol API Yanıtı:');
+            console.log('  Status Code:', res.statusCode);
+            console.log('  Success:', res.statusCode >= 200 && res.statusCode < 300);
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              console.log('  Response Data:', JSON.stringify(jsonData, null, 2).substring(0, 500));
+            } else {
+              console.log('  Error:', jsonData.message || jsonData.error || 'API request failed');
+            }
             
             if (res.statusCode >= 200 && res.statusCode < 300) {
               resolve({
@@ -84,6 +109,8 @@ class TrendyolAPIService {
               });
             }
           } catch (error) {
+            console.log('❌ Trendyol API JSON Parse Hatası:', error.message);
+            console.log('  Raw Response:', responseData.substring(0, 500));
             reject({
               success: false,
               error: 'Invalid JSON response',
@@ -95,6 +122,7 @@ class TrendyolAPIService {
       });
 
       req.on('error', (error) => {
+        console.log('❌ Trendyol API Network Hatası:', error.message);
         reject({
           success: false,
           error: error.message || 'Network error',
@@ -149,7 +177,7 @@ class TrendyolAPIService {
       }
 
       const endpoint = `/suppliers/${supplierId}/orders`;
-      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams);
+      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId);
       
       return response;
     } catch (error) {
@@ -169,7 +197,7 @@ class TrendyolAPIService {
   static async getOrderDetail(supplierId, orderNumber, apiKey, apiSecret) {
     try {
       const endpoint = `/suppliers/${supplierId}/orders/${orderNumber}`;
-      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret);
+      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId);
       return response;
     } catch (error) {
       console.error('❌ Trendyol API getOrderDetail error:', error);
