@@ -196,32 +196,110 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
+// GÜVENLİK: CSP Nonce middleware - unsafe-inline ve unsafe-eval kaldırıldı
+const { cspNonceMiddleware } = require('./utils/csp-nonce');
+
 // Security middleware
 app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: false, // Nonce middleware ile dinamik CSP kullanacağız
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  xssFilter: true,
+  noSniff: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
 
-// Rate limiting
+// GÜVENLİK: CSP Nonce middleware - Her request için nonce oluşturur ve CSP header'ına ekler
+// unsafe-inline ve unsafe-eval kaldırıldı, nonce kullanılıyor
+app.use(cspNonceMiddleware);
+
+// GÜVENLİK: Rate limiting - Kritik endpoint'ler için özel rate limiting
+const {
+  createSQLQueryLimiter,
+  createWalletTransferLimiter,
+  createPaymentLimiter,
+  createGiftCardLimiter,
+  createAdminWalletTransferLimiter,
+  createSuspiciousIPLimiter,
+  createLoginLimiter,
+  createAdminLimiter,
+  createCriticalLimiter
+} = require('./utils/rate-limiting');
+
+// Genel rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.API_RATE_LIMIT || 400, // limit each IP to 400 requests per windowMs
+  max: parseInt(process.env.API_RATE_LIMIT || '400', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
   }
 });
+
+// Rate limiting uygulama
+app.use('/api/users/login', createLoginLimiter());
+app.use('/api/admin/login', createLoginLimiter());
+app.use('/api/admin', createAdminLimiter());
+app.use('/api/orders', createCriticalLimiter());
+
+// GÜVENLİK: Kritik endpoint'ler için özel rate limiting
+app.use('/api/admin/sql/query', createSQLQueryLimiter());
+app.use('/api/wallet/transfer', createWalletTransferLimiter());
+app.use('/api/wallet/gift-card', createGiftCardLimiter());
+app.use('/api/payments/process', createPaymentLimiter());
+app.use('/api/admin/wallets/transfer', createAdminWalletTransferLimiter());
+
+// GÜVENLİK: Şüpheli IP'ler için global rate limiting (en son uygulanır)
+app.use('/api', createSuspiciousIPLimiter());
+
+// Genel rate limiting (fallback)
 app.use('/api/', limiter);
 
 // Compression middleware
 app.use(compression());
 
-// CORS configuration - Tüm origin'lere izin ver
+// GÜVENLİK: CORS configuration - Whitelist tabanlı güvenli CORS
+// KRİTİK: Production'da kesinlikle whitelist kullanılmalı
 const corsOptions = {
-  origin: true, // Tüm origin'lere izin ver
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key'],
-  credentials: true
+  origin: function (origin, callback) {
+    // Production için izin verilen origin'ler
+    const allowedOrigins = [
+      'https://admin.plaxsy.com',
+      'https://www.plaxsy.com',
+      'https://plaxsy.com',
+      'https://api.plaxsy.com'
+    ];
+    
+    // Origin yoksa (mobil uygulama veya same-origin request için)
+    if (!origin) {
+      // Mobil uygulama için origin yok, ama API key ile korunuyor
+      // Same-origin request'ler için izin ver
+      return callback(null, true);
+    }
+    
+    // Origin izin verilen listede mi kontrol et
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // GÜVENLİK: Whitelist'te olmayan origin'leri reddet
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      callback(new Error(`Not allowed by CORS. Origin "${origin}" is not in whitelist.`));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id', 'x-tenant-id', 'X-CSRF-Token', 'csrf-token', 'Accept', 'Origin', 'X-Requested-With'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'X-CSRF-Token'],
+  credentials: true, // GÜVENLİK: credentials: true ile wildcard origin kullanılmıyor
+  preflightContinue: false,
+  optionsSuccessStatus: 200,
+  maxAge: 86400 // 24 saat preflight cache
 };
 app.use(cors(corsOptions));
 

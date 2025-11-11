@@ -54,18 +54,31 @@ function isSafeErrorCode(code) {
 
 /**
  * Error'u logla (stack trace ile)
- * Production'da bile loglara yazılır ama client'a gönderilmez
+ * GÜVENLİK: Production'da bile loglara yazılır ama client'a gönderilmez
+ * Stack trace sadece development'ta console'a yazılır
  */
 function logError(error, context = '') {
   const timestamp = new Date().toISOString();
   const contextStr = context ? `[${context}] ` : '';
+  const isDevelopment = process.env.NODE_ENV === 'development';
   
-  console.error(`❌ ${contextStr}Error at ${timestamp}:`, {
-    message: error.message,
-    stack: error.stack,
-    code: error.code,
-    name: error.name
-  });
+  // GÜVENLİK: Production'da stack trace console'a yazılmaz (log dosyasına yazılabilir)
+  if (isDevelopment) {
+    console.error(`❌ ${contextStr}Error at ${timestamp}:`, {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      name: error.name
+    });
+  } else {
+    // Production'da sadece temel bilgiler
+    console.error(`❌ ${contextStr}Error at ${timestamp}:`, {
+      message: error.message,
+      code: error.code,
+      name: error.name
+      // Stack trace production'da console'a yazılmaz - sadece log dosyasına yazılabilir
+    });
+  }
   
   // TODO: Error monitoring servisi entegrasyonu (Sentry, etc.)
   // if (process.env.SENTRY_DSN) {

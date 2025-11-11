@@ -74,34 +74,102 @@ class DatabaseSecurity {
   }
 
   /**
-   * Parametreli sorgu doğrulaması
+   * Parametreli sorgu doğrulaması - Güçlendirilmiş SQL Injection koruması
    */
-  validateQuery(sql, params) {
-    // Tehlikeli SQL komutlarını kontrol et
+  validateQuery(sql, params = []) {
+    if (typeof sql !== 'string') {
+      throw new Error('SQL query must be a string');
+    }
+
+    const upper = sql.toUpperCase().trim();
+
+    // 1. Tehlikeli SQL komutlarını kontrol et
     const dangerousPatterns = [
-      /DROP\s+TABLE/i,
+      /DROP\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW|TRIGGER|PROCEDURE|FUNCTION)/i,
       /DELETE\s+FROM/i,
       /UPDATE\s+.*\s+SET/i,
       /INSERT\s+INTO/i,
-      /ALTER\s+TABLE/i,
-      /CREATE\s+TABLE/i,
-      /TRUNCATE/i,
-      /EXEC\s*\(/i,
-      /UNION\s+SELECT/i,
-      /OR\s+1\s*=\s*1/i,
-      /AND\s+1\s*=\s*1/i
+      /ALTER\s+(TABLE|DATABASE|SCHEMA)/i,
+      /CREATE\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW|TRIGGER|PROCEDURE|FUNCTION)/i,
+      /TRUNCATE\s+TABLE/i,
+      /EXEC\s*\(|EXECUTE\s*\(|CALL\s+/i,
+      /UNION\s+(ALL\s+)?SELECT/i,
+      /OR\s+1\s*=\s*1|AND\s+1\s*=\s*1/i,
+      /OR\s+['"]1['"]\s*=\s*['"]1['"]|AND\s+['"]1['"]\s*=\s*['"]1['"]/i,
+      /LOAD_FILE\s*\(/i,
+      /INTO\s+(OUTFILE|DUMPFILE)/i,
+      /BENCHMARK\s*\(/i,
+      /SLEEP\s*\(|WAITFOR\s+DELAY|PG_SLEEP\s*\(/i,
+      /INFORMATION_SCHEMA/i,
+      /mysql\./i,
+      /sys\./i
     ];
 
     for (const pattern of dangerousPatterns) {
       if (pattern.test(sql)) {
-        throw new Error('Potentially dangerous SQL query detected');
+        throw new Error(`Potentially dangerous SQL pattern detected: ${pattern}`);
       }
     }
 
-    // Parametre sayısını kontrol et
+    // 2. SQL comment injection engelleme
+    if (sql.includes('--') || sql.includes('/*') || sql.includes('*/') || sql.includes('#')) {
+      throw new Error('SQL comments are not allowed');
+    }
+
+    // 3. Multiple statement engelleme
+    const statements = sql.split(';').filter(s => s.trim().length > 0);
+    if (statements.length > 1) {
+      throw new Error('Multiple statements are not allowed');
+    }
+
+    // 4. Hex encoding engelleme (0x414243 gibi)
+    if (/0x[0-9A-Fa-f]{4,}/i.test(sql)) {
+      throw new Error('Hex encoding in SQL is not allowed');
+    }
+
+    // 5. Char() fonksiyonu engelleme (SQL injection için kullanılabilir)
+    if (/CHAR\s*\(/i.test(sql) && !/CHAR\(/i.test(sql.replace(/\s+/g, ''))) {
+      // CHAR fonksiyonu kullanımı şüpheli olabilir
+      console.warn('⚠️ CHAR() function detected in query - potential SQL injection attempt');
+    }
+
+    // 6. Parametre sayısını kontrol et
     const paramCount = (sql.match(/\?/g) || []).length;
-    if (paramCount !== params.length) {
-      throw new Error('Parameter count mismatch');
+    if (params && Array.isArray(params)) {
+      if (paramCount !== params.length) {
+        throw new Error(`Parameter count mismatch. Expected ${paramCount}, got ${params.length}`);
+      }
+      
+      // 7. Parametre tiplerini kontrol et (sadece primitive types)
+      for (const param of params) {
+        if (param !== null && param !== undefined && typeof param === 'object' && !(param instanceof Date)) {
+          throw new Error('Complex objects are not allowed as SQL parameters');
+        }
+      }
+    } else if (paramCount > 0) {
+      throw new Error(`Query requires ${paramCount} parameters but none provided`);
+    }
+
+    // 8. Query uzunluk kontrolü (DoS koruması)
+    if (sql.length > 5000) {
+      throw new Error('Query too long. Maximum 5000 characters allowed');
+    }
+
+    // 9. Nested query kontrolü (parantez sayısı)
+    const openParenCount = (sql.match(/\(/g) || []).length;
+    const closeParenCount = (sql.match(/\)/g) || []).length;
+    if (openParenCount !== closeParenCount) {
+      throw new Error('Unbalanced parentheses in SQL query');
+    }
+    if (openParenCount > 10) {
+      throw new Error('Too many nested structures in SQL query');
+    }
+
+    // 10. String literal injection kontrolü (tırnak sayısı)
+    const singleQuoteCount = (sql.match(/'/g) || []).length;
+    const doubleQuoteCount = (sql.match(/"/g) || []).length;
+    if (singleQuoteCount % 2 !== 0 || doubleQuoteCount % 2 !== 0) {
+      throw new Error('Unbalanced quotes in SQL query - potential injection attempt');
     }
 
     return true;
@@ -348,25 +416,78 @@ class DatabaseSecurity {
 
   /**
    * Güvenli table name identifier (backtick ile)
-   * Whitelist kontrolü yapar
+   * Güçlendirilmiş whitelist kontrolü ve validasyon
    */
   static safeTableIdentifier(tableName) {
     if (typeof tableName !== 'string') {
       throw new Error('Table name must be a string');
     }
     
-    // Whitelist kontrolü
+    // 1. Boş string kontrolü
+    const trimmed = tableName.trim();
+    if (!trimmed || trimmed.length === 0) {
+      throw new Error('Table name cannot be empty');
+    }
+    
+    // 2. Maksimum uzunluk kontrolü
+    if (trimmed.length > 64) {
+      throw new Error('Table name too long (max 64 characters)');
+    }
+    
+    // 3. Alphanumeric ve underscore kontrolü (ekstra güvenlik)
+    // Sadece harf, rakam ve underscore'e izin ver
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(trimmed)) {
+      throw new Error(`Invalid table name format: "${trimmed}" - Only alphanumeric and underscore allowed, must start with letter`);
+    }
+    
+    // 4. SQL keyword kontrolü (table name olarak kullanılamaz)
+    const sqlKeywords = [
+      'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER',
+      'TABLE', 'DATABASE', 'SCHEMA', 'INDEX', 'VIEW', 'TRIGGER', 'PROCEDURE',
+      'FUNCTION', 'GRANT', 'REVOKE', 'EXEC', 'EXECUTE', 'CALL', 'UNION',
+      'WHERE', 'FROM', 'INTO', 'SET', 'VALUES', 'AND', 'OR', 'NOT', 'NULL',
+      'TRUE', 'FALSE', 'IF', 'ELSE', 'CASE', 'WHEN', 'THEN', 'END', 'AS',
+      'ON', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CROSS', 'NATURAL',
+      'GROUP', 'BY', 'ORDER', 'HAVING', 'LIMIT', 'OFFSET', 'DISTINCT',
+      'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'LIKE', 'IN', 'EXISTS', 'BETWEEN'
+    ];
+    if (sqlKeywords.includes(trimmed.toUpperCase())) {
+      throw new Error(`Table name cannot be a SQL keyword: "${trimmed}"`);
+    }
+    
+    // 5. Tehlikeli pattern kontrolü
+    const dangerousPatterns = [
+      /\.\./,           // Path traversal
+      /[<>:"|?*]/,      // Windows yasak karakterleri
+      /[\x00-\x1F]/,    // Control karakterleri
+      /[;'"]/,          // SQL injection karakterleri
+      /\/|\\.*/,        // Path separator'ları
+      /^[0-9]/,         // Rakamla başlayamaz
+      /__+/,            // Çoklu underscore (şüpheli)
+      /^_|_$/,          // Başta veya sonda underscore (şüpheli)
+    ];
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(trimmed)) {
+        throw new Error(`Table name contains dangerous pattern: "${trimmed}"`);
+      }
+    }
+    
+    // 6. Whitelist kontrolü (en önemli güvenlik katmanı)
     const allowedTables = this.getAllowedTables();
-    if (!allowedTables.includes(tableName)) {
-      throw new Error(`Table name "${tableName}" is not in whitelist`);
+    if (!allowedTables.includes(trimmed)) {
+      throw new Error(`Table name "${trimmed}" is not in whitelist. Allowed tables: ${allowedTables.slice(0, 5).join(', ')}...`);
     }
     
-    // Alphanumeric ve underscore kontrolü (ekstra güvenlik)
-    if (!/^[A-Za-z0-9_]+$/.test(tableName)) {
-      throw new Error('Invalid table name format');
+    // 7. Case-insensitive kontrol (ekstra güvenlik)
+    const lowerTrimmed = trimmed.toLowerCase();
+    const lowerAllowed = allowedTables.map(t => t.toLowerCase());
+    if (!lowerAllowed.includes(lowerTrimmed)) {
+      throw new Error(`Table name "${trimmed}" (case-insensitive) is not in whitelist`);
     }
     
-    return '`' + tableName + '`';
+    // 8. Backtick ile güvenli identifier döndür
+    // MySQL'de backtick ile identifier'lar escape edilir
+    return '`' + trimmed + '`';
   }
 
   /**

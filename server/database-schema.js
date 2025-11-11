@@ -85,6 +85,21 @@ async function createDatabaseSchema(pool) {
   `);
       console.log('✅ Tenants table ready');
 
+      // GÜVENLİK: Token blacklist tablosu - JWT token'ları iptal etmek için
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS token_blacklist (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          token_hash VARCHAR(64) NOT NULL UNIQUE,
+          user_id INT,
+          expires_at DATETIME NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_token_hash (token_hash),
+          INDEX idx_user_id (user_id),
+          INDEX idx_expires_at (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ token_blacklist table created/verified');
+
       // Security events table
       await pool.execute(`
     CREATE TABLE IF NOT EXISTS security_events (

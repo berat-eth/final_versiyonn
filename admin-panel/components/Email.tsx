@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Mail, Send, Users, TrendingUp, Eye, MousePointer, Trash2, Edit, Plus, Copy, Download, Filter, Search, Calendar, BarChart3, FileText, Image, Code, Sparkles, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { sanitizeHTML } from '@/lib/xss-sanitizer'
 
 interface EmailTemplate {
   id: number
@@ -477,7 +478,7 @@ export default function Email() {
                       </div>
                       <div 
                         className="w-full h-96 px-4 py-3 bg-white dark:bg-dark-card border border-slate-200 dark:border-slate-700 border-t-0 rounded-b-xl overflow-auto"
-                        dangerouslySetInnerHTML={{ __html: templateHtml }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeHTML(templateHtml) }}
                       />
                     </div>
                   </div>

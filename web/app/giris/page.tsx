@@ -218,6 +218,8 @@ export default function LoginPage() {
             <div className="mb-6">
               <div id="google-signin-button" className="flex justify-center"></div>
               {typeof window !== 'undefined' && window.google && (
+                // GÜVENLİK: Script içeriği statik kod, XSS riski yok
+                // Google OAuth API çağrısı - güvenli
                 <script
                   dangerouslySetInnerHTML={{
                     __html: `

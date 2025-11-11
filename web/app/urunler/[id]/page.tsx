@@ -8,6 +8,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+import { sanitizeHTML } from '@/utils/xss-sanitizer'
 
 interface Product {
   id: number;
@@ -564,7 +565,7 @@ export default function ProductDetailPage() {
                 <div className="prose prose-lg prose-gray dark:prose-invert max-w-none">
                   <div 
                     className="text-gray-700 dark:text-gray-300 leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: product.description }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHTML(product.description) }}
                   />
                 </div>
               </div>

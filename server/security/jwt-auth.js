@@ -1,22 +1,34 @@
 /**
  * JWT Authentication Sistemi
- * Token tabanlı kimlik doğrulama
+ * GÜVENLİK: Token tabanlı kimlik doğrulama - Güçlendirilmiş session management
  */
 
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const getTokenBlacklist = require('../utils/token-blacklist');
+const { logError, createSafeErrorResponse } = require('../utils/error-handler');
 
 class JWTAuth {
   constructor() {
+    // GÜVENLİK: Secret'lar environment variable'lardan alınmalı
     this.secret = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
     this.refreshSecret = process.env.JWT_REFRESH_SECRET || crypto.randomBytes(64).toString('hex');
-    this.accessTokenExpiry = process.env.JWT_ACCESS_EXPIRY || '15m';
-    this.refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRY || '7d';
+    
+    // GÜVENLİK: Token expiration time'ları - Güvenli default'lar
+    this.accessTokenExpiry = process.env.JWT_ACCESS_EXPIRY || '15m'; // 15 dakika
+    this.refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRY || '7d'; // 7 gün
+    
+    // GÜVENLİK: Token rotation için minimum refresh interval
+    this.minRefreshInterval = parseInt(process.env.JWT_MIN_REFRESH_INTERVAL || '300', 10); // 5 dakika
+    
     this.issuer = 'huglu-api';
     this.audience = 'huglu-client';
     
-    // Token blacklist (production'da Redis kullanılmalı)
-    this.tokenBlacklist = new Set();
+    // GÜVENLİK: Token blacklist - Database tabanlı
+    this.tokenBlacklist = getTokenBlacklist();
+    
+    // GÜVENLİK: Refresh token rotation tracking (user ID -> last refresh time)
+    this.refreshTokenRotation = new Map();
   }
 
   /**
@@ -73,22 +85,30 @@ class JWTAuth {
 
   /**
    * Access Token doğrula
+   * GÜVENLİK: Blacklist kontrolü ve expiration kontrolü
    */
-  verifyAccessToken(token) {
+  async verifyAccessToken(token) {
     try {
+      // GÜVENLİK: Önce blacklist kontrolü (hızlı kontrol)
+      const isBlacklisted = await this.tokenBlacklist.isTokenBlacklisted(token);
+      if (isBlacklisted) {
+        throw new Error('Token has been revoked');
+      }
+
       const decoded = jwt.verify(token, this.secret, {
         issuer: this.issuer,
         audience: this.audience,
         algorithms: ['HS256']
       });
 
-      // Blacklist kontrolü
-      if (this.tokenBlacklist.has(token)) {
-        throw new Error('Token has been revoked');
-      }
-
+      // GÜVENLİK: Token type kontrolü
       if (decoded.type !== 'access') {
         throw new Error('Invalid token type');
+      }
+
+      // GÜVENLİK: Expiration kontrolü (ekstra güvenlik)
+      if (decoded.exp && Date.now() >= decoded.exp * 1000) {
+        throw new Error('Token has expired');
       }
 
       return decoded;
@@ -99,22 +119,30 @@ class JWTAuth {
 
   /**
    * Refresh Token doğrula
+   * GÜVENLİK: Blacklist kontrolü, expiration kontrolü ve rotation kontrolü
    */
-  verifyRefreshToken(token) {
+  async verifyRefreshToken(token) {
     try {
+      // GÜVENLİK: Önce blacklist kontrolü
+      const isBlacklisted = await this.tokenBlacklist.isTokenBlacklisted(token);
+      if (isBlacklisted) {
+        throw new Error('Token has been revoked');
+      }
+
       const decoded = jwt.verify(token, this.refreshSecret, {
         issuer: this.issuer,
         audience: this.audience,
         algorithms: ['HS256']
       });
 
-      // Blacklist kontrolü
-      if (this.tokenBlacklist.has(token)) {
-        throw new Error('Token has been revoked');
-      }
-
+      // GÜVENLİK: Token type kontrolü
       if (decoded.type !== 'refresh') {
         throw new Error('Invalid token type');
+      }
+
+      // GÜVENLİK: Expiration kontrolü
+      if (decoded.exp && Date.now() >= decoded.exp * 1000) {
+        throw new Error('Token has expired');
       }
 
       return decoded;
@@ -125,26 +153,41 @@ class JWTAuth {
 
   /**
    * Token'ı blacklist'e ekle
+   * GÜVENLİK: Database tabanlı blacklist
    */
-  revokeToken(token) {
-    this.tokenBlacklist.add(token);
+  async revokeToken(token, userId = null) {
+    try {
+      // Token'ı decode et (expiration time için)
+      const decoded = this.decodeToken(token);
+      const expiresAt = decoded?.exp || null;
+      
+      // Blacklist'e ekle
+      await this.tokenBlacklist.addToken(token, userId, expiresAt);
+    } catch (error) {
+      console.error('❌ Error revoking token:', error);
+    }
   }
 
   /**
    * Tüm kullanıcı token'larını iptal et
+   * GÜVENLİK: Database tabanlı blacklist
    */
-  revokeAllUserTokens(userId) {
-    // Bu fonksiyon production'da Redis ile implement edilmeli
-    // Şimdilik sadece blacklist'e ekliyoruz
-    console.log(`All tokens revoked for user: ${userId}`);
+  async revokeAllUserTokens(userId) {
+    try {
+      await this.tokenBlacklist.revokeAllUserTokens(userId);
+      console.log(`✅ All tokens revoked for user: ${userId}`);
+    } catch (error) {
+      console.error('❌ Error revoking all user tokens:', error);
+    }
   }
 
   /**
    * Token'dan kullanıcı bilgilerini çıkar
+   * GÜVENLİK: Async token verification
    */
-  extractUserFromToken(token) {
+  async extractUserFromToken(token) {
     try {
-      const decoded = this.verifyAccessToken(token);
+      const decoded = await this.verifyAccessToken(token);
       return {
         userId: decoded.userId,
         tenantId: decoded.tenantId,
@@ -178,11 +221,12 @@ class JWTAuth {
 
   /**
    * JWT Middleware
+   * GÜVENLİK: Async token verification ile güçlendirilmiş
    */
   createJWTMiddleware(options = {}) {
     const { required = true, optional = false } = options;
 
-    return (req, res, next) => {
+    return async (req, res, next) => {
       const authHeader = req.headers.authorization;
       
       if (!authHeader) {
@@ -204,16 +248,16 @@ class JWTAuth {
       const token = authHeader.replace('Bearer ', '');
       
       try {
-        const decoded = this.verifyAccessToken(token);
+        // GÜVENLİK: Async token verification
+        const decoded = await this.verifyAccessToken(token);
         req.user = decoded;
         req.token = token;
         next();
       } catch (error) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid or expired token',
-          error: error.message
-        });
+        // GÜVENLİK: Error information disclosure - Generic mesaj
+        logError(error, 'JWT_VERIFY');
+        const errorResponse = createSafeErrorResponse(error, 'Invalid or expired token');
+        return res.status(401).json(errorResponse);
       }
     };
   }
@@ -276,6 +320,7 @@ class JWTAuth {
 
   /**
    * Token refresh endpoint handler
+   * GÜVENLİK: Token rotation ile güçlendirilmiş refresh mekanizması
    */
   async handleTokenRefresh(req, res) {
     try {
@@ -288,41 +333,65 @@ class JWTAuth {
         });
       }
 
-      const decoded = this.verifyRefreshToken(refreshToken);
+      // GÜVENLİK: Refresh token'ı doğrula
+      const decoded = await this.verifyRefreshToken(refreshToken);
       
-      // Eski refresh token'ı iptal et
-      this.revokeToken(refreshToken);
+      // GÜVENLİK: Token rotation kontrolü - Çok sık refresh engelle
+      const userId = decoded.userId;
+      const lastRefresh = this.refreshTokenRotation.get(userId);
+      const now = Date.now();
       
-      // Yeni token çifti oluştur
+      if (lastRefresh && (now - lastRefresh) < this.minRefreshInterval * 1000) {
+        return res.status(429).json({
+          success: false,
+          message: 'Too many refresh requests. Please wait before refreshing again.',
+          retryAfter: Math.ceil((this.minRefreshInterval * 1000 - (now - lastRefresh)) / 1000)
+        });
+      }
+
+      // GÜVENLİK: Eski refresh token'ı iptal et (token rotation)
+      await this.revokeToken(refreshToken, userId);
+      
+      // GÜVENLİK: Yeni token çifti oluştur
       const newTokens = this.generateTokenPair({
         userId: decoded.userId,
         tenantId: decoded.tenantId,
         role: decoded.role,
-        permissions: decoded.permissions
+        permissions: decoded.permissions || []
       });
+
+      // GÜVENLİK: Refresh rotation tracking
+      this.refreshTokenRotation.set(userId, now);
 
       res.json({
         success: true,
         data: newTokens
       });
     } catch (error) {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid refresh token',
-        error: error.message
-      });
+      // GÜVENLİK: Error information disclosure - Generic mesaj
+      logError(error, 'TOKEN_REFRESH');
+      const errorResponse = createSafeErrorResponse(error, 'Invalid refresh token');
+      res.status(401).json(errorResponse);
     }
   }
 
   /**
    * Logout handler
+   * GÜVENLİK: Token'ı blacklist'e ekle ve refresh token rotation'ı temizle
    */
   async handleLogout(req, res) {
     try {
       const token = req.token;
+      const userId = req.user?.userId;
       
+      // GÜVENLİK: Access token'ı iptal et
       if (token) {
-        this.revokeToken(token);
+        await this.revokeToken(token, userId);
+      }
+
+      // GÜVENLİK: Refresh token rotation tracking'i temizle
+      if (userId) {
+        this.refreshTokenRotation.delete(userId);
       }
 
       res.json({
@@ -330,11 +399,10 @@ class JWTAuth {
         message: 'Logged out successfully'
       });
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Logout failed',
-        error: error.message
-      });
+      // GÜVENLİK: Error information disclosure - Generic mesaj
+      logError(error, 'LOGOUT');
+      const errorResponse = createSafeErrorResponse(error, 'Logout failed');
+      res.status(500).json(errorResponse);
     }
   }
 
@@ -365,16 +433,34 @@ class JWTAuth {
 
   /**
    * Güvenlik raporu
+   * GÜVENLİK: Database tabanlı blacklist istatistikleri
    */
-  getSecurityReport() {
-    return {
-      blacklistedTokens: this.tokenBlacklist.size,
-      secretRotated: false, // Production'da secret rotation implement edilmeli
-      tokenLifetime: {
-        access: this.accessTokenExpiry,
-        refresh: this.refreshTokenExpiry
-      }
-    };
+  async getSecurityReport() {
+    try {
+      const stats = await this.tokenBlacklist.getStats();
+      return {
+        blacklistedTokens: stats.total,
+        memoryCache: stats.memoryCache,
+        secretRotated: false, // Production'da secret rotation implement edilmeli
+        tokenLifetime: {
+          access: this.accessTokenExpiry,
+          refresh: this.refreshTokenExpiry
+        },
+        minRefreshInterval: this.minRefreshInterval
+      };
+    } catch (error) {
+      return {
+        blacklistedTokens: 0,
+        memoryCache: 0,
+        secretRotated: false,
+        tokenLifetime: {
+          access: this.accessTokenExpiry,
+          refresh: this.refreshTokenExpiry
+        },
+        minRefreshInterval: this.minRefreshInterval,
+        error: error.message
+      };
+    }
   }
 }
 

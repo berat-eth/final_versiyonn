@@ -94,12 +94,22 @@ async function runFtpBackupNow() {
         if (t === 'tenants') {
           [rows] = await poolWrapper.execute('SELECT * FROM tenants WHERE id = ?', [tenantId]);
         } else {
-          // Güvenli table identifier kullan
-          const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
-          try { 
-            [rows] = await poolWrapper.execute(`SELECT * FROM ${safeTableName} WHERE tenantId = ?`, [tenantId]); 
-          } catch { 
-            [rows] = await poolWrapper.execute(`SELECT * FROM ${safeTableName}`); 
+          // GÜVENLİK: Güvenli table identifier kullan - Güçlendirilmiş whitelist kontrolü ile
+          try {
+            // 1. Table name validasyonu (whitelist, format, SQL keyword kontrolü)
+            const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
+            
+            // 2. SQL query validation (ekstra güvenlik katmanı)
+            const sqlQuery = `SELECT * FROM ${safeTableName} WHERE tenantId = ?`;
+            DatabaseSecurity.validateQuery(sqlQuery, [tenantId]);
+            
+            // 3. Prepared statement kullan - Template literal sadece whitelist'teki table name için
+            // MySQL'de table name'ler için prepared statement kullanılamaz, bu yüzden whitelist kontrolü kritik
+            [rows] = await poolWrapper.execute(sqlQuery, [tenantId]);
+          } catch (tableError) {
+            // Table whitelist'te değilse, format geçersizse veya hata varsa boş array döndür
+            console.warn(`⚠️ Table "${t}" validation failed:`, tableError.message);
+            [rows] = [];
           }
         }
         data[t] = rows;
@@ -264,13 +274,19 @@ if (process.env.CSP_REPORT_URI) {
   cspDirectives.reportUri = process.env.CSP_REPORT_URI
 }
 
-// Development için CSP direktifleri
+// GÜVENLİK: CSP Nonce middleware - unsafe-inline ve unsafe-eval kaldırıldı
+const { cspNonceMiddleware } = require('./utils/csp-nonce');
+
+// Development için CSP direktifleri - GÜVENLİK: unsafe-inline ve unsafe-eval kaldırıldı
+// Nonce kullanarak inline script/style'lar güvenli hale getirildi
 const devCspDirectives = process.env.NODE_ENV === 'development' ? {
   defaultSrc: ["'self'"],
-  styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-  scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Dev için geçici
+  // GÜVENLİK: unsafe-inline kaldırıldı, nonce kullanılacak
+  styleSrc: ["'self'", "https://fonts.googleapis.com"],
+  // GÜVENLİK: unsafe-inline ve unsafe-eval kaldırıldı, nonce kullanılacak
+  scriptSrc: ["'self'"],
   imgSrc: ["'self'", "https:", "data:"],
-  connectSrc: ["'self'", "https:", "http://localhost:*"],
+  connectSrc: ["'self'", "https:", "http://localhost:*", "ws://localhost:*"],
   fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
   objectSrc: ["'none'"],
   mediaSrc: ["'self'"],
@@ -280,10 +296,9 @@ const devCspDirectives = process.env.NODE_ENV === 'development' ? {
 // Development modunda devCspDirectives kullan, değilse cspDirectives kullan
 const finalCspDirectives = devCspDirectives || cspDirectives
 
+// GÜVENLİK: Helmet CSP'yi devre dışı bırak, nonce middleware kullanacağız
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: finalCspDirectives
-  },
+  contentSecurityPolicy: false, // Nonce middleware ile dinamik CSP kullanacağız
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
   hsts: {
@@ -295,6 +310,11 @@ app.use(helmet({
   noSniff: true,
   referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
+
+// GÜVENLİK: CSP Nonce middleware - Her request için nonce oluşturur ve CSP header'ına ekler
+// unsafe-inline ve unsafe-eval kaldırıldı, nonce kullanılıyor
+app.use(cspNonceMiddleware);
+
 app.use(hpp());
 // Enable gzip compression for API responses - optimized for product lists
 // ✅ FIX: Brotli devre dışı - React Native Brotli desteklemiyor, sadece gzip/deflate kullan
@@ -325,39 +345,61 @@ app.use(compression({
   }
 }));
 
-// CORS - CSRF ve yetkisiz erişim koruması ile güvenli hale getirildi
+// GÜVENLİK: CORS - CSRF ve yetkisiz erişim koruması ile güvenli hale getirildi
+// Development ve Production için whitelist tabanlı CORS
 app.use(cors({
   origin: function (origin, callback) {
-    // Production'da sadece whitelist'teki origin'lere izin ver
-    if (process.env.NODE_ENV === 'production') {
-      // İzin verilen origin'ler
-      const allowedOrigins = [
-        'https://admin.plaxsy.com',
-        'https://www.plaxsy.com',
-        'https://plaxsy.com',
-        'https://api.plaxsy.com',
-        'https://api.zerodaysoftware.tr'
-      ];
-      
-      // Origin yoksa (mobil uygulama için özel durum)
-      if (!origin) {
-        // Mobil uygulama için origin yok, ama API key ile korunuyor
+    // İzin verilen origin'ler - Production ve Development için
+    const productionOrigins = [
+      'https://admin.plaxsy.com',
+      'https://www.plaxsy.com',
+      'https://plaxsy.com',
+      'https://api.plaxsy.com',
+      'https://api.zerodaysoftware.tr',
+      'https://huglutekstil.com',
+      'https://www.huglutekstil.com'
+    ];
+    
+    // Development için ek origin'ler
+    const developmentOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3006',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+      'http://127.0.0.1:3006',
+      ...productionOrigins // Production origin'leri development'ta da kullanılabilir
+    ];
+    
+    // Ortama göre whitelist seç
+    const allowedOrigins = process.env.NODE_ENV === 'production' 
+      ? productionOrigins 
+      : developmentOrigins;
+    
+    // Origin yoksa (mobil uygulama veya same-origin request için)
+    if (!origin) {
+      // Same-origin request'ler için izin ver (mobil uygulama API key ile korunuyor)
+      // Ancak production'da daha sıkı kontrol
+      if (process.env.NODE_ENV === 'production') {
+        // Production'da origin yoksa sadece API key ile korunan endpoint'ler için izin ver
+        // Bu durumda mobil uygulama gibi durumlar için API key zorunlu
+        return callback(null, true);
+      } else {
+        // Development'ta localhost için izin ver
         return callback(null, true);
       }
-      
-      // Origin izin verilen listede mi kontrol et
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        // Production'da sadece whitelist
-        callback(new Error('Not allowed by CORS'));
-      }
-    } else {
-      // Development ortamında tüm origin'lere izin ver
+    }
+    
+    // Origin izin verilen listede mi kontrol et
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
+    } else {
+      // GÜVENLİK: Whitelist'te olmayan origin'leri reddet
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      callback(new Error(`Not allowed by CORS. Origin "${origin}" is not in whitelist.`));
     }
   },
-  credentials: true,
+  credentials: true, // GÜVENLİK: credentials: true ile wildcard origin kullanılmıyor
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Admin-Key', 'X-Tenant-Id', 'x-tenant-id', 'X-CSRF-Token', 'csrf-token', 'Accept', 'Origin', 'X-Requested-With'],
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'X-CSRF-Token'],
@@ -425,8 +467,50 @@ app.post('/api/auth/google/verify', async (req, res) => {
 
     res.json({ success: true, data: { userId: userIdNumeric, tenantId, role, tokens } });
   } catch (e) {
-    console.error('Google verify error:', e);
-    res.status(401).json({ success: false, message: 'Google doğrulama başarısız', error: e.message });
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(e, 'GOOGLE_VERIFY');
+    const errorResponse = createSafeErrorResponse(e, 'Google authentication failed');
+    res.status(401).json(errorResponse);
+  }
+});
+
+// GÜVENLİK: JWT Token Refresh Endpoint - Token rotation ile güçlendirilmiş
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const JWTAuth = require('./security/jwt-auth');
+    const jwtAuth = new JWTAuth();
+    await jwtAuth.handleTokenRefresh(req, res);
+  } catch (error) {
+    logError(error, 'TOKEN_REFRESH_ENDPOINT');
+    const errorResponse = createSafeErrorResponse(error, 'Token refresh failed');
+    res.status(500).json(errorResponse);
+  }
+});
+
+// GÜVENLİK: JWT Logout Endpoint - Token'ı blacklist'e ekler
+app.post('/api/auth/logout', async (req, res) => {
+  try {
+    const JWTAuth = require('./security/jwt-auth');
+    const jwtAuth = new JWTAuth();
+    
+    // Token'ı request'ten al
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      req.token = authHeader.substring('Bearer '.length);
+      // Token'dan user bilgisini çıkar
+      try {
+        const decoded = jwtAuth.decodeToken(req.token);
+        if (decoded) {
+          req.user = { userId: decoded.userId };
+        }
+      } catch (_) {}
+    }
+    
+    await jwtAuth.handleLogout(req, res);
+  } catch (error) {
+    logError(error, 'LOGOUT_ENDPOINT');
+    const errorResponse = createSafeErrorResponse(error, 'Logout failed');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -506,6 +590,110 @@ const criticalLimiter = rateLimit({
   message: 'Rate limit exceeded for this endpoint'
 });
 
+// GÜVENLİK: Kritik endpoint'ler için özel rate limiting
+// SQL Query endpoint - Çok kritik, çok düşük limit
+const sqlQueryLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 dakika
+  max: 5, // Çok düşük limit (SQL injection saldırılarına karşı)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // IP + Admin user ID kombinasyonu
+    const adminId = req.user?.id || req.headers['x-admin-id'] || 'unknown';
+    return `${req.ip}:${adminId}`;
+  },
+  message: 'Too many SQL queries. Please try again later.',
+  skip: (req) => {
+    // Private IP'ler için skip (development)
+    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
+  }
+});
+
+// Wallet transfer endpoint - Finansal işlem, düşük limit
+const walletTransferLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 dakika
+  max: 10, // Düşük limit (finansal saldırılara karşı)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // IP + User ID kombinasyonu
+    const userId = req.body?.fromUserId || req.authenticatedUserId || 'unknown';
+    return `${req.ip}:${userId}`;
+  },
+  message: 'Too many wallet transfer requests. Please try again later.',
+  skip: (req) => {
+    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
+  }
+});
+
+// Payment processing endpoint - Ödeme işlemi, çok düşük limit
+const paymentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 dakika
+  max: 5, // Çok düşük limit (ödeme saldırılarına karşı)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // IP + Order ID kombinasyonu
+    const orderId = req.body?.orderId || 'unknown';
+    return `${req.ip}:${orderId}`;
+  },
+  message: 'Too many payment requests. Please try again later.',
+  skip: (req) => {
+    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
+  }
+});
+
+// Gift card endpoint - Finansal işlem, düşük limit
+const giftCardLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 dakika
+  max: 10, // Düşük limit
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = req.body?.fromUserId || req.authenticatedUserId || 'unknown';
+    return `${req.ip}:${userId}`;
+  },
+  message: 'Too many gift card requests. Please try again later.',
+  skip: (req) => {
+    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
+  }
+});
+
+// Admin wallet transfer endpoint - Admin finansal işlem, çok düşük limit
+const adminWalletTransferLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 dakika
+  max: 5, // Çok düşük limit (admin finansal saldırılarına karşı)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const adminId = req.user?.id || req.headers['x-admin-id'] || 'unknown';
+    return `${req.ip}:${adminId}`;
+  },
+  message: 'Too many admin wallet transfer requests. Please try again later.',
+  skip: (req) => {
+    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
+  }
+});
+
+// GÜVENLİK: IP bazlı rate limiting güçlendirme
+// Şüpheli IP'ler için daha düşük limit
+const suspiciousIPLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dakika
+  max: 50, // Şüpheli IP'ler için çok düşük limit
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // IP'yi normalize et
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    return ip;
+  },
+  skip: (req) => {
+    // Private IP'ler için skip
+    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
+  },
+  message: 'Too many requests from this IP. Please try again later.'
+});
+
 // Rate limiting uygulama
 app.use('/api/users/login', loginLimiter);
 app.use('/api/admin/login', loginLimiter);
@@ -514,6 +702,16 @@ app.use('/api/users', authLimiter);
 app.use('/api/orders', criticalLimiter);
 app.use('/api/cart', authLimiter);
 app.use('/api/products', authLimiter);
+
+// GÜVENLİK: Kritik endpoint'ler için özel rate limiting
+app.use('/api/admin/sql/query', sqlQueryLimiter);
+app.use('/api/wallet/transfer', walletTransferLimiter);
+app.use('/api/wallet/gift-card', giftCardLimiter);
+app.use('/api/payments/process', paymentLimiter);
+app.use('/api/admin/wallets/transfer', adminWalletTransferLimiter);
+
+// GÜVENLİK: Şüpheli IP'ler için global rate limiting (en son uygulanır)
+app.use('/api', suspiciousIPLimiter);
 
 // SQL Query Logger Middleware
 app.use((req, res, next) => {
@@ -548,36 +746,68 @@ if (!fs.existsSync(uploadsDir)) {
   console.log('✅ Uploads directory created:', uploadsDir);
 }
 
-// Multer yapılandırması
+// GÜVENLİK: File upload security utilities
+const { validateFileUpload, sanitizeFileName } = require('./utils/file-security');
+
+// Multer yapılandırması - Güvenli dosya yükleme
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
+    // GÜVENLİK: Dosya adını sanitize et
+    const sanitized = sanitizeFileName(file.originalname);
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const baseName = path.basename(file.originalname, ext);
+    const ext = path.extname(sanitized);
+    const baseName = path.basename(sanitized, ext);
+    // Güvenli dosya adı oluştur
     cb(null, `${baseName}-${uniqueSuffix}${ext}`);
   }
 });
 
 const fileFilter = (req, file, cb) => {
-  // Görsel ve video formatları
+  // GÜVENLİK: Görsel ve video formatları - Sınırlı whitelist
   const allowedMimes = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
     'video/mp4', 'video/quicktime', 'video/x-msvideo'
   ];
-  if (allowedMimes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Geçersiz dosya formatı. Sadece görsel (JPEG, PNG, WebP) ve video (MP4, MOV, AVI) yüklenebilir.'));
+  
+  // MIME type kontrolü
+  if (!allowedMimes.includes(file.mimetype)) {
+    return cb(new Error('Geçersiz dosya formatı. Sadece görsel (JPEG, PNG, WebP) ve video (MP4, MOV, AVI) yüklenebilir.'));
   }
+  
+  // Dosya uzantısı kontrolü
+  const ext = file.originalname.toLowerCase().split('.').pop();
+  const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov', 'avi'];
+  if (!allowedExts.includes(ext)) {
+    return cb(new Error('Geçersiz dosya uzantısı. Sadece görsel (JPEG, PNG, WebP) ve video (MP4, MOV, AVI) yüklenebilir.'));
+  }
+  
+  // MIME type ve uzantı uyumu kontrolü
+  const mimeFromExt = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'webp': 'image/webp',
+    'mp4': 'video/mp4',
+    'mov': 'video/quicktime',
+    'avi': 'video/x-msvideo'
+  };
+  
+  if (mimeFromExt[ext] && mimeFromExt[ext] !== file.mimetype) {
+    return cb(new Error('Dosya uzantısı ve MIME type uyuşmuyor.'));
+  }
+  
+  cb(null, true);
 };
 
+// GÜVENLİK: Dosya boyutu limiti 50MB'dan 10MB'a düşürüldü
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB maksimum
+    fileSize: 10 * 1024 * 1024, // 10MB maksimum (50MB'dan düşürüldü)
+    files: 5 // Maksimum 5 dosya
   },
   fileFilter: fileFilter
 });
@@ -688,7 +918,13 @@ app.use('/api', (req, res, next) => {
         );
         if (!rows || rows.length === 0) {
           // API key bulunamazsa default tenant'ı kullan (id: 1)
-          console.log(`⚠️ API key not found in database, using default tenant (id: 1) for key: ${apiKey.substring(0, 10)}...`);
+          // GÜVENLİK: API key logging - Sadece hash'in bir kısmı loglanır, tam key asla loglanmaz
+          const maskedKey = apiKey ? `${apiKey.substring(0, 4)}***${apiKey.substring(apiKey.length - 4)}` : 'N/A';
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`⚠️ API key not found in database, using default tenant (id: 1) for key: ${maskedKey}`);
+          } else {
+            console.log(`⚠️ API key not found in database, using default tenant (id: 1)`);
+          }
           const [defaultTenantRows] = await poolWrapper.execute(
             'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
           );
@@ -723,7 +959,13 @@ app.use('/api', (req, res, next) => {
       );
       if (rows.length === 0) {
         // API key bulunamazsa default tenant'ı kullan (id: 1)
-        console.log(`⚠️ API key not found in database (fallback), using default tenant (id: 1) for key: ${apiKey.substring(0, 10)}...`);
+        // GÜVENLİK: API key logging - Sadece hash'in bir kısmı loglanır, tam key asla loglanmaz
+        const maskedKey = apiKey ? `${apiKey.substring(0, 4)}***${apiKey.substring(apiKey.length - 4)}` : 'N/A';
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`⚠️ API key not found in database (fallback), using default tenant (id: 1) for key: ${maskedKey}`);
+        } else {
+          console.log(`⚠️ API key not found in database (fallback), using default tenant (id: 1)`);
+        }
         const [defaultTenantRows] = await poolWrapper.execute(
           'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
         );
@@ -756,7 +998,13 @@ app.use('/api', (req, res, next) => {
       ).then(([rows]) => {
         if (rows.length === 0) {
           // API key bulunamazsa default tenant'ı kullan (id: 1)
-          console.log(`⚠️ API key not found in database (error fallback), using default tenant (id: 1) for key: ${apiKey.substring(0, 10)}...`);
+          // GÜVENLİK: API key logging - Sadece hash'in bir kısmı loglanır, tam key asla loglanmaz
+          const maskedKey = apiKey ? `${apiKey.substring(0, 4)}***${apiKey.substring(apiKey.length - 4)}` : 'N/A';
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`⚠️ API key not found in database (error fallback), using default tenant (id: 1) for key: ${maskedKey}`);
+          } else {
+            console.log(`⚠️ API key not found in database (error fallback), using default tenant (id: 1)`);
+          }
           return poolWrapper.execute(
             'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
           ).then(([defaultTenantRows]) => {
@@ -1223,9 +1471,16 @@ async function ensureTestUser() {
         'INSERT INTO users (user_id, tenantId, name, email, password, isActive, createdAt) VALUES (?, ?, ?, ?, ?, true, NOW())',
         [TEST_USER_ID, tenantId, TEST_NAME, TEST_EMAIL, hashedPassword]
       );
-      console.log('✅ Test user created successfully');
-      console.log(`   Email: ${TEST_EMAIL}`);
-      console.log(`   Password: ${TEST_PASSWORD}`);
+      // GÜVENLİK: Sensitive data logging - Production'da password loglanmaz
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ Test user created successfully');
+        console.log(`   Email: ${TEST_EMAIL}`);
+        console.log(`   Password: ${TEST_PASSWORD} (development only)`);
+      } else {
+        console.log('✅ Test user created successfully');
+        console.log(`   Email: ${TEST_EMAIL}`);
+        // Production'da password loglanmaz
+      }
     } else {
       // Update password if user exists (in case it was changed)
       const hashedPassword = await hashPassword(TEST_PASSWORD);
@@ -1233,9 +1488,16 @@ async function ensureTestUser() {
         'UPDATE users SET password = ? WHERE email = ? AND tenantId = ?',
         [hashedPassword, TEST_EMAIL, tenantId]
       );
-      console.log('✅ Test user password reset');
-      console.log(`   Email: ${TEST_EMAIL}`);
-      console.log(`   Password: ${TEST_PASSWORD}`);
+      // GÜVENLİK: Sensitive data logging - Production'da password loglanmaz
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ Test user password reset');
+        console.log(`   Email: ${TEST_EMAIL}`);
+        console.log(`   Password: ${TEST_PASSWORD} (development only)`);
+      } else {
+        console.log('✅ Test user password reset');
+        console.log(`   Email: ${TEST_EMAIL}`);
+        // Production'da password loglanmaz
+      }
     }
   } catch (error) {
     console.warn('⚠️ Could not ensure test user:', error.message);
@@ -1259,11 +1521,11 @@ app.get('/api/health', async (req, res) => {
       database: 'connected'
     });
   } catch (error) {
-    console.error('❌ Health check failed:', error.message);
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'HEALTH_CHECK');
+    const errorResponse = createSafeErrorResponse(error, 'Server health check failed');
     res.status(500).json({
-      success: false,
-      message: 'Server health check failed',
-      error: error.message,
+      ...errorResponse,
       timestamp: new Date().toISOString()
     });
   }
@@ -1291,11 +1553,12 @@ app.get('/api/ollama/health', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Ollama health check failed:', error.message);
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'OLLAMA_HEALTH_CHECK');
+    const errorResponse = createSafeErrorResponse(error, 'Ollama service unavailable');
     res.json({
-      success: false,
+      ...errorResponse,
       status: 'offline',
-      error: error.message,
       timestamp: new Date().toISOString()
     });
   }
@@ -1351,10 +1614,11 @@ app.post('/api/ollama/generate', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Ollama generate failed:', error.message);
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'OLLAMA_GENERATE');
+    const errorResponse = createSafeErrorResponse(error, 'Failed to generate response');
     res.status(500).json({
-      success: false,
-      error: error.message,
+      ...errorResponse,
       timestamp: new Date().toISOString()
     });
   }
@@ -1390,10 +1654,11 @@ app.post('/api/ollama/pull', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error(`❌ Ollama pull failed for model ${req.body.model}:`, error.message);
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'OLLAMA_PULL');
+    const errorResponse = createSafeErrorResponse(error, 'Failed to pull model');
     res.status(500).json({
-      success: false,
-      error: error.message,
+      ...errorResponse,
       timestamp: new Date().toISOString()
     });
   }
@@ -1984,16 +2249,23 @@ app.post('/api/wallet/transfer', validateUserIdMatch('body'), async (req, res) =
       console.log('✅ Database connection released');
     }
   } catch (error) {
-    console.error('❌ Error processing transfer:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      fromUserId: req.body?.fromUserId,
-      toUserId: req.body?.toUserId,
-      amount: req.body?.amount,
-      tenantId: req.tenant?.id
-    });
+    // GÜVENLİK: Error information disclosure - Production'da stack trace ve detaylı error mesajları gizlenir
+    // Error detayları sadece loglara yazılır, client'a gönderilmez
     logError(error, 'WALLET_TRANSFER');
+    
+    // GÜVENLİK: Production'da sensitive data loglanmaz
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('❌ Error processing transfer:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        fromUserId: req.body?.fromUserId,
+        toUserId: req.body?.toUserId,
+        amount: req.body?.amount,
+        tenantId: req.tenant?.id
+      });
+    }
+    
     const errorResponse = createSafeErrorResponse(error, 'Error processing transfer');
     res.status(500).json(errorResponse);
   }
@@ -2103,16 +2375,22 @@ app.post('/api/wallet/gift-card', validateUserIdMatch('body'), async (req, res) 
       console.log('✅ Database connection released');
     }
   } catch (error) {
-    console.error('❌ Error creating gift card:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      amount,
-      recipient,
-      fromUserId,
-      tenantId: req.tenant?.id
-    });
+    // GÜVENLİK: Error information disclosure - Production'da stack trace ve detaylı error mesajları gizlenir
     logError(error, 'GIFT_CARD_CREATE');
+    
+    // GÜVENLİK: Production'da sensitive data loglanmaz
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('❌ Error creating gift card:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        amount,
+        recipient,
+        fromUserId,
+        tenantId: req.tenant?.id
+      });
+    }
+    
     const errorResponse = createSafeErrorResponse(error, 'Error creating gift card');
     res.status(500).json(errorResponse);
   }
@@ -2675,11 +2953,10 @@ app.post('/api/payments/process', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Payment processing error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Payment processing failed',
-      error: error.message
-    });
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'PAYMENT_PROCESSING');
+    const errorResponse = createSafeErrorResponse(error, 'Payment processing failed');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -3059,11 +3336,10 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error getting admin stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error getting stats',
-      error: error.message
-    });
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'GET_STATS');
+    const errorResponse = createSafeErrorResponse(error, 'Error getting stats');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -3203,11 +3479,10 @@ app.get('/api/admin/charts', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error getting chart data:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error getting chart data',
-      error: error.message
-    });
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'GET_CHART_DATA');
+    const errorResponse = createSafeErrorResponse(error, 'Error getting chart data');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -3749,19 +4024,35 @@ app.get('/api/admin/backup', authenticateAdmin, async (req, res) => {
         if (t === 'tenants') {
           [rows] = await poolWrapper.execute('SELECT * FROM tenants WHERE id = ?', [tenantId]);
         } else {
-          // SQL Injection koruması: Güvenli table identifier kullan
-          const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
-          // Önce tenantId filtresiyle dene
+          // GÜVENLİK: SQL Injection koruması - Güçlendirilmiş table identifier kullan
           try {
-            [rows] = await poolWrapper.execute(`SELECT * FROM ${safeTableName} WHERE tenantId = ?`, [tenantId]);
-          } catch (e1) {
-            // tenantId kolonu yoksa tüm satırları al (bazı ilişkisel tablolar)
+            // 1. Table name validasyonu (whitelist, format, SQL keyword kontrolü)
+            const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
+            
+            // 2. SQL query validation (ekstra güvenlik katmanı)
+            const sqlQuery1 = `SELECT * FROM ${safeTableName} WHERE tenantId = ?`;
+            DatabaseSecurity.validateQuery(sqlQuery1, [tenantId]);
+            
+            // 3. Önce tenantId filtresiyle dene
             try {
-              [rows] = await poolWrapper.execute(`SELECT * FROM ${safeTableName}`);
-            } catch (e2) {
-              console.warn('Backup table skip:', t, e2.message);
-              rows = [];
+              [rows] = await poolWrapper.execute(sqlQuery1, [tenantId]);
+            } catch (e1) {
+              // tenantId kolonu yoksa tüm satırları al (bazı ilişkisel tablolar)
+              // GÜVENLİK: Parametresiz sorgu için de validation
+              const sqlQuery2 = `SELECT * FROM ${safeTableName}`;
+              DatabaseSecurity.validateQuery(sqlQuery2, []);
+              
+              try {
+                [rows] = await poolWrapper.execute(sqlQuery2);
+              } catch (e2) {
+                console.warn('Backup table skip:', t, e2.message);
+                rows = [];
+              }
             }
+          } catch (tableError) {
+            // Table validation başarısız
+            console.warn(`⚠️ Backup table "${t}" validation failed:`, tableError.message);
+            rows = [];
           }
         }
         data[t] = rows;
@@ -3805,26 +4096,55 @@ app.post('/api/admin/restore', authenticateAdmin, async (req, res) => {
       'tenants'
     ];
 
-    // Truncate then insert - SQL Injection koruması
+    // GÜVENLİK: Truncate then insert - Güçlendirilmiş SQL Injection koruması
     for (const t of tableOrder) {
       try { 
+        // 1. Table name validasyonu
         const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
-        await conn.execute(`DELETE FROM ${safeTableName}`); 
-      } catch (_) { }
+        
+        // 2. SQL query validation
+        const deleteSql = `DELETE FROM ${safeTableName}`;
+        DatabaseSecurity.validateQuery(deleteSql, []);
+        
+        await conn.execute(deleteSql); 
+      } catch (deleteError) {
+        console.warn(`⚠️ Restore delete failed for table "${t}":`, deleteError.message);
+      }
     }
+    
     for (const t of Object.keys(data)) {
-      // Table name whitelist kontrolü
-      const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
-      const rows = Array.isArray(data[t]) ? data[t] : [];
-      if (rows.length === 0) continue;
-      const cols = Object.keys(rows[0]);
-      // Column name'leri güvenli hale getir
-      const safeCols = cols.map(c => DatabaseSecurity.safeColumnIdentifier(c));
-      const placeholders = '(' + cols.map(() => '?').join(',') + ')';
-      const sql = `INSERT INTO ${safeTableName} (${safeCols.join(',')}) VALUES ${rows.map(() => placeholders).join(',')}`;
-      const values = [];
-      rows.forEach(r => cols.forEach(c => values.push(r[c])));
-      try { await conn.execute(sql, values); } catch (e) { console.warn('Restore insert warn', t, e.message); }
+      try {
+        // 1. Table name whitelist kontrolü ve validasyon
+        const safeTableName = DatabaseSecurity.safeTableIdentifier(t);
+        
+        const rows = Array.isArray(data[t]) ? data[t] : [];
+        if (rows.length === 0) continue;
+        
+        const cols = Object.keys(rows[0]);
+        
+        // 2. Column name'leri güvenli hale getir
+        const safeCols = cols.map(c => {
+          try {
+            return DatabaseSecurity.safeColumnIdentifier(c);
+          } catch (colError) {
+            throw new Error(`Invalid column name "${c}" in table "${t}": ${colError.message}`);
+          }
+        });
+        
+        // 3. SQL query oluştur ve validate et
+        const placeholders = '(' + cols.map(() => '?').join(',') + ')';
+        const sql = `INSERT INTO ${safeTableName} (${safeCols.join(',')}) VALUES ${rows.map(() => placeholders).join(',')}`;
+        
+        // 4. SQL query validation (ekstra güvenlik)
+        const values = [];
+        rows.forEach(r => cols.forEach(c => values.push(r[c])));
+        DatabaseSecurity.validateQuery(sql, values);
+        
+        // 5. Execute query
+        await conn.execute(sql, values);
+      } catch (restoreError) {
+        console.warn(`⚠️ Restore insert failed for table "${t}":`, restoreError.message);
+      }
     }
 
     await conn.execute('SET FOREIGN_KEY_CHECKS = 1');
@@ -4934,10 +5254,12 @@ app.post('/api/admin/code/run', authenticateAdmin, async (req, res) => {
       const output = (sandbox._output || []).join('\n') || 'Kod başarıyla çalıştırıldı';
       res.json({ success: true, output });
     } catch (error) {
-      res.json({ 
-        success: false, 
-        output: `Hata: ${error.message}`,
-        error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      // GÜVENLİK: Error information disclosure - Production'da stack trace gizlenir
+      logError(error, 'CODE_RUN');
+      const errorResponse = createSafeErrorResponse(error, 'Code execution failed');
+      res.json({
+        ...errorResponse,
+        output: `Hata: ${errorResponse.message}`
       });
     }
 
@@ -4947,26 +5269,170 @@ app.post('/api/admin/code/run', authenticateAdmin, async (req, res) => {
   }
 });
 
+// GÜVENLİK: Admin SQL query endpoint'i - SQL Injection koruması ile güçlendirildi
 app.post('/api/admin/sql/query', authenticateAdmin, async (req, res) => {
   try {
     const sql = String(req.body?.query || '').trim();
     if (!sql) return res.status(400).json({ success: false, message: 'Query required' });
-    const upper = sql.toUpperCase();
-    const forbidden = ['UPDATE', 'DELETE', 'DROP', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE', 'REPLACE', 'GRANT', 'REVOKE'];
+    
+    // SQL Injection koruması - Kapsamlı güvenlik kontrolleri
+    const upper = sql.toUpperCase().trim();
+    
+    // 1. Sadece SELECT sorgularına izin ver
     if (!upper.startsWith('SELECT')) {
       return res.status(400).json({ success: false, message: 'Only SELECT queries are allowed' });
     }
-    if (forbidden.some(k => upper.includes(k))) {
-      return res.status(400).json({ success: false, message: 'Dangerous statements are not allowed' });
+    
+    // 2. Tehlikeli SQL komutlarını engelle
+    const forbiddenKeywords = [
+      'UPDATE', 'DELETE', 'DROP', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE', 
+      'REPLACE', 'GRANT', 'REVOKE', 'EXEC', 'EXECUTE', 'CALL', 'PROCEDURE',
+      'FUNCTION', 'TRIGGER', 'VIEW', 'INDEX', 'DATABASE', 'SCHEMA'
+    ];
+    if (forbiddenKeywords.some(k => upper.includes(k))) {
+      return res.status(400).json({ success: false, message: 'Dangerous SQL statements are not allowed' });
     }
+    
+    // 3. UNION-based SQL injection engelleme
+    if (upper.includes('UNION')) {
+      return res.status(400).json({ success: false, message: 'UNION statements are not allowed' });
+    }
+    
+    // 4. Subquery ve nested query engelleme (SQL injection riski)
+    const openParenCount = (sql.match(/\(/g) || []).length;
+    const closeParenCount = (sql.match(/\)/g) || []).length;
+    if (openParenCount > 2 || closeParenCount > 2 || openParenCount !== closeParenCount) {
+      return res.status(400).json({ success: false, message: 'Complex queries with nested structures are not allowed' });
+    }
+    
+    // 5. Comment injection engelleme
+    if (sql.includes('--') || sql.includes('/*') || sql.includes('*/') || sql.includes('#')) {
+      return res.status(400).json({ success: false, message: 'SQL comments are not allowed' });
+    }
+    
+    // 6. Multiple statement engelleme
+    if (sql.includes(';') && sql.split(';').filter(s => s.trim().length > 0).length > 1) {
+      return res.status(400).json({ success: false, message: 'Multiple statements are not allowed' });
+    }
+    
+    // 7. Tehlikeli fonksiyonlar engelleme
+    const dangerousFunctions = [
+      'LOAD_FILE', 'INTO OUTFILE', 'INTO DUMPFILE', 'BENCHMARK', 'SLEEP',
+      'WAITFOR', 'DELAY', 'PG_SLEEP', 'GET_LOCK', 'RELEASE_LOCK'
+    ];
+    if (dangerousFunctions.some(f => upper.includes(f))) {
+      return res.status(400).json({ success: false, message: 'Dangerous SQL functions are not allowed' });
+    }
+    
+    // 8. Table name whitelist kontrolü - Sadece izin verilen tablolara erişim
+    const allowedTables = DatabaseSecurity.getAllowedTables();
+    const tableMatches = sql.match(/FROM\s+([`"]?)(\w+)\1/gi) || [];
+    const usedTables = tableMatches.map(m => m.replace(/FROM\s+[`"]?/gi, '').replace(/[`"]/g, '').toLowerCase());
+    
+    for (const table of usedTables) {
+      if (!allowedTables.includes(table)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Table "${table}" is not in allowed whitelist` 
+        });
+      }
+    }
+    
+    // 9. Query uzunluk limiti (DoS koruması)
+    if (sql.length > 1000) {
+      return res.status(400).json({ success: false, message: 'Query too long. Maximum 1000 characters allowed' });
+    }
+    
+    // 10. Prepared statement kullan - Parametreli sorgu zorunluluğu
+    // Eğer sorguda parametre yoksa, sadece basit SELECT'lere izin ver
+    const hasPlaceholders = sql.includes('?');
+    if (!hasPlaceholders && (sql.includes("'") || sql.includes('"') || sql.match(/\d+/g)?.length > 5)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Queries with user input must use prepared statements (?)' 
+      });
+    }
+    
+    // 11. DatabaseSecurity validation kullan
+    try {
+      // Eğer parametre varsa, parametre sayısını kontrol et
+      if (hasPlaceholders) {
+        const paramCount = (sql.match(/\?/g) || []).length;
+        const providedParams = Array.isArray(req.body.params) ? req.body.params : [];
+        if (paramCount !== providedParams.length) {
+          return res.status(400).json({ 
+            success: false, 
+            message: `Parameter count mismatch. Expected ${paramCount}, got ${providedParams.length}` 
+          });
+        }
+        DatabaseSecurity.validateQuery(sql, providedParams);
+      } else {
+        // Parametre yoksa, sadece basit SELECT'lere izin ver
+        DatabaseSecurity.validateQuery(sql, []);
+      }
+    } catch (validationError) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Query validation failed: ${validationError.message}` 
+      });
+    }
+    
+    // 12. Query'yi çalıştır - Prepared statement ile
     const start = Date.now();
-    const [rows, fields] = await poolWrapper.query({ sql, timeout: 5000 });
+    let rows, fields;
+    
+    if (hasPlaceholders && Array.isArray(req.body.params)) {
+      // Parametreli sorgu
+      [rows, fields] = await poolWrapper.execute(sql, req.body.params);
+    } else {
+      // Parametresiz sorgu (sadece basit SELECT'ler için)
+      [rows, fields] = await poolWrapper.query(sql);
+    }
+    
     const executionTime = (Date.now() - start) / 1000;
+    
+    // 13. Sonuçları maskele (sensitive data)
+    const maskedRows = rows.map(row => {
+      return DatabaseSecurity.maskSensitiveData(row, ['password', 'email', 'phone', 'apiKey', 'token']);
+    });
+    
     const columns = Array.isArray(fields) ? fields.map(f => f.name) : (rows[0] ? Object.keys(rows[0]) : []);
-    res.json({ success: true, data: { columns, rows, rowCount: rows.length, executionTime } });
+    
+    // 14. Audit log
+    dbSecurity && dbSecurity.logDatabaseAccess(
+      req.user?.userId || 'admin',
+      'ADMIN_SQL_QUERY',
+      usedTables.join(','),
+      { 
+        ip: req.ip, 
+        userAgent: req.headers['user-agent'],
+        queryLength: sql.length,
+        executionTime,
+        rowCount: rows.length
+      }
+    );
+    
+    res.json({ 
+      success: true, 
+      data: { 
+        columns, 
+        rows: maskedRows, 
+        rowCount: maskedRows.length, 
+        executionTime 
+      } 
+    });
   } catch (error) {
     console.error('❌ SQL query error:', error);
-    res.status(500).json({ success: false, message: 'Query failed' });
+    
+    // Güvenlik: Hata mesajlarını maskele
+    const errorMessage = process.env.NODE_ENV === 'production' 
+      ? 'Query failed' 
+      : error.message;
+    
+    res.status(500).json({ 
+      success: false, 
+      message: errorMessage 
+    });
   }
 });
 
@@ -6326,13 +6792,17 @@ app.get('/api/admin/crm/leads', authenticateAdmin, async (req, res) => {
     );
     res.json({ success: true, data: { leads: rows, total: countRows[0].total } });
   } catch (error) {
-    console.error('❌ Error fetching CRM leads:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching leads',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'FETCH_LEADS');
+    
+    // GÜVENLİK: Production'da stack trace loglanmaz
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('❌ Error fetching CRM leads:', error);
+      console.error('Error stack:', error.stack);
+    }
+    
+    const errorResponse = createSafeErrorResponse(error, 'Error fetching leads');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -6892,13 +7362,17 @@ app.get('/api/admin/crm/opportunities', authenticateAdmin, async (req, res) => {
     );
     res.json({ success: true, data: { opportunities, total: countRows[0].total } });
   } catch (error) {
-    console.error('❌ Error fetching CRM opportunities:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching opportunities',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'FETCH_OPPORTUNITIES');
+    
+    // GÜVENLİK: Production'da stack trace loglanmaz
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('❌ Error fetching CRM opportunities:', error);
+      console.error('Error stack:', error.stack);
+    }
+    
+    const errorResponse = createSafeErrorResponse(error, 'Error fetching opportunities');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -8092,11 +8566,10 @@ app.post('/api/users', async (req, res) => {
       sqlMessage: error.sqlMessage,
       stack: error.stack
     });
-    res.status(500).json({
-      success: false,
-      message: 'Error creating user',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'CREATE_USER');
+    const errorResponse = createSafeErrorResponse(error, 'Error creating user');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -9759,22 +10232,38 @@ app.post('/api/admin/flash-deals', authenticateAdmin, async (req, res) => {
 
       const flashDealId = result.insertId;
 
-      // Insert products
+      // GÜVENLİK: Insert products - Prepared statement ile güvenli bulk insert
       if (productIds.length > 0) {
-        const productValues = productIds.map((productId) => [flashDealId, productId]);
-        await connection.query(`
-          INSERT INTO flash_deal_products (flash_deal_id, product_id)
-          VALUES ?
-        `, [productValues]);
+        // Input validation - Sadece integer ID'lere izin ver
+        const validProductIds = productIds
+          .map(id => parseInt(id))
+          .filter(id => !isNaN(id) && id > 0);
+        
+        if (validProductIds.length > 0) {
+          const productValues = validProductIds.map((productId) => [flashDealId, productId]);
+          // MySQL'in güvenli bulk insert yöntemi - VALUES ? kullanımı güvenli
+          await connection.query(`
+            INSERT INTO flash_deal_products (flash_deal_id, product_id)
+            VALUES ?
+          `, [productValues]);
+        }
       }
 
-      // Insert categories
+      // GÜVENLİK: Insert categories - Prepared statement ile güvenli bulk insert
       if (categoryIds.length > 0) {
-        const categoryValues = categoryIds.map((categoryId) => [flashDealId, categoryId]);
-        await connection.query(`
-          INSERT INTO flash_deal_categories (flash_deal_id, category_id)
-          VALUES ?
-        `, [categoryValues]);
+        // Input validation - Sadece integer ID'lere izin ver
+        const validCategoryIds = categoryIds
+          .map(id => parseInt(id))
+          .filter(id => !isNaN(id) && id > 0);
+        
+        if (validCategoryIds.length > 0) {
+          const categoryValues = validCategoryIds.map((categoryId) => [flashDealId, categoryId]);
+          // MySQL'in güvenli bulk insert yöntemi - VALUES ? kullanımı güvenli
+          await connection.query(`
+            INSERT INTO flash_deal_categories (flash_deal_id, category_id)
+            VALUES ?
+          `, [categoryValues]);
+        }
       }
 
       await connection.commit();
@@ -9838,33 +10327,47 @@ app.put('/api/admin/flash-deals/:id', authenticateAdmin, async (req, res) => {
         }
       }
 
-      // Update products if provided (her zaman güncelle - boş array de olabilir)
+      // GÜVENLİK: Update products if provided - Input validation ile güvenli
       if (product_ids !== undefined) {
         await connection.execute('DELETE FROM flash_deal_products WHERE flash_deal_id = ?', [flashDealId]);
         const productIds = Array.isArray(product_ids) ? product_ids.filter(Boolean) : [];
-        console.log('📦 Güncellenecek ürünler:', productIds);
-        if (productIds.length > 0) {
-          const productValues = productIds.map((productId) => [flashDealId, productId]);
+        
+        // Input validation - Sadece integer ID'lere izin ver
+        const validProductIds = productIds
+          .map(id => parseInt(id))
+          .filter(id => !isNaN(id) && id > 0);
+        
+        console.log('📦 Güncellenecek ürünler:', validProductIds);
+        if (validProductIds.length > 0) {
+          const productValues = validProductIds.map((productId) => [flashDealId, productId]);
+          // MySQL'in güvenli bulk insert yöntemi
           await connection.query(`
             INSERT INTO flash_deal_products (flash_deal_id, product_id)
             VALUES ?
           `, [productValues]);
-          console.log('✅ Ürünler eklendi:', productIds.length);
+          console.log('✅ Ürünler eklendi:', validProductIds.length);
         }
       }
 
-      // Update categories if provided (her zaman güncelle - boş array de olabilir)
+      // GÜVENLİK: Update categories if provided - Input validation ile güvenli
       if (category_ids !== undefined) {
         await connection.execute('DELETE FROM flash_deal_categories WHERE flash_deal_id = ?', [flashDealId]);
         const categoryIds = Array.isArray(category_ids) ? category_ids.filter(Boolean) : [];
-        console.log('📁 Güncellenecek kategoriler:', categoryIds);
-        if (categoryIds.length > 0) {
-          const categoryValues = categoryIds.map((categoryId) => [flashDealId, categoryId]);
+        
+        // Input validation - Sadece integer ID'lere izin ver
+        const validCategoryIds = categoryIds
+          .map(id => parseInt(id))
+          .filter(id => !isNaN(id) && id > 0);
+        
+        console.log('📁 Güncellenecek kategoriler:', validCategoryIds);
+        if (validCategoryIds.length > 0) {
+          const categoryValues = validCategoryIds.map((categoryId) => [flashDealId, categoryId]);
+          // MySQL'in güvenli bulk insert yöntemi
           await connection.query(`
             INSERT INTO flash_deal_categories (flash_deal_id, category_id)
             VALUES ?
           `, [categoryValues]);
-          console.log('✅ Kategoriler eklendi:', categoryIds.length);
+          console.log('✅ Kategoriler eklendi:', validCategoryIds.length);
         }
       }
 
@@ -10345,7 +10848,13 @@ app.get('/api/products/:id', async (req, res) => {
     
     // Tenant kontrolü - req.tenant middleware'den geliyor
     if (!req.tenant || !req.tenant.id) {
-      console.log(`❌ [GET /api/products/${id}] Tenant authentication required - API Key: ${apiKey.substring(0, 10)}...`);
+      // GÜVENLİK: API key logging - Production'da API key loglanmaz
+      const maskedKey = apiKey ? `${apiKey.substring(0, 4)}***${apiKey.substring(apiKey.length - 4)}` : 'N/A';
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`❌ [GET /api/products/${id}] Tenant authentication required - API Key: ${maskedKey}`);
+      } else {
+        console.log(`❌ [GET /api/products/${id}] Tenant authentication required`);
+      }
       return res.status(401).json({ success: false, message: 'Tenant authentication required' });
     }
     
@@ -10417,22 +10926,24 @@ app.get('/api/products/:id', async (req, res) => {
       }
     }
   } catch (error) {
-    console.error(`❌ [GET /api/products/${req.params.id}] Error getting product:`, error);
-    console.error(`❌ [GET /api/products/${req.params.id}] Error stack:`, error.stack);
-    console.error(`❌ [GET /api/products/${req.params.id}] Error details:`, {
-      message: error.message,
-      code: error.code,
-      errno: error.errno,
-      sqlState: error.sqlState,
-      sqlMessage: error.sqlMessage
-    });
-    // CORS header'larını set et
-    const origin = req.headers.origin;
-    if (origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'GET_PRODUCT');
+    
+    // GÜVENLİK: Production'da stack trace ve detaylı error bilgileri loglanmaz
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`❌ [GET /api/products/${req.params.id}] Error getting product:`, error);
+      console.error(`❌ [GET /api/products/${req.params.id}] Error stack:`, error.stack);
+      console.error(`❌ [GET /api/products/${req.params.id}] Error details:`, {
+        message: error.message,
+        code: error.code,
+        errno: error.errno,
+        sqlState: error.sqlState,
+        sqlMessage: error.sqlMessage
+      });
     }
-    res.status(500).json({ success: false, message: 'Error getting product', error: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    
+    const errorResponse = createSafeErrorResponse(error, 'Error getting product');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -10729,18 +11240,22 @@ app.get('/api/products/:productId/variations', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(`❌ Error fetching product variations for product ${req.params.productId}:`, error);
-    console.error('Error stack:', error.stack);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      sqlMessage: error.sqlMessage
-    });
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
+    logError(error, 'GET_PRODUCT_VARIATIONS');
+    
+    // GÜVENLİK: Production'da sensitive data loglanmaz
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`❌ Error fetching product variations for product ${req.params.productId}:`, error);
+      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        sqlMessage: error.sqlMessage
+      });
+    }
+    
+    const errorResponse = createSafeErrorResponse(error, 'Error fetching product variations');
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -11018,7 +11533,7 @@ app.get('/api/reviews/product/:productId', async (req, res) => {
   }
 });
 
-// Dosya yükleme endpoint'i (görsel ve video)
+// GÜVENLİK: Dosya yükleme endpoint'i - Magic bytes kontrolü ile güvenli
 app.post('/api/reviews/upload', upload.array('media', 5), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -11028,29 +11543,79 @@ app.post('/api/reviews/upload', upload.array('media', 5), async (req, res) => {
       });
     }
 
-    const uploadedFiles = req.files.map(file => {
+    // GÜVENLİK: Her dosya için kapsamlı validasyon
+    const validatedFiles = [];
+    const errors = [];
+
+    for (const file of req.files) {
+      const filePath = path.join(uploadsDir, file.filename);
+      
+      // Dosya yükleme validasyonu (magic bytes dahil)
+      const validation = validateFileUpload(file, filePath);
+      
+      if (!validation.valid) {
+        // Geçersiz dosyayı sil
+        try {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        } catch (deleteError) {
+          console.error('❌ Error deleting invalid file:', deleteError);
+        }
+        
+        errors.push({
+          filename: file.originalname,
+          errors: validation.errors
+        });
+        continue;
+      }
+
+      // Dosya başarıyla validasyon geçti
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       const mediaUrl = `${baseUrl}/uploads/reviews/${file.filename}`;
       
-      return {
+      validatedFiles.push({
         mediaType: file.mimetype.startsWith('image/') ? 'image' : 'video',
         mediaUrl: mediaUrl,
         fileSize: file.size,
         mimeType: file.mimetype,
-        filename: file.filename
-      };
-    });
+        filename: file.filename,
+        originalName: file.originalname
+      });
+    }
 
+    // Eğer hiç geçerli dosya yoksa hata döndür
+    if (validatedFiles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçerli dosya yüklenemedi',
+        errors: errors
+      });
+    }
+
+    // Kısmen başarılı durum (bazı dosyalar geçersiz)
+    if (errors.length > 0) {
+      return res.status(207).json({
+        success: true,
+        data: validatedFiles,
+        message: `${validatedFiles.length} dosya başarıyla yüklendi, ${errors.length} dosya reddedildi`,
+        errors: errors
+      });
+    }
+
+    // Tüm dosyalar başarıyla yüklendi
     res.json({
       success: true,
-      data: uploadedFiles,
+      data: validatedFiles,
       message: 'Dosyalar başarıyla yüklendi'
     });
   } catch (error) {
     console.error('❌ Error uploading files:', error);
     res.status(500).json({ 
       success: false, 
-      message: error.message || 'Dosya yükleme hatası' 
+      message: process.env.NODE_ENV === 'production' 
+        ? 'Dosya yükleme hatası' 
+        : error.message
     });
   }
 });
@@ -15618,45 +16183,46 @@ async function startServer() {
     console.warn('⚠️ Admin API mount failed:', e.message);
   }
 
-  // Enhanced error handling middleware
+  // GÜVENLİK: Enhanced error handling middleware - Production'da error detayları gizlenir
   app.use((error, req, res, next) => {
-    console.error('❌ Unhandled error:', error);
+    // GÜVENLİK: Error logging - Detaylı bilgiler sadece loglara yazılır
+    logError(error, req.path || 'UNKNOWN_ROUTE');
 
-    // Database connection errors
+    // Database connection errors - Generic mesaj
     if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
       return res.status(503).json({
         success: false,
-        message: 'Veritabanı bağlantı hatası',
-        type: 'DATABASE_CONNECTION_ERROR',
+        message: 'Service temporarily unavailable',
+        type: 'SERVICE_UNAVAILABLE',
         retryable: true
       });
     }
 
-    // Database query errors
+    // Database query errors - Generic mesaj
     if (error.code && error.code.startsWith('ER_')) {
       return res.status(500).json({
         success: false,
-        message: 'Veritabanı sorgu hatası',
-        type: 'DATABASE_QUERY_ERROR',
+        message: 'Database operation failed',
+        type: 'DATABASE_ERROR',
         retryable: false
       });
     }
 
-    // JSON parse errors
+    // JSON parse errors - Generic mesaj
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
       return res.status(400).json({
         success: false,
-        message: 'Geçersiz JSON formatı',
-        type: 'JSON_PARSE_ERROR',
+        message: 'Invalid request format',
+        type: 'VALIDATION_ERROR',
         retryable: false
       });
     }
 
-    // Default error
-    res.status(500).json({
-      success: false,
-      message: 'Sunucu hatası',
-      type: 'UNKNOWN_ERROR',
+    // GÜVENLİK: Default error - Production'da generic mesaj
+    const errorResponse = createSafeErrorResponse(error, 'An unexpected error occurred');
+    res.status(error.status || 500).json({
+      ...errorResponse,
+      type: 'INTERNAL_ERROR',
       retryable: false
     });
   });

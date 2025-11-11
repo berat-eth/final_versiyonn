@@ -3,6 +3,7 @@ import Script from 'next/script'
 import './globals.css'
 import WhatsAppWrapper from '@/components/WhatsAppWrapper'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { sanitizeJSONLD } from '@/utils/xss-sanitizer'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://huglutekstil.com'),
@@ -90,7 +91,7 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
+            __html: sanitizeJSONLD({
               '@context': 'https://schema.org',
               '@type': 'LocalBusiness',
               name: 'Huğlu Tekstil Atölyesi',
