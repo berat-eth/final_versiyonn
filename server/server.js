@@ -7553,6 +7553,14 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       items = []
     } = req.body;
 
+    // Validasyon: orderId zorunlu
+    if (!orderId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'orderId parametresi gereklidir' 
+      });
+    }
+
     // PDFKit'i dinamik olarak yükle
     let PDFDocument;
     try {
@@ -7736,8 +7744,14 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           productYPos = 85;
         }
         
+        // Item validasyonu
+        if (!item || typeof item !== 'object') {
+          console.warn(`⚠️ Geçersiz item at index ${index}:`, item);
+          return;
+        }
+        
         const productName = replaceTurkishChars(item.productName || 'Urun Adi');
-        const productSku = replaceTurkishChars(item.productSku || '');
+        const productSku = item.productSku ? replaceTurkishChars(String(item.productSku)) : '';
         
         // Ürün adı (geniş alan, uzun ise otomatik alt satıra geçer)
         doc.fillColor('#64748b').fontSize(9).font('Helvetica');
@@ -7748,7 +7762,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         productYPos += estimatedHeight;
         
         // SKU bilgisi (ürün adının altında)
-        if (productSku) {
+        if (productSku && String(productSku).trim() !== '') {
           doc.fillColor('#64748b').fontSize(8).font('Helvetica');
           addUTF8Text(`SKU: ${productSku}`, 20, productYPos, { width: 360 });
           productYPos += 12;
@@ -7937,10 +7951,19 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
 
   } catch (error) {
     console.error('❌ Kargo fişi oluşturma hatası:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Kargo fişi oluşturulamadı: ' + (error.message || 'Bilinmeyen hata') 
+    console.error('❌ Hata detayları:', {
+      message: error.message,
+      stack: error.stack,
+      body: req.body
     });
+    
+    // Eğer response henüz gönderilmediyse hata döndür
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        success: false, 
+        message: 'Kargo fişi oluşturulamadı: ' + (error.message || 'Bilinmeyen hata') 
+      });
+    }
   }
 });
 
