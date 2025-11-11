@@ -7549,92 +7549,156 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     // EAN-128 barkod için jsbarcode veya benzeri kütüphane
     // Basit bir çözüm: EAN-128 formatında metin olarak göster
 
-    // A5 boyutları: 148mm x 210mm (yaklaşık 420pt x 595pt)
+    // A5 yatay boyutları: 210mm x 148mm (yaklaşık 595pt x 420pt)
     const doc = new PDFDocument({
-      size: [420, 595], // A5 boyutu
-      margins: { top: 20, bottom: 20, left: 20, right: 20 },
+      size: [595, 420], // A5 yatay (landscape)
+      layout: 'landscape',
+      margins: { top: 15, bottom: 15, left: 15, right: 15 },
       info: {
         Title: 'Kargo Fişi',
         Author: 'Huğlu Outdoor',
         Subject: 'Kargo Fişi',
-        Keywords: 'kargo, fiş, cargo'
+        Keywords: 'kargo, fiş, cargo',
+        Creator: 'Huğlu Outdoor Kargo Fişi Sistemi'
       }
     });
 
     // UTF-8 desteği için font ayarları
+    // Helvetica Türkçe karakterleri destekler
     doc.font('Helvetica');
 
-    // Başlık
-    doc.fontSize(18)
-       .text('KARGO FİŞİ', 20, 20, { align: 'center' });
+    // Üst başlık bölümü - gradient efekti için koyu arka plan
+    doc.rect(0, 0, 420, 80).fill('#1e293b'); // Slate-800
+    doc.fontSize(24)
+       .fillColor('#ffffff')
+       .font('Helvetica-Bold')
+       .text('KARGO FİŞİ', 20, 30, { align: 'center', width: 380 });
+    
+    // Alt çizgi
+    doc.strokeColor('#3b82f6')
+       .lineWidth(2)
+       .moveTo(60, 70)
+       .lineTo(360, 70)
+       .stroke();
 
-    // QR kod oluştur (invoiceUrl için)
+    // QR kod bölümü - sağ üst köşe
     let qrCodeDataUrl;
     try {
       qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl || 'https://example.com', {
-        width: 150,
-        margin: 1
+        width: 120,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
       });
     } catch (error) {
       console.error('QR kod oluşturma hatası:', error);
       qrCodeDataUrl = null;
     }
 
-    // QR kod ekle (ortada)
+    // QR kod için kutu
     if (qrCodeDataUrl) {
+      const qrSize = 100;
+      const qrX = 310;
+      const qrY = 90;
+      
+      // QR kod arka plan kutusu
+      doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 25)
+         .fill('#f8fafc')
+         .stroke('#e2e8f0')
+         .lineWidth(1);
+      
       const qrImage = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-      doc.image(qrImage, 135, 50, { width: 150, height: 150 });
+      doc.image(qrImage, qrX, qrY, { width: qrSize, height: qrSize });
+      
       doc.fontSize(8)
-         .text('Fatura Linki', 135, 205, { width: 150, align: 'center' });
+         .fillColor('#475569')
+         .font('Helvetica-Bold')
+         .text('FATURA LİNKİ', qrX, qrY + qrSize + 2, { width: qrSize, align: 'center' });
     }
 
-    // Müşteri bilgileri
-    let yPos = 220;
-    doc.fontSize(12)
-       .text('MÜŞTERİ BİLGİLERİ', 20, yPos, { underline: true });
+    // Müşteri bilgileri bölümü
+    let yPos = 100;
+    doc.fillColor('#0f172a')
+       .fontSize(14)
+       .font('Helvetica-Bold')
+       .text('MÜŞTERİ BİLGİLERİ', 20, yPos);
     
-    yPos += 20;
+    // Alt çizgi
+    doc.strokeColor('#cbd5e1')
+       .lineWidth(1)
+       .moveTo(20, yPos + 18)
+       .lineTo(300, yPos + 18)
+       .stroke();
+    
+    yPos += 30;
+    doc.fillColor('#1e293b')
+       .fontSize(10)
+       .font('Helvetica');
+    
     if (customerName) {
-      doc.fontSize(10).text(`Ad Soyad: ${customerName}`, 20, yPos);
-      yPos += 15;
+      doc.fillColor('#64748b').fontSize(9).text('Ad Soyad:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold')
+         .text(customerName, 80, yPos, { width: 220 });
+      yPos += 18;
     }
     if (customerPhone) {
-      doc.fontSize(10).text(`Telefon: ${customerPhone}`, 20, yPos);
-      yPos += 15;
+      doc.fillColor('#64748b').fontSize(9).text('Telefon:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(10).text(customerPhone, 80, yPos, { width: 220 });
+      yPos += 18;
     }
     if (customerEmail) {
-      doc.fontSize(10).text(`E-posta: ${customerEmail}`, 20, yPos);
-      yPos += 15;
+      doc.fillColor('#64748b').fontSize(9).text('E-posta:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(10).text(customerEmail, 80, yPos, { width: 220 });
+      yPos += 18;
     }
     if (customerAddress) {
-      doc.fontSize(10).text(`Adres: ${customerAddress}`, 20, yPos);
-      yPos += 15;
+      doc.fillColor('#64748b').fontSize(9).text('Adres:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(9)
+         .text(customerAddress, 80, yPos, { width: 220, lineGap: 2 });
+      yPos += 25;
     }
     if (district || city) {
-      doc.fontSize(10).text(`İlçe/İl: ${district || ''} ${city || ''}`, 20, yPos);
-      yPos += 15;
+      doc.fillColor('#64748b').fontSize(9).text('İlçe/İl:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(10)
+         .text(`${district || ''} ${city || ''}`.trim(), 80, yPos, { width: 220 });
+      yPos += 20;
     }
 
-    // Kargo bilgileri
+    // Kargo bilgileri bölümü
     yPos += 10;
-    doc.fontSize(12)
-       .text('KARGO BİLGİLERİ', 20, yPos, { underline: true });
+    doc.fillColor('#0f172a')
+       .fontSize(14)
+       .font('Helvetica-Bold')
+       .text('KARGO BİLGİLERİ', 20, yPos);
     
-    yPos += 20;
+    // Alt çizgi
+    doc.strokeColor('#cbd5e1')
+       .lineWidth(1)
+       .moveTo(20, yPos + 18)
+       .lineTo(300, yPos + 18)
+       .stroke();
+    
+    yPos += 30;
     if (cargoProviderName) {
-      doc.fontSize(10).text(`Kargo Firması: ${cargoProviderName}`, 20, yPos);
-      yPos += 15;
+      doc.fillColor('#64748b').fontSize(9).text('Kargo Firması:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold')
+         .text(cargoProviderName, 100, yPos, { width: 200 });
+      yPos += 20;
     }
+    
     if (cargoTrackingNumber) {
-      doc.fontSize(10).text(`Kargo Kodu: ${cargoTrackingNumber}`, 20, yPos);
+      doc.fillColor('#64748b').fontSize(9).text('Kargo Kodu:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold')
+         .text(cargoTrackingNumber, 100, yPos, { width: 200 });
       yPos += 25;
       
       // EAN-128 barkod için Code128 formatında QR kod oluştur
       let barcodeDataUrl;
       try {
-        // Code128 formatında barkod için kargo kodunu QR kod olarak oluştur
         barcodeDataUrl = await QRCode.toDataURL(cargoTrackingNumber, {
-          width: 350,
+          width: 360,
           margin: 1,
           errorCorrectionLevel: 'M'
         });
@@ -7643,35 +7707,62 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         barcodeDataUrl = null;
       }
       
+      // Barkod için kutu
+      const barcodeY = yPos;
+      const barcodeHeight = 50;
+      const barcodeWidth = 380;
+      
+      doc.rect(20, barcodeY - 5, barcodeWidth, barcodeHeight + 20)
+         .fill('#ffffff')
+         .stroke('#e2e8f0')
+         .lineWidth(1);
+      
       // Barkod görseli ekle
       if (barcodeDataUrl) {
         const barcodeImage = Buffer.from(barcodeDataUrl.split(',')[1], 'base64');
-        doc.image(barcodeImage, 35, yPos, { width: 350, height: 60 });
-        yPos += 70;
+        doc.image(barcodeImage, 30, barcodeY, { width: 360, height: 50 });
+        yPos += 60;
       } else {
         // Fallback: Metin olarak göster
-        doc.fontSize(14)
-           .font('Courier')
-           .text(cargoTrackingNumber, 20, yPos, { 
+        doc.fontSize(16)
+           .font('Courier-Bold')
+           .fillColor('#0f172a')
+           .text(cargoTrackingNumber, 20, barcodeY + 10, { 
              align: 'center',
              width: 380
            });
-        yPos += 20;
+        yPos += 35;
       }
       
-      // Kargo kodu altında metin
+      // EAN-128 etiketi
       doc.fontSize(8)
          .font('Helvetica')
+         .fillColor('#64748b')
          .text('EAN-128', 20, yPos, { align: 'center', width: 380 });
+      yPos += 15;
     }
 
-    // Alt bilgi
-    yPos = 550;
+    // Alt bilgi bölümü - footer
+    const footerY = 560;
+    doc.rect(0, footerY, 420, 35).fill('#f1f5f9');
+    
     doc.fontSize(8)
        .font('Helvetica')
-       .text(`Sipariş ID: ${orderId}`, 20, yPos, { align: 'center' });
-    yPos += 10;
-    doc.text(`Oluşturulma: ${new Date().toLocaleString('tr-TR')}`, 20, yPos, { align: 'center' });
+       .fillColor('#475569')
+       .text(`Sipariş No: ${orderId}`, 20, footerY + 8, { align: 'left' });
+    
+    doc.text(`Oluşturulma: ${new Date().toLocaleString('tr-TR')}`, 20, footerY + 20, { align: 'left' });
+    
+    // Sağ tarafta logo/şirket bilgisi
+    doc.fontSize(9)
+       .font('Helvetica-Bold')
+       .fillColor('#1e293b')
+       .text('Huğlu Outdoor', 250, footerY + 8, { align: 'right', width: 150 });
+    
+    doc.fontSize(7)
+       .font('Helvetica')
+       .fillColor('#64748b')
+       .text('Kargo Fişi', 250, footerY + 20, { align: 'right', width: 150 });
 
     // PDF'i response olarak gönder
     res.setHeader('Content-Type', 'application/pdf');

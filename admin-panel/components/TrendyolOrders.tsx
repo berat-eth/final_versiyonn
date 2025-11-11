@@ -44,6 +44,7 @@ export default function TrendyolOrders() {
   const [invoices, setInvoices] = useState<any[]>([])
   const [invoicesLoading, setInvoicesLoading] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrder | null>(null)
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -71,9 +72,22 @@ export default function TrendyolOrders() {
     }
   }
 
-  const handleOrderClick = (order: MarketplaceOrder) => {
+  const handleOrderClick = async (order: MarketplaceOrder) => {
     setSelectedOrder(order)
     setShowOrderDetailModal(true)
+    setSelectedInvoiceId(null)
+    
+    // Faturaları yükle
+    try {
+      const response = await api.get<ApiResponse<any[]>>('/admin/invoices')
+      if (response.success && response.data && response.data.length > 0) {
+        setInvoices(response.data)
+        // İlk faturayı varsayılan olarak seç
+        setSelectedInvoiceId(response.data[0].id)
+      }
+    } catch (err: any) {
+      console.error('Faturalar yüklenemedi:', err)
+    }
   }
 
   const handleShowInvoices = async () => {
@@ -95,16 +109,32 @@ export default function TrendyolOrders() {
     if (!selectedOrder) return
     
     try {
-      // Faturaları yükle
-      const invoicesResponse = await api.get<ApiResponse<any[]>>('/admin/invoices')
-      if (!invoicesResponse.success || !invoicesResponse.data || invoicesResponse.data.length === 0) {
-        alert('Fatura bulunamadı. Lütfen önce bir fatura yükleyin.')
+      // Seçili faturayı kontrol et
+      if (!selectedInvoiceId) {
+        alert('Lütfen bir fatura seçin.')
         return
       }
 
-      // İlk faturayı seç (veya kullanıcı seçim yapabilir)
-      const selectedInvoice = invoicesResponse.data[0]
-      const invoiceUrl = selectedInvoice.shareUrl || ''
+      // Seçili faturayı bul
+      const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId)
+      if (!selectedInvoice) {
+        alert('Seçili fatura bulunamadı.')
+        return
+      }
+      
+      // Direkt PDF dosyasına erişim için download URL'i oluştur
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+      let invoiceUrl = ''
+      
+      if (selectedInvoice.id) {
+        // Admin endpoint ile direkt dosya indirme
+        invoiceUrl = `${API_BASE_URL}/admin/invoices/${selectedInvoice.id}/download`
+      } else if (selectedInvoice.shareUrl) {
+        // Share URL varsa download endpoint'ine yönlendir
+        // shareUrl formatı: https://api.plaxsy.com/api/invoices/share/TOKEN
+        // download formatı: https://api.plaxsy.com/api/invoices/share/TOKEN/download
+        invoiceUrl = `${selectedInvoice.shareUrl}/download`
+      }
 
       // Kargo bilgilerini al
       const orderData = selectedOrder.orderData 
@@ -117,17 +147,17 @@ export default function TrendyolOrders() {
       const cargoProviderName = orderData?.cargoProviderName || ''
 
       // Backend'e istek gönder (blob response için doğrudan fetch)
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api'
+      const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+      const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
       const token = sessionStorage.getItem('authToken') || ''
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
       
-      const response = await fetch(`${apiBaseUrl}/admin/generate-cargo-slip`, {
+      const response = await fetch(`${API_BASE_URL}/admin/generate-cargo-slip`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
+          'X-API-Key': API_KEY,
           'Authorization': `Bearer ${token}`,
-          'X-Admin-Key': token
+          'X-Admin-Key': ADMIN_KEY
         },
         body: JSON.stringify({
           orderId: selectedOrder.id,
@@ -377,6 +407,13 @@ export default function TrendyolOrders() {
                         <Receipt className="w-5 h-5" />
                       </button>
                       <button
+                        onClick={handleGenerateCargoSlip}
+                        className="p-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                        title="Kargo Fişi Oluştur"
+                      >
+                        <Printer className="w-5 h-5" />
+                      </button>
+                      <button
                         onClick={() => {
                           setShowJsonModal(true)
                         }}
@@ -399,6 +436,37 @@ export default function TrendyolOrders() {
                 </div>
 
                 <div className="p-6 space-y-6">
+                  {/* Fatura Seçimi */}
+                  {invoices.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Fatura Seçimi</h3>
+                      <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Kargo Fişi için Fatura
+                        </label>
+                        <select
+                          value={selectedInvoiceId || ''}
+                          onChange={(e) => setSelectedInvoiceId(Number(e.target.value))}
+                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="">Fatura Seçiniz</option>
+                          {invoices.map((invoice) => (
+                            <option key={invoice.id} value={invoice.id}>
+                              {invoice.invoiceNumber || `Fatura #${invoice.id}`} 
+                              {invoice.fileName && ` - ${invoice.fileName}`}
+                              {invoice.totalAmount && ` (${Number(invoice.totalAmount).toFixed(2)} ${invoice.currency || 'TRY'})`}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedInvoiceId && (
+                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                            Seçili fatura kargo fişindeki QR kodda kullanılacak
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Müşteri Bilgileri */}
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Müşteri Bilgileri</h3>
