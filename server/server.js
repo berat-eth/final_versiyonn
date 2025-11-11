@@ -7741,22 +7741,26 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         const price = Number(item.price || 0).toFixed(2);
         const total = (Number(item.price || 0) * quantity).toFixed(2);
         
-        // Ürün adı
+        // Ürün adı (geniş alan, uzun ise otomatik alt satıra geçer)
+        const startY = productYPos;
         doc.fillColor('#64748b').fontSize(9).font('Helvetica');
-        addUTF8Text(`${index + 1}. ${productName}`, 20, productYPos, { width: 200 });
+        addUTF8Text(`${index + 1}. ${productName}`, 20, productYPos, { width: 250, lineGap: 2 });
         
-        // Miktar ve fiyat
+        // Ürün adının kapladığı yüksekliği hesapla (yaklaşık)
+        const estimatedHeight = Math.max(12, Math.ceil((productName.length + 5) / 30) * 12);
+        productYPos += estimatedHeight;
+        
+        // Miktar ve fiyat bilgileri (sağ tarafa, ürün adının yanına)
         doc.fillColor('#0f172a').fontSize(9).font('Helvetica');
-        addUTF8Text(`Adet: ${quantity}`, 230, productYPos);
-        addUTF8Text(`Fiyat: ${price} TL`, 300, productYPos);
+        addUTF8Text(`Adet: ${quantity}`, 280, startY);
+        addUTF8Text(`Birim: ${price} TL`, 280, startY + 12);
         
-        productYPos += 15;
-        
-        // Toplam
+        // Toplam (sağ alt)
         doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold');
-        addUTF8Text(`Toplam: ${total} TL`, 230, productYPos, { width: 150 });
+        addUTF8Text(`Toplam: ${total} TL`, 280, startY + 24, { width: 100 });
         
-        productYPos += 20;
+        // Minimum yükseklik garantisi
+        productYPos = Math.max(productYPos, startY + 30);
         
         // Ayırıcı çizgi (son ürün değilse)
         if (index < items.length - 1) {
