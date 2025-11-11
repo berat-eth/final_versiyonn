@@ -747,7 +747,8 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // GÜVENLİK: File upload security utilities
-const { validateFileUpload, sanitizeFileName } = require('./utils/file-security');
+// Not: sanitizeFileName zaten path-security.js'den import edilmiş (satır 39)
+const { validateFileUpload } = require('./utils/file-security');
 
 // Multer yapılandırması - Güvenli dosya yükleme
 const storage = multer.diskStorage({
