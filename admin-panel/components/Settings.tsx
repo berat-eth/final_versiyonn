@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Settings as SettingsIcon, User, Bell, Lock, Globe, Palette, Database, Mail, Smartphone, Shield, Save, Eye, EyeOff, UserPlus, Edit, Trash2, CheckCircle, XCircle, X, Brain, TestTube2, Wrench } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api } from '@/lib/api'
+import { api, type ApiResponse } from '@/lib/api'
 import { aiProvidersService, type AIProvider, type AIProviderConfig } from '@/lib/services/ai-providers'
 
 export default function Settings() {
@@ -88,7 +88,7 @@ export default function Settings() {
         setMaintenanceMessage(null)
         try {
             const newWebEnabled = !maintenanceMode.webEnabled
-            const res = await api.post('/admin/maintenance/toggle', {
+            const res = await api.post<ApiResponse<any>>('/admin/maintenance/toggle', {
                 webEnabled: newWebEnabled,
                 message: maintenanceMode.message,
                 estimatedEndTime: maintenanceMode.estimatedEndTime || null
@@ -113,7 +113,7 @@ export default function Settings() {
         setMaintenanceMessage(null)
         try {
             const newMobileEnabled = !maintenanceMode.mobileEnabled
-            const res = await api.post('/admin/maintenance/toggle', {
+            const res = await api.post<ApiResponse<any>>('/admin/maintenance/toggle', {
                 mobileEnabled: newMobileEnabled,
                 message: maintenanceMode.message,
                 estimatedEndTime: maintenanceMode.estimatedEndTime || null
@@ -137,7 +137,7 @@ export default function Settings() {
         setMaintenanceLoading(true)
         setMaintenanceMessage(null)
         try {
-            const res = await api.post('/admin/maintenance/toggle', {
+            const res = await api.post<ApiResponse<any>>('/admin/maintenance/toggle', {
                 webEnabled: maintenanceMode.webEnabled,
                 mobileEnabled: maintenanceMode.mobileEnabled,
                 message: maintenanceMode.message,
