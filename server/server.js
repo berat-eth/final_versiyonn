@@ -7103,6 +7103,49 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
 });
 
 // Admin - Invoices endpoints
+// Admin - Marketplace siparişlerini listele
+app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { provider, status, page = 1, limit = 50 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let whereClauses = ['tenantId = ?'];
+    let params = [tenantId];
+
+    if (provider) {
+      whereClauses.push('provider = ?');
+      params.push(provider);
+    }
+
+    if (status) {
+      whereClauses.push('status = ?');
+      params.push(status);
+    }
+
+    const whereSql = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+    const [orders] = await poolWrapper.execute(
+      `SELECT * FROM marketplace_orders ${whereSql} ORDER BY syncedAt DESC LIMIT ? OFFSET ?`,
+      [...params, parseInt(limit), offset]
+    );
+
+    // Her sipariş için öğeleri çek
+    for (const order of orders) {
+      const [items] = await poolWrapper.execute(
+        'SELECT * FROM marketplace_order_items WHERE marketplaceOrderId = ?',
+        [order.id]
+      );
+      order.items = items;
+    }
+
+    res.json({ success: true, data: orders });
+  } catch (error) {
+    console.error('❌ Error getting marketplace orders:', error);
+    res.status(500).json({ success: false, message: 'Error getting marketplace orders' });
+  }
+});
+
 app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;

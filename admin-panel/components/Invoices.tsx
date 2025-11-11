@@ -33,8 +33,32 @@ interface Invoice {
   updatedAt: string
 }
 
+interface MarketplaceOrder {
+  id: number
+  provider: string
+  externalOrderId: string
+  totalAmount: number
+  status: string
+  customerName?: string
+  customerEmail?: string
+  customerPhone?: string
+  shippingAddress?: string
+  city?: string
+  district?: string
+  syncedAt: string
+  createdAt: string
+  items?: Array<{
+    id: number
+    productName: string
+    quantity: number
+    price: number
+    productImage?: string
+  }>
+}
+
 export default function Invoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [marketplaceOrders, setMarketplaceOrders] = useState<MarketplaceOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -59,9 +83,17 @@ export default function Invoices() {
       const params: Record<string, string> = {}
       if (searchQuery) params.q = searchQuery
       if (statusFilter) params.status = statusFilter
-      const response = await api.get<ApiResponse<Invoice[]>>('/admin/invoices', params)
-      if (response.success && response.data) {
-        setInvoices(response.data)
+      
+      // Faturaları yükle
+      const invoicesResponse = await api.get<ApiResponse<Invoice[]>>('/admin/invoices', params)
+      if (invoicesResponse.success && invoicesResponse.data) {
+        setInvoices(invoicesResponse.data)
+      }
+      
+      // Marketplace siparişlerini yükle (Trendyol ve HepsiBurada)
+      const marketplaceResponse = await api.get<ApiResponse<MarketplaceOrder[]>>('/admin/marketplace-orders')
+      if (marketplaceResponse.success && marketplaceResponse.data) {
+        setMarketplaceOrders(marketplaceResponse.data)
       }
     } catch (err: any) {
       setError('Faturalar yüklenemedi: ' + (err.message || 'Bilinmeyen hata'))
@@ -253,12 +285,27 @@ export default function Invoices() {
   }
 
   const filteredInvoices = invoices.filter(invoice => {
+    if (statusFilter && invoice.status !== statusFilter) return false
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       return (
         invoice.invoiceNumber.toLowerCase().includes(query) ||
         invoice.customerName?.toLowerCase().includes(query) ||
         invoice.customerEmail?.toLowerCase().includes(query)
+      )
+    }
+    return true
+  })
+
+  const filteredMarketplaceOrders = marketplaceOrders.filter(order => {
+    if (statusFilter && order.status !== statusFilter) return false
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      return (
+        order.externalOrderId.toLowerCase().includes(query) ||
+        order.customerName?.toLowerCase().includes(query) ||
+        order.customerEmail?.toLowerCase().includes(query) ||
+        order.provider.toLowerCase().includes(query)
       )
     }
     return true
@@ -347,7 +394,7 @@ export default function Invoices() {
         </div>
 
         {/* Invoices List */}
-        {filteredInvoices.length === 0 ? (
+        {(filteredInvoices.length === 0 && filteredMarketplaceOrders.length === 0) ? (
           <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
             <Receipt className="w-12 h-12 text-slate-400 mx-auto mb-4" />
             <p className="text-slate-600 dark:text-slate-400 mb-4">Henüz fatura eklenmemiş</p>
@@ -360,6 +407,76 @@ export default function Invoices() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
+            {/* Marketplace Siparişleri (Trendyol, HepsiBurada) */}
+            {filteredMarketplaceOrders.map((order) => (
+              <motion.div
+                key={`marketplace-${order.id}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                        {order.provider === 'trendyol' ? '🛒' : '📦'} {order.externalOrderId}
+                      </h3>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium border bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700">
+                        {order.provider === 'trendyol' ? 'Trendyol' : order.provider === 'hepsiburada' ? 'HepsiBurada' : order.provider}
+                      </span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status as Invoice['status'])}`}>
+                        {getStatusLabel(order.status as Invoice['status'])}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      {order.customerName && (
+                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                          <User className="w-4 h-4" />
+                          <span>{order.customerName}</span>
+                        </div>
+                      )}
+                      {order.customerEmail && (
+                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                          <Mail className="w-4 h-4" />
+                          <span>{order.customerEmail}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                        <Calendar className="w-4 h-4" />
+                        <span>{new Date(order.syncedAt).toLocaleDateString('tr-TR')}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
+                        <DollarSign className="w-4 h-4" />
+                        <span>{order.totalAmount.toFixed(2)} TRY</span>
+                      </div>
+                    </div>
+                    {order.items && order.items.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Sipariş Öğeleri ({order.items.length})
+                        </p>
+                        <div className="space-y-2">
+                          {order.items.slice(0, 3).map((item) => (
+                            <div key={item.id} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                              <span>{item.productName}</span>
+                              <span className="text-slate-400">x{item.quantity}</span>
+                              <span className="ml-auto font-medium">{item.price.toFixed(2)} TRY</span>
+                            </div>
+                          ))}
+                          {order.items.length > 3 && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              +{order.items.length - 3} ürün daha
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+
+            {/* Normal Faturalar */}
             {filteredInvoices.map((invoice) => (
               <motion.div
                 key={invoice.id}
