@@ -7737,30 +7737,24 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         }
         
         const productName = replaceTurkishChars(item.productName || 'Urun Adi');
-        const quantity = item.quantity || 1;
-        const price = Number(item.price || 0).toFixed(2);
-        const total = (Number(item.price || 0) * quantity).toFixed(2);
+        const productSku = replaceTurkishChars(item.productSku || '');
         
         // Ürün adı (geniş alan, uzun ise otomatik alt satıra geçer)
-        const startY = productYPos;
         doc.fillColor('#64748b').fontSize(9).font('Helvetica');
-        addUTF8Text(`${index + 1}. ${productName}`, 20, productYPos, { width: 250, lineGap: 2 });
+        addUTF8Text(`${index + 1}. ${productName}`, 20, productYPos, { width: 360, lineGap: 2 });
         
         // Ürün adının kapladığı yüksekliği hesapla (yaklaşık)
-        const estimatedHeight = Math.max(12, Math.ceil((productName.length + 5) / 30) * 12);
+        const estimatedHeight = Math.max(12, Math.ceil((productName.length + 5) / 40) * 12);
         productYPos += estimatedHeight;
         
-        // Miktar ve fiyat bilgileri (sağ tarafa, ürün adının yanına)
-        doc.fillColor('#0f172a').fontSize(9).font('Helvetica');
-        addUTF8Text(`Adet: ${quantity}`, 280, startY);
-        addUTF8Text(`Birim: ${price} TL`, 280, startY + 12);
+        // SKU bilgisi (ürün adının altında)
+        if (productSku) {
+          doc.fillColor('#64748b').fontSize(8).font('Helvetica');
+          addUTF8Text(`SKU: ${productSku}`, 20, productYPos, { width: 360 });
+          productYPos += 12;
+        }
         
-        // Toplam (sağ alt)
-        doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold');
-        addUTF8Text(`Toplam: ${total} TL`, 280, startY + 24, { width: 100 });
-        
-        // Minimum yükseklik garantisi
-        productYPos = Math.max(productYPos, startY + 30);
+        productYPos += 8;
         
         // Ayırıcı çizgi (son ürün değilse)
         if (index < items.length - 1) {
