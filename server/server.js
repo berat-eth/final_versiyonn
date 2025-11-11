@@ -6827,6 +6827,11 @@ app.post('/api/admin/integrations/:id/test', authenticateAdmin, async (req, res)
 
 app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (req, res) => {
   try {
+    console.log('🔄 Sync Orders Endpoint Çağrıldı');
+    console.log('  Integration ID:', req.params.id);
+    console.log('  Tenant ID:', req.tenant?.id || 1);
+    console.log('  Request Body:', JSON.stringify(req.body, null, 2));
+    
     const tenantId = req.tenant?.id || 1;
     const id = parseInt(req.params.id);
     const { startDate, endDate, page = 0, size = 200 } = req.body || {};
@@ -6837,13 +6842,20 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     );
     
     if (rows.length === 0) {
+      console.log('❌ Integration bulunamadı:', id);
       return res.status(404).json({ success: false, message: 'Integration not found' });
     }
     
     const integration = rows[0];
+    console.log('✅ Integration bulundu:');
+    console.log('  Provider:', integration.provider);
+    console.log('  Type:', integration.type);
+    console.log('  API Key:', integration.apiKey ? '***' + integration.apiKey.slice(-4) : 'Yok');
+    console.log('  API Secret:', integration.apiSecret ? '***' + integration.apiSecret.slice(-4) : 'Yok');
     
     // Sadece marketplace entegrasyonları için
     if (integration.type !== 'marketplace') {
+      console.log('❌ Marketplace entegrasyonu değil:', integration.type);
       return res.status(400).json({ 
         success: false, 
         message: 'Bu endpoint sadece marketplace entegrasyonları için kullanılabilir' 
@@ -6851,6 +6863,7 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     }
     
     if (!integration.apiKey || !integration.apiSecret) {
+      console.log('❌ API Key veya Secret eksik');
       return res.status(400).json({ 
         success: false, 
         message: 'API Key ve API Secret gereklidir' 
@@ -6858,11 +6871,17 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     }
     
     const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+    console.log('  Config:', JSON.stringify(config, null, 2));
+    
     let ordersResponse;
 
     if (integration.provider === 'Trendyol') {
       const supplierId = config.supplierId;
+      console.log('📦 Trendyol Sipariş Çekme Başlatılıyor...');
+      console.log('  Supplier ID:', supplierId);
+      
       if (!supplierId) {
+        console.log('❌ Supplier ID eksik');
         return res.status(400).json({ 
           success: false, 
           message: 'Supplier ID gereklidir. Lütfen entegrasyon ayarlarını kontrol edin.' 
@@ -6870,15 +6889,21 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       }
       
       const TrendyolAPIService = require('./services/trendyol-api');
+      console.log('📤 Trendyol API Servisi çağrılıyor...');
       ordersResponse = await TrendyolAPIService.getOrders(
         supplierId,
         integration.apiKey,
         integration.apiSecret,
         { startDate, endDate, page, size }
       );
+      console.log('📥 Trendyol API Yanıtı alındı:', ordersResponse.success ? 'Başarılı' : 'Başarısız');
     } else if (integration.provider === 'HepsiBurada') {
       const merchantId = config.merchantId;
+      console.log('📦 HepsiBurada Sipariş Çekme Başlatılıyor...');
+      console.log('  Merchant ID:', merchantId);
+      
       if (!merchantId) {
+        console.log('❌ Merchant ID eksik');
         return res.status(400).json({ 
           success: false, 
           message: 'Merchant ID gereklidir. Lütfen entegrasyon ayarlarını kontrol edin.' 
@@ -6886,13 +6911,16 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       }
       
       const HepsiBuradaAPIService = require('./services/hepsiburada-api');
+      console.log('📤 HepsiBurada API Servisi çağrılıyor...');
       ordersResponse = await HepsiBuradaAPIService.getOrders(
         merchantId,
         integration.apiKey,
         integration.apiSecret,
         { startDate, endDate, page, size }
       );
+      console.log('📥 HepsiBurada API Yanıtı alındı:', ordersResponse.success ? 'Başarılı' : 'Başarısız');
     } else {
+      console.log('❌ Desteklenmeyen provider:', integration.provider);
       return res.status(400).json({ 
         success: false, 
         message: 'Desteklenmeyen marketplace sağlayıcısı' 
@@ -6900,13 +6928,16 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     }
     
     if (!ordersResponse.success || !ordersResponse.data) {
+      console.log('❌ API Yanıtı başarısız:', ordersResponse.error || 'Siparişler çekilemedi');
       return res.status(500).json({ 
         success: false, 
         message: ordersResponse.error || 'Siparişler çekilemedi' 
       });
     }
     
+    console.log('✅ API Yanıtı başarılı, siparişler işleniyor...');
     const marketplaceOrders = ordersResponse.data.content || ordersResponse.data || [];
+    console.log('  Toplam sipariş sayısı:', marketplaceOrders.length);
     let syncedCount = 0;
     let skippedCount = 0;
     const errors = [];
