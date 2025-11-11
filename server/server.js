@@ -7453,6 +7453,36 @@ app.delete('/api/admin/invoices/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin invoice PDF download endpoint
+app.get('/api/admin/invoices/:id/download', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+
+    const [rows] = await poolWrapper.execute(
+      'SELECT filePath, fileName FROM invoices WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+
+    if (rows.length === 0 || !rows[0].filePath) {
+      return res.status(404).json({ success: false, message: 'Invoice file not found' });
+    }
+
+    const filePath = path.join(__dirname, rows[0].filePath);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'Invoice file not found' });
+    }
+
+    const fileName = rows[0].fileName || 'invoice.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('❌ Error downloading invoice:', error);
+    res.status(500).json({ success: false, message: 'Error downloading invoice' });
+  }
+});
+
 // Public invoice share endpoint (token ile erişim)
 app.get('/api/invoices/share/:token', async (req, res) => {
   try {
