@@ -176,7 +176,7 @@ class TrendyolAPIService {
         queryParams.status = status;
       }
 
-      const endpoint = `/suppliers/${supplierId}/orders`;
+      const endpoint = `/${supplierId}/orders`;
       const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId);
       
       return response;
@@ -196,7 +196,7 @@ class TrendyolAPIService {
    */
   static async getOrderDetail(supplierId, orderNumber, apiKey, apiSecret) {
     try {
-      const endpoint = `/suppliers/${supplierId}/orders/${orderNumber}`;
+      const endpoint = `/${supplierId}/orders/${orderNumber}`;
       const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId);
       return response;
     } catch (error) {
