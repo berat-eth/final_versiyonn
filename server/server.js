@@ -7546,8 +7546,15 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       });
     }
 
-    // EAN-128 barkod için jsbarcode veya benzeri kütüphane
-    // Basit bir çözüm: EAN-128 formatında metin olarak göster
+    // EAN-128 barkod için bwip-js kütüphanesi
+    let bwipjs;
+    try {
+      bwipjs = require('bwip-js');
+    } catch (error) {
+      console.error('❌ bwip-js yüklenemedi:', error);
+      // Fallback: QR kod kullanılacak
+      bwipjs = null;
+    }
 
     // A5 yatay boyutları: 210mm x 148mm (yaklaşık 595pt x 420pt)
     const doc = new PDFDocument({
@@ -7614,16 +7621,16 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       
       doc.fontSize(8)
          .fillColor('#475569')
-         .font('Helvetica-Bold')
-         .text('FATURA LİNKİ', qrX, qrY + qrSize + 2, { width: qrSize, align: 'center' });
+         .font('Helvetica-Bold');
+      addUTF8Text('FATURA LİNKİ', qrX, qrY + qrSize + 2, { width: qrSize, align: 'center' });
     }
 
     // Müşteri bilgileri bölümü (sol taraf - yatay layout)
     let yPos = 85;
     doc.fillColor('#0f172a')
        .fontSize(14)
-       .font('Helvetica-Bold')
-       .text('MÜŞTERİ BİLGİLERİ', 20, yPos);
+       .font('Helvetica-Bold');
+    addUTF8Text('MÜŞTERİ BİLGİLERİ', 20, yPos);
     
     // Alt çizgi
     doc.strokeColor('#cbd5e1')
@@ -7672,8 +7679,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     let cargoYPos = 85;
     doc.fillColor('#0f172a')
        .fontSize(14)
-       .font('Helvetica-Bold')
-       .text('KARGO BİLGİLERİ', 280, cargoYPos);
+       .font('Helvetica-Bold');
+    addUTF8Text('KARGO BİLGİLERİ', 280, cargoYPos);
     
     // Alt çizgi
     doc.strokeColor('#cbd5e1')
@@ -7684,63 +7691,85 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     
     cargoYPos += 30;
     if (cargoProviderName) {
-      doc.fillColor('#64748b').fontSize(9).text('Kargo Firması:', 280, cargoYPos);
-      doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold')
-         .text(cargoProviderName || '', 380, cargoYPos, { width: 180 });
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica');
+      addUTF8Text('Kargo Firması:', 280, cargoYPos);
+      doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold');
+      addUTF8Text(cargoProviderName || '', 380, cargoYPos, { width: 180 });
       cargoYPos += 20;
     }
     
     if (cargoTrackingNumber) {
-      doc.fillColor('#64748b').fontSize(9).text('Kargo Kodu:', 280, cargoYPos);
-      doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold')
-         .text(cargoTrackingNumber || '', 380, cargoYPos, { width: 180 });
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica');
+      addUTF8Text('Kargo Kodu:', 280, cargoYPos);
+      doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold');
+      addUTF8Text(cargoTrackingNumber || '', 380, cargoYPos, { width: 180 });
       cargoYPos += 25;
       
-      // EAN-128 barkod için Code128 formatında QR kod oluştur
-      let barcodeDataUrl;
-      try {
-        barcodeDataUrl = await QRCode.toDataURL(cargoTrackingNumber, {
-          width: 280,
-          margin: 1,
-          errorCorrectionLevel: 'M'
-        });
-      } catch (error) {
-        console.error('Barkod oluşturma hatası:', error);
-        barcodeDataUrl = null;
-      }
-      
-      // Barkod için kutu (yatay için daha geniş)
+      // EAN-128 (Code128) barkod oluştur
       const barcodeY = cargoYPos;
       const barcodeHeight = 50;
       const barcodeWidth = 280;
       
-      doc.rect(280, barcodeY - 5, barcodeWidth, barcodeHeight + 20)
+      // Barkod için kutu
+      doc.rect(280, barcodeY - 5, barcodeWidth, barcodeHeight + 25)
          .fill('#ffffff')
          .stroke('#e2e8f0')
          .lineWidth(1);
       
+      let barcodeImage = null;
+      
+      // bwip-js ile EAN-128 (Code128) barkod oluştur
+      if (bwipjs && cargoTrackingNumber) {
+        try {
+          const barcodeBuffer = await bwipjs.toBuffer({
+            bcid: 'code128',        // Code128 formatı (EAN-128 uyumlu)
+            text: String(cargoTrackingNumber),
+            scale: 2,
+            height: 10,
+            includetext: true,      // Barkod altında metin göster
+            textxalign: 'center',
+            textsize: 10
+          });
+          barcodeImage = barcodeBuffer;
+        } catch (error) {
+          console.error('❌ EAN-128 barkod oluşturma hatası:', error);
+          barcodeImage = null;
+        }
+      }
+      
       // Barkod görseli ekle
-      if (barcodeDataUrl) {
-        const barcodeImage = Buffer.from(barcodeDataUrl.split(',')[1], 'base64');
-        doc.image(barcodeImage, 290, barcodeY, { width: 260, height: 50 });
-        cargoYPos += 60;
+      if (barcodeImage) {
+        doc.image(barcodeImage, 290, barcodeY, { width: 260, height: barcodeHeight });
+        cargoYPos += barcodeHeight + 10;
       } else {
-        // Fallback: Metin olarak göster
-        doc.fontSize(16)
-           .font('Courier-Bold')
-           .fillColor('#0f172a')
-           .text(cargoTrackingNumber || '', 280, barcodeY + 10, { 
-             align: 'center',
-             width: 280
-           });
-        cargoYPos += 35;
+        // Fallback: QR kod kullan
+        try {
+          const barcodeDataUrl = await QRCode.toDataURL(cargoTrackingNumber, {
+            width: 260,
+            margin: 1,
+            errorCorrectionLevel: 'M'
+          });
+          const qrImage = Buffer.from(barcodeDataUrl.split(',')[1], 'base64');
+          doc.image(qrImage, 290, barcodeY, { width: 260, height: barcodeHeight });
+          cargoYPos += barcodeHeight + 10;
+        } catch (error) {
+          // Son fallback: Metin olarak göster
+          doc.fontSize(16)
+             .font('Courier-Bold')
+             .fillColor('#0f172a')
+             .text(cargoTrackingNumber || '', 280, barcodeY + 10, { 
+               align: 'center',
+               width: 280
+             });
+          cargoYPos += 35;
+        }
       }
       
       // EAN-128 etiketi
       doc.fontSize(8)
          .font('Helvetica')
-         .fillColor('#64748b')
-         .text('EAN-128', 280, cargoYPos, { align: 'center', width: 280 });
+         .fillColor('#64748b');
+      addUTF8Text('EAN-128', 280, cargoYPos, { align: 'center', width: 280 });
     }
 
     // Alt bilgi bölümü - footer (yatay için)
@@ -7749,21 +7778,21 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     
     doc.fontSize(8)
        .font('Helvetica')
-       .fillColor('#475569')
-       .text(`Sipariş No: ${orderId}`, 20, footerY + 8, { align: 'left' });
+       .fillColor('#475569');
+    addUTF8Text(`Sipariş No: ${orderId}`, 20, footerY + 8, { align: 'left' });
     
-    doc.text(`Oluşturulma: ${new Date().toLocaleString('tr-TR')}`, 20, footerY + 20, { align: 'left' });
+    addUTF8Text(`Oluşturulma: ${new Date().toLocaleString('tr-TR')}`, 20, footerY + 20, { align: 'left' });
     
     // Sağ tarafta logo/şirket bilgisi
     doc.fontSize(9)
        .font('Helvetica-Bold')
-       .fillColor('#1e293b')
-       .text('Huğlu Outdoor', 400, footerY + 8, { align: 'right', width: 175 });
+       .fillColor('#1e293b');
+    addUTF8Text('Huğlu Outdoor', 400, footerY + 8, { align: 'right', width: 175 });
     
     doc.fontSize(7)
        .font('Helvetica')
-       .fillColor('#64748b')
-       .text('Kargo Fişi', 400, footerY + 20, { align: 'right', width: 175 });
+       .fillColor('#64748b');
+    addUTF8Text('Kargo Fişi', 400, footerY + 20, { align: 'right', width: 175 });
 
     // PDF'i response olarak gönder
     res.setHeader('Content-Type', 'application/pdf');
