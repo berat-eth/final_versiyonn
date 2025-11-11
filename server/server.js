@@ -7549,7 +7549,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       customerPhone,
       customerAddress,
       city,
-      district
+      district,
+      items = []
     } = req.body;
 
     // PDFKit'i dinamik olarak yükle
@@ -7710,8 +7711,69 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       yPos += 20;
     }
 
+    // Ürün bilgileri bölümü (kargo bilgilerinden önce)
+    let productYPos = 250;
+    if (items && items.length > 0) {
+      doc.fillColor('#0f172a')
+         .fontSize(14)
+         .font('Helvetica-Bold');
+      addUTF8Text('URUN BILGILERI', 20, productYPos);
+      
+      // Alt çizgi
+      doc.strokeColor('#cbd5e1')
+         .lineWidth(1)
+         .moveTo(20, productYPos + 18)
+         .lineTo(380, productYPos + 18)
+         .stroke();
+      
+      productYPos += 30;
+      
+      // Ürün listesi
+      items.forEach((item, index) => {
+        if (productYPos > 450) {
+          // Sayfa doldu, yeni sayfa ekle
+          doc.addPage();
+          productYPos = 85;
+        }
+        
+        const productName = replaceTurkishChars(item.productName || 'Urun Adi');
+        const quantity = item.quantity || 1;
+        const price = Number(item.price || 0).toFixed(2);
+        const total = (Number(item.price || 0) * quantity).toFixed(2);
+        
+        // Ürün adı
+        doc.fillColor('#64748b').fontSize(9).font('Helvetica');
+        addUTF8Text(`${index + 1}. ${productName}`, 20, productYPos, { width: 200 });
+        
+        // Miktar ve fiyat
+        doc.fillColor('#0f172a').fontSize(9).font('Helvetica');
+        addUTF8Text(`Adet: ${quantity}`, 230, productYPos);
+        addUTF8Text(`Fiyat: ${price} TL`, 300, productYPos);
+        
+        productYPos += 15;
+        
+        // Toplam
+        doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold');
+        addUTF8Text(`Toplam: ${total} TL`, 230, productYPos, { width: 150 });
+        
+        productYPos += 20;
+        
+        // Ayırıcı çizgi (son ürün değilse)
+        if (index < items.length - 1) {
+          doc.strokeColor('#e2e8f0')
+             .lineWidth(0.5)
+             .moveTo(20, productYPos - 5)
+             .lineTo(380, productYPos - 5)
+             .stroke();
+          productYPos += 10;
+        }
+      });
+      
+      productYPos += 20;
+    }
+
     // Kargo bilgileri bölümü (alt kısım - dikey layout)
-    let cargoYPos = 250;
+    let cargoYPos = items && items.length > 0 ? productYPos : 250;
     doc.fillColor('#0f172a')
        .fontSize(14)
        .font('Helvetica-Bold');

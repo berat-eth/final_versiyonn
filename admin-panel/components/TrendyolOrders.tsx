@@ -169,7 +169,8 @@ export default function TrendyolOrders() {
           customerPhone: selectedOrder.customerPhone,
           customerAddress: selectedOrder.shippingAddress || selectedOrder.fullAddress,
           city: selectedOrder.city,
-          district: selectedOrder.district
+          district: selectedOrder.district,
+          items: selectedOrder.items || []
         })
       })
 
