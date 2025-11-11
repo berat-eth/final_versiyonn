@@ -8572,6 +8572,27 @@ app.get('/api/users/:id', async (req, res) => {
     // Use default tenant ID if not provided
     const tenantId = req.tenant?.id || 1;
 
+    // GÜVENLİK: Yetkilendirme kontrolü - Kullanıcı sadece kendi bilgilerine erişebilir
+    // JWT token varsa, token'daki userId ile istenen id'yi karşılaştır
+    const authenticatedUserId = req.user?.userId;
+    if (authenticatedUserId) {
+      // JWT token ile giriş yapılmışsa, sadece kendi bilgilerine erişebilir
+      if (parseInt(id) !== parseInt(authenticatedUserId)) {
+        // Admin kontrolü - admin ise tüm kullanıcılara erişebilir
+        const [adminCheck] = await poolWrapper.execute(
+          'SELECT role FROM users WHERE id = ? AND tenantId = ?',
+          [authenticatedUserId, tenantId]
+        );
+        if (adminCheck.length === 0 || (adminCheck[0].role !== 'admin' && adminCheck[0].role !== 'superadmin')) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You can only access your own user information.'
+          });
+        }
+      }
+    }
+    // JWT token yoksa, sadece tenant kontrolü yapılır (API key ile korunuyor)
+
     // Try with birthDate first, fallback to without it
     let [rows] = await poolWrapper.execute(
       'SELECT id, name, email, phone, birthDate, address, createdAt FROM users WHERE id = ? AND tenantId = ?',
