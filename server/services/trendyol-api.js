@@ -46,8 +46,10 @@ class TrendyolAPIService {
       }
 
       const urlObj = new URL(url);
-      // User-Agent'ı supplierId ile oluştur
-      const userAgent = supplierId ? `${supplierId} - SelfIntegration` : ' - SelfIntegration';
+      // User-Agent'ı supplierId ile oluştur - ASCII karakterlerle
+      const userAgent = supplierId ? `${supplierId} - SelfIntegration` : 'SelfIntegration';
+      // User-Agent header'ını temizle - sadece ASCII karakterler
+      const cleanUserAgent = userAgent.replace(/[^\x20-\x7E]/g, '');
       const options = {
         hostname: urlObj.hostname,
         port: urlObj.port || 443,
@@ -57,7 +59,7 @@ class TrendyolAPIService {
           'Authorization': authHeader,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': userAgent
+          'User-Agent': cleanUserAgent
         }
       };
 
