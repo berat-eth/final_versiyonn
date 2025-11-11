@@ -219,47 +219,47 @@ app.use(helmet({
 app.use(cspNonceMiddleware);
 
 // GÜVENLİK: Rate limiting - Kritik endpoint'ler için özel rate limiting
+// OPTİMİZASYON: Rate limiting - Yüksek trafik için optimize edilmiş
 const {
+  createGeneralAPILimiter,
+  createLoginLimiter,
+  createAdminLimiter,
+  createCriticalLimiter,
   createSQLQueryLimiter,
   createWalletTransferLimiter,
   createPaymentLimiter,
   createGiftCardLimiter,
   createAdminWalletTransferLimiter,
-  createSuspiciousIPLimiter,
-  createLoginLimiter,
-  createAdminLimiter,
-  createCriticalLimiter
+  createSuspiciousIPLimiter
 } = require('./utils/rate-limiting');
 
-// Genel rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.API_RATE_LIMIT || '400', 10),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Too many requests from this IP, please try again later.'
-  }
-});
+// Genel rate limiting - Yüksek trafik için 1000+ istek/15 dakika
+const limiter = createGeneralAPILimiter();
 
-// Rate limiting uygulama
+// OPTİMİZASYON: Rate limiting uygulama - Sıralama düzenlendi
+// Spesifik limiter'lar önce, global limiter'lar son
+
+// 1. En spesifik endpoint'ler önce (login, kritik endpoint'ler)
 app.use('/api/users/login', createLoginLimiter());
 app.use('/api/admin/login', createLoginLimiter());
-app.use('/api/admin', createAdminLimiter());
-app.use('/api/orders', createCriticalLimiter());
 
-// GÜVENLİK: Kritik endpoint'ler için özel rate limiting
+// 2. Kritik endpoint'ler (finansal, SQL query)
 app.use('/api/admin/sql/query', createSQLQueryLimiter());
 app.use('/api/wallet/transfer', createWalletTransferLimiter());
 app.use('/api/wallet/gift-card', createGiftCardLimiter());
 app.use('/api/payments/process', createPaymentLimiter());
 app.use('/api/admin/wallets/transfer', createAdminWalletTransferLimiter());
 
-// GÜVENLİK: Şüpheli IP'ler için global rate limiting (en son uygulanır)
-app.use('/api', createSuspiciousIPLimiter());
+// 3. Kategori bazlı endpoint'ler
+app.use('/api/orders', createCriticalLimiter());
+app.use('/api/admin', createAdminLimiter());
 
-// Genel rate limiting (fallback)
+// 4. Global limiter (opsiyonel - environment variable ile kontrol edilebilir)
+if (process.env.DISABLE_SUSPICIOUS_IP_LIMITER !== 'true') {
+  app.use('/api', createSuspiciousIPLimiter());
+}
+
+// 5. Genel rate limiting (fallback - en son)
 app.use('/api/', limiter);
 
 // Compression middleware

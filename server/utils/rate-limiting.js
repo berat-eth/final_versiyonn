@@ -1,6 +1,7 @@
 /**
  * Rate Limiting Utilities
- * Kritik endpoint'ler için özel rate limiting konfigürasyonları
+ * Yüksek trafikli e-ticaret sitesi için optimize edilmiş rate limiting
+ * Tüm limitler environment variable'lardan yapılandırılabilir
  */
 
 const rateLimit = require('express-rate-limit');
@@ -14,17 +15,30 @@ const isPrivateIP = (ip) => {
 };
 
 /**
+ * IP'yi güvenli şekilde al
+ * Key generator'larda unknown yerine IP kullan
+ */
+const getClientIP = (req) => {
+  return req.ip || 
+         req.connection?.remoteAddress || 
+         req.socket?.remoteAddress || 
+         req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+         '0.0.0.0'; // unknown yerine default IP
+};
+
+/**
  * SQL Query endpoint için rate limiter
  * Çok kritik endpoint - SQL injection saldırılarına karşı koruma
  */
 const createSQLQueryLimiter = () => rateLimit({
   windowMs: 60 * 1000, // 1 dakika
-  max: 5, // Çok düşük limit
+  max: parseInt(process.env.RATE_LIMIT_SQL_QUERY || '10', 10), // 5'ten 10'a çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const adminId = req.user?.id || req.headers['x-admin-id'] || 'unknown';
-    return `${req.ip}:${adminId}`;
+    const ip = getClientIP(req);
+    const adminId = req.user?.id || req.headers['x-admin-id'] || 'guest';
+    return `${ip}:${adminId}`;
   },
   message: 'Too many SQL queries. Please try again later.',
   skip: (req) => isPrivateIP(req.ip)
@@ -36,12 +50,14 @@ const createSQLQueryLimiter = () => rateLimit({
  */
 const createWalletTransferLimiter = () => rateLimit({
   windowMs: 60 * 1000, // 1 dakika
-  max: 10, // Düşük limit
+  max: parseInt(process.env.RATE_LIMIT_WALLET_TRANSFER || '20', 10), // 10'dan 20'ye çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const userId = req.body?.fromUserId || req.authenticatedUserId || 'unknown';
-    return `${req.ip}:${userId}`;
+    const ip = getClientIP(req);
+    // req.body middleware sırasında erişilemeyebilir, alternatif yöntemler kullan
+    const userId = req.authenticatedUserId || req.user?.userId || req.headers['x-user-id'] || 'guest';
+    return `${ip}:${userId}`;
   },
   message: 'Too many wallet transfer requests. Please try again later.',
   skip: (req) => isPrivateIP(req.ip)
@@ -53,12 +69,14 @@ const createWalletTransferLimiter = () => rateLimit({
  */
 const createPaymentLimiter = () => rateLimit({
   windowMs: 60 * 1000, // 1 dakika
-  max: 5, // Çok düşük limit
+  max: parseInt(process.env.RATE_LIMIT_PAYMENT || '15', 10), // 5'ten 15'e çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const orderId = req.body?.orderId || 'unknown';
-    return `${req.ip}:${orderId}`;
+    const ip = getClientIP(req);
+    // req.body middleware sırasında erişilemeyebilir
+    const orderId = req.headers['x-order-id'] || req.authenticatedUserId || 'guest';
+    return `${ip}:${orderId}`;
   },
   message: 'Too many payment requests. Please try again later.',
   skip: (req) => isPrivateIP(req.ip)
@@ -70,12 +88,13 @@ const createPaymentLimiter = () => rateLimit({
  */
 const createGiftCardLimiter = () => rateLimit({
   windowMs: 60 * 1000, // 1 dakika
-  max: 10, // Düşük limit
+  max: parseInt(process.env.RATE_LIMIT_GIFT_CARD || '20', 10), // 10'dan 20'ye çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const userId = req.body?.fromUserId || req.authenticatedUserId || 'unknown';
-    return `${req.ip}:${userId}`;
+    const ip = getClientIP(req);
+    const userId = req.authenticatedUserId || req.user?.userId || req.headers['x-user-id'] || 'guest';
+    return `${ip}:${userId}`;
   },
   message: 'Too many gift card requests. Please try again later.',
   skip: (req) => isPrivateIP(req.ip)
@@ -87,12 +106,13 @@ const createGiftCardLimiter = () => rateLimit({
  */
 const createAdminWalletTransferLimiter = () => rateLimit({
   windowMs: 60 * 1000, // 1 dakika
-  max: 5, // Çok düşük limit
+  max: parseInt(process.env.RATE_LIMIT_ADMIN_WALLET || '10', 10), // 5'ten 10'a çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const adminId = req.user?.id || req.headers['x-admin-id'] || 'unknown';
-    return `${req.ip}:${adminId}`;
+    const ip = getClientIP(req);
+    const adminId = req.user?.id || req.headers['x-admin-id'] || 'guest';
+    return `${ip}:${adminId}`;
   },
   message: 'Too many admin wallet transfer requests. Please try again later.',
   skip: (req) => isPrivateIP(req.ip)
@@ -100,19 +120,27 @@ const createAdminWalletTransferLimiter = () => rateLimit({
 
 /**
  * Şüpheli IP'ler için global rate limiter
- * IP bazlı rate limiting güçlendirme
+ * OPTİMİZASYON: Yüksek trafik için limit artırıldı veya devre dışı bırakıldı
+ * Diğer limiter'lar yeterli olduğu için bu limiter opsiyonel
  */
-const createSuspiciousIPLimiter = () => rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 dakika
-  max: 50, // Şüpheli IP'ler için çok düşük limit
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.ip || req.connection?.remoteAddress || 'unknown';
-  },
-  skip: (req) => isPrivateIP(req.ip),
-  message: 'Too many requests from this IP. Please try again later.'
-});
+const createSuspiciousIPLimiter = () => {
+  // Environment variable ile devre dışı bırakılabilir
+  if (process.env.DISABLE_SUSPICIOUS_IP_LIMITER === 'true') {
+    return (req, res, next) => next(); // Passthrough middleware
+  }
+  
+  return rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 dakika
+    max: parseInt(process.env.RATE_LIMIT_SUSPICIOUS_IP || '500', 10), // 50'den 500'e çıkarıldı
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      return getClientIP(req);
+    },
+    skip: (req) => isPrivateIP(req.ip),
+    message: 'Too many requests from this IP. Please try again later.'
+  });
+};
 
 /**
  * Login endpoint için rate limiter
@@ -120,7 +148,7 @@ const createSuspiciousIPLimiter = () => rateLimit({
  */
 const createLoginLimiter = () => rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
-  max: 5, // 5 başarısız deneme
+  max: parseInt(process.env.RATE_LIMIT_LOGIN || '10', 10), // 5'ten 10'a çıkarıldı (başarısız deneme)
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
@@ -129,10 +157,11 @@ const createLoginLimiter = () => rateLimit({
 
 /**
  * Admin endpoint'leri için rate limiter
+ * OPTİMİZASYON: Yüksek trafik için limit artırıldı
  */
 const createAdminLimiter = () => rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
-  max: 100, // Admin endpoint'leri için daha yüksek limit
+  max: parseInt(process.env.RATE_LIMIT_ADMIN || '500', 10), // 100'den 500'e çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many admin requests, please try again later'
@@ -140,13 +169,26 @@ const createAdminLimiter = () => rateLimit({
 
 /**
  * Kritik endpoint'ler için rate limiter
+ * OPTİMİZASYON: Yüksek trafik için limit artırıldı
  */
 const createCriticalLimiter = () => rateLimit({
   windowMs: 60 * 1000, // 1 dakika
-  max: 10, // Kritik endpoint'ler için düşük limit
+  max: parseInt(process.env.RATE_LIMIT_CRITICAL || '30', 10), // 10'dan 30'a çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Rate limit exceeded for this endpoint'
+});
+
+/**
+ * Genel API endpoint'leri için rate limiter
+ * OPTİMİZASYON: Yüksek trafik için limit artırıldı
+ */
+const createGeneralAPILimiter = () => rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dakika
+  max: parseInt(process.env.API_RATE_LIMIT || '1000', 10), // 400'den 1000'e çıkarıldı
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests from this IP, please try again later'
 });
 
 module.exports = {
@@ -159,6 +201,8 @@ module.exports = {
   createLoginLimiter,
   createAdminLimiter,
   createCriticalLimiter,
-  isPrivateIP
+  createGeneralAPILimiter,
+  isPrivateIP,
+  getClientIP
 };
 

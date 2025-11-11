@@ -556,162 +556,78 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// Rate limiting - Endpoint bazlı
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 dakika
-  max: parseInt(process.env.API_RATE_LIMIT || '400', 10),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many requests from this IP, please try again later'
-});
+// OPTİMİZASYON: Rate limiting - Yüksek trafik için optimize edilmiş
+// Limitler environment variable'lardan yapılandırılabilir
+const {
+  createGeneralAPILimiter,
+  createLoginLimiter,
+  createAdminLimiter,
+  createCriticalLimiter,
+  createSQLQueryLimiter,
+  createWalletTransferLimiter,
+  createPaymentLimiter,
+  createGiftCardLimiter,
+  createAdminWalletTransferLimiter,
+  createSuspiciousIPLimiter,
+  getClientIP
+} = require('./utils/rate-limiting');
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 dakika
-  max: 5, // 5 başarısız deneme
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true,
-  message: 'Too many login attempts, please try again after 15 minutes'
-});
+// Genel API limiter - Yüksek trafik için 1000+ istek/15 dakika
+const authLimiter = createGeneralAPILimiter();
 
-const adminLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 dakika
-  max: 100, // Admin endpoint'leri için daha yüksek limit
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many admin requests, please try again later'
-});
+// Login limiter - Environment variable'dan yapılandırılabilir
+const loginLimiter = createLoginLimiter();
 
-const criticalLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 dakika
-  max: 10, // Kritik endpoint'ler için düşük limit
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Rate limit exceeded for this endpoint'
-});
+// Admin limiter - Yüksek trafik için 500+ istek/15 dakika
+const adminLimiter = createAdminLimiter();
 
-// GÜVENLİK: Kritik endpoint'ler için özel rate limiting
-// SQL Query endpoint - Çok kritik, çok düşük limit
-const sqlQueryLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 dakika
-  max: 5, // Çok düşük limit (SQL injection saldırılarına karşı)
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    // IP + Admin user ID kombinasyonu
-    const adminId = req.user?.id || req.headers['x-admin-id'] || 'unknown';
-    return `${req.ip}:${adminId}`;
-  },
-  message: 'Too many SQL queries. Please try again later.',
-  skip: (req) => {
-    // Private IP'ler için skip (development)
-    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
-  }
-});
+// Critical limiter - Yüksek trafik için 30+ istek/dakika
+const criticalLimiter = createCriticalLimiter();
 
-// Wallet transfer endpoint - Finansal işlem, düşük limit
-const walletTransferLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 dakika
-  max: 10, // Düşük limit (finansal saldırılara karşı)
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    // IP + User ID kombinasyonu
-    const userId = req.body?.fromUserId || req.authenticatedUserId || 'unknown';
-    return `${req.ip}:${userId}`;
-  },
-  message: 'Too many wallet transfer requests. Please try again later.',
-  skip: (req) => {
-    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
-  }
-});
+// OPTİMİZASYON: Kritik endpoint'ler için özel rate limiting - Utility'den al
+// Key generator'lar iyileştirildi (unknown yerine IP bazlı fallback)
+const sqlQueryLimiter = createSQLQueryLimiter();
+const walletTransferLimiter = createWalletTransferLimiter();
+const paymentLimiter = createPaymentLimiter();
+const giftCardLimiter = createGiftCardLimiter();
+const adminWalletTransferLimiter = createAdminWalletTransferLimiter();
 
-// Payment processing endpoint - Ödeme işlemi, çok düşük limit
-const paymentLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 dakika
-  max: 5, // Çok düşük limit (ödeme saldırılarına karşı)
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    // IP + Order ID kombinasyonu
-    const orderId = req.body?.orderId || 'unknown';
-    return `${req.ip}:${orderId}`;
-  },
-  message: 'Too many payment requests. Please try again later.',
-  skip: (req) => {
-    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
-  }
-});
+// OPTİMİZASYON: Suspicious IP limiter - Yüksek trafik için limit artırıldı veya devre dışı
+// Environment variable ile kontrol edilebilir (DISABLE_SUSPICIOUS_IP_LIMITER=true)
+const suspiciousIPLimiter = createSuspiciousIPLimiter();
 
-// Gift card endpoint - Finansal işlem, düşük limit
-const giftCardLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 dakika
-  max: 10, // Düşük limit
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const userId = req.body?.fromUserId || req.authenticatedUserId || 'unknown';
-    return `${req.ip}:${userId}`;
-  },
-  message: 'Too many gift card requests. Please try again later.',
-  skip: (req) => {
-    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
-  }
-});
+// OPTİMİZASYON: Rate limiting uygulama - Sıralama düzenlendi
+// Spesifik limiter'lar önce, global limiter'lar son (çakışma önleme)
 
-// Admin wallet transfer endpoint - Admin finansal işlem, çok düşük limit
-const adminWalletTransferLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 dakika
-  max: 5, // Çok düşük limit (admin finansal saldırılarına karşı)
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const adminId = req.user?.id || req.headers['x-admin-id'] || 'unknown';
-    return `${req.ip}:${adminId}`;
-  },
-  message: 'Too many admin wallet transfer requests. Please try again later.',
-  skip: (req) => {
-    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
-  }
-});
-
-// GÜVENLİK: IP bazlı rate limiting güçlendirme
-// Şüpheli IP'ler için daha düşük limit
-const suspiciousIPLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 dakika
-  max: 50, // Şüpheli IP'ler için çok düşük limit
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    // IP'yi normalize et
-    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
-    return ip;
-  },
-  skip: (req) => {
-    // Private IP'ler için skip
-    return /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(req.ip || '');
-  },
-  message: 'Too many requests from this IP. Please try again later.'
-});
-
-// Rate limiting uygulama
+// 1. En spesifik endpoint'ler önce (login, kritik endpoint'ler)
 app.use('/api/users/login', loginLimiter);
 app.use('/api/admin/login', loginLimiter);
-app.use('/api/admin', adminLimiter);
-app.use('/api/users', authLimiter);
-app.use('/api/orders', criticalLimiter);
-app.use('/api/cart', authLimiter);
-app.use('/api/products', authLimiter);
 
-// GÜVENLİK: Kritik endpoint'ler için özel rate limiting
+// 2. Kritik endpoint'ler (finansal, SQL query)
 app.use('/api/admin/sql/query', sqlQueryLimiter);
 app.use('/api/wallet/transfer', walletTransferLimiter);
 app.use('/api/wallet/gift-card', giftCardLimiter);
 app.use('/api/payments/process', paymentLimiter);
 app.use('/api/admin/wallets/transfer', adminWalletTransferLimiter);
 
-// GÜVENLİK: Şüpheli IP'ler için global rate limiting (en son uygulanır)
-app.use('/api', suspiciousIPLimiter);
+// 3. Kategori bazlı endpoint'ler (admin, orders, critical)
+app.use('/api/orders', criticalLimiter);
+// NOT: /api/admin için adminLimiter uygulanıyor ama /api/admin/sql/query önce geldiği için çakışma yok
+
+// 4. Genel endpoint'ler (users, products)
+// NOT: /api/cart için relaxedCartLimiter daha sonra uygulanıyor (satır 12089), burada authLimiter kaldırıldı
+app.use('/api/users', authLimiter);
+app.use('/api/products', authLimiter);
+
+// 5. Admin endpoint'leri (spesifik olanlar zaten uygulandı)
+app.use('/api/admin', adminLimiter);
+
+// 6. Global limiter (en son, opsiyonel - environment variable ile kontrol edilebilir)
+// NOT: Suspicious IP limiter artık 500+ istek/15 dakika veya devre dışı
+// Diğer limiter'lar yeterli olduğu için genelde devre dışı bırakılabilir
+if (process.env.DISABLE_SUSPICIOUS_IP_LIMITER !== 'true') {
+  app.use('/api', suspiciousIPLimiter);
+}
 
 // SQL Query Logger Middleware
 app.use((req, res, next) => {
