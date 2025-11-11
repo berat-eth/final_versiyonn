@@ -54,7 +54,8 @@ export default function Settings() {
 
     // Bakım Modu State
     const [maintenanceMode, setMaintenanceMode] = useState({
-        enabled: false,
+        webEnabled: false,
+        mobileEnabled: false,
         message: 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
         estimatedEndTime: ''
     })
@@ -68,7 +69,8 @@ export default function Settings() {
                 const res = await api.get<any>('/maintenance/status')
                 if (res?.data) {
                     setMaintenanceMode({
-                        enabled: res.data.enabled || false,
+                        webEnabled: res.data.webEnabled !== undefined ? res.data.webEnabled : (res.data.enabled || false),
+                        mobileEnabled: res.data.mobileEnabled !== undefined ? res.data.mobileEnabled : (res.data.enabled || false),
                         message: res.data.message || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
                         estimatedEndTime: res.data.estimatedEndTime || ''
                     })
@@ -80,26 +82,51 @@ export default function Settings() {
         loadMaintenanceStatus()
     }, [])
 
-    // Bakım modu toggle
-    const toggleMaintenanceMode = async () => {
+    // Web bakım modu toggle
+    const toggleWebMaintenance = async () => {
         setMaintenanceLoading(true)
         setMaintenanceMessage(null)
         try {
-            const newEnabled = !maintenanceMode.enabled
+            const newWebEnabled = !maintenanceMode.webEnabled
             const res = await api.post('/admin/maintenance/toggle', {
-                enabled: newEnabled,
+                webEnabled: newWebEnabled,
                 message: maintenanceMode.message,
                 estimatedEndTime: maintenanceMode.estimatedEndTime || null
             })
             if (res?.success) {
                 setMaintenanceMode({
                     ...maintenanceMode,
-                    enabled: newEnabled
+                    webEnabled: newWebEnabled
                 })
-                setMaintenanceMessage(res.message || `Bakım modu ${newEnabled ? 'açıldı' : 'kapatıldı'}`)
+                setMaintenanceMessage(res.message || `Web bakım modu ${newWebEnabled ? 'açıldı' : 'kapatıldı'}`)
             }
         } catch (e: any) {
-            setMaintenanceMessage(e?.message || 'Bakım modu ayarı kaydedilemedi')
+            setMaintenanceMessage(e?.message || 'Web bakım modu ayarı kaydedilemedi')
+        } finally {
+            setMaintenanceLoading(false)
+        }
+    }
+
+    // Mobil bakım modu toggle
+    const toggleMobileMaintenance = async () => {
+        setMaintenanceLoading(true)
+        setMaintenanceMessage(null)
+        try {
+            const newMobileEnabled = !maintenanceMode.mobileEnabled
+            const res = await api.post('/admin/maintenance/toggle', {
+                mobileEnabled: newMobileEnabled,
+                message: maintenanceMode.message,
+                estimatedEndTime: maintenanceMode.estimatedEndTime || null
+            })
+            if (res?.success) {
+                setMaintenanceMode({
+                    ...maintenanceMode,
+                    mobileEnabled: newMobileEnabled
+                })
+                setMaintenanceMessage(res.message || `Mobil bakım modu ${newMobileEnabled ? 'açıldı' : 'kapatıldı'}`)
+            }
+        } catch (e: any) {
+            setMaintenanceMessage(e?.message || 'Mobil bakım modu ayarı kaydedilemedi')
         } finally {
             setMaintenanceLoading(false)
         }
@@ -111,7 +138,8 @@ export default function Settings() {
         setMaintenanceMessage(null)
         try {
             const res = await api.post('/admin/maintenance/toggle', {
-                enabled: maintenanceMode.enabled,
+                webEnabled: maintenanceMode.webEnabled,
+                mobileEnabled: maintenanceMode.mobileEnabled,
                 message: maintenanceMode.message,
                 estimatedEndTime: maintenanceMode.estimatedEndTime || null
             })
@@ -873,17 +901,28 @@ export default function Settings() {
                                 <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-6">
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center space-x-3">
-                                            <Wrench className={`w-6 h-6 ${maintenanceMode.enabled ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
+                                            <Wrench className={`w-6 h-6 ${(maintenanceMode.webEnabled || maintenanceMode.mobileEnabled) ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
                                             <div>
                                                 <h4 className="font-semibold text-slate-800 dark:text-slate-100">Bakım Modu</h4>
-                                                <p className="text-sm text-slate-600 dark:text-slate-400">Mobil uygulamayı bakım moduna al</p>
+                                                <p className="text-sm text-slate-600 dark:text-slate-400">Web ve mobil uygulamayı bakım moduna al</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Web Bakım Modu */}
+                                    <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-lg mb-3">
+                                        <div className="flex items-center space-x-3">
+                                            <Globe className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                            <div>
+                                                <p className="font-medium text-slate-800 dark:text-slate-100">Web Sitesi</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Web sitesini bakım moduna al</p>
                                             </div>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                checked={maintenanceMode.enabled}
-                                                onChange={toggleMaintenanceMode}
+                                                checked={maintenanceMode.webEnabled}
+                                                onChange={toggleWebMaintenance}
                                                 disabled={maintenanceLoading}
                                                 className="sr-only peer"
                                             />
@@ -891,7 +930,28 @@ export default function Settings() {
                                         </label>
                                     </div>
 
-                                    {maintenanceMode.enabled && (
+                                    {/* Mobil Bakım Modu */}
+                                    <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-lg mb-4">
+                                        <div className="flex items-center space-x-3">
+                                            <Smartphone className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                            <div>
+                                                <p className="font-medium text-slate-800 dark:text-slate-100">Mobil Uygulama</p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Mobil uygulamayı bakım moduna al</p>
+                                            </div>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={maintenanceMode.mobileEnabled}
+                                                onChange={toggleMobileMaintenance}
+                                                disabled={maintenanceLoading}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-600 dark:peer-checked:bg-amber-500"></div>
+                                        </label>
+                                    </div>
+
+                                    {(maintenanceMode.webEnabled || maintenanceMode.mobileEnabled) && (
                                         <motion.div
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: 'auto' }}
@@ -936,10 +996,10 @@ export default function Settings() {
                                         </motion.div>
                                     )}
 
-                                    {maintenanceMode.enabled && (
+                                    {(maintenanceMode.webEnabled || maintenanceMode.mobileEnabled) && (
                                         <div className="mt-4 p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
                                             <p className="text-sm text-amber-800 dark:text-amber-200">
-                                                ⚠️ Bakım modu aktif. Mobil uygulama kullanıcıları bakım ekranını görecek.
+                                                ⚠️ Bakım modu aktif: {maintenanceMode.webEnabled && 'Web'} {maintenanceMode.webEnabled && maintenanceMode.mobileEnabled && 've'} {maintenanceMode.mobileEnabled && 'Mobil'} kullanıcıları bakım ekranını görecek.
                                             </p>
                                         </div>
                                     )}

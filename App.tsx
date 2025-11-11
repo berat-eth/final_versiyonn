@@ -82,11 +82,11 @@ export default function App() {
             }
           } catch { }
           
-          // Bakım modu kontrolü
+          // Bakım modu kontrolü (mobil için)
           try {
             const maintenanceController = new AbortController();
             const maintenanceTimeoutId = setTimeout(() => maintenanceController.abort(), 2000);
-            const maintenanceResp = await fetch(`${getApiBaseUrl()}/maintenance/status`, {
+            const maintenanceResp = await fetch(`${getApiBaseUrl()}/maintenance/status?platform=mobile`, {
               method: 'GET',
               signal: maintenanceController.signal,
               headers: {
@@ -208,7 +208,7 @@ export default function App() {
                   try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 2000);
-                    const resp = await fetch(`${getApiBaseUrl()}/maintenance/status`, {
+                    const resp = await fetch(`${getApiBaseUrl()}/maintenance/status?platform=mobile`, {
                       method: 'GET',
                       signal: controller.signal,
                       headers: {

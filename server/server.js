@@ -1455,8 +1455,10 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Bakım Modu - Durum kontrolü (herkese açık)
+// platform parametresi: 'web' veya 'mobile' (opsiyonel, yoksa her ikisi için kontrol eder)
 app.get('/api/maintenance/status', async (req, res) => {
   try {
+    const platform = req.query.platform; // 'web' veya 'mobile'
     const cfgPath = path.join(__dirname, '..', 'admin-panel', 'config.json');
     let config = {};
     try {
@@ -1466,10 +1468,25 @@ app.get('/api/maintenance/status', async (req, res) => {
       // Config dosyası yoksa bakım modu kapalı
     }
     
+    const maintenanceConfig = config.MAINTENANCE_MODE || {};
+    
+    // Platform'a göre enabled durumunu kontrol et
+    let enabled = false;
+    if (platform === 'web') {
+      enabled = !!(maintenanceConfig.webEnabled !== undefined ? maintenanceConfig.webEnabled : maintenanceConfig.enabled);
+    } else if (platform === 'mobile') {
+      enabled = !!(maintenanceConfig.mobileEnabled !== undefined ? maintenanceConfig.mobileEnabled : maintenanceConfig.enabled);
+    } else {
+      // Platform belirtilmemişse, her ikisi için de kontrol et (geriye dönük uyumluluk)
+      enabled = !!(maintenanceConfig.enabled || maintenanceConfig.webEnabled || maintenanceConfig.mobileEnabled);
+    }
+    
     const maintenanceMode = {
-      enabled: !!(config.MAINTENANCE_MODE && config.MAINTENANCE_MODE.enabled),
-      message: (config.MAINTENANCE_MODE && config.MAINTENANCE_MODE.message) || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
-      estimatedEndTime: (config.MAINTENANCE_MODE && config.MAINTENANCE_MODE.estimatedEndTime) || null
+      enabled: enabled,
+      message: maintenanceConfig.message || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
+      estimatedEndTime: maintenanceConfig.estimatedEndTime || null,
+      webEnabled: maintenanceConfig.webEnabled !== undefined ? maintenanceConfig.webEnabled : (maintenanceConfig.enabled || false),
+      mobileEnabled: maintenanceConfig.mobileEnabled !== undefined ? maintenanceConfig.mobileEnabled : (maintenanceConfig.enabled || false)
     };
 
     res.json({
@@ -1483,7 +1500,9 @@ app.get('/api/maintenance/status', async (req, res) => {
       data: {
         enabled: false,
         message: 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
-        estimatedEndTime: null
+        estimatedEndTime: null,
+        webEnabled: false,
+        mobileEnabled: false
       }
     });
   }
@@ -1492,7 +1511,7 @@ app.get('/api/maintenance/status', async (req, res) => {
 // Bakım Modu - Aç/Kapat (sadece admin)
 app.post('/api/admin/maintenance/toggle', authenticateAdmin, async (req, res) => {
   try {
-    const { enabled, message, estimatedEndTime } = req.body || {};
+    const { enabled, webEnabled, mobileEnabled, message, estimatedEndTime } = req.body || {};
     const cfgPath = path.join(__dirname, '..', 'admin-panel', 'config.json');
     
     let current = {};
@@ -1503,10 +1522,16 @@ app.post('/api/admin/maintenance/toggle', authenticateAdmin, async (req, res) =>
       // Config dosyası yoksa yeni oluştur
     }
 
+    const existingConfig = current.MAINTENANCE_MODE || {};
+    
+    // Yeni config oluştur - webEnabled ve mobileEnabled ayrı ayrı güncellenebilir
     const maintenanceConfig = {
-      enabled: !!enabled,
-      message: message || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.',
-      estimatedEndTime: estimatedEndTime || null,
+      // Geriye dönük uyumluluk için enabled flag'i de tutuluyor
+      enabled: enabled !== undefined ? !!enabled : (existingConfig.enabled || false),
+      webEnabled: webEnabled !== undefined ? !!webEnabled : (existingConfig.webEnabled !== undefined ? existingConfig.webEnabled : (existingConfig.enabled || false)),
+      mobileEnabled: mobileEnabled !== undefined ? !!mobileEnabled : (existingConfig.mobileEnabled !== undefined ? existingConfig.mobileEnabled : (existingConfig.enabled || false)),
+      message: message !== undefined ? message : (existingConfig.message || 'Sistem bakımda. Lütfen daha sonra tekrar deneyin.'),
+      estimatedEndTime: estimatedEndTime !== undefined ? estimatedEndTime : (existingConfig.estimatedEndTime || null),
       updatedAt: new Date().toISOString()
     };
 
@@ -1517,11 +1542,16 @@ app.post('/api/admin/maintenance/toggle', authenticateAdmin, async (req, res) =>
 
     fs.writeFileSync(cfgPath, JSON.stringify(merged, null, 2), 'utf-8');
     
-    console.log(`🔧 Bakım modu ${enabled ? 'açıldı' : 'kapatıldı'}`);
+    const changes = [];
+    if (webEnabled !== undefined) changes.push(`Web: ${webEnabled ? 'açıldı' : 'kapatıldı'}`);
+    if (mobileEnabled !== undefined) changes.push(`Mobil: ${mobileEnabled ? 'açıldı' : 'kapatıldı'}`);
+    if (enabled !== undefined) changes.push(`Genel: ${enabled ? 'açıldı' : 'kapatıldı'}`);
+    
+    console.log(`🔧 Bakım modu güncellendi: ${changes.join(', ')}`);
     
     return res.json({
       success: true,
-      message: `Bakım modu ${enabled ? 'açıldı' : 'kapatıldı'}`,
+      message: `Bakım modu güncellendi`,
       data: maintenanceConfig
     });
   } catch (e) {

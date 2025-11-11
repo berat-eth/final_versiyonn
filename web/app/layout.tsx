@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Script from 'next/script'
 import './globals.css'
 import WhatsAppWrapper from '@/components/WhatsAppWrapper'
+import MaintenanceMode from '@/components/MaintenanceMode'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { sanitizeJSONLD } from '@/utils/xss-sanitizer'
 
@@ -169,6 +170,7 @@ export default function RootLayout({
           }}
         />
         <AuthProvider>
+          <MaintenanceMode />
           {children}
           <WhatsAppWrapper />
         </AuthProvider>
