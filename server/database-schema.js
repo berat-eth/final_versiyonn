@@ -662,6 +662,21 @@ async function createDatabaseSchema(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+      // productId kolonunun NULL olup olmadığını kontrol et
+      const [productIdColumn] = await pool.execute(`
+    SELECT IS_NULLABLE, COLUMN_DEFAULT
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_SCHEMA = DATABASE() 
+    AND TABLE_NAME = 'order_items'
+    AND COLUMN_NAME = 'productId'
+  `);
+      
+      if (productIdColumn.length > 0 && productIdColumn[0].IS_NULLABLE === 'NO') {
+        // productId kolonunu NULL yapılabilir hale getir
+        await pool.execute('ALTER TABLE order_items MODIFY COLUMN productId INT NULL');
+        console.log('✅ Modified productId column to allow NULL for external order items');
+      }
+
       // Check if new product columns exist in order_items and add them if they don't
       const [orderItemColumns] = await pool.execute(`
     SELECT COLUMN_NAME 
@@ -708,6 +723,58 @@ async function createDatabaseSchema(pool) {
       }
 
       console.log('✅ Order items table ready');
+
+      // Marketplace Orders table (Trendyol, HepsiBurada vb. için)
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS marketplace_orders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      provider VARCHAR(50) NOT NULL COMMENT 'Trendyol, HepsiBurada vb.',
+      externalOrderId VARCHAR(255) NOT NULL,
+      totalAmount DECIMAL(10,2) NOT NULL,
+      status VARCHAR(50) DEFAULT 'pending',
+      shippingAddress TEXT NOT NULL,
+      city VARCHAR(100),
+      district VARCHAR(100),
+      fullAddress TEXT,
+      customerName VARCHAR(255),
+      customerEmail VARCHAR(255),
+      customerPhone VARCHAR(50),
+      orderData JSON COMMENT 'Marketplace API\'den gelen tüm sipariş verisi',
+      syncedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_external_order (tenantId, provider, externalOrderId),
+      INDEX idx_tenant_marketplace (tenantId),
+      INDEX idx_provider (provider),
+      INDEX idx_external_order_id (externalOrderId),
+      INDEX idx_status_provider (status, provider),
+      INDEX idx_synced_at (syncedAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Marketplace orders table ready');
+
+      // Marketplace Order Items table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS marketplace_order_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      marketplaceOrderId INT NOT NULL,
+      productName VARCHAR(500) NOT NULL,
+      quantity INT NOT NULL,
+      price DECIMAL(10,2) NOT NULL,
+      productImage VARCHAR(500),
+      productSku VARCHAR(255),
+      itemData JSON COMMENT 'Marketplace API\'den gelen ürün verisi',
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (marketplaceOrderId) REFERENCES marketplace_orders(id) ON DELETE CASCADE,
+      INDEX idx_tenant_marketplace_items (tenantId),
+      INDEX idx_marketplace_order (marketplaceOrderId)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Marketplace order items table ready');
 
       // Reviews table
       await pool.execute(`

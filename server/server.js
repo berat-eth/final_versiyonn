@@ -6953,10 +6953,10 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
           continue;
         }
         
-        // JSON kolonunda arama için JSON_EXTRACT kullan
+        // Marketplace orders tablosunda kontrol et
         const [existingOrders] = await poolWrapper.execute(
-          'SELECT id FROM orders WHERE tenantId = ? AND JSON_EXTRACT(paymentMeta, "$.externalOrderId") = ?',
-          [tenantId, orderNumber]
+          'SELECT id FROM marketplace_orders WHERE tenantId = ? AND provider = ? AND externalOrderId = ?',
+          [tenantId, provider, orderNumber]
         );
         
         if (existingOrders.length > 0) {
@@ -7020,36 +7020,31 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
         // Toplam tutar
         const totalAmount = parseFloat(marketplaceOrder.totalPrice || marketplaceOrder.totalAmount || marketplaceOrder.grossAmount || 0);
         
-        // Siparişi oluştur
-        // Marketplace siparişleri için userId NULL (external order)
+        // Marketplace siparişini oluştur (ayrı tabloda)
         const [orderResult] = await poolWrapper.execute(
-          `INSERT INTO orders (tenantId, userId, totalAmount, status, shippingAddress, paymentMethod, 
-           city, district, fullAddress, customerName, customerEmail, customerPhone, paymentMeta)
+          `INSERT INTO marketplace_orders (tenantId, provider, externalOrderId, totalAmount, status, shippingAddress, 
+           city, district, fullAddress, customerName, customerEmail, customerPhone, orderData)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             tenantId,
-            null, // Marketplace siparişleri için userId NULL (external order)
+            provider,
+            orderNumber,
             totalAmount,
             systemStatus,
             shippingAddress,
-            provider,
             city,
             district,
             shippingAddress,
             customerName,
             customerEmail,
             customerPhone,
-            JSON.stringify({
-              externalOrderId: orderNumber,
-              externalSource: provider,
-              marketplaceOrder: marketplaceOrder
-            })
+            JSON.stringify(marketplaceOrder)
           ]
         );
         
-        const orderId = orderResult.insertId;
+        const marketplaceOrderId = orderResult.insertId;
         
-        // Sipariş öğelerini ekle
+        // Marketplace sipariş öğelerini ekle
         const orderLines = marketplaceOrder.lines || marketplaceOrder.orderLines || marketplaceOrder.items || [];
         for (const line of orderLines) {
           const productName = line.productName || line.productTitle || line.name || 'Ürün';
@@ -7057,16 +7052,17 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
           const price = parseFloat(line.price || line.salePrice || line.unitPrice || 0);
           
           await poolWrapper.execute(
-            `INSERT INTO order_items (tenantId, orderId, productId, quantity, price, productName, productImage)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO marketplace_order_items (tenantId, marketplaceOrderId, productName, quantity, price, productImage, productSku, itemData)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               tenantId,
-              orderId,
-              0, // Marketplace ürün ID'si yoksa 0
+              marketplaceOrderId,
+              productName,
               quantity,
               price,
-              productName,
-              line.productImage || line.imageUrl || null
+              line.productImage || line.imageUrl || null,
+              line.productSku || line.sku || null,
+              JSON.stringify(line)
             ]
           );
         }
