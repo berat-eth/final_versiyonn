@@ -590,6 +590,127 @@ class TrendyolAPIService {
       throw error;
     }
   }
+
+  /**
+   * Trendyol'dan ürün listesini çek (Ürün Filtreleme API)
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {object} options - Query options (page, size, approved, barcode, stockCode, startDate, endDate, supplierId, categoryId, brandId, etc.)
+   * @returns {Promise<object>} Ürün listesi
+   * @see https://developers.trendyol.com/docs/marketplace/urun-entegrasyonu/urun-filtreleme
+   */
+  static async getProducts(supplierId, apiKey, apiSecret, options = {}) {
+    try {
+      const {
+        page = 0,
+        size = 200,
+        approved = null,
+        barcode = null,
+        stockCode = null,
+        startDate = null,
+        endDate = null,
+        categoryId = null,
+        brandId = null,
+        productMainId = null,
+        onSale = null,
+        rejected = null,
+        blacklisted = null,
+        active = null
+      } = options;
+
+      // Trendyol Ürün Filtreleme API endpoint'i
+      const endpoint = `/${supplierId}/products`;
+
+      const queryParams = {
+        page,
+        size
+      };
+
+      // Filtreleme parametreleri (Trendyol API dokümantasyonuna göre)
+      if (approved !== null && approved !== undefined) {
+        queryParams.approved = approved;
+      }
+      if (barcode) {
+        queryParams.barcode = barcode;
+      }
+      if (stockCode) {
+        queryParams.stockCode = stockCode;
+      }
+      if (startDate) {
+        queryParams.startDate = startDate;
+      }
+      if (endDate) {
+        queryParams.endDate = endDate;
+      }
+      if (categoryId) {
+        queryParams.categoryId = categoryId;
+      }
+      if (brandId) {
+        queryParams.brandId = brandId;
+      }
+      if (productMainId) {
+        queryParams.productMainId = productMainId;
+      }
+      if (onSale !== null && onSale !== undefined) {
+        queryParams.onSale = onSale;
+      }
+      if (rejected !== null && rejected !== undefined) {
+        queryParams.rejected = rejected;
+      }
+      if (blacklisted !== null && blacklisted !== undefined) {
+        queryParams.blacklisted = blacklisted;
+      }
+      if (active !== null && active !== undefined) {
+        queryParams.active = active;
+      }
+      
+      // Rate limiting için retry mekanizması ile istek gönder
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId),
+        3, // maxRetries
+        2000 // initial delay (2 saniye)
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API getProducts error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol ürün bilgisini güncelle
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {string} barcode - Ürün barcode'u
+   * @param {object} productData - Güncellenmiş ürün verisi (Trendyol formatında)
+   * @returns {Promise<object>} API response
+   */
+  static async updateProduct(supplierId, apiKey, apiSecret, barcode, productData) {
+    try {
+      const endpoint = `/${supplierId}/v2/products`;
+      
+      // Trendyol ürün güncelleme için barcode ile birlikte gönder
+      const updateData = {
+        ...productData,
+        barcode: barcode
+      };
+      
+      // Rate limiting için retry mekanizması ile istek gönder
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('PUT', endpoint, apiKey, apiSecret, updateData, {}, supplierId),
+        3, // maxRetries
+        2000 // initial delay (2 saniye)
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API updateProduct error:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = TrendyolAPIService;

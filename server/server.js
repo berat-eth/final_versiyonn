@@ -11621,6 +11621,232 @@ app.post('/api/admin/trendyol/transfer-products', authenticateAdmin, async (req,
   }
 });
 
+// Admin - Trendyol ürün listesini çek
+app.get('/api/admin/trendyol/products', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { 
+      integrationId, 
+      page = 0, 
+      size = 200,
+      approved,
+      onSale,
+      active,
+      rejected,
+      blacklisted,
+      barcode,
+      stockCode,
+      productMainId,
+      categoryId,
+      brandId,
+      startDate,
+      endDate
+    } = req.query;
+    
+    if (!integrationId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Integration ID gereklidir' 
+      });
+    }
+    
+    // Trendyol entegrasyonunu al
+    const [integrations] = await poolWrapper.execute(
+      'SELECT * FROM integrations WHERE id = ? AND tenantId = ? AND provider = ?',
+      [integrationId, tenantId, 'Trendyol']
+    );
+    
+    if (integrations.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Trendyol entegrasyonu bulunamadı' 
+      });
+    }
+    
+    const integration = integrations[0];
+    const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+    const supplierId = config.supplierId;
+    
+    if (!supplierId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Supplier ID bulunamadı' 
+      });
+    }
+    
+    // API Key ve Secret'ı temizle
+    let cleanApiKey = String(integration.apiKey || '').trim();
+    let cleanApiSecret = String(integration.apiSecret || '').trim();
+    cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+    cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
+    
+    if (!cleanApiKey || !cleanApiSecret) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'API Key veya API Secret boş' 
+      });
+    }
+    
+    const TrendyolAPIService = require('./services/trendyol-api');
+    
+    // Trendyol'dan ürünleri çek (filtreleme parametreleri ile)
+    const filterOptions = {
+      page: parseInt(page),
+      size: parseInt(size)
+    };
+
+    // Filtreleme parametrelerini ekle
+    if (approved !== undefined && approved !== null && approved !== '') {
+      filterOptions.approved = approved === 'true';
+    }
+    if (onSale !== undefined && onSale !== null && onSale !== '') {
+      filterOptions.onSale = onSale === 'true';
+    }
+    if (active !== undefined && active !== null && active !== '') {
+      filterOptions.active = active === 'true';
+    }
+    if (rejected !== undefined && rejected !== null && rejected !== '') {
+      filterOptions.rejected = rejected === 'true';
+    }
+    if (blacklisted !== undefined && blacklisted !== null && blacklisted !== '') {
+      filterOptions.blacklisted = blacklisted === 'true';
+    }
+    if (barcode) {
+      filterOptions.barcode = barcode;
+    }
+    if (stockCode) {
+      filterOptions.stockCode = stockCode;
+    }
+    if (productMainId) {
+      filterOptions.productMainId = productMainId;
+    }
+    if (categoryId) {
+      filterOptions.categoryId = parseInt(categoryId);
+    }
+    if (brandId) {
+      filterOptions.brandId = parseInt(brandId);
+    }
+    if (startDate) {
+      filterOptions.startDate = startDate;
+    }
+    if (endDate) {
+      filterOptions.endDate = endDate;
+    }
+
+    const response = await TrendyolAPIService.getProducts(
+      supplierId,
+      cleanApiKey,
+      cleanApiSecret,
+      filterOptions
+    );
+    
+    if (response.success) {
+      res.json({
+        success: true,
+        data: response.data
+      });
+    } else {
+      res.status(response.statusCode || 500).json({
+        success: false,
+        message: response.error || 'Ürünler çekilemedi',
+        data: response.data
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error getting Trendyol products:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.error || error.message || 'Ürünler çekilemedi' 
+    });
+  }
+});
+
+// Admin - Trendyol ürün bilgisini güncelle
+app.put('/api/admin/trendyol/products/:barcode', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { barcode } = req.params;
+    const { integrationId, productData } = req.body || {};
+    
+    if (!integrationId || !productData) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Integration ID ve Product Data gereklidir' 
+      });
+    }
+    
+    // Trendyol entegrasyonunu al
+    const [integrations] = await poolWrapper.execute(
+      'SELECT * FROM integrations WHERE id = ? AND tenantId = ? AND provider = ?',
+      [integrationId, tenantId, 'Trendyol']
+    );
+    
+    if (integrations.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Trendyol entegrasyonu bulunamadı' 
+      });
+    }
+    
+    const integration = integrations[0];
+    const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+    const supplierId = config.supplierId;
+    
+    if (!supplierId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Supplier ID bulunamadı' 
+      });
+    }
+    
+    // API Key ve Secret'ı temizle
+    let cleanApiKey = String(integration.apiKey || '').trim();
+    let cleanApiSecret = String(integration.apiSecret || '').trim();
+    cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+    cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
+    
+    if (!cleanApiKey || !cleanApiSecret) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'API Key veya API Secret boş' 
+      });
+    }
+    
+    const TrendyolAPIService = require('./services/trendyol-api');
+    
+    // Trendyol'da ürünü güncelle
+    const response = await TrendyolAPIService.updateProduct(
+      supplierId,
+      cleanApiKey,
+      cleanApiSecret,
+      barcode,
+      productData
+    );
+    
+    if (response.success) {
+      res.json({
+        success: true,
+        data: response.data,
+        message: 'Ürün başarıyla güncellendi'
+      });
+    } else {
+      res.status(response.statusCode || 500).json({
+        success: false,
+        message: response.error || 'Ürün güncellenemedi',
+        data: response.data
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error updating Trendyol product:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.error || error.message || 'Ürün güncellenemedi' 
+    });
+  }
+});
+
 // Admin - Get all products (for admin panel)
 app.get('/api/admin/products', authenticateAdmin, async (req, res) => {
   try {
