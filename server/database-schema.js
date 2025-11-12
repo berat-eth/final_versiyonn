@@ -776,6 +776,48 @@ async function createDatabaseSchema(pool) {
   `);
       console.log('✅ Marketplace order items table ready');
 
+      // Trendyol Products table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS trendyol_products (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      barcode VARCHAR(255) NOT NULL,
+      title VARCHAR(500) NOT NULL,
+      productMainId VARCHAR(255),
+      brandId INT,
+      categoryId INT,
+      quantity INT DEFAULT 0,
+      stockCode VARCHAR(255),
+      dimensionalWeight DECIMAL(10,2),
+      description TEXT,
+      currencyType VARCHAR(10) DEFAULT 'TRY',
+      listPrice DECIMAL(10,2) DEFAULT 0,
+      salePrice DECIMAL(10,2) DEFAULT 0,
+      vatRate INT DEFAULT 18,
+      cargoCompanyId INT,
+      approved BOOLEAN DEFAULT false,
+      onSale BOOLEAN DEFAULT false,
+      active BOOLEAN DEFAULT true,
+      rejected BOOLEAN DEFAULT false,
+      blacklisted BOOLEAN DEFAULT false,
+      productData JSON,
+      syncedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_trendyol_product (tenantId, barcode),
+      INDEX idx_tenant_trendyol (tenantId),
+      INDEX idx_barcode (barcode),
+      INDEX idx_stock_code (stockCode),
+      INDEX idx_product_main_id (productMainId),
+      INDEX idx_approved (approved),
+      INDEX idx_on_sale (onSale),
+      INDEX idx_active (active),
+      INDEX idx_synced_at (syncedAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Trendyol products table ready');
+
       // Reviews table
       await pool.execute(`
     CREATE TABLE IF NOT EXISTS reviews (
