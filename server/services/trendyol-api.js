@@ -2,6 +2,7 @@
 // Trendyol Marketplace API entegrasyonu için servis
 
 const https = require('https');
+const zlib = require('zlib');
 
 const TRENDYOL_API_BASE_URL = 'https://api.trendyol.com/sapigw/suppliers';
 
@@ -170,7 +171,7 @@ class TrendyolAPIService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Accept-Encoding': 'gzip, deflate, br',
+          'Accept-Encoding': 'gzip, deflate',
           'User-Agent': userAgent,
           'Connection': 'keep-alive',
           'Cache-Control': 'no-cache',
@@ -197,12 +198,38 @@ class TrendyolAPIService {
 
       const req = https.request(options, (res) => {
         let responseData = '';
+        
+        // Content-Encoding header'ını kontrol et ve uygun decompression stream kullan
+        const contentEncoding = res.headers['content-encoding'];
+        let responseStream = res;
+        
+        if (contentEncoding === 'gzip') {
+          responseStream = res.pipe(zlib.createGunzip());
+        } else if (contentEncoding === 'deflate') {
+          responseStream = res.pipe(zlib.createInflate());
+        } else if (contentEncoding === 'br') {
+          responseStream = res.pipe(zlib.createBrotliDecompress());
+        }
 
-        res.on('data', (chunk) => {
-          responseData += chunk;
+        responseStream.on('data', (chunk) => {
+          // Buffer'ı string'e çevir
+          if (Buffer.isBuffer(chunk)) {
+            responseData += chunk.toString('utf8');
+          } else {
+            responseData += chunk;
+          }
+        });
+        
+        responseStream.on('error', (error) => {
+          console.log('❌ Trendyol API Decompression Hatası:', error.message);
+          reject({
+            success: false,
+            error: 'Yanıt açma hatası: ' + error.message,
+            statusCode: res.statusCode || 500
+          });
         });
 
-        res.on('end', () => {
+        responseStream.on('end', () => {
           // Cloudflare 403 hatası kontrolü - HTML yanıt kontrolü
           if (responseData && (responseData.trim().startsWith('<!DOCTYPE') || responseData.trim().startsWith('<!doctype') || responseData.includes('Cloudflare'))) {
             console.log('❌ Trendyol API Cloudflare/HTML Yanıt Hatası');
