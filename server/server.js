@@ -7549,7 +7549,7 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                 // Güncelle
                 await poolWrapper.execute(
                   `UPDATE trendyol_products SET
-                    trendyolId = ?, title = ?, productMainId = ?,
+                    integrationId = ?, trendyolId = ?, title = ?, productMainId = ?,
                     productCode = ?, productContentId = ?, platformListingId = ?, stockId = ?,
                     brand = ?, brandId = ?, categoryName = ?, categoryId = ?, pimCategoryId = ?,
                     quantity = ?, stockCode = ?, stockUnitType = ?,
@@ -7563,7 +7563,7 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                     fullProductData = ?, syncedAt = CURRENT_TIMESTAMP
                   WHERE tenantId = ? AND barcode = ?`,
                   [
-                    productData.trendyolId, productData.title, productData.productMainId,
+                    productData.integrationId, productData.trendyolId, productData.title, productData.productMainId,
                     productData.productCode, productData.productContentId, productData.platformListingId, productData.stockId,
                     productData.brand, productData.brandId, productData.categoryName, productData.categoryId, productData.pimCategoryId,
                     productData.quantity, productData.stockCode, productData.stockUnitType,
@@ -7582,7 +7582,7 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                 // Yeni kayıt
                 await poolWrapper.execute(
                   `INSERT INTO trendyol_products (
-                    tenantId, trendyolId, barcode, title, productMainId,
+                    tenantId, integrationId, trendyolId, barcode, title, productMainId,
                     productCode, productContentId, platformListingId, stockId,
                     brand, brandId, categoryName, categoryId, pimCategoryId,
                     quantity, stockCode, stockUnitType,
@@ -7593,9 +7593,9 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                     supplierId, images, attributes, deliveryOption,
                     locationBasedDelivery, lotNumber, productUrl,
                     version, createDateTime, lastUpdateDate, batchRequestId, fullProductData
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   [
-                    productData.tenantId, productData.trendyolId, productData.barcode, productData.title, productData.productMainId,
+                    productData.tenantId, productData.integrationId, productData.trendyolId, productData.barcode, productData.title, productData.productMainId,
                     productData.productCode, productData.productContentId, productData.platformListingId, productData.stockId,
                     productData.brand, productData.brandId, productData.categoryName, productData.categoryId, productData.pimCategoryId,
                     productData.quantity, productData.stockCode, productData.stockUnitType,
