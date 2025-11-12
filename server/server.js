@@ -7593,7 +7593,7 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                     supplierId, images, attributes, deliveryOption,
                     locationBasedDelivery, lotNumber, productUrl,
                     version, createDateTime, lastUpdateDate, batchRequestId, fullProductData
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   [
                     productData.tenantId, productData.trendyolId, productData.barcode, productData.title, productData.productMainId,
                     productData.productCode, productData.productContentId, productData.platformListingId, productData.stockId,
