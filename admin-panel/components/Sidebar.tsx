@@ -143,8 +143,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
       items: [
         { id: 'trendyol-auth', label: 'Trendyol Auth', icon: Key },
         { id: 'trendyol-orders', label: 'Trendyol Siparişleri', icon: ShoppingCart },
-        { id: 'trendyol-product-transfer', label: 'Ürün Transferi', icon: Package },
-        { id: 'trendyol-product-list', label: 'Trendyol Ürün Listesi', icon: Package },
       ]
     },
     {
