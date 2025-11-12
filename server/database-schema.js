@@ -777,6 +777,27 @@ async function createDatabaseSchema(pool) {
       console.log('✅ Marketplace order items table ready');
 
       // Trendyol Products table
+      // integrationId sütununu kontrol et ve yoksa ekle
+      try {
+        const [columns] = await pool.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'trendyol_products' 
+          AND COLUMN_NAME = 'integrationId'
+        `);
+        if (columns.length === 0) {
+          await pool.execute('ALTER TABLE trendyol_products ADD COLUMN integrationId INT AFTER tenantId');
+          await pool.execute('CREATE INDEX idx_integration ON trendyol_products(integrationId)');
+          console.log('✅ Added integrationId column to trendyol_products table');
+        }
+      } catch (error) {
+        // Tablo yoksa hata verme, CREATE TABLE zaten ekleyecek
+        if (error.code !== 'ER_NO_SUCH_TABLE') {
+          console.warn('⚠️ Could not add integrationId column:', error.message);
+        }
+      }
+
       await pool.execute(`
     CREATE TABLE IF NOT EXISTS trendyol_products (
       id INT AUTO_INCREMENT PRIMARY KEY,
