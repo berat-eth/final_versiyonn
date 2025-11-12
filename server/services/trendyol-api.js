@@ -24,8 +24,10 @@ const MAX_REQUESTS_PER_HOUR = 28800; // Saatte maksimum istek sayısı (güvenli
 // Cache mekanizması - sipariş detaylarını cache'le
 const orderDetailCache = new Map();
 const orderListCache = new Map();
+const productListCache = new Map();
 const ORDER_CACHE_TTL = 5 * 60 * 1000; // 5 dakika cache süresi
 const ORDER_LIST_CACHE_TTL = 2 * 60 * 1000; // 2 dakika sipariş listesi cache
+const PRODUCT_LIST_CACHE_TTL = 10 * 60 * 1000; // 10 dakika ürün listesi cache (Cloudflare bypass için daha uzun)
 
 // HTTP connection pooling için agent
 const httpsAgent = new https.Agent({
@@ -39,9 +41,15 @@ class TrendyolAPIService {
   /**
    * Rate limiting kontrolü - Trendyol API servis limitlerine uygun
    * https://developers.trendyol.com/docs/trendyol-servis-limitleri
+   * @param {string} endpoint - API endpoint (GET /products için özel rate limiting)
    */
-  static async waitForRateLimit() {
+  static async waitForRateLimit(endpoint = '') {
     const now = Date.now();
+    
+    // GET /products istekleri için özel rate limiting (Cloudflare bypass için çok daha yavaş)
+    const isProductListRequest = endpoint.includes('/products') && !endpoint.includes('/products/');
+    // Ürün listesi için 2 saniye bekleme (Cloudflare bypass için agresif yaklaşım)
+    const requestInterval = isProductListRequest ? 2000 : MIN_REQUEST_INTERVAL;
     
     // Dakika ve saat sıfırlama kontrolü
     const minuteElapsed = now - minuteStartTime;
@@ -77,11 +85,11 @@ class TrendyolAPIService {
     
     // Saniyelik limit kontrolü (istekler arası minimum bekleme)
     const timeSinceLastRequest = now - lastRequestTime;
-    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-      const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+    if (timeSinceLastRequest < requestInterval) {
+      const waitTime = requestInterval - timeSinceLastRequest;
       // Sadece uzun bekleme sürelerinde log (performans için)
       if (waitTime > 50) {
-        console.log(`⏳ Rate limit için ${waitTime}ms bekleniyor...`);
+        console.log(`⏳ Rate limit için ${waitTime}ms bekleniyor... (${isProductListRequest ? 'Ürün Listesi' : 'Normal'})`);
       }
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
@@ -111,6 +119,13 @@ class TrendyolAPIService {
         orderListCache.delete(key);
       }
     }
+    
+    // Ürün listesi cache'ini temizle
+    for (const [key, value] of productListCache.entries()) {
+      if (now - value.timestamp > PRODUCT_LIST_CACHE_TTL) {
+        productListCache.delete(key);
+      }
+    }
   }
 
   /**
@@ -119,6 +134,7 @@ class TrendyolAPIService {
   static clearAllCache() {
     orderDetailCache.clear();
     orderListCache.clear();
+    productListCache.clear();
   }
   /**
    * Trendyol API için Basic Auth header oluştur
@@ -144,22 +160,41 @@ class TrendyolAPIService {
       throw new Error('API Key ve API Secret boş olamaz');
     }
     
+    // API Key ve Secret uzunluk kontrolü (çok kısa ise uyarı)
+    // Trendyol API Key genellikle 20+ karakter, Secret 30+ karakter olur
+    if (cleanApiKey.length < 10 || cleanApiSecret.length < 10) {
+      console.warn('⚠️ API Key veya Secret çok kısa görünüyor. Lütfen Trendyol Partner Panel\'den doğru değerleri kopyaladığınızdan emin olun.');
+      console.warn(`  API Key uzunluk: ${cleanApiKey.length}`);
+      console.warn(`  API Secret uzunluk: ${cleanApiSecret.length}`);
+    }
+    
     // Trendyol API formatı: apiKey:apiSecret (UTF-8 encoding ile Base64)
     // Format: Basic base64(apiKey:apiSecret)
-    // NOT: Bazı Trendyol API versiyonlarında Secret:Key formatı da kullanılabilir
-    // Ancak standart format Key:Secret'tır
+    // Trendyol dokümantasyonuna göre: API Key:API Secret formatı kullanılmalı
     const credentials = `${cleanApiKey}:${cleanApiSecret}`;
     // UTF-8 encoding ile Base64 encode et
     const encodedCredentials = Buffer.from(credentials, 'utf8').toString('base64');
     
-    // Debug için (her zaman log - authentication sorunlarını tespit etmek için)
-    console.log('🔐 Trendyol Auth Debug:');
-    console.log('  API Key uzunluk:', cleanApiKey.length);
-    console.log('  API Secret uzunluk:', cleanApiSecret.length);
-    console.log('  API Key (ilk 8 karakter):', cleanApiKey.substring(0, 8) + '***');
-    console.log('  API Secret (son 4 karakter):', '***' + cleanApiSecret.substring(cleanApiSecret.length - 4));
-    console.log('  Credentials format:', 'apiKey:apiSecret');
-    console.log('  Encoded (ilk 30 karakter):', encodedCredentials.substring(0, 30) + '...');
+    // Base64 encoding doğrulama
+    try {
+      const decoded = Buffer.from(encodedCredentials, 'base64').toString('utf8');
+      if (decoded !== credentials) {
+        console.error('❌ Base64 encoding hatası!');
+      }
+    } catch (error) {
+      console.error('❌ Base64 encoding doğrulama hatası:', error);
+    }
+    
+    // Debug için (sadece DEBUG_TRENDYOL aktifse veya hata durumunda)
+    if (process.env.DEBUG_TRENDYOL === 'true') {
+      console.log('🔐 Trendyol Auth Debug:');
+      console.log('  API Key uzunluk:', cleanApiKey.length);
+      console.log('  API Secret uzunluk:', cleanApiSecret.length);
+      console.log('  API Key (ilk 8 karakter):', cleanApiKey.substring(0, 8) + '***');
+      console.log('  API Secret (son 4 karakter):', '***' + cleanApiSecret.substring(cleanApiSecret.length - 4));
+      console.log('  Credentials format:', 'apiKey:apiSecret');
+      console.log('  Encoded (ilk 30 karakter):', encodedCredentials.substring(0, 30) + '...');
+    }
     
     return `Basic ${encodedCredentials}`;
   }
@@ -176,8 +211,8 @@ class TrendyolAPIService {
    * @returns {Promise<object>} API response
    */
   static async makeRequest(method, endpoint, apiKey, apiSecret, data = null, queryParams = {}, supplierId = null) {
-    // Rate limiting kontrolü
-    await this.waitForRateLimit();
+    // Rate limiting kontrolü (endpoint'e göre özel rate limiting)
+    await this.waitForRateLimit(endpoint);
     
     return new Promise((resolve, reject) => {
       // API Key ve Secret'ı temizle
@@ -205,30 +240,48 @@ class TrendyolAPIService {
       }
 
       const urlObj = new URL(url);
-      // User-Agent'ı gerçek bir tarayıcı gibi görünecek şekilde ayarla (Cloudflare bypass için)
-      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      
+      // User-Agent'ı Trendyol API formatına göre ayarla (supplierId ile)
+      // Trendyol dokümantasyonuna göre: supplierId - SelfIntegration formatı kullanılmalı
+      const userAgent = supplierId ? `${supplierId} - SelfIntegration` : 'SelfIntegration';
+      
+      // Header'ları method'a göre ayarla
+      // GET istekleri için çok minimal header'lar (Cloudflare bypass için agresif yaklaşım)
+      // POST/PUT istekleri için tam header'lar
+      const headers = {
+        'Authorization': authHeader,
+        'Accept': 'application/json'
+      };
+      
+      // POST/PUT istekleri için ek header'lar
+      if (method === 'POST' || method === 'PUT') {
+        headers['Content-Type'] = 'application/json';
+        headers['Accept-Language'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
+        headers['Accept-Encoding'] = 'gzip, deflate';
+        headers['User-Agent'] = userAgent;
+        headers['Connection'] = 'keep-alive';
+        headers['Origin'] = 'https://api.trendyol.com';
+        headers['Referer'] = 'https://api.trendyol.com/';
+        headers['Sec-Fetch-Dest'] = 'empty';
+        headers['Sec-Fetch-Mode'] = 'cors';
+        headers['Sec-Fetch-Site'] = 'same-origin';
+      } else {
+        // GET istekleri için çok minimal header'lar (User-Agent ve Connection kaldırıldı)
+        // Sadece Authorization ve Accept - Cloudflare bypass için
+        headers['Accept-Encoding'] = 'gzip, deflate';
+      }
+      
+      // GET istekleri için connection pooling'i kapat (Cloudflare bypass için)
+      // Her istekte yeni connection açılması Cloudflare'i daha az şüphelendirir
+      const useAgent = (method === 'GET' && endpoint.includes('/products')) ? false : httpsAgent;
+      
       const options = {
         hostname: urlObj.hostname,
         port: urlObj.port || 443,
         path: urlObj.pathname + urlObj.search,
         method: method,
-        agent: httpsAgent, // Connection pooling için
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Accept-Encoding': 'gzip, deflate',
-          'User-Agent': userAgent,
-          'Connection': 'keep-alive',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Origin': 'https://api.trendyol.com',
-          'Referer': 'https://api.trendyol.com/',
-          'Sec-Fetch-Dest': 'empty',
-          'Sec-Fetch-Mode': 'cors',
-          'Sec-Fetch-Site': 'same-origin'
-        }
+        agent: useAgent, // GET /products için connection pooling kapalı
+        headers: headers
       };
 
       // Console log - İstek detayları (sadece önemli istekler için)
@@ -651,17 +704,19 @@ class TrendyolAPIService {
       } catch (error) {
         lastError = error;
         
-        // 429 (Rate Limit) hatası için özel retry mekanizması
-        if (error.statusCode === 429) {
+        // 429 (Rate Limit) veya 403 (Cloudflare) hatası için özel retry mekanizması
+        if (error.statusCode === 429 || error.statusCode === 403 || error.isCloudflareBlock) {
           // Retry-After header'ı varsa onu kullan, yoksa exponential backoff
           const retryAfter = error.retryAfter ? parseInt(error.retryAfter) * 1000 : null;
-          const waitTime = retryAfter || (delay * Math.pow(2, i + 1)); // Exponential backoff: 2s, 4s, 8s
+          // 403 hatası için daha uzun bekleme (Cloudflare bypass için)
+          const baseDelay = error.statusCode === 403 || error.isCloudflareBlock ? delay * 3 : delay;
+          const waitTime = retryAfter || (baseDelay * Math.pow(2, i + 1)); // Exponential backoff: 6s, 12s, 24s (403 için)
           
-          console.log(`⏳ Rate limit nedeniyle ${Math.ceil(waitTime / 1000)} saniye bekleniyor (deneme ${i + 1}/${maxRetries})...`);
+          console.log(`⏳ ${error.statusCode === 403 || error.isCloudflareBlock ? 'Cloudflare engellemesi' : 'Rate limit'} nedeniyle ${Math.ceil(waitTime / 1000)} saniye bekleniyor (deneme ${i + 1}/${maxRetries})...`);
           
           if (i < maxRetries - 1) {
             await new Promise(resolve => setTimeout(resolve, waitTime));
-            // Rate limit geldiğinde sayacı sıfırla ve daha uzun bekle
+            // Rate limit veya Cloudflare engellemesi geldiğinde sayacı sıfırla ve daha uzun bekle
             requestCountInMinute = MAX_REQUESTS_PER_MINUTE;
             requestCountInHour = MAX_REQUESTS_PER_HOUR;
             lastRequestTime = Date.now() + waitTime;
@@ -814,12 +869,36 @@ class TrendyolAPIService {
         queryParams.active = active;
       }
       
+      // Cache kontrolü (ürün listesi için daha uzun cache süresi)
+      const cacheKey = `${supplierId}_products_${JSON.stringify(queryParams)}`;
+      if (productListCache.has(cacheKey)) {
+        const cached = productListCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < PRODUCT_LIST_CACHE_TTL) {
+          console.log('📦 Ürün listesi cache\'den döndürüldü');
+          return cached.data;
+        } else {
+          productListCache.delete(cacheKey);
+        }
+      }
+      
       // Rate limiting için retry mekanizması ile istek gönder
+      // GET /products için daha fazla retry ve daha uzun delay (Cloudflare bypass için)
+      const maxRetries = 5; // Ürün listesi için 5 retry
+      const initialDelay = 5000; // Ürün listesi için 5 saniye başlangıç delay
+      
       const response = await this.makeRequestWithRetry(
         () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId),
-        3, // maxRetries
-        2000 // initial delay (2 saniye)
+        maxRetries,
+        initialDelay
       );
+      
+      // Cache'e kaydet (başarılı ise)
+      if (response.success) {
+        productListCache.set(cacheKey, {
+          data: response,
+          timestamp: Date.now()
+        });
+      }
       
       return response;
     } catch (error) {
@@ -876,4 +955,5 @@ class TrendyolAPIService {
 }
 
 module.exports = TrendyolAPIService;
+
 
