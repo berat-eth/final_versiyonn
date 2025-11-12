@@ -35,7 +35,7 @@ const orderListCache = new Map();
 const productListCache = new Map();
 const ORDER_CACHE_TTL = 5 * 60 * 1000; // 5 dakika cache süresi
 const ORDER_LIST_CACHE_TTL = 2 * 60 * 1000; // 2 dakika sipariş listesi cache
-const PRODUCT_LIST_CACHE_TTL = 10 * 60 * 1000; // 10 dakika ürün listesi cache (Cloudflare bypass için daha uzun)
+const PRODUCT_LIST_CACHE_TTL = 1 * 60 * 1000; // 1 dakika ürün listesi cache (daha kısa süre - güncel veri için)
 
 // HTTP connection pooling için agent
 const httpsAgent = new https.Agent({
@@ -922,9 +922,31 @@ class TrendyolAPIService {
         queryParams.supplierId = supplierId;
       }
       
-      // Cache kontrolü
-      const cacheKey = `${sellerId}_filterProducts_${JSON.stringify(queryParams)}`;
-      if (productListCache.has(cacheKey)) {
+      // Cache kontrolü - sayfa ve filtre parametrelerine göre cache key oluştur
+      // Her sayfa ve filtre kombinasyonu için ayrı cache
+      const cacheKey = `${sellerId}_filterProducts_${JSON.stringify({
+        page,
+        size,
+        approved,
+        barcode,
+        stockCode,
+        startDate,
+        endDate,
+        dateQueryType,
+        archived,
+        productMainId,
+        onSale,
+        rejected,
+        blacklisted,
+        brandIds: brandIds ? brandIds.join(',') : null,
+        supplierId
+      })}`;
+      
+      // Cache'i devre dışı bırak - ürün listesi sık değişebilir ve kullanıcı tüm ürünleri görmek isteyebilir
+      // Cache sorunları nedeniyle geçici olarak kapatıldı
+      const USE_CACHE = false;
+      
+      if (USE_CACHE && productListCache.has(cacheKey)) {
         const cached = productListCache.get(cacheKey);
         if (Date.now() - cached.timestamp < PRODUCT_LIST_CACHE_TTL) {
           console.log('📦 Ürün listesi (filterProducts) cache\'den döndürüldü');
@@ -1023,8 +1045,8 @@ class TrendyolAPIService {
         req.end();
       });
       
-      // Cache'e kaydet (başarılı ise)
-      if (response.success) {
+      // Cache'e kaydet (başarılı ise) - sadece cache aktifse
+      if (USE_CACHE && response.success) {
         productListCache.set(cacheKey, {
           data: response,
           timestamp: Date.now()

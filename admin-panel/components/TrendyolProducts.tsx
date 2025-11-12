@@ -45,6 +45,14 @@ export default function TrendyolProducts() {
     }
   }, [trendyolIntegration, productsPage, productsFilters])
 
+  // Cache bypass için refresh butonu ile manuel yenileme
+  const handleForceRefresh = () => {
+    setProductsPage(0)
+    if (trendyolIntegration?.id) {
+      loadProducts()
+    }
+  }
+
   const loadTrendyolIntegration = async () => {
     try {
       const response = await api.get<ApiResponse<any[]>>('/admin/integrations')
@@ -66,10 +74,12 @@ export default function TrendyolProducts() {
     setProductsError(null)
     
     try {
+      // Cache bypass için timestamp ekle
       const params: Record<string, string> = {
         integrationId: trendyolIntegration.id.toString(),
         page: productsPage.toString(),
-        size: '10'
+        size: '10',
+        _t: Date.now().toString() // Cache bypass için timestamp
       }
       
       if (productsFilters.approved !== '') {
@@ -234,27 +244,32 @@ export default function TrendyolProducts() {
         </div>
 
         {/* Search and Filters */}
-        <div className="mb-6 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Arama ve Filtreler</h3>
+        <div className="mb-6 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+              <Search className="w-5 h-5 text-white" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Arama ve Filtreler</h3>
+          </div>
           
           {/* Search Bar */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2.5">
               Ürün İsmi ile Ara
             </label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Ürün adı ile ara..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full pl-12 pr-12 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all shadow-sm hover:shadow-md"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   <X className="w-4 h-4 text-slate-400" />
                 </button>
@@ -264,7 +279,7 @@ export default function TrendyolProducts() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 Onay Durumu
               </label>
               <select
@@ -273,7 +288,7 @@ export default function TrendyolProducts() {
                   setProductsFilters({ ...productsFilters, approved: e.target.value })
                   setProductsPage(0)
                 }}
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                className="w-full px-3 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
               >
                 <option value="">Tümü</option>
                 <option value="true">Onaylı</option>
@@ -281,7 +296,7 @@ export default function TrendyolProducts() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 Satışta
               </label>
               <select
@@ -290,7 +305,7 @@ export default function TrendyolProducts() {
                   setProductsFilters({ ...productsFilters, onSale: e.target.value })
                   setProductsPage(0)
                 }}
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                className="w-full px-3 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
               >
                 <option value="">Tümü</option>
                 <option value="true">Evet</option>
@@ -298,7 +313,7 @@ export default function TrendyolProducts() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 Barcode
               </label>
               <input
@@ -309,11 +324,11 @@ export default function TrendyolProducts() {
                   setProductsPage(0)
                 }}
                 placeholder="Barcode ara..."
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                className="w-full px-3 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 Stock Code
               </label>
               <input
@@ -324,27 +339,36 @@ export default function TrendyolProducts() {
                   setProductsPage(0)
                 }}
                 placeholder="Stock code ara..."
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                className="w-full px-3 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
               />
             </div>
           </div>
         </div>
 
         {/* Products List */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+        <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div className="p-5 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                {searchQuery ? (
-                  <>
-                    <span className="text-orange-600 dark:text-orange-400">"{searchQuery}"</span> için{' '}
-                    {products.filter(p => p.title?.toLowerCase().includes(searchQuery.toLowerCase())).length} ürün bulundu
-                    {' '}(Toplam: {productsTotalElements})
-                  </>
-                ) : (
-                  <>Toplam {productsTotalElements} ürün bulundu</>
-                )}
-              </p>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+                  <Package className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    {searchQuery ? (
+                      <>
+                        <span className="text-orange-600 dark:text-orange-400 font-bold">"{searchQuery}"</span> için{' '}
+                        <span className="font-bold">{products.filter(p => p.title?.toLowerCase().includes(searchQuery.toLowerCase())).length}</span> ürün bulundu
+                        {' '}<span className="text-slate-500 dark:text-slate-400">(Toplam: {productsTotalElements})</span>
+                      </>
+                    ) : (
+                      <>
+                        Toplam <span className="font-bold text-orange-600 dark:text-orange-400">{productsTotalElements}</span> ürün bulundu
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -413,22 +437,26 @@ export default function TrendyolProducts() {
                           {editingProduct === product.barcode ? (
                             <div className="space-y-3 mt-2 p-3 bg-orange-50 dark:bg-orange-900/10 rounded-lg border border-orange-200 dark:border-orange-800">
                               {updateMessage && (
-                                <div className={`p-2 rounded text-sm ${
-                                  updateMessage.type === 'success'
-                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                }`}>
+                                <motion.div
+                                  initial={{ opacity: 0, y: -10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  className={`p-2.5 rounded-lg text-xs font-medium ${
+                                    updateMessage.type === 'success'
+                                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                  }`}
+                                >
                                   {updateMessage.message}
                                   {updateMessage.batchId && (
-                                    <div className="text-xs mt-1">
-                                      Batch ID: <code className="bg-white/50 px-1 rounded">{updateMessage.batchId}</code>
+                                    <div className="text-xs mt-1.5 font-mono bg-white/50 dark:bg-black/20 px-1.5 py-0.5 rounded">
+                                      Batch: {updateMessage.batchId.substring(0, 20)}...
                                     </div>
                                   )}
-                                </div>
+                                </motion.div>
                               )}
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div>
-                                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                                     Stok Miktarı
                                   </label>
                                   <input
@@ -437,11 +465,11 @@ export default function TrendyolProducts() {
                                     max="20000"
                                     value={editForm.quantity ?? ''}
                                     onChange={(e) => setEditForm({ ...editForm, quantity: parseInt(e.target.value) || 0 })}
-                                    className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                    className="w-full px-3 py-2 text-sm border-2 border-orange-200 dark:border-orange-800 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                                     Liste Fiyatı (TRY)
                                   </label>
                                   <input
@@ -450,11 +478,11 @@ export default function TrendyolProducts() {
                                     step="0.01"
                                     value={editForm.listPrice ?? ''}
                                     onChange={(e) => setEditForm({ ...editForm, listPrice: parseFloat(e.target.value) || 0 })}
-                                    className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                    className="w-full px-3 py-2 text-sm border-2 border-orange-200 dark:border-orange-800 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                                     Satış Fiyatı (TRY)
                                   </label>
                                   <input
@@ -463,27 +491,27 @@ export default function TrendyolProducts() {
                                     step="0.01"
                                     value={editForm.salePrice ?? ''}
                                     onChange={(e) => setEditForm({ ...editForm, salePrice: parseFloat(e.target.value) || 0 })}
-                                    className="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                    className="w-full px-3 py-2 text-sm border-2 border-orange-200 dark:border-orange-800 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                   />
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 pt-2">
                                 <button
                                   onClick={() => handleUpdateProduct(product)}
                                   disabled={updating}
-                                  className="px-3 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                  className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-lg text-sm font-semibold hover:from-orange-700 hover:to-orange-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-orange-500/30"
                                 >
                                   {updating ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    <Loader2 className="w-4 h-4 animate-spin" />
                                   ) : (
-                                    <Save className="w-3 h-3" />
+                                    <Save className="w-4 h-4" />
                                   )}
                                   Kaydet
                                 </button>
                                 <button
                                   onClick={handleCancelEdit}
                                   disabled={updating}
-                                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                                  className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
                                 >
                                   İptal
                                 </button>
