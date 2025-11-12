@@ -49,13 +49,15 @@ export default function TrendyolOrders() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
 
   useEffect(() => {
     loadOrders()
-  }, [statusFilter])
+  }, [statusFilter, startDate, endDate])
 
   const loadOrders = async () => {
     try {
@@ -64,6 +66,8 @@ export default function TrendyolOrders() {
         provider: 'trendyol'
       }
       if (statusFilter) params.status = statusFilter
+      if (startDate) params.startDate = startDate
+      if (endDate) params.endDate = endDate
       
       const response = await api.get<ApiResponse<MarketplaceOrder[]>>('/admin/marketplace-orders', params)
       if (response.success && response.data) {
@@ -367,28 +371,67 @@ export default function TrendyolOrders() {
           )}
 
           {/* Filters */}
-          <div className="flex items-center gap-4 mt-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Sipariş numarası, müşteri adı veya e-posta ile ara..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-              />
+          <div className="flex flex-col gap-4 mt-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Sipariş numarası, müşteri adı veya e-posta ile ara..."
+                  className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+              >
+                <option value="">Tüm Durumlar</option>
+                <option value="pending">Beklemede</option>
+                <option value="processing">İşleniyor</option>
+                <option value="completed">Tamamlandı</option>
+                <option value="cancelled">İptal</option>
+              </select>
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-            >
-              <option value="">Tüm Durumlar</option>
-              <option value="pending">Beklemede</option>
-              <option value="processing">İşleniyor</option>
-              <option value="completed">Tamamlandı</option>
-              <option value="cancelled">İptal</option>
-            </select>
+            {/* Tarih Filtresi */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                  Başlangıç:
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                  Bitiş:
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                />
+              </div>
+              {(startDate || endDate) && (
+                <button
+                  onClick={() => {
+                    setStartDate('')
+                    setEndDate('')
+                  }}
+                  className="px-3 py-2 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  Temizle
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

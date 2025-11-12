@@ -7159,13 +7159,8 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
           [tenantId, provider, orderNumber]
         );
         
-        if (existingOrders.length > 0) {
-          skippedCount++;
-          continue; // Sipariş zaten var
-        }
-        
         // Marketplace sipariş durumunu sistem durumuna çevir
-        const marketplaceStatus = marketplaceOrder.status || marketplaceOrder.orderStatus || 'Pending';
+        const marketplaceStatus = marketplaceOrder.status || marketplaceOrder.orderStatus || marketplaceOrder.packageStatus || 'Pending';
         let systemStatus = 'pending';
         if (marketplaceStatus.includes('Shipped') || marketplaceStatus.includes('Delivered') || marketplaceStatus.includes('Teslim')) {
           systemStatus = 'completed';
@@ -7220,29 +7215,67 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
         // Toplam tutar
         const totalAmount = parseFloat(marketplaceOrder.totalPrice || marketplaceOrder.totalAmount || marketplaceOrder.grossAmount || 0);
         
-        // Marketplace siparişini oluştur (ayrı tabloda)
-        const [orderResult] = await poolWrapper.execute(
-          `INSERT INTO marketplace_orders (tenantId, provider, externalOrderId, totalAmount, status, shippingAddress, 
-           city, district, fullAddress, customerName, customerEmail, customerPhone, orderData)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            tenantId,
-            provider,
-            orderNumber,
-            totalAmount,
-            systemStatus,
-            shippingAddress,
-            city,
-            district,
-            shippingAddress,
-            customerName,
-            customerEmail,
-            customerPhone,
-            JSON.stringify(marketplaceOrder)
-          ]
-        );
+        let marketplaceOrderId;
         
-        const marketplaceOrderId = orderResult.insertId;
+        if (existingOrders.length > 0) {
+          // Sipariş zaten var, durumunu ve diğer bilgileri güncelle
+          marketplaceOrderId = existingOrders[0].id;
+          await poolWrapper.execute(
+            `UPDATE marketplace_orders 
+             SET status = ?, totalAmount = ?, shippingAddress = ?, city = ?, district = ?, 
+                 fullAddress = ?, customerName = ?, customerEmail = ?, customerPhone = ?, 
+                 orderData = ?, updatedAt = CURRENT_TIMESTAMP
+             WHERE id = ? AND tenantId = ?`,
+            [
+              systemStatus,
+              totalAmount,
+              shippingAddress,
+              city,
+              district,
+              shippingAddress,
+              customerName,
+              customerEmail,
+              customerPhone,
+              JSON.stringify(marketplaceOrder),
+              marketplaceOrderId,
+              tenantId
+            ]
+          );
+          skippedCount++; // Güncellendi ama yeni eklenmedi
+        } else {
+          // Yeni sipariş, ekle
+          const [orderResult] = await poolWrapper.execute(
+            `INSERT INTO marketplace_orders (tenantId, provider, externalOrderId, totalAmount, status, shippingAddress, 
+             city, district, fullAddress, customerName, customerEmail, customerPhone, orderData)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              tenantId,
+              provider,
+              orderNumber,
+              totalAmount,
+              systemStatus,
+              shippingAddress,
+              city,
+              district,
+              shippingAddress,
+              customerName,
+              customerEmail,
+              customerPhone,
+              JSON.stringify(marketplaceOrder)
+            ]
+          );
+          marketplaceOrderId = orderResult.insertId;
+          syncedCount++;
+        }
+        
+        // Marketplace sipariş öğelerini güncelle (önce mevcut öğeleri sil, sonra yenilerini ekle)
+        if (existingOrders.length > 0) {
+          // Mevcut sipariş öğelerini sil
+          await poolWrapper.execute(
+            'DELETE FROM marketplace_order_items WHERE marketplaceOrderId = ? AND tenantId = ?',
+            [marketplaceOrderId, tenantId]
+          );
+        }
         
         // Marketplace sipariş öğelerini ekle
         const orderLines = marketplaceOrder.lines || marketplaceOrder.orderLines || marketplaceOrder.items || [];
@@ -7307,7 +7340,7 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
 app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
-    const { provider, status, page = 1, limit = 50 } = req.query;
+    const { provider, status, page = 1, limit = 50, startDate, endDate } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     let whereClauses = ['tenantId = ?'];
@@ -7321,6 +7354,17 @@ app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => 
     if (status) {
       whereClauses.push('status = ?');
       params.push(status);
+    }
+
+    // Tarih filtresi ekle
+    if (startDate) {
+      whereClauses.push('DATE(createdAt) >= ?');
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClauses.push('DATE(createdAt) <= ?');
+      params.push(endDate);
     }
 
     const whereSql = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
