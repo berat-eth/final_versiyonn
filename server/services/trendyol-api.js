@@ -1288,25 +1288,106 @@ class TrendyolAPIService {
 
   /**
    * Trendyol Stok ve Fiyat Güncelleme
-   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} sellerId - Trendyol Seller ID (supplierId)
    * @param {string} apiKey - Trendyol API Key
    * @param {string} apiSecret - Trendyol API Secret
    * @param {Array<object>} items - Güncellenecek ürünler (barcode, quantity, salePrice, listPrice)
    * @returns {Promise<object>} API response
    * Rate Limit: NO LIMIT
    */
-  static async updatePriceAndInventory(supplierId, apiKey, apiSecret, items) {
+  static async updatePriceAndInventory(sellerId, apiKey, apiSecret, items) {
     try {
-      const endpoint = `/${supplierId}/products/price-and-inventory`;
+      // Yeni API endpoint (inventory API)
+      const TRENDYOL_INVENTORY_API_BASE_URL = 'https://apigw.trendyol.com/integration/inventory';
+      const endpoint = `/sellers/${sellerId}/products/price-and-inventory`;
+      const url = `${TRENDYOL_INVENTORY_API_BASE_URL}${endpoint}`;
+      
+      const urlObj = new URL(url);
       
       // Rate limiting kontrolü (NO LIMIT ama yine de güvenli bekleme)
       await this.waitForRateLimit(endpoint);
       
-      const response = await this.makeRequestWithRetry(
-        () => this.makeRequest('POST', endpoint, apiKey, apiSecret, { items }, {}, supplierId),
-        3,
-        1000 // NO LIMIT olduğu için daha kısa delay
-      );
+      // User-Agent
+      const userAgent = sellerId ? `${sellerId} - SelfIntegration` : 'SelfIntegration';
+      
+      const headers = {
+        'Authorization': this.createAuthHeader(apiKey, apiSecret),
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+        'User-Agent': userAgent,
+        'Content-Type': 'application/json'
+      };
+      
+      const requestBody = JSON.stringify({ items });
+      
+      const options_https = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Length': Buffer.byteLength(requestBody)
+        }
+      };
+
+      const response = await new Promise((resolve, reject) => {
+        const req = https.request(options_https, (res) => {
+          let responseData = '';
+          
+          const contentEncoding = res.headers['content-encoding'];
+          let responseStream = res;
+          
+          if (contentEncoding === 'gzip') {
+            responseStream = res.pipe(zlib.createGunzip());
+          } else if (contentEncoding === 'deflate') {
+            responseStream = res.pipe(zlib.createInflate());
+          }
+
+          responseStream.on('data', (chunk) => {
+            responseData += chunk.toString('utf8');
+          });
+          
+          responseStream.on('end', () => {
+            try {
+              const jsonData = responseData ? JSON.parse(responseData) : {};
+              
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                resolve({
+                  success: true,
+                  data: jsonData,
+                  statusCode: res.statusCode
+                });
+              } else {
+                reject({
+                  success: false,
+                  error: jsonData.message || jsonData.error || 'API request failed',
+                  statusCode: res.statusCode,
+                  data: jsonData
+                });
+              }
+            } catch (error) {
+              reject({
+                success: false,
+                error: 'Invalid JSON response',
+                statusCode: res.statusCode,
+                rawResponse: responseData.substring(0, 2000)
+              });
+            }
+          });
+        });
+
+        req.on('error', (error) => {
+          reject({
+            success: false,
+            error: error.message || 'Network error',
+            statusCode: 0
+          });
+        });
+
+        req.write(requestBody);
+        req.end();
+      });
       
       return response;
     } catch (error) {

@@ -7411,6 +7411,109 @@ app.get('/api/admin/trendyol/batch-request', authenticateAdmin, async (req, res)
   }
 });
 
+// Admin - Trendyol Stok ve Fiyat Güncelleme
+app.post('/api/admin/trendyol/update-price-inventory', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { integrationId, items } = req.body;
+    
+    if (!integrationId || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Integration ID ve items array gereklidir' 
+      });
+    }
+    
+    // Maksimum 1000 item kontrolü
+    if (items.length > 1000) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Maksimum 1000 item güncellenebilir' 
+      });
+    }
+    
+    // Her item için validasyon
+    for (const item of items) {
+      if (!item.barcode) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Her item için barcode gereklidir' 
+        });
+      }
+      if (item.quantity !== undefined && (item.quantity < 0 || item.quantity > 20000)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Stok miktarı 0-20000 arasında olmalıdır' 
+        });
+      }
+    }
+    
+    const [integrationRows] = await poolWrapper.execute(
+      'SELECT * FROM integrations WHERE id = ? AND tenantId = ? AND provider = ? AND type = ?',
+      [integrationId, tenantId, 'Trendyol', 'marketplace']
+    );
+    
+    if (integrationRows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Trendyol entegrasyonu bulunamadı' 
+      });
+    }
+    
+    const integration = integrationRows[0];
+    const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+    const sellerId = config.supplierId || config.sellerId;
+    
+    if (!sellerId || !integration.apiKey || !integration.apiSecret) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Seller ID, API Key ve API Secret gereklidir' 
+      });
+    }
+    
+    const TrendyolAPIService = require('./services/trendyol-api');
+    let cleanApiKey = String(integration.apiKey || '').trim();
+    let cleanApiSecret = String(integration.apiSecret || '').trim();
+    cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+    cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
+    
+    try {
+      const response = await TrendyolAPIService.updatePriceAndInventory(
+        sellerId,
+        cleanApiKey,
+        cleanApiSecret,
+        items
+      );
+      
+      if (response.success) {
+        return res.json({ 
+          success: true, 
+          data: response.data,
+          message: 'Stok ve fiyat güncellemesi başlatıldı'
+        });
+      } else {
+        return res.status(500).json({ 
+          success: false, 
+          message: response.error || 'Trendyol API hatası',
+          error: response.error
+        });
+      }
+    } catch (error) {
+      console.error('❌ Trendyol API hatası:', error);
+      return res.status(500).json({ 
+        success: false, 
+        message: error.error || error.message || 'Trendyol API hatası' 
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error updating price and inventory:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Stok ve fiyat güncellemesi başarısız' 
+    });
+  }
+});
+
 // Admin - Trendyol İade ve Sevkiyat Adresleri
 app.get('/api/admin/trendyol/addresses', authenticateAdmin, async (req, res) => {
   try {
