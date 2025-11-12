@@ -7149,7 +7149,7 @@ app.get('/api/admin/trendyol/products', authenticateAdmin, async (req, res) => {
       });
     }
     
-    // Query parametrelerini al
+    // Query parametrelerini al (_t parametresini ignore et - cache bypass için)
     const options = {
       page: parseInt(req.query.page) || 0,
       size: parseInt(req.query.size) || 10,
@@ -7167,6 +7167,9 @@ app.get('/api/admin/trendyol/products', authenticateAdmin, async (req, res) => {
       brandIds: req.query.brandIds ? req.query.brandIds.split(',').map(id => parseInt(id)) : null,
       supplierId: sellerId
     };
+    
+    // Cache bypass - her istekte yeni veri çek
+    // _t parametresi varsa cache'i bypass et
     
     // Trendyol API'ye gönder
     const TrendyolAPIService = require('./services/trendyol-api');
