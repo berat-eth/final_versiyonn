@@ -726,15 +726,15 @@ class TrendyolAPIService {
           }
         }
         
-        // 401, 403, 404 gibi hatalar için retry yapma (429 hariç)
-        if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 429) {
+        // 401, 404 gibi hatalar için retry yapma (429 ve 403 hariç - bunlar için retry yapıyoruz)
+        if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 429 && error.statusCode !== 403) {
           throw error;
         }
         
         // Son deneme değilse bekle ve tekrar dene (5xx hataları için)
         if (i < maxRetries - 1 && error.statusCode >= 500) {
           await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-        } else if (i < maxRetries - 1 && error.statusCode !== 429) {
+        } else if (i < maxRetries - 1 && error.statusCode !== 429 && error.statusCode !== 403) {
           // Diğer hatalar için kısa bekleme
           await new Promise(resolve => setTimeout(resolve, delay));
         }
