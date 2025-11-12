@@ -7,9 +7,18 @@ const zlib = require('zlib');
 const TRENDYOL_API_BASE_URL = 'https://api.trendyol.com/sapigw/suppliers';
 
 // Rate limiting için son istek zamanını takip et
+// Trendyol API Servis Limitleri: https://developers.trendyol.com/docs/trendyol-servis-limitleri
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 500; // İstekler arası minimum bekleme süresi (ms) - 500ms = 2 istek/saniye
-const MAX_REQUESTS_PER_SECOND = 2; // Saniyede maksimum istek sayısı
+let requestCountInMinute = 0;
+let requestCountInHour = 0;
+let minuteStartTime = Date.now();
+let hourStartTime = Date.now();
+
+// Trendyol API Servis Limitleri (resmi dokümantasyona göre)
+const MIN_REQUEST_INTERVAL = 100; // İstekler arası minimum bekleme süresi (ms) - 100ms = 10 istek/saniye
+const MAX_REQUESTS_PER_SECOND = 10; // Saniyede maksimum istek sayısı
+const MAX_REQUESTS_PER_MINUTE = 600; // Dakikada maksimum istek sayısı
+const MAX_REQUESTS_PER_HOUR = 36000; // Saatte maksimum istek sayısı
 
 // Cache mekanizması - sipariş detaylarını cache'le
 const orderDetailCache = new Map();
@@ -27,22 +36,59 @@ const httpsAgent = new https.Agent({
 
 class TrendyolAPIService {
   /**
-   * Rate limiting kontrolü - istekler arasında minimum bekleme süresi
+   * Rate limiting kontrolü - Trendyol API servis limitlerine uygun
+   * https://developers.trendyol.com/docs/trendyol-servis-limitleri
    */
   static async waitForRateLimit() {
     const now = Date.now();
-    const timeSinceLastRequest = now - lastRequestTime;
     
+    // Dakika ve saat sıfırlama kontrolü
+    const minuteElapsed = now - minuteStartTime;
+    const hourElapsed = now - hourStartTime;
+    
+    if (minuteElapsed >= 60000) { // 1 dakika geçti
+      requestCountInMinute = 0;
+      minuteStartTime = now;
+    }
+    
+    if (hourElapsed >= 3600000) { // 1 saat geçti
+      requestCountInHour = 0;
+      hourStartTime = now;
+    }
+    
+    // Saatlik limit kontrolü
+    if (requestCountInHour >= MAX_REQUESTS_PER_HOUR) {
+      const waitTime = 3600000 - hourElapsed; // Saatin bitmesine kalan süre
+      console.log(`⏳ Saatlik limit aşıldı (${MAX_REQUESTS_PER_HOUR} istek). ${Math.ceil(waitTime / 1000)} saniye bekleniyor...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      requestCountInHour = 0;
+      hourStartTime = Date.now();
+    }
+    
+    // Dakikalık limit kontrolü
+    if (requestCountInMinute >= MAX_REQUESTS_PER_MINUTE) {
+      const waitTime = 60000 - minuteElapsed; // Dakikanın bitmesine kalan süre
+      console.log(`⏳ Dakikalık limit aşıldı (${MAX_REQUESTS_PER_MINUTE} istek). ${Math.ceil(waitTime / 1000)} saniye bekleniyor...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      requestCountInMinute = 0;
+      minuteStartTime = Date.now();
+    }
+    
+    // Saniyelik limit kontrolü (istekler arası minimum bekleme)
+    const timeSinceLastRequest = now - lastRequestTime;
     if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
       const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
       // Sadece uzun bekleme sürelerinde log (performans için)
-      if (waitTime > 200) {
+      if (waitTime > 50) {
         console.log(`⏳ Rate limit için ${waitTime}ms bekleniyor...`);
       }
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     
+    // İstek sayacını güncelle
     lastRequestTime = Date.now();
+    requestCountInMinute++;
+    requestCountInHour++;
   }
 
   /**

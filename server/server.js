@@ -6993,10 +6993,7 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
             console.log(`    ✅ ${statusOrders.data.content.length} sipariş bulundu (Toplam: ${allOrders.length})`);
           }
           
-          // İstekler arasında bekleme süresi (rate limiting için) - son durum değilse
-          if (i < allStatuses.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
-          }
+          // Rate limiting TrendyolAPIService içinde yönetiliyor, ekstra bekleme gerekmez
         } catch (error) {
           console.error(`  ❌ ${status} durumundaki siparişler çekilemedi:`, error.message);
           // Hata durumunda devam et, diğer durumları çekmeye devam et
@@ -11589,8 +11586,7 @@ app.post('/api/admin/trendyol/transfer-products', authenticateAdmin, async (req,
           });
         }
         
-        // Rate limiting için bekleme (her ürün arasında)
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Rate limiting TrendyolAPIService içinde yönetiliyor, ekstra bekleme gerekmez
         
       } catch (error) {
         console.error(`❌ Ürün transferi hatası (ID: ${product.id}):`, error);
