@@ -5870,6 +5870,7 @@ app.get('/api/admin/live-views', authenticateAdmin, async (req, res) => {
 // Admin - Custom Production Requests
 app.get('/api/admin/custom-production-requests', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.tenant?.id || 1;
     // Detect optional quote columns to avoid SELECT errors on fresh DBs
     const [cols] = await poolWrapper.execute(`
       SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
@@ -5887,7 +5888,8 @@ app.get('/api/admin/custom-production-requests', authenticateAdmin, async (req, 
       .join(', ');
 
     const [requests] = await poolWrapper.execute(
-      `SELECT ${selectCols} FROM custom_production_requests ORDER BY createdAt DESC`
+      `SELECT ${selectCols} FROM custom_production_requests WHERE tenantId = ? ORDER BY createdAt DESC`,
+      [tenantId]
     );
     
     // Get items for each request
@@ -5897,8 +5899,8 @@ app.get('/api/admin/custom-production-requests', authenticateAdmin, async (req, 
           `SELECT cpi.*, p.name as productName, p.image as productImage, p.price as productPrice
            FROM custom_production_items cpi
            LEFT JOIN products p ON cpi.productId = p.id AND p.tenantId = cpi.tenantId
-           WHERE cpi.requestId = ?`,
-          [request.id]
+           WHERE cpi.requestId = ? AND cpi.tenantId = ?`,
+          [request.id, request.tenantId || tenantId]
         );
         return {
           ...request,
@@ -7206,21 +7208,33 @@ app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => 
 
     const whereSql = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
+    // Toplam sipariş sayısını al
+    const [countResult] = await poolWrapper.execute(
+      `SELECT COUNT(*) as total FROM marketplace_orders ${whereSql}`,
+      params
+    );
+    const total = countResult[0]?.total || 0;
+
     const [orders] = await poolWrapper.execute(
       `SELECT * FROM marketplace_orders ${whereSql} ORDER BY syncedAt DESC LIMIT ? OFFSET ?`,
       [...params, parseInt(limit), offset]
     );
 
-    // Her sipariş için öğeleri çek
+    // Her sipariş için öğeleri çek - try-catch ile hata yakalama
     for (const order of orders) {
-      const [items] = await poolWrapper.execute(
-        'SELECT * FROM marketplace_order_items WHERE marketplaceOrderId = ?',
-        [order.id]
-      );
-      order.items = items;
+      try {
+        const [items] = await poolWrapper.execute(
+          'SELECT * FROM marketplace_order_items WHERE marketplaceOrderId = ? AND tenantId = ?',
+          [order.id, tenantId]
+        );
+        order.items = items || [];
+      } catch (itemError) {
+        console.error(`❌ Error loading items for order ${order.id}:`, itemError);
+        order.items = [];
+      }
     }
 
-    res.json({ success: true, data: orders });
+    res.json({ success: true, data: orders, total });
   } catch (error) {
     console.error('❌ Error getting marketplace orders:', error);
     res.status(500).json({ success: false, message: 'Error getting marketplace orders' });
@@ -14748,8 +14762,8 @@ async function startServer() {
             `SELECT cpi.*, p.name as productName, p.image as productImage, p.price as productPrice
              FROM custom_production_items cpi
              LEFT JOIN products p ON cpi.productId = p.id AND p.tenantId = cpi.tenantId
-             WHERE cpi.requestId = ?`,
-            [request.id]
+             WHERE cpi.requestId = ? AND cpi.tenantId = ?`,
+            [request.id, request.tenantId || tenantId]
           );
 
           console.log(`📦 Request ${request.id} items:`, items?.length || 0, items);
