@@ -62,7 +62,12 @@ export default function TrendyolProductList() {
 
   useEffect(() => {
     if (trendyolIntegration?.id) {
-      loadProducts()
+      // Debounce: Filtre değişikliklerinde 500ms bekle
+      const timeoutId = setTimeout(() => {
+        loadProducts()
+      }, 500)
+      
+      return () => clearTimeout(timeoutId)
     }
   }, [trendyolIntegration, page, filters])
 

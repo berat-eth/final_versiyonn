@@ -56,7 +56,12 @@ export default function TrendyolOrders() {
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    loadOrders()
+    // Debounce: Filtre değişikliklerinde 500ms bekle
+    const timeoutId = setTimeout(() => {
+      loadOrders()
+    }, 500)
+    
+    return () => clearTimeout(timeoutId)
   }, [statusFilter, startDate, endDate])
 
   const loadOrders = async () => {

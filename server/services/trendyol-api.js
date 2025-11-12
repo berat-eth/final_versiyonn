@@ -15,10 +15,11 @@ let minuteStartTime = Date.now();
 let hourStartTime = Date.now();
 
 // Trendyol API Servis Limitleri (resmi dokümantasyona göre)
-const MIN_REQUEST_INTERVAL = 100; // İstekler arası minimum bekleme süresi (ms) - 100ms = 10 istek/saniye
-const MAX_REQUESTS_PER_SECOND = 10; // Saniyede maksimum istek sayısı
-const MAX_REQUESTS_PER_MINUTE = 600; // Dakikada maksimum istek sayısı
-const MAX_REQUESTS_PER_HOUR = 36000; // Saatte maksimum istek sayısı
+// Güvenli limitler: Resmi limitlerin %80'i (429 hatası önleme için)
+const MIN_REQUEST_INTERVAL = 150; // İstekler arası minimum bekleme süresi (ms) - 150ms = ~6.6 istek/saniye (güvenli)
+const MAX_REQUESTS_PER_SECOND = 8; // Saniyede maksimum istek sayısı (güvenli limit)
+const MAX_REQUESTS_PER_MINUTE = 480; // Dakikada maksimum istek sayısı (güvenli limit: 600'ün %80'i)
+const MAX_REQUESTS_PER_HOUR = 28800; // Saatte maksimum istek sayısı (güvenli limit: 36000'ün %80'i)
 
 // Cache mekanizması - sipariş detaylarını cache'le
 const orderDetailCache = new Map();
@@ -640,14 +641,18 @@ class TrendyolAPIService {
         if (error.statusCode === 429) {
           // Retry-After header'ı varsa onu kullan, yoksa exponential backoff
           const retryAfter = error.retryAfter ? parseInt(error.retryAfter) * 1000 : null;
-          const waitTime = retryAfter || (delay * Math.pow(2, i)); // Exponential backoff: 1s, 2s, 4s
+          const waitTime = retryAfter || (delay * Math.pow(2, i + 1)); // Exponential backoff: 2s, 4s, 8s
           
-          console.log(`⏳ Rate limit nedeniyle ${waitTime}ms bekleniyor (deneme ${i + 1}/${maxRetries})...`);
+          console.log(`⏳ Rate limit nedeniyle ${Math.ceil(waitTime / 1000)} saniye bekleniyor (deneme ${i + 1}/${maxRetries})...`);
           
           if (i < maxRetries - 1) {
             await new Promise(resolve => setTimeout(resolve, waitTime));
-            // Rate limit bekleme süresini artır
+            // Rate limit geldiğinde sayacı sıfırla ve daha uzun bekle
+            requestCountInMinute = MAX_REQUESTS_PER_MINUTE;
+            requestCountInHour = MAX_REQUESTS_PER_HOUR;
             lastRequestTime = Date.now() + waitTime;
+            minuteStartTime = Date.now();
+            hourStartTime = Date.now();
             continue; // Tekrar dene
           }
         }
