@@ -157,10 +157,8 @@ class TrendyolAPIService {
       }
 
       const urlObj = new URL(url);
-      // User-Agent'ı supplierId ile oluştur - ASCII karakterlerle
-      const userAgent = supplierId ? `${supplierId} - SelfIntegration` : 'SelfIntegration';
-      // User-Agent header'ını temizle - sadece ASCII karakterler
-      const cleanUserAgent = userAgent.replace(/[^\x20-\x7E]/g, '');
+      // User-Agent'ı gerçek bir tarayıcı gibi görünecek şekilde ayarla (Cloudflare bypass için)
+      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
       const options = {
         hostname: urlObj.hostname,
         port: urlObj.port || 443,
@@ -171,8 +169,17 @@ class TrendyolAPIService {
           'Authorization': authHeader,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': cleanUserAgent,
-          'Connection': 'keep-alive' // Connection reuse için
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'User-Agent': userAgent,
+          'Connection': 'keep-alive',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Origin': 'https://api.trendyol.com',
+          'Referer': 'https://api.trendyol.com/',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'same-origin'
         }
       };
 
@@ -196,6 +203,30 @@ class TrendyolAPIService {
         });
 
         res.on('end', () => {
+          // Cloudflare 403 hatası kontrolü - HTML yanıt kontrolü
+          if (responseData && (responseData.trim().startsWith('<!DOCTYPE') || responseData.trim().startsWith('<!doctype') || responseData.includes('Cloudflare'))) {
+            console.log('❌ Trendyol API Cloudflare/HTML Yanıt Hatası');
+            console.log('  Status Code:', res.statusCode);
+            console.log('  Endpoint:', endpoint);
+            console.log('  Supplier ID:', supplierId);
+            console.log('  Response Preview:', responseData.substring(0, 300));
+            
+            let errorMessage = 'Trendyol API\'ye erişim engellendi. ';
+            if (responseData.includes('Cloudflare') || responseData.includes('cloudflare')) {
+              errorMessage += 'Cloudflare güvenlik koruması tetiklendi. Bu genellikle sunucu IP adresinizin geçici olarak engellendiği anlamına gelir. Lütfen birkaç dakika bekleyip tekrar deneyin.';
+            } else {
+              errorMessage += 'Beklenmeyen bir HTML yanıt alındı. API endpoint\'i veya kimlik bilgilerinizi kontrol edin.';
+            }
+            
+            return reject({
+              success: false,
+              error: errorMessage,
+              statusCode: res.statusCode || 403,
+              rawResponse: responseData.substring(0, 2000),
+              isCloudflareBlock: true
+            });
+          }
+          
           try {
             const jsonData = responseData ? JSON.parse(responseData) : {};
             
@@ -219,6 +250,9 @@ class TrendyolAPIService {
                 }
                 if (res.statusCode === 429) {
                   console.log('  ⚠️ 429 Too Many Requests - Rate limit aşıldı');
+                }
+                if (res.statusCode === 403) {
+                  console.log('  ⚠️ 403 Forbidden - Erişim engellendi');
                 }
               }
             }
@@ -247,6 +281,8 @@ class TrendyolAPIService {
                 if (retryAfter) {
                   errorMessage += ` Önerilen bekleme süresi: ${retryAfter} saniye`;
                 }
+              } else if (res.statusCode === 403) {
+                errorMessage = 'Trendyol API erişim engellendi. Lütfen API Key ve API Secret bilgilerinizi kontrol edin veya birkaç dakika bekleyip tekrar deneyin.';
               }
               
               reject({
@@ -259,12 +295,33 @@ class TrendyolAPIService {
             }
           } catch (error) {
             console.log('❌ Trendyol API JSON Parse Hatası:', error.message);
+            console.log('  Status Code:', res.statusCode);
+            console.log('  Endpoint:', endpoint);
             console.log('  Raw Response:', responseData.substring(0, 500));
+            
+            // HTML yanıt kontrolü (parse hatasından önce kontrol edilmişti ama tekrar kontrol edelim)
+            if (responseData && (responseData.trim().startsWith('<!DOCTYPE') || responseData.trim().startsWith('<!doctype') || responseData.includes('Cloudflare'))) {
+              let errorMessage = 'Trendyol API\'ye erişim engellendi. ';
+              if (responseData.includes('Cloudflare') || responseData.includes('cloudflare')) {
+                errorMessage += 'Cloudflare güvenlik koruması tetiklendi. Lütfen birkaç dakika bekleyip tekrar deneyin.';
+              } else {
+                errorMessage += 'Beklenmeyen bir HTML yanıt alındı.';
+              }
+              
+              return reject({
+                success: false,
+                error: errorMessage,
+                statusCode: res.statusCode || 403,
+                rawResponse: responseData.substring(0, 2000),
+                isCloudflareBlock: true
+              });
+            }
+            
             reject({
               success: false,
               error: 'Invalid JSON response',
               statusCode: res.statusCode,
-              rawResponse: responseData
+              rawResponse: responseData.substring(0, 2000)
             });
           }
         });
