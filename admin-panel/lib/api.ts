@@ -4,6 +4,80 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS';
 
+// Hassas bilgi alanları - loglanmamalı
+const SENSITIVE_FIELDS = [
+  'password', 'token', 'authToken', 'apiKey', 'adminKey', 'secret',
+  'authorization', 'x-api-key', 'x-admin-key', 'csrf-token',
+  'creditCard', 'cvv', 'ssn', 'socialSecurityNumber',
+  'accessToken', 'refreshToken', 'bearer', 'jwt'
+];
+
+// Token pattern'leri - bu pattern'leri içeren değerler filtrelenmeli
+const TOKEN_PATTERNS = [
+  /token/i,
+  /auth/i,
+  /key/i,
+  /secret/i,
+  /password/i,
+  /bearer/i,
+  /jwt/i,
+  /huglu-admin/i, // Özel admin token pattern'i
+  /admin-token/i
+];
+
+/**
+ * Hassas bilgileri objeden temizle (recursive)
+ */
+function sanitizeSensitiveData(obj: any, depth = 0): any {
+  // Maksimum derinlik kontrolü (DoS koruması)
+  if (depth > 10) return '[Max depth reached]';
+  
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  // String değerlerde token pattern'leri kontrol et
+  if (typeof obj === 'string') {
+    // Token pattern'leri içeren string'leri filtrele
+    if (TOKEN_PATTERNS.some(pattern => pattern.test(obj)) && obj.length > 5) {
+      return '[REDACTED]';
+    }
+    return obj;
+  }
+  
+  if (typeof obj !== 'object') {
+    return obj;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeSensitiveData(item, depth + 1));
+  }
+  
+  const sanitized: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const lowerKey = key.toLowerCase();
+    
+    // Hassas alan kontrolü - key'de hassas kelime varsa
+    if (SENSITIVE_FIELDS.some(field => lowerKey.includes(field.toLowerCase()))) {
+      sanitized[key] = '[REDACTED]';
+    } 
+    // Value string ise ve token pattern içeriyorsa
+    else if (typeof value === 'string' && TOKEN_PATTERNS.some(pattern => pattern.test(value)) && value.length > 5) {
+      sanitized[key] = '[REDACTED]';
+    }
+    // Value object ise recursive olarak temizle
+    else if (typeof value === 'object' && value !== null) {
+      sanitized[key] = sanitizeSensitiveData(value, depth + 1);
+    } 
+    // Diğer durumlarda olduğu gibi bırak
+    else {
+      sanitized[key] = value;
+    }
+  }
+  
+  return sanitized;
+}
+
 interface ApiRequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
 }
@@ -19,7 +93,7 @@ class ApiClient {
     this.adminKey = adminKey;
   }
 
-  private getHeaders(endpoint: string, customHeaders?: HeadersInit): HeadersInit {
+  private getHeaders(endpoint: string, customHeaders?: HeadersInit, method?: string): HeadersInit {
     const base: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -39,6 +113,13 @@ class ApiClient {
       if (typeof window !== 'undefined') {
         const token = sessionStorage.getItem('authToken') || '';
         if (token) base['Authorization'] = `Bearer ${token}`;
+        
+        // State-changing method'lar için CSRF token ekle
+        if (method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
+          const { getCSRFHeader } = require('./csrf');
+          const csrfHeaders = getCSRFHeader();
+          Object.assign(base, csrfHeaders);
+        }
       }
     } catch {}
     return {
@@ -60,11 +141,13 @@ class ApiClient {
   async request<T>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
     const { params, headers, ...fetchOptions } = options;
     const url = this.buildUrl(endpoint, params);
+    const method = fetchOptions.method || 'GET';
 
     try {
       const response = await fetch(url, {
         ...fetchOptions,
-        headers: this.getHeaders(endpoint, headers),
+        method,
+        headers: this.getHeaders(endpoint, headers, method),
       });
 
       if (!response.ok) {
@@ -83,14 +166,25 @@ class ApiClient {
 
       const data = await response.json();
       try {
+        // Hassas bilgileri filtrele
+        let requestBody: any = undefined;
+        if (fetchOptions.body) {
+          try {
+            const parsed = JSON.parse(String(fetchOptions.body));
+            requestBody = sanitizeSensitiveData(parsed);
+          } catch {
+            requestBody = '[Non-JSON body]';
+          }
+        }
+        
         const logEntry = {
-          method: (fetchOptions.method || 'GET'),
-          url,
+          method,
+          url: url.replace(/\/\/[^\/]+@/, '//***@'), // URL'deki credentials'ı gizle
           status: response.status,
           ok: response.ok,
           time: new Date().toISOString(),
-          requestBody: fetchOptions.body ? JSON.parse(String(fetchOptions.body)) : undefined,
-          responseBody: data
+          requestBody,
+          responseBody: sanitizeSensitiveData(data)
         };
         if (typeof window !== 'undefined') {
           const logs = JSON.parse(localStorage.getItem('apiLogs') || '[]');

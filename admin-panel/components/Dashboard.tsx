@@ -1,6 +1,6 @@
 'use client'
 
-import { TrendingUp, Package, ShoppingCart, Users, ArrowUp, ArrowDown, DollarSign, Eye, AlertTriangle, CheckCircle, Clock, Star, Truck, CreditCard, RefreshCw, Activity, Target, Zap, TrendingDown, UserPlus, MessageSquare, Heart, BarChart3, Calendar, Filter, Download, Bell, X, Shield, Mail, Send, Smartphone, MousePointer, MapPin, Navigation, Brain } from 'lucide-react'
+import { TrendingUp, Package, ShoppingCart, Users, ArrowUp, ArrowDown, DollarSign, Eye, AlertTriangle, CheckCircle, Clock, Star, Truck, CreditCard, RefreshCw, Activity, Target, Zap, TrendingDown, UserPlus, MessageSquare, Heart, BarChart3, Calendar, Filter, Download, Bell, X, Shield, Mail, Send, Smartphone, MousePointer, MapPin, Navigation, Brain, Store } from 'lucide-react'
 import { Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart } from 'recharts'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState, useMemo } from 'react'
@@ -92,6 +92,12 @@ export default function Dashboard() {
   const [customProdCompleted, setCustomProdCompleted] = useState<number>(0)
   const [customProdAmount, setCustomProdAmount] = useState<number>(0)
 
+  // Trendyol istatistikleri
+  const [trendyolOrdersCount, setTrendyolOrdersCount] = useState<number>(0)
+  const [trendyolTotalAmount, setTrendyolTotalAmount] = useState<number>(0)
+  const [trendyolPendingCount, setTrendyolPendingCount] = useState<number>(0)
+  const [trendyolCompletedCount, setTrendyolCompletedCount] = useState<number>(0)
+
   // Chart height'ı responsive yap
   useEffect(() => {
     const updateChartHeight = () => {
@@ -107,13 +113,14 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes] = await Promise.all([
+        const [productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes, trendyolOrders] = await Promise.all([
           productService.getProducts(1, 50),
           api.get<any>('/admin/orders'),
           api.get<any>('/admin/categories'),
           api.get<any>('/admin/category-stats'),
           api.get<any>('/admin/custom-production-requests').catch(()=>({ success:true, data: [] })),
-          api.get<any>('/admin/snort/logs').catch(()=>({ success:true, data: [] }))
+          api.get<any>('/admin/snort/logs').catch(()=>({ success:true, data: [] })),
+          api.get<any>('/admin/marketplace-orders', { provider: 'trendyol' }).catch(()=>({ success:true, data: [], total: 0, totalAmount: 0 }))
         ])
         // Snort IDS status
         try {
@@ -381,6 +388,55 @@ export default function Dashboard() {
           ])
         } catch {}
 
+        // Trendyol sipariş istatistikleri
+        try {
+          if ((trendyolOrders as any)?.success && (trendyolOrders as any).data) {
+            const orders = (trendyolOrders as any).data as any[]
+            const responseWithTotal = trendyolOrders as any
+            
+            // Toplam sipariş sayısı
+            if (responseWithTotal.total !== undefined) {
+              setTrendyolOrdersCount(responseWithTotal.total)
+            } else {
+              setTrendyolOrdersCount(orders.length)
+            }
+            
+            // Toplam tutar
+            if (responseWithTotal.totalAmount !== undefined) {
+              setTrendyolTotalAmount(responseWithTotal.totalAmount)
+            } else {
+              const calculatedTotal = orders.reduce((sum: number, order: any) => {
+                return sum + (parseFloat(String(order.totalAmount || 0)))
+              }, 0)
+              setTrendyolTotalAmount(calculatedTotal)
+            }
+            
+            // Durum bazlı sayılar
+            const lower = (s: any) => (typeof s === 'string' ? s.toLowerCase() : '')
+            const pending = orders.filter((o: any) => {
+              const status = lower(o.status)
+              return status === 'pending' || status === 'processing' || status === 'waiting'
+            })
+            const completed = orders.filter((o: any) => {
+              const status = lower(o.status)
+              return status === 'completed' || status === 'delivered' || status === 'shipped'
+            })
+            
+            setTrendyolPendingCount(pending.length)
+            setTrendyolCompletedCount(completed.length)
+          } else {
+            setTrendyolOrdersCount(0)
+            setTrendyolTotalAmount(0)
+            setTrendyolPendingCount(0)
+            setTrendyolCompletedCount(0)
+          }
+        } catch {
+          setTrendyolOrdersCount(0)
+          setTrendyolTotalAmount(0)
+          setTrendyolPendingCount(0)
+          setTrendyolCompletedCount(0)
+        }
+
       } catch {
         // sessiz geç
       }
@@ -647,8 +703,59 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Özel Toptan Üretim Özet Kartları (B2B) */}
+      {/* Trendyol İstatistikleri */}
       <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Trendyol Marketplace</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Sipariş</p>
+              <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{trendyolOrdersCount.toLocaleString('tr-TR')}</p>
+            </div>
+            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
+              <ShoppingCart className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Tutar</p>
+              <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">₺{trendyolTotalAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Bekleyen</p>
+              <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{trendyolPendingCount}</p>
+            </div>
+            <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center">
+              <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Tamamlanan</p>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400">{trendyolCompletedCount}</p>
+            </div>
+            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Özel Toptan Üretim Özet Kartları (B2B) */}
+      <div className="flex items-center justify-between mt-6">
         <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">B2B • Özel Toptan Üretim</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -155,7 +155,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
       items: [
         { id: 'server-stats', label: 'Sunucu İstatistikleri', icon: Activity },
         { id: 'backup', label: 'Veri Yedekleme', icon: Settings },
-        { id: 'file-manager', label: 'Dosya Yöneticisi', icon: FolderTree },
         { id: 'security', label: 'Güvenlik', icon: Shield },
         { id: 'seo', label: 'SEO Panel', icon: Search },
         { id: 'admin-logs', label: 'Yönetici Logları', icon: FileText },

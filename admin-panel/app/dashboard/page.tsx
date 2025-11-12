@@ -32,7 +32,6 @@ import PushNotifications from '@/components/PushNotifications'
 import Sliders from '@/components/Sliders'
 import Coupons from '@/components/Coupons'
 import Reviews from '@/components/Reviews'
-import FileManager from '@/components/FileManager'
 import SnortLogs from '@/components/SnortLogs'
 import Settings from '@/components/Settings'
 import SQLQuery from '@/components/SQLQuery'
@@ -262,7 +261,6 @@ export default function DashboardPage() {
           {activeTab === 'live-users' && <LiveUsers />}
           {activeTab === 'server-stats' && <ServerStats />}
           {activeTab === 'backup' && <Backup />}
-          {activeTab === 'file-manager' && <FileManager />}
 
           {activeTab === 'chatbot' && <Chatbot />}
           {activeTab === 'security' && <Security />}
