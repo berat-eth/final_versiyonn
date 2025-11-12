@@ -282,22 +282,36 @@ class TrendyolAPIService {
             console.log('❌ Trendyol API Cloudflare/HTML Yanıt Hatası');
             console.log('  Status Code:', res.statusCode);
             console.log('  Endpoint:', endpoint);
+            console.log('  Method:', method);
             console.log('  Supplier ID:', supplierId);
             console.log('  Response Preview:', responseData.substring(0, 300));
             
+            // 403 hatası için özel öneriler
             let errorMessage = 'Trendyol API\'ye erişim engellendi. ';
+            let suggestions = [];
+            
             if (responseData.includes('Cloudflare') || responseData.includes('cloudflare')) {
-              errorMessage += 'Cloudflare güvenlik koruması tetiklendi. Bu genellikle sunucu IP adresinizin geçici olarak engellendiği anlamına gelir. Lütfen birkaç dakika bekleyip tekrar deneyin.';
+              errorMessage += 'Cloudflare güvenlik koruması tetiklendi. ';
+              suggestions.push('Sunucu IP adresiniz geçici olarak engellenmiş olabilir');
+              suggestions.push('Birkaç dakika bekleyip tekrar deneyin');
+              suggestions.push('API Key ve API Secret bilgilerinizi kontrol edin');
+              suggestions.push('Rate limit aşılmış olabilir, daha yavaş istek gönderin');
             } else {
-              errorMessage += 'Beklenmeyen bir HTML yanıt alındı. API endpoint\'i veya kimlik bilgilerinizi kontrol edin.';
+              errorMessage += 'Beklenmeyen bir HTML yanıt alındı. ';
+              suggestions.push('API endpoint\'i kontrol edin');
+              suggestions.push('Kimlik bilgilerinizi kontrol edin');
+              suggestions.push('Request formatını Trendyol dokümantasyonuna göre kontrol edin');
             }
+            
+            console.log('  Öneriler:', suggestions.join(', '));
             
             return reject({
               success: false,
-              error: errorMessage,
+              error: errorMessage + ' Öneriler: ' + suggestions.join('; '),
               statusCode: res.statusCode || 403,
               rawResponse: responseData.substring(0, 2000),
-              isCloudflareBlock: true
+              isCloudflareBlock: true,
+              suggestions: suggestions
             });
           }
           
@@ -827,11 +841,24 @@ class TrendyolAPIService {
     try {
       const endpoint = `/${supplierId}/v2/products`;
       
-      // Trendyol ürün güncelleme için barcode ile birlikte gönder
-      const updateData = {
-        ...productData,
-        barcode: barcode
-      };
+      // Trendyol ürün güncelleme dokümantasyonuna göre "items" array'i içinde gönderilmeli
+      // https://developers.trendyol.com/docs/marketplace/urun-entegrasyonu/trendyol-urun-bilgisi-guncelleme
+      let updateData;
+      
+      if (productData.items && Array.isArray(productData.items)) {
+        // Zaten items formatında
+        updateData = productData;
+      } else {
+        // Tek ürün güncellemesi - items array'i içine al
+        updateData = {
+          items: [
+            {
+              ...productData,
+              barcode: barcode
+            }
+          ]
+        };
+      }
       
       // Rate limiting için retry mekanizması ile istek gönder
       const response = await this.makeRequestWithRetry(
