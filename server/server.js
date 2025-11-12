@@ -12091,6 +12091,31 @@ app.get('/api/admin/trendyol/products', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - Trendyol API rate limit durumunu görüntüle
+app.get('/api/admin/trendyol/rate-limit-status', authenticateAdmin, async (req, res) => {
+  try {
+    const TrendyolAPIService = require('./services/trendyol-api');
+    const status = TrendyolAPIService.getRateLimitStatus();
+    res.json({ success: true, data: status });
+  } catch (error) {
+    console.error('❌ Error getting rate limit status:', error);
+    res.status(500).json({ success: false, message: 'Rate limit durumu alınamadı' });
+  }
+});
+
+// Admin - Trendyol API rate limit sayaçlarını sıfırla
+app.post('/api/admin/trendyol/reset-rate-limit', authenticateAdmin, async (req, res) => {
+  try {
+    const TrendyolAPIService = require('./services/trendyol-api');
+    TrendyolAPIService.resetRateLimitCounters();
+    const status = TrendyolAPIService.getRateLimitStatus();
+    res.json({ success: true, message: 'Rate limit sayaçları sıfırlandı', data: status });
+  } catch (error) {
+    console.error('❌ Error resetting rate limit:', error);
+    res.status(500).json({ success: false, message: 'Rate limit sıfırlanamadı' });
+  }
+});
+
 // Admin - Trendyol ürün bilgisini güncelle
 app.put('/api/admin/trendyol/products/:barcode', authenticateAdmin, async (req, res) => {
   try {
@@ -18757,6 +18782,14 @@ async function startServer() {
     if (xmlSyncService) {
       xmlSyncService.startScheduledSync();
       console.log(`📡 XML Sync Service started (every 4 hours)\n`);
+    }
+    
+    // Trendyol API rate limit sayaçlarını sıfırla (sunucu başlatıldığında)
+    try {
+      const TrendyolAPIService = require('./services/trendyol-api');
+      TrendyolAPIService.resetRateLimitCounters();
+    } catch (error) {
+      console.warn('⚠️ Trendyol API rate limit sıfırlama hatası:', error.message);
     }
   });
 }

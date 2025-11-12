@@ -68,8 +68,9 @@ class TrendyolAPIService {
     // Saatlik limit kontrolü
     if (requestCountInHour >= MAX_REQUESTS_PER_HOUR) {
       const waitTime = 3600000 - hourElapsed; // Saatin bitmesine kalan süre
-      console.log(`⏳ Saatlik limit aşıldı (${MAX_REQUESTS_PER_HOUR} istek). ${Math.ceil(waitTime / 1000)} saniye bekleniyor...`);
+      console.log(`⏳ Saatlik limit aşıldı (${MAX_REQUESTS_PER_HOUR} istek, mevcut: ${requestCountInHour}). ${Math.ceil(waitTime / 1000)} saniye bekleniyor...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
+      // Bekleme sonrası sayaçları sıfırla
       requestCountInHour = 0;
       hourStartTime = Date.now();
     }
@@ -77,8 +78,9 @@ class TrendyolAPIService {
     // Dakikalık limit kontrolü
     if (requestCountInMinute >= MAX_REQUESTS_PER_MINUTE) {
       const waitTime = 60000 - minuteElapsed; // Dakikanın bitmesine kalan süre
-      console.log(`⏳ Dakikalık limit aşıldı (${MAX_REQUESTS_PER_MINUTE} istek). ${Math.ceil(waitTime / 1000)} saniye bekleniyor...`);
+      console.log(`⏳ Dakikalık limit aşıldı (${MAX_REQUESTS_PER_MINUTE} istek, mevcut: ${requestCountInMinute}). ${Math.ceil(waitTime / 1000)} saniye bekleniyor...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
+      // Bekleme sonrası sayaçları sıfırla
       requestCountInMinute = 0;
       minuteStartTime = Date.now();
     }
@@ -98,6 +100,40 @@ class TrendyolAPIService {
     lastRequestTime = Date.now();
     requestCountInMinute++;
     requestCountInHour++;
+    
+    // Debug: Her 100 istekte bir sayaç durumunu logla (çok fazla log önlemek için)
+    if (requestCountInHour % 100 === 0) {
+      console.log(`📊 Rate Limit Durumu - Dakika: ${requestCountInMinute}/${MAX_REQUESTS_PER_MINUTE}, Saat: ${requestCountInHour}/${MAX_REQUESTS_PER_HOUR}`);
+    }
+  }
+  
+  /**
+   * Rate limiting sayaçlarını sıfırla (sunucu yeniden başlatıldığında veya manuel olarak)
+   */
+  static resetRateLimitCounters() {
+    requestCountInMinute = 0;
+    requestCountInHour = 0;
+    minuteStartTime = Date.now();
+    hourStartTime = Date.now();
+    lastRequestTime = 0;
+    console.log('🔄 Rate limit sayaçları sıfırlandı');
+  }
+  
+  /**
+   * Rate limiting durumunu al (debug için)
+   */
+  static getRateLimitStatus() {
+    return {
+      requestCountInMinute,
+      requestCountInHour,
+      minuteStartTime,
+      hourStartTime,
+      lastRequestTime,
+      minuteElapsed: Date.now() - minuteStartTime,
+      hourElapsed: Date.now() - hourStartTime,
+      maxRequestsPerMinute: MAX_REQUESTS_PER_MINUTE,
+      maxRequestsPerHour: MAX_REQUESTS_PER_HOUR
+    };
   }
 
   /**
@@ -716,12 +752,16 @@ class TrendyolAPIService {
           
           if (i < maxRetries - 1) {
             await new Promise(resolve => setTimeout(resolve, waitTime));
-            // Rate limit veya Cloudflare engellemesi geldiğinde sayacı sıfırla ve daha uzun bekle
-            requestCountInMinute = MAX_REQUESTS_PER_MINUTE;
-            requestCountInHour = MAX_REQUESTS_PER_HOUR;
-            lastRequestTime = Date.now() + waitTime;
+            // Rate limit veya Cloudflare engellemesi geldiğinde sadece zaman damgalarını güncelle
+            // Sayaçları MAX değerlerine set etme - bu limitin hemen aşılmasına neden olur!
+            // Bunun yerine, beklediğimiz süre kadar zaman damgasını ileri al
+            lastRequestTime = Date.now();
+            // Dakika ve saat başlangıç zamanlarını güncelle (sayaçlar otomatik sıfırlanacak)
             minuteStartTime = Date.now();
             hourStartTime = Date.now();
+            // Sayaçları sıfırla (yeni zaman dilimi başladı)
+            requestCountInMinute = 0;
+            requestCountInHour = 0;
             continue; // Tekrar dene
           }
         }
