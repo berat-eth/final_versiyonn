@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { 
-  Package, Loader2, RefreshCw, AlertCircle, Search, List, X, ExternalLink, Image as ImageIcon, Code, Copy, Check, Edit2, Save
+  Package, Loader2, RefreshCw, AlertCircle, Search, List, X, ExternalLink, Image as ImageIcon, Code, Copy, Check, Edit2, Save, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
@@ -38,6 +38,7 @@ export default function TrendyolProducts() {
   const [searchQuery, setSearchQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [filtersExpanded, setFiltersExpanded] = useState(true) // Filtreler başlangıçta açık
 
   useEffect(() => {
     loadTrendyolIntegration()
@@ -347,16 +348,38 @@ export default function TrendyolProducts() {
         </div>
 
         {/* Search and Filters */}
-        <div className="mb-6 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
-              <Search className="w-5 h-5 text-white" />
+        <div className="mb-6 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setFiltersExpanded(!filtersExpanded)}
+            className="w-full flex items-center justify-between p-6 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+                <Search className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Arama ve Filtreler</h3>
             </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Arama ve Filtreler</h3>
-          </div>
+            <div className="flex items-center gap-2">
+              {filtersExpanded ? (
+                <ChevronUp className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              )}
+            </div>
+          </button>
           
-          {/* Search Bar */}
-          <div className="mb-6">
+          <AnimatePresence>
+            {filtersExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
+                <div className="px-6 pb-6">
+                  {/* Search Bar */}
+                  <div className="mb-6">
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2.5">
               Ürün İsmi ile Ara
             </label>
@@ -446,6 +469,10 @@ export default function TrendyolProducts() {
               />
             </div>
           </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Products List */}
