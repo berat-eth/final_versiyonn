@@ -64,6 +64,10 @@ import MLInsights from '@/components/MLInsights'
 import Integrations from '@/components/Integrations'
 import TrendyolOrders from '@/components/TrendyolOrders'
 import TrendyolAuth from '@/components/TrendyolAuth'
+import TrendyolBrands from '@/components/TrendyolBrands'
+import TrendyolCategories from '@/components/TrendyolCategories'
+import TrendyolBatch from '@/components/TrendyolBatch'
+import TrendyolAddresses from '@/components/TrendyolAddresses'
 
 
 export default function DashboardPage() {
@@ -288,6 +292,10 @@ export default function DashboardPage() {
           {activeTab === 'integrations' && <Integrations />}
           {activeTab === 'trendyol-auth' && <TrendyolAuth />}
           {activeTab === 'trendyol-orders' && <TrendyolOrders />}
+          {activeTab === 'trendyol-brands' && <TrendyolBrands />}
+          {activeTab === 'trendyol-categories' && <TrendyolCategories />}
+          {activeTab === 'trendyol-batch' && <TrendyolBatch />}
+          {activeTab === 'trendyol-addresses' && <TrendyolAddresses />}
           {activeTab === 'invoices' && <Invoices />}
         </main>
       </div>

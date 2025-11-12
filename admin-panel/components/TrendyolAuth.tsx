@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { 
   Key, CheckCircle2, XCircle, AlertCircle,
   RefreshCw, Save, Eye, EyeOff, Loader2,
-  Package, ShoppingCart as ShoppingCartIcon
+  Package, ShoppingCart as ShoppingCartIcon, List
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
@@ -29,6 +29,25 @@ export default function TrendyolAuth() {
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'auth' | 'products'>('auth')
+  
+  // Ürün listesi state'leri
+  const [products, setProducts] = useState<any[]>([])
+  const [productsLoading, setProductsLoading] = useState(false)
+  const [productsError, setProductsError] = useState<string | null>(null)
+  const [productsPage, setProductsPage] = useState(0)
+  const [productsTotalPages, setProductsTotalPages] = useState(0)
+  const [productsTotalElements, setProductsTotalElements] = useState(0)
+  const [productsFilters, setProductsFilters] = useState({
+    approved: '',
+    onSale: '',
+    rejected: '',
+    blacklisted: '',
+    archived: '',
+    barcode: '',
+    stockCode: '',
+    productMainId: ''
+  })
 
   const [trendyolForm, setTrendyolForm] = useState({
     apiKey: '',
@@ -39,6 +58,72 @@ export default function TrendyolAuth() {
   useEffect(() => {
     loadIntegrations()
   }, [])
+
+  // Ürün listesi yükleme fonksiyonu
+  const loadProducts = async () => {
+    if (!trendyolIntegration?.id) return
+    
+    setProductsLoading(true)
+    setProductsError(null)
+    
+    try {
+      const params: Record<string, string> = {
+        integrationId: trendyolIntegration.id.toString(),
+        page: productsPage.toString(),
+        size: '10'
+      }
+      
+      if (productsFilters.approved !== '') {
+        params.approved = productsFilters.approved
+      }
+      if (productsFilters.onSale !== '') {
+        params.onSale = productsFilters.onSale
+      }
+      if (productsFilters.rejected !== '') {
+        params.rejected = productsFilters.rejected
+      }
+      if (productsFilters.blacklisted !== '') {
+        params.blacklisted = productsFilters.blacklisted
+      }
+      if (productsFilters.archived !== '') {
+        params.archived = productsFilters.archived
+      }
+      if (productsFilters.barcode) {
+        params.barcode = productsFilters.barcode
+      }
+      if (productsFilters.stockCode) {
+        params.stockCode = productsFilters.stockCode
+      }
+      if (productsFilters.productMainId) {
+        params.productMainId = productsFilters.productMainId
+      }
+      
+      const response = await api.get<ApiResponse<any>>('/admin/trendyol/products', params)
+      
+      if (response.success && response.data) {
+        setProducts(response.data.content || [])
+        setProductsTotalPages(response.data.totalPages || 0)
+        setProductsTotalElements(response.data.totalElements || 0)
+      } else {
+        setProductsError(response.message || 'Ürünler yüklenemedi')
+      }
+    } catch (err: any) {
+      setProductsError('Ürünler yüklenemedi: ' + (err.message || 'Bilinmeyen hata'))
+    } finally {
+      setProductsLoading(false)
+    }
+  }
+
+  // Filtre veya sayfa değiştiğinde ürünleri yükle
+  useEffect(() => {
+    if (activeTab === 'products' && trendyolIntegration?.id) {
+      const timeoutId = setTimeout(() => {
+        loadProducts()
+      }, 500)
+      return () => clearTimeout(timeoutId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, trendyolIntegration?.id, productsPage, productsFilters])
 
   const loadIntegrations = async () => {
     try {
@@ -398,6 +483,230 @@ export default function TrendyolAuth() {
             </div>
           </div>
         </motion.div>
+
+        {/* Tab Navigation */}
+        <div className="mt-6 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex gap-4">
+            <button
+              onClick={() => setActiveTab('auth')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'auth'
+                  ? 'border-orange-600 text-orange-600 dark:text-orange-400'
+                  : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Key className="w-4 h-4 inline mr-2" />
+              API Ayarları
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('products')
+                if (trendyolIntegration?.id) {
+                  loadProducts()
+                }
+              }}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'products'
+                  ? 'border-orange-600 text-orange-600 dark:text-orange-400'
+                  : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <List className="w-4 h-4 inline mr-2" />
+              Ürün Listesi
+            </button>
+          </div>
+        </div>
+
+        {/* Products Tab */}
+        {activeTab === 'products' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6"
+          >
+            {!trendyolIntegration?.id ? (
+              <div className="text-center py-8">
+                <AlertCircle className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                <p className="text-slate-600 dark:text-slate-400">
+                  Önce Trendyol entegrasyonunu yapılandırın
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Filters */}
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Onay Durumu
+                    </label>
+                    <select
+                      value={productsFilters.approved}
+                      onChange={(e) => {
+                        setProductsFilters({ ...productsFilters, approved: e.target.value })
+                        setProductsPage(0)
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    >
+                      <option value="">Tümü</option>
+                      <option value="true">Onaylı</option>
+                      <option value="false">Onaysız</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Satışta
+                    </label>
+                    <select
+                      value={productsFilters.onSale}
+                      onChange={(e) => {
+                        setProductsFilters({ ...productsFilters, onSale: e.target.value })
+                        setProductsPage(0)
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    >
+                      <option value="">Tümü</option>
+                      <option value="true">Evet</option>
+                      <option value="false">Hayır</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Barcode
+                    </label>
+                    <input
+                      type="text"
+                      value={productsFilters.barcode}
+                      onChange={(e) => {
+                        setProductsFilters({ ...productsFilters, barcode: e.target.value })
+                        setProductsPage(0)
+                      }}
+                      placeholder="Barcode ara..."
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Stock Code
+                    </label>
+                    <input
+                      type="text"
+                      value={productsFilters.stockCode}
+                      onChange={(e) => {
+                        setProductsFilters({ ...productsFilters, stockCode: e.target.value })
+                        setProductsPage(0)
+                      }}
+                      placeholder="Stock code ara..."
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Products List */}
+                {productsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-orange-600" />
+                  </div>
+                ) : productsError ? (
+                  <div className="text-center py-8 text-red-600 dark:text-red-400">
+                    {productsError}
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-4 flex items-center justify-between">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        Toplam {productsTotalElements} ürün bulundu
+                      </p>
+                      <button
+                        onClick={loadProducts}
+                        className="px-3 py-1 text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-2"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Yenile
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                      {products.length === 0 ? (
+                        <div className="text-center py-8 text-slate-500">
+                          Ürün bulunamadı
+                        </div>
+                      ) : (
+                        products.map((product, index) => (
+                          <div
+                            key={product.id || index}
+                            className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/50"
+                          >
+                            <div className="flex items-start gap-4">
+                              {product.images && product.images.length > 0 && (
+                                <img
+                                  src={product.images[0].url}
+                                  alt={product.title}
+                                  className="w-16 h-16 object-cover rounded border border-slate-200 dark:border-slate-700"
+                                />
+                              )}
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-slate-900 dark:text-white mb-1">
+                                  {product.title}
+                                </h4>
+                                <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
+                                  <span>Barcode: <strong>{product.barcode}</strong></span>
+                                  {product.stockCode && (
+                                    <span>Stock Code: <strong>{product.stockCode}</strong></span>
+                                  )}
+                                  <span>Stok: <strong>{product.quantity || 0}</strong></span>
+                                  <span className={`px-2 py-0.5 rounded text-xs ${
+                                    product.approved
+                                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                  }`}>
+                                    {product.approved ? 'Onaylı' : 'Onaysız'}
+                                  </span>
+                                </div>
+                                <div className="mt-2 text-sm">
+                                  <span className="text-slate-600 dark:text-slate-400">
+                                    Liste Fiyatı: <strong className="text-slate-900 dark:text-white">{product.listPrice?.toFixed(2) || '0.00'} TRY</strong>
+                                  </span>
+                                  {product.salePrice && product.salePrice !== product.listPrice && (
+                                    <span className="ml-4 text-orange-600 dark:text-orange-400 font-semibold">
+                                      Satış Fiyatı: {product.salePrice.toFixed(2)} TRY
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Pagination */}
+                    {productsTotalPages > 1 && (
+                      <div className="mt-6 flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => setProductsPage(p => Math.max(0, p - 1))}
+                          disabled={productsPage === 0 || productsLoading}
+                          className="px-3 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+                        >
+                          Önceki
+                        </button>
+                        <span className="text-sm text-slate-600 dark:text-slate-400">
+                          Sayfa {productsPage + 1} / {productsTotalPages}
+                        </span>
+                        <button
+                          onClick={() => setProductsPage(p => p + 1)}
+                          disabled={productsPage >= productsTotalPages - 1 || productsLoading}
+                          className="px-3 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+                        >
+                          Sonraki
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </motion.div>
+        )}
       </div>
     </div>
   )

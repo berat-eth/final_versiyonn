@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatDDMMYYYY } from '@/lib/date'
-import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield, UploadCloud, Activity, ToggleLeft, ToggleRight, CheckSquare, Square } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield, UploadCloud, Activity, ToggleLeft, ToggleRight, CheckSquare, Square, Upload } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { productService } from '@/lib/services'
 import type { Product } from '@/lib/api'
@@ -40,6 +40,9 @@ export default function Products() {
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [statusToggleLoading, setStatusToggleLoading] = useState<Record<number, boolean>>({})
+  const [trendyolIntegration, setTrendyolIntegration] = useState<any>(null)
+  const [transferringProducts, setTransferringProducts] = useState<Record<number, boolean>>({})
+  const [transferMessages, setTransferMessages] = useState<Record<number, { type: 'success' | 'error'; message: string }>>({})
 
   const categories = ['Tümü', 'Kamp Malzemeleri', 'Outdoor Giyim', 'Ayakkabı', 'Aksesuar']
 
@@ -88,7 +91,84 @@ export default function Products() {
 
   useEffect(() => {
     fetchProducts(currentPage)
+    loadTrendyolIntegration()
   }, [currentPage])
+
+  // Trendyol entegrasyonunu yükle
+  const loadTrendyolIntegration = async () => {
+    try {
+      const response = await api.get<any>('/admin/integrations')
+      if (response.success && response.data) {
+        const trendyol = response.data.find((i: any) => i.provider === 'Trendyol' && i.type === 'marketplace')
+        setTrendyolIntegration(trendyol)
+      }
+    } catch (err: any) {
+      console.error('Trendyol entegrasyonu yüklenemedi:', err)
+    }
+  }
+
+  // Ürünü Trendyol'a aktar
+  const transferToTrendyol = async (productId: number) => {
+    if (!trendyolIntegration?.id) {
+      setTransferMessages(prev => ({
+        ...prev,
+        [productId]: { type: 'error', message: 'Trendyol entegrasyonu bulunamadı' }
+      }))
+      setTimeout(() => {
+        setTransferMessages(prev => {
+          const newMessages = { ...prev }
+          delete newMessages[productId]
+          return newMessages
+        })
+      }, 5000)
+      return
+    }
+
+    setTransferringProducts(prev => ({ ...prev, [productId]: true }))
+    setTransferMessages(prev => {
+      const newMessages = { ...prev }
+      delete newMessages[productId]
+      return newMessages
+    })
+
+    try {
+      const response = await api.post<any>('/admin/trendyol/transfer-product', {
+        integrationId: trendyolIntegration.id,
+        productId: productId
+      })
+
+      if (response.success) {
+        setTransferMessages(prev => ({
+          ...prev,
+          [productId]: { type: 'success', message: 'Trendyol\'a aktarıldı' }
+        }))
+      } else {
+        setTransferMessages(prev => ({
+          ...prev,
+          [productId]: { type: 'error', message: response.message || 'Aktarım başarısız' }
+        }))
+      }
+    } catch (err: any) {
+      setTransferMessages(prev => ({
+        ...prev,
+        [productId]: { type: 'error', message: err.message || 'Aktarım hatası' }
+      }))
+    } finally {
+      setTransferringProducts(prev => {
+        const newProducts = { ...prev }
+        delete newProducts[productId]
+        return newProducts
+      })
+      // Mesajı 5 saniye sonra temizle
+      setTimeout(() => {
+        setTransferMessages(prev => {
+          const newMessages = { ...prev }
+          delete newMessages[productId]
+          return newMessages
+        })
+      }, 5000)
+    }
+  }
 
   // Sync status fetcher
   const fetchSyncStatus = async () => {
@@ -1014,6 +1094,27 @@ export default function Products() {
                         </button>
                         <button onClick={() => openEdit(product)} className="p-2 hover:bg-blue-50 rounded-lg" title="Güncelle">
                           <Edit className="w-4 h-4 text-blue-600" />
+                        </button>
+                        <button 
+                          onClick={() => transferToTrendyol(product.id)}
+                          disabled={transferringProducts[product.id] || !trendyolIntegration}
+                          className="p-2 hover:bg-orange-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed relative" 
+                          title={trendyolIntegration ? "Trendyol'a Aktar" : "Trendyol entegrasyonu gerekli"}
+                        >
+                          {transferringProducts[product.id] ? (
+                            <RefreshCw className="w-4 h-4 text-orange-600 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 text-orange-600" />
+                          )}
+                          {transferMessages[product.id] && (
+                            <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs rounded whitespace-nowrap z-10 ${
+                              transferMessages[product.id].type === 'success' 
+                                ? 'bg-green-100 text-green-700 border border-green-300' 
+                                : 'bg-red-100 text-red-700 border border-red-300'
+                            }`}>
+                              {transferMessages[product.id].message}
+                            </div>
+                          )}
                         </button>
                         <button 
                           onClick={() => deleteProduct(product.id, product.name)} 

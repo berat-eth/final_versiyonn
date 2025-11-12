@@ -5,6 +5,7 @@ const https = require('https');
 const zlib = require('zlib');
 
 const TRENDYOL_API_BASE_URL = 'https://api.trendyol.com/sapigw/suppliers';
+const TRENDYOL_PRODUCT_API_BASE_URL = 'https://apigw.trendyol.com/integration/product';
 
 // Rate limiting için son istek zamanını takip et
 // Trendyol API Servis Limitleri: https://developers.trendyol.com/docs/trendyol-servis-limitleri
@@ -14,12 +15,19 @@ let requestCountInHour = 0;
 let minuteStartTime = Date.now();
 let hourStartTime = Date.now();
 
-// Trendyol API Servis Limitleri (resmi dokümantasyona göre)
+// Trendyol API Servis Limitleri (Canlı Ortam Limitleri)
+// Ürün Aktarma: 1000 req/min
+// Ürün Güncelleme: 1000 req/min
+// Stok ve Fiyat Güncelleme: NO LIMIT
+// Ürün Filtreleme: 2000 req/min
+// TY Marka Listesi: 50 req/min
+// TY Kategori Listesi: 50 req/min
+// Ürün Silme: 100 req/min
 // Güvenli limitler: Resmi limitlerin %80'i (429 hatası önleme için)
-const MIN_REQUEST_INTERVAL = 150; // İstekler arası minimum bekleme süresi (ms) - 150ms = ~6.6 istek/saniye (güvenli)
-const MAX_REQUESTS_PER_SECOND = 8; // Saniyede maksimum istek sayısı (güvenli limit)
-const MAX_REQUESTS_PER_MINUTE = 480; // Dakikada maksimum istek sayısı (güvenli limit: 600'ün %80'i)
-const MAX_REQUESTS_PER_HOUR = 28800; // Saatte maksimum istek sayısı (güvenli limit: 36000'ün %80'i)
+const MIN_REQUEST_INTERVAL = 60; // İstekler arası minimum bekleme süresi (ms) - 60ms = ~16.6 istek/saniye (1000 req/min için güvenli)
+const MAX_REQUESTS_PER_SECOND = 16; // Saniyede maksimum istek sayısı (güvenli limit)
+const MAX_REQUESTS_PER_MINUTE = 800; // Dakikada maksimum istek sayısı (güvenli limit: 1000'ün %80'i)
+const MAX_REQUESTS_PER_HOUR = 48000; // Saatte maksimum istek sayısı (güvenli limit)
 
 // Cache mekanizması - sipariş detaylarını cache'le
 const orderDetailCache = new Map();
@@ -836,13 +844,209 @@ class TrendyolAPIService {
   }
 
   /**
-   * Trendyol'dan ürün listesini çek (Ürün Filtreleme API)
+   * Trendyol'dan ürün listesini çek (Yeni Ürün Filtreleme API - filterProducts)
+   * @param {string} sellerId - Trendyol Seller ID (supplierId ile aynı olabilir)
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {object} options - Query options (page, size, approved, barcode, stockCode, startDate, endDate, dateQueryType, archived, productMainId, onSale, rejected, blacklisted, brandIds)
+   * @returns {Promise<object>} Ürün listesi
+   * @see https://developers.trendyol.com/docs/marketplace/urun-entegrasyonu/urun-filtreleme
+   */
+  static async filterProducts(sellerId, apiKey, apiSecret, options = {}) {
+    try {
+      const {
+        page = 0,
+        size = 10,
+        approved = null,
+        barcode = null,
+        stockCode = null,
+        startDate = null,
+        endDate = null,
+        dateQueryType = null, // CREATED_DATE veya LAST_MODIFIED_DATE
+        archived = null,
+        productMainId = null,
+        onSale = null,
+        rejected = null,
+        blacklisted = null,
+        brandIds = null, // array
+        supplierId = null
+      } = options;
+
+      // Yeni Ürün Filtreleme API endpoint'i
+      const endpoint = `/sellers/${sellerId}/products`;
+
+      const queryParams = {
+        page,
+        size
+      };
+
+      // Filtreleme parametreleri
+      if (approved !== null && approved !== undefined) {
+        queryParams.approved = approved;
+      }
+      if (barcode) {
+        queryParams.barcode = barcode;
+      }
+      if (stockCode) {
+        queryParams.stockCode = stockCode;
+      }
+      if (startDate) {
+        queryParams.startDate = startDate;
+      }
+      if (endDate) {
+        queryParams.endDate = endDate;
+      }
+      if (dateQueryType) {
+        queryParams.dateQueryType = dateQueryType;
+      }
+      if (archived !== null && archived !== undefined) {
+        queryParams.archived = archived;
+      }
+      if (productMainId) {
+        queryParams.productMainId = productMainId;
+      }
+      if (onSale !== null && onSale !== undefined) {
+        queryParams.onSale = onSale;
+      }
+      if (rejected !== null && rejected !== undefined) {
+        queryParams.rejected = rejected;
+      }
+      if (blacklisted !== null && blacklisted !== undefined) {
+        queryParams.blacklisted = blacklisted;
+      }
+      if (brandIds && Array.isArray(brandIds) && brandIds.length > 0) {
+        // brandIds array olarak gönderilmeli
+        queryParams.brandIds = brandIds.join(',');
+      }
+      if (supplierId) {
+        queryParams.supplierId = supplierId;
+      }
+      
+      // Cache kontrolü
+      const cacheKey = `${sellerId}_filterProducts_${JSON.stringify(queryParams)}`;
+      if (productListCache.has(cacheKey)) {
+        const cached = productListCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < PRODUCT_LIST_CACHE_TTL) {
+          console.log('📦 Ürün listesi (filterProducts) cache\'den döndürüldü');
+          return cached.data;
+        } else {
+          productListCache.delete(cacheKey);
+        }
+      }
+      
+      // Yeni API base URL kullan (PROD: apigw.trendyol.com)
+      const url = `${TRENDYOL_PRODUCT_API_BASE_URL}${endpoint}`;
+      const queryString = Object.keys(queryParams)
+        .filter(key => queryParams[key] !== null && queryParams[key] !== undefined)
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(queryParams[key])}`)
+        .join('&');
+      const fullUrl = queryString ? `${url}?${queryString}` : url;
+
+      const urlObj = new URL(fullUrl);
+      
+      // Rate limiting kontrolü (ürün filtreleme: 2000 req/min)
+      await this.waitForRateLimit(endpoint);
+      
+      // User-Agent
+      const userAgent = sellerId ? `${sellerId} - SelfIntegration` : 'SelfIntegration';
+      
+      const headers = {
+        'Authorization': this.createAuthHeader(apiKey, apiSecret),
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+        'User-Agent': userAgent,
+        'Content-Type': 'application/json'
+      };
+      
+      const options_https = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname + urlObj.search,
+        method: 'GET',
+        headers: headers
+      };
+
+      const response = await new Promise((resolve, reject) => {
+        const req = https.request(options_https, (res) => {
+          let responseData = '';
+          
+          const contentEncoding = res.headers['content-encoding'];
+          let responseStream = res;
+          
+          if (contentEncoding === 'gzip') {
+            responseStream = res.pipe(zlib.createGunzip());
+          } else if (contentEncoding === 'deflate') {
+            responseStream = res.pipe(zlib.createInflate());
+          }
+
+          responseStream.on('data', (chunk) => {
+            responseData += chunk.toString('utf8');
+          });
+          
+          responseStream.on('end', () => {
+            try {
+              const jsonData = responseData ? JSON.parse(responseData) : {};
+              
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                resolve({
+                  success: true,
+                  data: jsonData,
+                  statusCode: res.statusCode
+                });
+              } else {
+                reject({
+                  success: false,
+                  error: jsonData.message || jsonData.error || 'API request failed',
+                  statusCode: res.statusCode,
+                  data: jsonData
+                });
+              }
+            } catch (error) {
+              reject({
+                success: false,
+                error: 'Invalid JSON response',
+                statusCode: res.statusCode,
+                rawResponse: responseData.substring(0, 2000)
+              });
+            }
+          });
+        });
+
+        req.on('error', (error) => {
+          reject({
+            success: false,
+            error: error.message || 'Network error',
+            statusCode: 0
+          });
+        });
+
+        req.end();
+      });
+      
+      // Cache'e kaydet (başarılı ise)
+      if (response.success) {
+        productListCache.set(cacheKey, {
+          data: response,
+          timestamp: Date.now()
+        });
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API filterProducts error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol'dan ürün listesini çek (Eski Ürün Filtreleme API - deprecated, filterProducts kullanılmalı)
    * @param {string} supplierId - Trendyol Supplier ID
    * @param {string} apiKey - Trendyol API Key
    * @param {string} apiSecret - Trendyol API Secret
    * @param {object} options - Query options (page, size, approved, barcode, stockCode, startDate, endDate, supplierId, categoryId, brandId, etc.)
    * @returns {Promise<object>} Ürün listesi
    * @see https://developers.trendyol.com/docs/marketplace/urun-entegrasyonu/urun-filtreleme
+   * @deprecated filterProducts kullanılmalı
    */
   static async getProducts(supplierId, apiKey, apiSecret, options = {}) {
     try {
@@ -989,6 +1193,237 @@ class TrendyolAPIService {
       return response;
     } catch (error) {
       console.error('❌ Trendyol API updateProduct error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol Marka Listesi
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @returns {Promise<object>} Marka listesi
+   * Rate Limit: 50 req/min
+   */
+  static async getBrands(supplierId, apiKey, apiSecret) {
+    try {
+      const endpoint = `/${supplierId}/brands`;
+      
+      // Rate limiting kontrolü (50 req/min için özel)
+      await this.waitForRateLimit(endpoint);
+      
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId),
+        3,
+        2000
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API getBrands error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol Kategori Ağacı
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @returns {Promise<object>} Kategori ağacı
+   * Rate Limit: 50 req/min
+   */
+  static async getCategoryTree(supplierId, apiKey, apiSecret) {
+    try {
+      const endpoint = `/${supplierId}/categories`;
+      
+      // Rate limiting kontrolü (50 req/min için özel)
+      await this.waitForRateLimit(endpoint);
+      
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId),
+        3,
+        2000
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API getCategoryTree error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol Kategori Özellikleri
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {number} categoryId - Kategori ID
+   * @returns {Promise<object>} Kategori özellikleri
+   * Rate Limit: 50 req/min
+   */
+  static async getCategoryAttributes(supplierId, apiKey, apiSecret, categoryId) {
+    try {
+      const endpoint = `/${supplierId}/category-attributes`;
+      
+      const queryParams = {
+        categoryId: categoryId
+      };
+      
+      // Rate limiting kontrolü (50 req/min için özel)
+      await this.waitForRateLimit(endpoint);
+      
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId),
+        3,
+        2000
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API getCategoryAttributes error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol Stok ve Fiyat Güncelleme
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {Array<object>} items - Güncellenecek ürünler (barcode, quantity, salePrice, listPrice)
+   * @returns {Promise<object>} API response
+   * Rate Limit: NO LIMIT
+   */
+  static async updatePriceAndInventory(supplierId, apiKey, apiSecret, items) {
+    try {
+      const endpoint = `/${supplierId}/products/price-and-inventory`;
+      
+      // Rate limiting kontrolü (NO LIMIT ama yine de güvenli bekleme)
+      await this.waitForRateLimit(endpoint);
+      
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('POST', endpoint, apiKey, apiSecret, { items }, {}, supplierId),
+        3,
+        1000 // NO LIMIT olduğu için daha kısa delay
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API updatePriceAndInventory error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol Ürün Silme
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {string} barcode - Silinecek ürünün barcode'u
+   * @returns {Promise<object>} API response
+   * Rate Limit: 100 req/min
+   */
+  static async deleteProduct(supplierId, apiKey, apiSecret, barcode) {
+    try {
+      const endpoint = `/${supplierId}/products/${barcode}`;
+      
+      // Rate limiting kontrolü (100 req/min için özel)
+      await this.waitForRateLimit(endpoint);
+      
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('DELETE', endpoint, apiKey, apiSecret, null, {}, supplierId),
+        3,
+        2000
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API deleteProduct error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol Toplu İşlem Kontrolü
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {string} batchRequestId - Batch request ID
+   * @returns {Promise<object>} Batch işlem sonucu
+   * Rate Limit: 1000 req/min
+   */
+  static async getBatchRequestResult(supplierId, apiKey, apiSecret, batchRequestId) {
+    try {
+      const endpoint = `/${supplierId}/batch-requests/${batchRequestId}`;
+      
+      // Rate limiting kontrolü
+      await this.waitForRateLimit(endpoint);
+      
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId),
+        3,
+        2000
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API getBatchRequestResult error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol İade ve Sevkiyat Adres Bilgileri
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @returns {Promise<object>} Adres bilgileri
+   * Rate Limit: 1 req/hour
+   */
+  static async getSuppliersAddresses(supplierId, apiKey, apiSecret) {
+    try {
+      const endpoint = `/${supplierId}/addresses`;
+      
+      // Rate limiting kontrolü (1 req/hour - çok dikkatli olmalı)
+      await this.waitForRateLimit(endpoint);
+      
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId),
+        1, // Sadece 1 retry (çünkü 1 req/hour limiti var)
+        60000 // 1 dakika delay
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API getSuppliersAddresses error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol Kargo Şirketleri Listesi
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @returns {Promise<object>} Kargo şirketleri listesi
+   */
+  static async getProviders(supplierId, apiKey, apiSecret) {
+    try {
+      const endpoint = `/${supplierId}/providers`;
+      
+      // Rate limiting kontrolü
+      await this.waitForRateLimit(endpoint);
+      
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId),
+        3,
+        2000
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API getProviders error:', error);
       throw error;
     }
   }
