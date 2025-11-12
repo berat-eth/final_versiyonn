@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain, Briefcase, Map, Search, SquareStack, Eye, Link2, Receipt } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain, Briefcase, Map, Search, SquareStack, Eye, Link2, Receipt, Key } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface SidebarProps {
@@ -139,10 +139,11 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
     },
 
     {
-      title: 'Entegrasyonlar',
+      title: 'Trendyol',
       items: [
-        { id: 'integrations', label: 'Entegrasyonlar', icon: Link2 },
+        { id: 'trendyol-auth', label: 'Trendyol Auth', icon: Key },
         { id: 'trendyol-orders', label: 'Trendyol Siparişleri', icon: ShoppingCart },
+        { id: 'trendyol-product-transfer', label: 'Ürün Transferi', icon: Package },
       ]
     },
     {

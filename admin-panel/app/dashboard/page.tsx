@@ -63,6 +63,8 @@ import Analytics from '@/components/Analytics'
 import MLInsights from '@/components/MLInsights'
 import Integrations from '@/components/Integrations'
 import TrendyolOrders from '@/components/TrendyolOrders'
+import TrendyolAuth from '@/components/TrendyolAuth'
+import TrendyolProductTransfer from '@/components/TrendyolProductTransfer'
 
 
 export default function DashboardPage() {
@@ -285,7 +287,9 @@ export default function DashboardPage() {
           {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
           {activeTab === 'seo' && <SEO />}
           {activeTab === 'integrations' && <Integrations />}
+          {activeTab === 'trendyol-auth' && <TrendyolAuth />}
           {activeTab === 'trendyol-orders' && <TrendyolOrders />}
+          {activeTab === 'trendyol-product-transfer' && <TrendyolProductTransfer />}
           {activeTab === 'invoices' && <Invoices />}
         </main>
       </div>

@@ -11455,12 +11455,186 @@ app.put('/api/orders/:id/cancel', requireUserOwnership('order', 'params'), async
   }
 });
 
+// Admin - Trendyol ürün transferi
+app.post('/api/admin/trendyol/transfer-products', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { integrationId, productIds } = req.body || {};
+    
+    if (!integrationId || !productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Integration ID ve Product IDs gereklidir' 
+      });
+    }
+    
+    // Trendyol entegrasyonunu al
+    const [integrations] = await poolWrapper.execute(
+      'SELECT * FROM integrations WHERE id = ? AND tenantId = ? AND provider = ?',
+      [integrationId, tenantId, 'Trendyol']
+    );
+    
+    if (integrations.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Trendyol entegrasyonu bulunamadı' 
+      });
+    }
+    
+    const integration = integrations[0];
+    const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+    const supplierId = config.supplierId;
+    
+    if (!supplierId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Supplier ID bulunamadı. Lütfen Trendyol Auth sayfasından Supplier ID\'yi girin.' 
+      });
+    }
+    
+    // API Key ve Secret'ı temizle
+    let cleanApiKey = String(integration.apiKey || '').trim();
+    let cleanApiSecret = String(integration.apiSecret || '').trim();
+    cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+    cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
+    
+    if (!cleanApiKey || !cleanApiSecret) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'API Key veya API Secret boş' 
+      });
+    }
+    
+    // Ürünleri veritabanından çek
+    const placeholders = productIds.map(() => '?').join(',');
+    const [products] = await poolWrapper.execute(
+      `SELECT id, name, description, price, category, image, images, stock, brand, sku, hasVariations, taxRate, priceIncludesTax
+       FROM products 
+       WHERE id IN (${placeholders}) AND tenantId = ?`,
+      [...productIds, tenantId]
+    );
+    
+    if (products.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Seçilen ürünler bulunamadı' 
+      });
+    }
+    
+    const TrendyolAPIService = require('./services/trendyol-api');
+    const results = [];
+    
+    // Her ürünü Trendyol formatına çevir ve gönder
+    for (const product of products) {
+      try {
+        // Trendyol ürün formatına çevir
+        // NOT: Trendyol API'si için gerekli tüm alanları doldurmalıyız
+        // Bu basit bir örnek, gerçek implementasyonda Trendyol'un tüm gereksinimlerini karşılamalıyız
+        const images = product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images) : [];
+        const productImages = [
+          product.image,
+          product.image1,
+          product.image2,
+          product.image3,
+          product.image4,
+          product.image5,
+          ...(Array.isArray(images) ? images : [])
+        ].filter(Boolean).slice(0, 10); // Trendyol max 10 resim
+        
+        // Trendyol ürün formatı (basit versiyon - gerçek implementasyonda tüm alanlar gerekli)
+        const trendyolProduct = {
+          barcode: product.sku || `SKU-${product.id}`, // Barcode zorunlu
+          title: product.name,
+          productMainId: product.sku || `SKU-${product.id}`,
+          brandId: null, // Trendyol'dan alınmalı
+          categoryId: null, // Trendyol kategorisi ID'si gerekli
+          quantity: product.stock || 0,
+          stockCode: product.sku || `SKU-${product.id}`,
+          dimensionalWeight: null,
+          description: product.description || product.name,
+          currencyType: 'TRY',
+          listPrice: parseFloat(product.price) || 0,
+          salePrice: parseFloat(product.price) || 0,
+          images: productImages.map(img => ({ url: img })),
+          vatRate: product.taxRate ? Math.round(product.taxRate) : 18, // Trendyol'da genelde 18
+          cargoCompanyId: null, // Kargo şirketi ID'si
+          deliveryOption: {
+            deliveryDuration: 1,
+            fastDeliveryType: ''
+          }
+        };
+        
+        // Ürünü Trendyol'a gönder
+        const response = await TrendyolAPIService.createProduct(
+          supplierId,
+          cleanApiKey,
+          cleanApiSecret,
+          trendyolProduct
+        );
+        
+        if (response.success) {
+          results.push({
+            productId: product.id,
+            productName: product.name,
+            success: true,
+            message: 'Başarıyla aktarıldı',
+            trendyolProductId: response.data?.batchRequestId || response.data?.id
+          });
+        } else {
+          results.push({
+            productId: product.id,
+            productName: product.name,
+            success: false,
+            message: response.error || 'Aktarım başarısız'
+          });
+        }
+        
+        // Rate limiting için bekleme (her ürün arasında)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (error) {
+        console.error(`❌ Ürün transferi hatası (ID: ${product.id}):`, error);
+        results.push({
+          productId: product.id,
+          productName: product.name,
+          success: false,
+          message: error.error || error.message || 'Aktarım sırasında hata oluştu'
+        });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+    
+    res.json({
+      success: true,
+      data: results,
+      message: `${successCount} ürün başarıyla aktarıldı${failCount > 0 ? `, ${failCount} ürün başarısız` : ''}`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error transferring products to Trendyol:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.error || error.message || 'Ürün transferi başarısız' 
+    });
+  }
+});
+
 // Admin - Get all products (for admin panel)
 app.get('/api/admin/products', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.tenant?.id || 1;
+    const { limit = 100 } = req.query;
+    
     // Optimize: Admin için gerekli column'lar
     const [rows] = await poolWrapper.execute(
-      'SELECT id, name, price, image, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId FROM products ORDER BY lastUpdated DESC'
+      `SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId 
+       FROM products 
+       WHERE tenantId = ?
+       ORDER BY lastUpdated DESC
+       LIMIT ?`,
+      [tenantId, parseInt(limit)]
     );
 
     // Clean HTML entities from all products

@@ -538,6 +538,58 @@ class TrendyolAPIService {
     }
     throw lastError;
   }
+
+  /**
+   * Trendyol'a ürün aktar (v2 API)
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {object} productData - Ürün verisi (Trendyol formatında)
+   * @returns {Promise<object>} API response
+   */
+  static async createProduct(supplierId, apiKey, apiSecret, productData) {
+    try {
+      const endpoint = `/${supplierId}/v2/products`;
+      
+      // Rate limiting için retry mekanizması ile istek gönder
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('POST', endpoint, apiKey, apiSecret, productData, {}, supplierId),
+        3, // maxRetries
+        2000 // initial delay (2 saniye)
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API createProduct error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trendyol'a toplu ürün aktar (v2 API)
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {Array<object>} productsData - Ürün verileri dizisi (Trendyol formatında)
+   * @returns {Promise<object>} API response
+   */
+  static async createProductsBatch(supplierId, apiKey, apiSecret, productsData) {
+    try {
+      const endpoint = `/${supplierId}/v2/products`;
+      
+      // Rate limiting için retry mekanizması ile istek gönder
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('POST', endpoint, apiKey, apiSecret, productsData, {}, supplierId),
+        3, // maxRetries
+        2000 // initial delay (2 saniye)
+      );
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Trendyol API createProductsBatch error:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = TrendyolAPIService;
