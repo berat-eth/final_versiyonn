@@ -7535,6 +7535,7 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                 version: product.version !== undefined ? product.version : 1,
                 createDateTime: nullify(product.createDateTime),
                 lastUpdateDate: nullify(product.lastUpdateDate),
+                batchRequestId: nullify(product.batchRequestId),
                 fullProductData: JSON.stringify(product)
               };
               
@@ -7558,7 +7559,7 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                     hasHtmlContent = ?, description = ?, gender = ?, color = ?, size = ?,
                     supplierId = ?, images = ?, attributes = ?, deliveryOption = ?,
                     locationBasedDelivery = ?, lotNumber = ?, productUrl = ?,
-                    version = ?, createDateTime = ?, lastUpdateDate = ?,
+                    version = ?, createDateTime = ?, lastUpdateDate = ?, batchRequestId = ?,
                     fullProductData = ?, syncedAt = CURRENT_TIMESTAMP
                   WHERE tenantId = ? AND barcode = ?`,
                   [
@@ -7572,7 +7573,7 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                     productData.hasHtmlContent, productData.description, productData.gender, productData.color, productData.size,
                     productData.supplierId, productData.images, productData.attributes, productData.deliveryOption,
                     productData.locationBasedDelivery, productData.lotNumber, productData.productUrl,
-                    productData.version, productData.createDateTime, productData.lastUpdateDate,
+                    productData.version, productData.createDateTime, productData.lastUpdateDate, productData.batchRequestId,
                     productData.fullProductData, tenantId, product.barcode
                   ]
                 );
@@ -7591,8 +7592,8 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                     hasHtmlContent, description, gender, color, size,
                     supplierId, images, attributes, deliveryOption,
                     locationBasedDelivery, lotNumber, productUrl,
-                    version, createDateTime, lastUpdateDate, fullProductData
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    version, createDateTime, lastUpdateDate, batchRequestId, fullProductData
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   [
                     productData.tenantId, productData.integrationId, productData.trendyolId, productData.barcode, productData.title, productData.productMainId,
                     productData.productCode, productData.productContentId, productData.platformListingId, productData.stockId,
@@ -7604,7 +7605,7 @@ app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res
                     productData.hasHtmlContent, productData.description, productData.gender, productData.color, productData.size,
                     productData.supplierId, productData.images, productData.attributes, productData.deliveryOption,
                     productData.locationBasedDelivery, productData.lotNumber, productData.productUrl,
-                    productData.version, productData.createDateTime, productData.lastUpdateDate, productData.fullProductData
+                    productData.version, productData.createDateTime, productData.lastUpdateDate, productData.batchRequestId, productData.fullProductData
                   ]
                 );
                 totalCreated++;
