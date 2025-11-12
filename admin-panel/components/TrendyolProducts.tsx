@@ -23,6 +23,8 @@ export default function TrendyolProducts() {
   const [editForm, setEditForm] = useState<{ quantity?: number; listPrice?: number; salePrice?: number }>({})
   const [updating, setUpdating] = useState(false)
   const [updateMessage, setUpdateMessage] = useState<{ type: 'success' | 'error'; message: string; batchId?: string } | null>(null)
+  const [syncingProducts, setSyncingProducts] = useState(false)
+  const [useDatabase, setUseDatabase] = useState(false) // Veritabanından mı yoksa API'den mi çekilecek
   const [productsFilters, setProductsFilters] = useState({
     approved: '',
     onSale: '',
@@ -34,6 +36,8 @@ export default function TrendyolProducts() {
     productMainId: ''
   })
   const [searchQuery, setSearchQuery] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     loadTrendyolIntegration()
@@ -66,6 +70,42 @@ export default function TrendyolProducts() {
     }
   }
 
+  // Ürünleri veritabanına senkronize et
+  const handleSyncProducts = async () => {
+    if (!trendyolIntegration?.id) return
+    
+    setSyncingProducts(true)
+    setProductsError(null)
+    setError(null)
+    try {
+      const response = await api.post<ApiResponse<any>>('/admin/trendyol/sync-products', {
+        integrationId: trendyolIntegration.id.toString()
+      })
+      
+      if (response.success) {
+        setSuccess(`✅ ${response.data?.totalSynced || 0} ürün senkronize edildi (${response.data?.totalCreated || 0} yeni, ${response.data?.totalUpdated || 0} güncellendi)`)
+        setTimeout(() => setSuccess(null), 5000)
+        // Senkronizasyon sonrası ürünleri yükle
+        setTimeout(() => {
+          loadProducts()
+        }, 1000)
+      } else {
+        setProductsError(response.message || 'Senkronizasyon başarısız')
+      }
+    } catch (err: any) {
+      console.error('Senkronizasyon hatası:', err)
+      const errorMessage = err.message || 'Bilinmeyen hata'
+      // 404 hatası için özel mesaj
+      if (err.status === 404 || errorMessage.includes('Not Found') || errorMessage.includes('404')) {
+        setProductsError('Endpoint bulunamadı. Lütfen sunucu yapılandırmasını kontrol edin.')
+      } else {
+        setProductsError('Senkronizasyon hatası: ' + errorMessage)
+      }
+    } finally {
+      setSyncingProducts(false)
+    }
+  }
+
   // Ürün listesi yükleme fonksiyonu
   const loadProducts = async () => {
     if (!trendyolIntegration?.id) return
@@ -74,13 +114,41 @@ export default function TrendyolProducts() {
     setProductsError(null)
     
     try {
-      // Cache bypass için timestamp ekle
-      const params: Record<string, string> = {
-        integrationId: trendyolIntegration.id.toString(),
-        page: productsPage.toString(),
-        size: '10',
-        _t: Date.now().toString() // Cache bypass için timestamp
-      }
+      if (useDatabase) {
+        // Veritabanından çek
+        const params: Record<string, string> = {
+          page: productsPage.toString(),
+          size: '10'
+        }
+        
+        if (productsFilters.approved !== '') {
+          params.approved = productsFilters.approved
+        }
+        if (productsFilters.onSale !== '') {
+          params.onSale = productsFilters.onSale
+        }
+        if (searchQuery) {
+          params.search = searchQuery
+        }
+        
+        const response = await api.get<ApiResponse<any>>('/admin/trendyol/products-db', params)
+        
+        if (response.success && response.data) {
+          setProducts(response.data.content || [])
+          setProductsTotalPages(response.data.totalPages || 0)
+          setProductsTotalElements(response.data.totalElements || 0)
+        } else {
+          setProductsError(response.message || 'Ürünler yüklenemedi')
+        }
+      } else {
+        // API'den çek
+        // Cache bypass için timestamp ekle
+        const params: Record<string, string> = {
+          integrationId: trendyolIntegration.id.toString(),
+          page: productsPage.toString(),
+          size: '10',
+          _t: Date.now().toString() // Cache bypass için timestamp
+        }
       
       if (productsFilters.approved !== '') {
         params.approved = productsFilters.approved
@@ -103,18 +171,19 @@ export default function TrendyolProducts() {
       if (productsFilters.stockCode) {
         params.stockCode = productsFilters.stockCode
       }
-      if (productsFilters.productMainId) {
-        params.productMainId = productsFilters.productMainId
-      }
-      
-      const response = await api.get<ApiResponse<any>>('/admin/trendyol/products', params)
-      
-      if (response.success && response.data) {
-        setProducts(response.data.content || [])
-        setProductsTotalPages(response.data.totalPages || 0)
-        setProductsTotalElements(response.data.totalElements || 0)
-      } else {
-        setProductsError(response.message || 'Ürünler yüklenemedi')
+        if (productsFilters.productMainId) {
+          params.productMainId = productsFilters.productMainId
+        }
+        
+        const response = await api.get<ApiResponse<any>>('/admin/trendyol/products', params)
+        
+        if (response.success && response.data) {
+          setProducts(response.data.content || [])
+          setProductsTotalPages(response.data.totalPages || 0)
+          setProductsTotalElements(response.data.totalElements || 0)
+        } else {
+          setProductsError(response.message || 'Ürünler yüklenemedi')
+        }
       }
     } catch (err: any) {
       setProductsError('Ürünler yüklenemedi: ' + (err.message || 'Bilinmeyen hata'))
@@ -201,29 +270,53 @@ export default function TrendyolProducts() {
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
-                <List className="w-6 h-6 text-white" />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+                  <List className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+                    Trendyol Ürün Listesi
+                  </h1>
+                  <p className="text-sm text-slate-600 dark:text-gray-400">
+                    Trendyol mağazanızdaki ürünleri görüntüleyin ve filtreleyin
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-                  Trendyol Ürün Listesi
-                </h1>
-                <p className="text-sm text-slate-600 dark:text-gray-400">
-                  Trendyol mağazanızdaki ürünleri görüntüleyin ve filtreleyin
-                </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSyncProducts}
+                  disabled={syncingProducts || !trendyolIntegration}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {syncingProducts ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Package className="w-4 h-4" />
+                  )}
+                  {syncingProducts ? 'Senkronize Ediliyor...' : 'Veritabanına Kaydet'}
+                </button>
+                <button
+                  onClick={loadProducts}
+                  disabled={productsLoading || !trendyolIntegration}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${productsLoading ? 'animate-spin' : ''}`} />
+                  Yenile
+                </button>
               </div>
             </div>
-            <button
-              onClick={loadProducts}
-              disabled={productsLoading || !trendyolIntegration}
-              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400"
             >
-              <RefreshCw className={`w-4 h-4 ${productsLoading ? 'animate-spin' : ''}`} />
-              Yenile
-            </button>
-          </div>
+              {success}
+            </motion.div>
+          )}
 
           {productsError && (
             <motion.div
@@ -232,6 +325,16 @@ export default function TrendyolProducts() {
               className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400"
             >
               {productsError}
+            </motion.div>
+          )}
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400"
+            >
+              {error}
             </motion.div>
           )}
 

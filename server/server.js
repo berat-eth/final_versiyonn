@@ -7414,6 +7414,306 @@ app.get('/api/admin/trendyol/batch-request', authenticateAdmin, async (req, res)
   }
 });
 
+// Admin - Trendyol Ürünlerini Veritabanına Kaydet/Güncelle
+app.post('/api/admin/trendyol/sync-products', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { integrationId } = req.body;
+    
+    if (!integrationId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Integration ID gereklidir' 
+      });
+    }
+    
+    // Integration'ı kontrol et
+    const [integrationRows] = await poolWrapper.execute(
+      'SELECT * FROM integrations WHERE id = ? AND tenantId = ? AND provider = ? AND type = ?',
+      [integrationId, tenantId, 'Trendyol', 'marketplace']
+    );
+    
+    if (integrationRows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Trendyol entegrasyonu bulunamadı' 
+      });
+    }
+    
+    const integration = integrationRows[0];
+    const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
+    const sellerId = config.supplierId || config.sellerId;
+    
+    if (!sellerId || !integration.apiKey || !integration.apiSecret) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Seller ID, API Key ve API Secret gereklidir' 
+      });
+    }
+    
+    const TrendyolAPIService = require('./services/trendyol-api');
+    let cleanApiKey = String(integration.apiKey || '').trim();
+    let cleanApiSecret = String(integration.apiSecret || '').trim();
+    cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+    cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
+    
+    let allProducts = [];
+    let page = 0;
+    let hasMore = true;
+    let totalSynced = 0;
+    let totalUpdated = 0;
+    let totalCreated = 0;
+    
+    // Tüm sayfaları çek
+    while (hasMore) {
+      try {
+        const response = await TrendyolAPIService.filterProducts(
+          sellerId,
+          cleanApiKey,
+          cleanApiSecret,
+          {
+            page,
+            size: 250, // Maksimum sayfa boyutu
+            supplierId: sellerId
+          }
+        );
+        
+        if (response.success && response.data && response.data.content) {
+          const products = response.data.content;
+          allProducts = allProducts.concat(products);
+          
+          // Veritabanına kaydet/güncelle
+          for (const product of products) {
+            try {
+              // Ürünü veritabanına kaydet veya güncelle
+              const productData = {
+                tenantId,
+                integrationId,
+                trendyolId: product.id,
+                barcode: product.barcode,
+                title: product.title || '',
+                productMainId: product.productMainId,
+                productCode: product.productCode,
+                productContentId: product.productContentId,
+                platformListingId: product.platformListingId,
+                stockId: product.stockId,
+                brand: product.brand,
+                brandId: product.brandId,
+                categoryName: product.categoryName,
+                categoryId: product.categoryId || product.pimCategoryId,
+                pimCategoryId: product.pimCategoryId,
+                quantity: product.quantity || 0,
+                stockCode: product.stockCode,
+                stockUnitType: product.stockUnitType || 'Adet',
+                listPrice: product.listPrice || 0,
+                salePrice: product.salePrice || product.listPrice || 0,
+                vatRate: product.vatRate || 18,
+                dimensionalWeight: product.dimensionalWeight,
+                approved: product.approved || false,
+                archived: product.archived || false,
+                onSale: product.onSale || false,
+                rejected: product.rejected || false,
+                blacklisted: product.blacklisted || false,
+                locked: product.locked || false,
+                hasActiveCampaign: product.hasActiveCampaign || false,
+                lockedByUnSuppliedReason: product.lockedByUnSuppliedReason || false,
+                hasHtmlContent: product.hasHtmlContent || false,
+                description: product.description,
+                gender: product.gender,
+                color: product.color,
+                size: product.size,
+                supplierId: product.supplierId,
+                images: JSON.stringify(product.images || []),
+                attributes: JSON.stringify(product.attributes || []),
+                deliveryOption: product.deliveryOption ? JSON.stringify(product.deliveryOption) : null,
+                locationBasedDelivery: product.locationBasedDelivery,
+                lotNumber: product.lotNumber,
+                productUrl: product.productUrl,
+                version: product.version || 1,
+                createDateTime: product.createDateTime,
+                lastUpdateDate: product.lastUpdateDate,
+                fullProductData: JSON.stringify(product)
+              };
+              
+              // Mevcut ürünü kontrol et
+              const [existing] = await poolWrapper.execute(
+                'SELECT id FROM trendyol_products WHERE tenantId = ? AND barcode = ?',
+                [tenantId, product.barcode]
+              );
+              
+              if (existing.length > 0) {
+                // Güncelle
+                await poolWrapper.execute(
+                  `UPDATE trendyol_products SET
+                    integrationId = ?, trendyolId = ?, title = ?, productMainId = ?,
+                    productCode = ?, productContentId = ?, platformListingId = ?, stockId = ?,
+                    brand = ?, brandId = ?, categoryName = ?, categoryId = ?, pimCategoryId = ?,
+                    quantity = ?, stockCode = ?, stockUnitType = ?,
+                    listPrice = ?, salePrice = ?, vatRate = ?, dimensionalWeight = ?,
+                    approved = ?, archived = ?, onSale = ?, rejected = ?, blacklisted = ?,
+                    locked = ?, hasActiveCampaign = ?, lockedByUnSuppliedReason = ?,
+                    hasHtmlContent = ?, description = ?, gender = ?, color = ?, size = ?,
+                    supplierId = ?, images = ?, attributes = ?, deliveryOption = ?,
+                    locationBasedDelivery = ?, lotNumber = ?, productUrl = ?,
+                    version = ?, createDateTime = ?, lastUpdateDate = ?,
+                    fullProductData = ?, syncedAt = CURRENT_TIMESTAMP
+                  WHERE tenantId = ? AND barcode = ?`,
+                  [
+                    productData.integrationId, productData.trendyolId, productData.title, productData.productMainId,
+                    productData.productCode, productData.productContentId, productData.platformListingId, productData.stockId,
+                    productData.brand, productData.brandId, productData.categoryName, productData.categoryId, productData.pimCategoryId,
+                    productData.quantity, productData.stockCode, productData.stockUnitType,
+                    productData.listPrice, productData.salePrice, productData.vatRate, productData.dimensionalWeight,
+                    productData.approved, productData.archived, productData.onSale, productData.rejected, productData.blacklisted,
+                    productData.locked, productData.hasActiveCampaign, productData.lockedByUnSuppliedReason,
+                    productData.hasHtmlContent, productData.description, productData.gender, productData.color, productData.size,
+                    productData.supplierId, productData.images, productData.attributes, productData.deliveryOption,
+                    productData.locationBasedDelivery, productData.lotNumber, productData.productUrl,
+                    productData.version, productData.createDateTime, productData.lastUpdateDate,
+                    productData.fullProductData, tenantId, product.barcode
+                  ]
+                );
+                totalUpdated++;
+              } else {
+                // Yeni kayıt
+                await poolWrapper.execute(
+                  `INSERT INTO trendyol_products (
+                    tenantId, integrationId, trendyolId, barcode, title, productMainId,
+                    productCode, productContentId, platformListingId, stockId,
+                    brand, brandId, categoryName, categoryId, pimCategoryId,
+                    quantity, stockCode, stockUnitType,
+                    listPrice, salePrice, vatRate, dimensionalWeight,
+                    approved, archived, onSale, rejected, blacklisted,
+                    locked, hasActiveCampaign, lockedByUnSuppliedReason,
+                    hasHtmlContent, description, gender, color, size,
+                    supplierId, images, attributes, deliveryOption,
+                    locationBasedDelivery, lotNumber, productUrl,
+                    version, createDateTime, lastUpdateDate, fullProductData
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [
+                    productData.tenantId, productData.integrationId, productData.trendyolId, productData.barcode, productData.title, productData.productMainId,
+                    productData.productCode, productData.productContentId, productData.platformListingId, productData.stockId,
+                    productData.brand, productData.brandId, productData.categoryName, productData.categoryId, productData.pimCategoryId,
+                    productData.quantity, productData.stockCode, productData.stockUnitType,
+                    productData.listPrice, productData.salePrice, productData.vatRate, productData.dimensionalWeight,
+                    productData.approved, productData.archived, productData.onSale, productData.rejected, productData.blacklisted,
+                    productData.locked, productData.hasActiveCampaign, productData.lockedByUnSuppliedReason,
+                    productData.hasHtmlContent, productData.description, productData.gender, productData.color, productData.size,
+                    productData.supplierId, productData.images, productData.attributes, productData.deliveryOption,
+                    productData.locationBasedDelivery, productData.lotNumber, productData.productUrl,
+                    productData.version, productData.createDateTime, productData.lastUpdateDate, productData.fullProductData
+                  ]
+                );
+                totalCreated++;
+              }
+              totalSynced++;
+            } catch (err) {
+              console.error(`❌ Ürün kaydetme hatası (${product.barcode}):`, err);
+            }
+          }
+          
+          // Sonraki sayfa var mı kontrol et
+          hasMore = page < (response.data.totalPages - 1);
+          page++;
+          
+          // Rate limiting için kısa bekleme
+          if (hasMore) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } else {
+          hasMore = false;
+        }
+      } catch (error) {
+        console.error(`❌ Sayfa ${page} yükleme hatası:`, error);
+        hasMore = false;
+      }
+    }
+    
+    return res.json({
+      success: true,
+      message: 'Ürünler başarıyla senkronize edildi',
+      data: {
+        totalSynced,
+        totalCreated,
+        totalUpdated,
+        totalProducts: allProducts.length
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error syncing Trendyol products:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Ürün senkronizasyonu başarısız' 
+    });
+  }
+});
+
+// Admin - Veritabanından Trendyol Ürünlerini Getir
+app.get('/api/admin/trendyol/products-db', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const page = parseInt(req.query.page) || 0;
+    const size = parseInt(req.query.size) || 10;
+    const approved = req.query.approved;
+    const onSale = req.query.onSale;
+    const search = req.query.search;
+    
+    let query = 'SELECT * FROM trendyol_products WHERE tenantId = ?';
+    const params = [tenantId];
+    
+    if (approved !== undefined) {
+      query += ' AND approved = ?';
+      params.push(approved === 'true');
+    }
+    if (onSale !== undefined) {
+      query += ' AND onSale = ?';
+      params.push(onSale === 'true');
+    }
+    if (search) {
+      query += ' AND (title LIKE ? OR barcode LIKE ? OR stockCode LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    // Toplam sayı
+    const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
+    const [countResult] = await poolWrapper.execute(countQuery, params);
+    const total = countResult[0]?.total || 0;
+    
+    // Sayfalama
+    query += ' ORDER BY syncedAt DESC LIMIT ? OFFSET ?';
+    params.push(size, page * size);
+    
+    const [products] = await poolWrapper.execute(query, params);
+    
+    // JSON alanlarını parse et
+    const parsedProducts = products.map(product => ({
+      ...product,
+      images: product.images ? (typeof product.images === 'string' ? JSON.parse(product.images) : product.images) : [],
+      attributes: product.attributes ? (typeof product.attributes === 'string' ? JSON.parse(product.attributes) : product.attributes) : [],
+      deliveryOption: product.deliveryOption ? (typeof product.deliveryOption === 'string' ? JSON.parse(product.deliveryOption) : product.deliveryOption) : null,
+      fullProductData: product.fullProductData ? (typeof product.fullProductData === 'string' ? JSON.parse(product.fullProductData) : product.fullProductData) : null
+    }));
+    
+    return res.json({
+      success: true,
+      data: {
+        content: parsedProducts,
+        totalElements: total,
+        totalPages: Math.ceil(total / size),
+        page,
+        size
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching Trendyol products from DB:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Ürünler getirilemedi' 
+    });
+  }
+});
+
 // Admin - Trendyol Stok ve Fiyat Güncelleme
 app.post('/api/admin/trendyol/update-price-inventory', authenticateAdmin, async (req, res) => {
   try {
@@ -7480,34 +7780,66 @@ app.post('/api/admin/trendyol/update-price-inventory', authenticateAdmin, async 
     cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
     cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
     
-    try {
-      const response = await TrendyolAPIService.updatePriceAndInventory(
-        sellerId,
-        cleanApiKey,
-        cleanApiSecret,
-        items
-      );
-      
-      if (response.success) {
-        return res.json({ 
-          success: true, 
-          data: response.data,
-          message: 'Stok ve fiyat güncellemesi başlatıldı'
-        });
-      } else {
-        return res.status(500).json({ 
-          success: false, 
-          message: response.error || 'Trendyol API hatası',
-          error: response.error
-        });
-      }
-    } catch (error) {
-      console.error('❌ Trendyol API hatası:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: error.error || error.message || 'Trendyol API hatası' 
-      });
-    }
+            try {
+              const response = await TrendyolAPIService.updatePriceAndInventory(
+                sellerId,
+                cleanApiKey,
+                cleanApiSecret,
+                items
+              );
+              
+              if (response.success) {
+                // Veritabanındaki ürünleri de güncelle
+                for (const item of items) {
+                  try {
+                    const updateFields = [];
+                    const updateValues = [];
+                    
+                    if (item.quantity !== undefined) {
+                      updateFields.push('quantity = ?');
+                      updateValues.push(item.quantity);
+                    }
+                    if (item.listPrice !== undefined) {
+                      updateFields.push('listPrice = ?');
+                      updateValues.push(item.listPrice);
+                    }
+                    if (item.salePrice !== undefined) {
+                      updateFields.push('salePrice = ?');
+                      updateValues.push(item.salePrice);
+                    }
+                    
+                    if (updateFields.length > 0) {
+                      updateValues.push(tenantId, item.barcode);
+                      await poolWrapper.execute(
+                        `UPDATE trendyol_products SET ${updateFields.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE tenantId = ? AND barcode = ?`,
+                        updateValues
+                      );
+                    }
+                  } catch (dbError) {
+                    console.error(`❌ Veritabanı güncelleme hatası (${item.barcode}):`, dbError);
+                    // Veritabanı hatası API başarısını etkilemesin
+                  }
+                }
+                
+                return res.json({ 
+                  success: true, 
+                  data: response.data,
+                  message: 'Stok ve fiyat güncellemesi başlatıldı'
+                });
+              } else {
+                return res.status(500).json({ 
+                  success: false, 
+                  message: response.error || 'Trendyol API hatası',
+                  error: response.error
+                });
+              }
+            } catch (error) {
+              console.error('❌ Trendyol API hatası:', error);
+              return res.status(500).json({ 
+                success: false, 
+                message: error.error || error.message || 'Trendyol API hatası' 
+              });
+            }
   } catch (error) {
     console.error('❌ Error updating price and inventory:', error);
     res.status(500).json({ 

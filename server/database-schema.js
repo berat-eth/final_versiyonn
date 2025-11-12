@@ -781,38 +781,81 @@ async function createDatabaseSchema(pool) {
     CREATE TABLE IF NOT EXISTS trendyol_products (
       id INT AUTO_INCREMENT PRIMARY KEY,
       tenantId INT NOT NULL,
+      integrationId INT,
+      -- Trendyol API'den gelen temel alanlar
+      trendyolId VARCHAR(255),
       barcode VARCHAR(255) NOT NULL,
       title VARCHAR(500) NOT NULL,
       productMainId VARCHAR(255),
+      productCode BIGINT,
+      productContentId BIGINT,
+      platformListingId VARCHAR(255),
+      stockId VARCHAR(255),
+      -- Marka ve Kategori
+      brand VARCHAR(255),
       brandId INT,
+      categoryName VARCHAR(255),
       categoryId INT,
+      pimCategoryId INT,
+      -- Stok ve Fiyat
       quantity INT DEFAULT 0,
       stockCode VARCHAR(255),
-      dimensionalWeight DECIMAL(10,2),
-      description TEXT,
-      currencyType VARCHAR(10) DEFAULT 'TRY',
+      stockUnitType VARCHAR(50) DEFAULT 'Adet',
       listPrice DECIMAL(10,2) DEFAULT 0,
       salePrice DECIMAL(10,2) DEFAULT 0,
       vatRate INT DEFAULT 18,
-      cargoCompanyId INT,
+      dimensionalWeight DECIMAL(10,2),
+      -- Durum Bilgileri
       approved BOOLEAN DEFAULT false,
+      archived BOOLEAN DEFAULT false,
       onSale BOOLEAN DEFAULT false,
-      active BOOLEAN DEFAULT true,
       rejected BOOLEAN DEFAULT false,
       blacklisted BOOLEAN DEFAULT false,
-      productData JSON,
+      locked BOOLEAN DEFAULT false,
+      hasActiveCampaign BOOLEAN DEFAULT false,
+      lockedByUnSuppliedReason BOOLEAN DEFAULT false,
+      hasHtmlContent BOOLEAN DEFAULT false,
+      -- Diğer Bilgiler
+      description TEXT,
+      gender VARCHAR(100),
+      color VARCHAR(100),
+      size VARCHAR(100),
+      supplierId INT,
+      -- Görseller (JSON array)
+      images JSON,
+      -- Özellikler (JSON array)
+      attributes JSON,
+      -- Delivery ve diğer
+      deliveryOption JSON,
+      locationBasedDelivery VARCHAR(50),
+      lotNumber VARCHAR(255),
+      productUrl VARCHAR(500),
+      -- Batch Request
+      batchRequestId VARCHAR(255),
+      -- Versiyon
+      version INT DEFAULT 1,
+      -- Tarihler
+      createDateTime BIGINT,
+      lastUpdateDate BIGINT,
       syncedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      -- Tam JSON verisi (backup için)
+      fullProductData JSON,
       FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
       UNIQUE KEY unique_trendyol_product (tenantId, barcode),
       INDEX idx_tenant_trendyol (tenantId),
+      INDEX idx_integration (integrationId),
       INDEX idx_barcode (barcode),
       INDEX idx_stock_code (stockCode),
       INDEX idx_product_main_id (productMainId),
+      INDEX idx_trendyol_id (trendyolId),
       INDEX idx_approved (approved),
       INDEX idx_on_sale (onSale),
-      INDEX idx_active (active),
+      INDEX idx_archived (archived),
+      INDEX idx_rejected (rejected),
+      INDEX idx_brand_id (brandId),
+      INDEX idx_category_id (categoryId),
       INDEX idx_synced_at (syncedAt)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
