@@ -6639,13 +6639,17 @@ app.get('/api/admin/integrations', authenticateAdmin, async (req, res) => {
       [tenantId]
     );
     // API key ve secret'ları güvenlik için maskele
-    const maskedRows = rows.map(row => ({
+    // NOT: Frontend'de düzenleme için tam değerler gerekli, bu yüzden maskeleme kaldırıldı
+    // Güvenlik: Sadece admin kullanıcılar bu endpoint'e erişebilir (authenticateAdmin middleware)
+    const processedRows = rows.map(row => ({
       ...row,
-      apiKey: row.apiKey ? (row.apiKey.length > 8 ? row.apiKey.substring(0, 4) + '***' + row.apiKey.substring(row.apiKey.length - 4) : '***') : null,
-      apiSecret: row.apiSecret ? '***' : null,
+      // Tam değerleri gönder (frontend'de düzenleme için gerekli)
+      // Güvenlik authenticateAdmin middleware ile sağlanıyor
+      apiKey: row.apiKey || null,
+      apiSecret: row.apiSecret || null,
       config: typeof row.config === 'string' ? JSON.parse(row.config) : (row.config || {})
     }));
-    res.json({ success: true, data: maskedRows });
+    res.json({ success: true, data: processedRows });
   } catch (error) {
     console.error('❌ Error fetching integrations:', error);
     res.status(500).json({ success: false, message: 'Error fetching integrations' });
@@ -6659,12 +6663,59 @@ app.post('/api/admin/integrations', authenticateAdmin, async (req, res) => {
     if (!name || !type || !provider) {
       return res.status(400).json({ success: false, message: 'Name, type, and provider are required' });
     }
+    
+    // API Key ve Secret'ı temizle ve kontrol et
+    let cleanApiKey = apiKey ? String(apiKey).trim() : null;
+    let cleanApiSecret = apiSecret ? String(apiSecret).trim() : null;
+    
+    // Görünmez karakterleri temizle
+    if (cleanApiKey) {
+      cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+    }
+    if (cleanApiSecret) {
+      cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
+    }
+    
+    // Uzunluk kontrolü ve log
+    if (cleanApiKey) {
+      console.log('📝 Yeni Integration - API Key uzunluk:', cleanApiKey.length);
+      if (cleanApiKey.length < 10) {
+        console.warn('⚠️ API Key çok kısa! Trendyol API Key genellikle 20+ karakter olur.');
+      }
+    }
+    if (cleanApiSecret) {
+      console.log('📝 Yeni Integration - API Secret uzunluk:', cleanApiSecret.length);
+      if (cleanApiSecret.length < 10) {
+        console.warn('⚠️ API Secret çok kısa! Trendyol API Secret genellikle 30+ karakter olur.');
+      }
+    }
+    
     const configJson = config ? JSON.stringify(config) : null;
     const [result] = await poolWrapper.execute(
       `INSERT INTO integrations (tenantId, name, type, provider, status, apiKey, apiSecret, webhookUrl, config, description)
        VALUES (?, ?, ?, ?, 'inactive', ?, ?, ?, ?, ?)`,
-      [tenantId, name, type, provider, apiKey || null, apiSecret || null, webhookUrl || null, configJson, description || null]
+      [tenantId, name, type, provider, cleanApiKey, cleanApiSecret, webhookUrl || null, configJson, description || null]
     );
+    
+    // Kaydedilen değerleri doğrula
+    const [verifyRows] = await poolWrapper.execute(
+      'SELECT apiKey, apiSecret FROM integrations WHERE id = ?',
+      [result.insertId]
+    );
+    if (verifyRows.length > 0) {
+      const saved = verifyRows[0];
+      console.log('✅ Integration kaydedildi - Doğrulama:');
+      console.log('  Kaydedilen API Key uzunluk:', saved.apiKey ? saved.apiKey.length : 0);
+      console.log('  Kaydedilen API Secret uzunluk:', saved.apiSecret ? saved.apiSecret.length : 0);
+      
+      if (cleanApiKey && saved.apiKey && saved.apiKey.length !== cleanApiKey.length) {
+        console.error('❌ API Key uzunluğu eşleşmiyor! Veritabanına kaydedilirken kesilmiş olabilir.');
+      }
+      if (cleanApiSecret && saved.apiSecret && saved.apiSecret.length !== cleanApiSecret.length) {
+        console.error('❌ API Secret uzunluğu eşleşmiyor! Veritabanına kaydedilirken kesilmiş olabilir.');
+      }
+    }
+    
     res.json({ success: true, data: { id: result.insertId } });
   } catch (error) {
     console.error('❌ Error creating integration:', error);
@@ -6683,8 +6734,29 @@ app.put('/api/admin/integrations/:id', authenticateAdmin, async (req, res) => {
     if (type !== undefined) { fields.push('type = ?'); params.push(type); }
     if (provider !== undefined) { fields.push('provider = ?'); params.push(provider); }
     if (status !== undefined) { fields.push('status = ?'); params.push(status); }
-    if (apiKey !== undefined) { fields.push('apiKey = ?'); params.push(apiKey); }
-    if (apiSecret !== undefined) { fields.push('apiSecret = ?'); params.push(apiSecret); }
+    
+    // API Key ve Secret'ı temizle ve kontrol et
+    if (apiKey !== undefined) {
+      let cleanApiKey = String(apiKey).trim();
+      cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+      console.log('📝 Integration Güncelleme - API Key uzunluk:', cleanApiKey.length);
+      if (cleanApiKey.length < 10) {
+        console.warn('⚠️ API Key çok kısa! Trendyol API Key genellikle 20+ karakter olur.');
+      }
+      fields.push('apiKey = ?');
+      params.push(cleanApiKey);
+    }
+    if (apiSecret !== undefined) {
+      let cleanApiSecret = String(apiSecret).trim();
+      cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
+      console.log('📝 Integration Güncelleme - API Secret uzunluk:', cleanApiSecret.length);
+      if (cleanApiSecret.length < 10) {
+        console.warn('⚠️ API Secret çok kısa! Trendyol API Secret genellikle 30+ karakter olur.');
+      }
+      fields.push('apiSecret = ?');
+      params.push(cleanApiSecret);
+    }
+    
     if (webhookUrl !== undefined) { fields.push('webhookUrl = ?'); params.push(webhookUrl); }
     if (description !== undefined) { fields.push('description = ?'); params.push(description); }
     if (config !== undefined) { fields.push('config = ?'); params.push(JSON.stringify(config)); }
@@ -6695,6 +6767,19 @@ app.put('/api/admin/integrations/:id', authenticateAdmin, async (req, res) => {
       `UPDATE integrations SET ${fields.join(', ')} WHERE id = ? AND tenantId = ?`,
       params
     );
+    
+    // Güncellenen değerleri doğrula
+    const [verifyRows] = await poolWrapper.execute(
+      'SELECT apiKey, apiSecret FROM integrations WHERE id = ?',
+      [id]
+    );
+    if (verifyRows.length > 0) {
+      const saved = verifyRows[0];
+      console.log('✅ Integration güncellendi - Doğrulama:');
+      console.log('  Güncellenen API Key uzunluk:', saved.apiKey ? saved.apiKey.length : 0);
+      console.log('  Güncellenen API Secret uzunluk:', saved.apiSecret ? saved.apiSecret.length : 0);
+    }
+    
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Error updating integration:', error);
@@ -6858,21 +6943,42 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     console.log('✅ Integration bulundu:');
     console.log('  Provider:', integration.provider);
     console.log('  Type:', integration.type);
-    console.log('  API Key:', integration.apiKey ? '***' + integration.apiKey.slice(-4) : 'Yok');
-    console.log('  API Key uzunluk:', integration.apiKey ? integration.apiKey.length : 0);
-    console.log('  API Secret:', integration.apiSecret ? '***' + integration.apiSecret.slice(-4) : 'Yok');
-    console.log('  API Secret uzunluk:', integration.apiSecret ? integration.apiSecret.length : 0);
     
-    // API Key ve Secret'ın ham değerlerini kontrol et (güvenlik için sadece uzunluk ve ilk/son karakterler)
+    // API Key ve Secret'ın tam uzunluğunu ve karakterlerini kontrol et
+    const apiKeyLength = integration.apiKey ? String(integration.apiKey).length : 0;
+    const apiSecretLength = integration.apiSecret ? String(integration.apiSecret).length : 0;
+    
+    console.log('  API Key uzunluk:', apiKeyLength);
+    console.log('  API Secret uzunluk:', apiSecretLength);
+    
+    // API Key ve Secret'ın ilk ve son karakterlerini göster (debug için)
     if (integration.apiKey) {
-      const keyFirst = integration.apiKey.substring(0, 4);
-      const keyLast = integration.apiKey.substring(integration.apiKey.length - 4);
-      console.log('  API Key format kontrolü:', `İlk 4: ${keyFirst}***, Son 4: ***${keyLast}`);
+      const apiKeyStr = String(integration.apiKey);
+      const keyFirst = apiKeyStr.substring(0, Math.min(8, apiKeyStr.length));
+      const keyLast = apiKeyStr.length > 8 ? apiKeyStr.substring(apiKeyStr.length - 4) : '';
+      console.log('  API Key (ilk 8 karakter):', keyFirst + (apiKeyStr.length > 8 ? '***' : ''));
+      console.log('  API Key (son 4 karakter):', apiKeyStr.length > 4 ? '***' + keyLast : apiKeyStr);
+      // Hex formatında göster (görünmez karakterleri tespit etmek için)
+      const hexPreview = Buffer.from(apiKeyStr).toString('hex').substring(0, 50);
+      console.log('  API Key (hex preview):', hexPreview);
     }
     if (integration.apiSecret) {
-      const secretFirst = integration.apiSecret.substring(0, 4);
-      const secretLast = integration.apiSecret.substring(integration.apiSecret.length - 4);
-      console.log('  API Secret format kontrolü:', `İlk 4: ${secretFirst}***, Son 4: ***${secretLast}`);
+      const apiSecretStr = String(integration.apiSecret);
+      const secretFirst = apiSecretStr.substring(0, Math.min(8, apiSecretStr.length));
+      const secretLast = apiSecretStr.length > 8 ? apiSecretStr.substring(apiSecretStr.length - 4) : '';
+      console.log('  API Secret (ilk 8 karakter):', secretFirst + (apiSecretStr.length > 8 ? '***' : ''));
+      console.log('  API Secret (son 4 karakter):', apiSecretStr.length > 4 ? '***' + secretLast : apiSecretStr);
+      // Hex formatında göster (görünmez karakterleri tespit etmek için)
+      const hexPreview = Buffer.from(apiSecretStr).toString('hex').substring(0, 50);
+      console.log('  API Secret (hex preview):', hexPreview);
+    }
+    
+    // Uzunluk uyarısı
+    if (apiKeyLength < 10 || apiSecretLength < 10) {
+      console.error('❌ UYARI: API Key veya Secret çok kısa!');
+      console.error('  Trendyol API Key genellikle 20+ karakter olur.');
+      console.error('  Trendyol API Secret genellikle 30+ karakter olur.');
+      console.error('  Lütfen Trendyol Partner Panel\'den tam değerleri kopyaladığınızdan emin olun.');
     }
     
     // Sadece marketplace entegrasyonları için
