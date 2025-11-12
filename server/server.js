@@ -6859,7 +6859,21 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     console.log('  Provider:', integration.provider);
     console.log('  Type:', integration.type);
     console.log('  API Key:', integration.apiKey ? '***' + integration.apiKey.slice(-4) : 'Yok');
+    console.log('  API Key uzunluk:', integration.apiKey ? integration.apiKey.length : 0);
     console.log('  API Secret:', integration.apiSecret ? '***' + integration.apiSecret.slice(-4) : 'Yok');
+    console.log('  API Secret uzunluk:', integration.apiSecret ? integration.apiSecret.length : 0);
+    
+    // API Key ve Secret'ın ham değerlerini kontrol et (güvenlik için sadece uzunluk ve ilk/son karakterler)
+    if (integration.apiKey) {
+      const keyFirst = integration.apiKey.substring(0, 4);
+      const keyLast = integration.apiKey.substring(integration.apiKey.length - 4);
+      console.log('  API Key format kontrolü:', `İlk 4: ${keyFirst}***, Son 4: ***${keyLast}`);
+    }
+    if (integration.apiSecret) {
+      const secretFirst = integration.apiSecret.substring(0, 4);
+      const secretLast = integration.apiSecret.substring(integration.apiSecret.length - 4);
+      console.log('  API Secret format kontrolü:', `İlk 4: ${secretFirst}***, Son 4: ***${secretLast}`);
+    }
     
     // Sadece marketplace entegrasyonları için
     if (integration.type !== 'marketplace') {
@@ -6878,9 +6892,15 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       });
     }
     
-    // API Key ve Secret'ı temizle (başında/sonunda boşluk varsa kaldır)
-    const cleanApiKey = String(integration.apiKey).trim();
-    const cleanApiSecret = String(integration.apiSecret).trim();
+    // API Key ve Secret'ı temizle
+    // - Başında/sonunda boşluk, newline, carriage return gibi karakterleri kaldır
+    // - Görünmez karakterleri temizle
+    let cleanApiKey = String(integration.apiKey || '').trim();
+    let cleanApiSecret = String(integration.apiSecret || '').trim();
+    
+    // Görünmez karakterleri temizle (newline, carriage return, tab vb.)
+    cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+    cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
     
     if (!cleanApiKey || !cleanApiSecret) {
       console.log('❌ API Key veya Secret boş (temizleme sonrası)');
@@ -6890,10 +6910,24 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       });
     }
     
+    // API Key ve Secret'ın uzunluğunu kontrol et
+    if (cleanApiKey.length < 10 || cleanApiSecret.length < 10) {
+      console.log('⚠️ API Key veya Secret çok kısa olabilir');
+      console.log('  API Key uzunluk:', cleanApiKey.length);
+      console.log('  API Secret uzunluk:', cleanApiSecret.length);
+    }
+    
     const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
     console.log('  Config:', JSON.stringify(config, null, 2));
     console.log('  API Key (temizlenmiş, ilk 4 karakter):', cleanApiKey.substring(0, 4) + '***');
-    console.log('  API Secret (temizlenmiş, var mı):', cleanApiSecret ? 'Evet' : 'Hayır');
+    console.log('  API Key uzunluk:', cleanApiKey.length);
+    console.log('  API Secret (temizlenmiş, var mı):', cleanApiSecret ? 'Evet (' + cleanApiSecret.length + ' karakter)' : 'Hayır');
+    
+    // API Key ve Secret'ın içinde özel karakterler var mı kontrol et
+    const hasSpecialChars = /[^\w\-_=]/.test(cleanApiKey) || /[^\w\-_=]/.test(cleanApiSecret);
+    if (hasSpecialChars) {
+      console.log('  ⚠️ API Key veya Secret içinde özel karakterler var (bu normal olabilir)');
+    }
     
     let ordersResponse;
 
@@ -6917,10 +6951,10 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       // API Key ve Secret'ı temizlenmiş versiyonları kullan
       console.log('⏳ Created durumundaki siparişler çekiliyor...');
       const createdOrders = await TrendyolAPIService.getOrders(
-        supplierId,
+          supplierId,
         cleanApiKey,
         cleanApiSecret,
-        { startDate, endDate, page, size, status: 'Created' }
+          { startDate, endDate, page, size, status: 'Created' }
       );
       
       // İstekler arasında bekleme süresi (rate limiting için)
@@ -6928,10 +6962,10 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       
       console.log('⏳ Pending durumundaki siparişler çekiliyor...');
       const pendingOrders = await TrendyolAPIService.getOrders(
-        supplierId,
+          supplierId,
         cleanApiKey,
         cleanApiSecret,
-        { startDate, endDate, page, size, status: 'Pending' }
+          { startDate, endDate, page, size, status: 'Pending' }
       );
       
       // İki sonucu birleştir
@@ -6943,41 +6977,61 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
         allOrders.push(...pendingOrders.data.content);
       }
       
-      // Her sipariş için detaylı bilgi çek (tüm veriler için)
-      // Rate limiting için sıralı işlem yapıyoruz
-      console.log(`📦 ${allOrders.length} sipariş bulundu, detaylar çekiliyor...`);
-      const ordersWithDetails = [];
-      for (let i = 0; i < allOrders.length; i++) {
-        const order = allOrders[i];
-        try {
-          // Her 5 siparişte bir rate limiting için bekleme
-          if (i > 0 && i % 5 === 0) {
-            console.log(`⏳ Rate limiting için bekleniyor... (${i}/${allOrders.length})`);
-            await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
-          }
-          
-          const orderNumber = order.orderNumber || order.id?.toString();
-          if (orderNumber) {
-            const detailResponse = await TrendyolAPIService.getOrderDetail(
+      // Her sipariş için detaylı bilgi çek (optimize edilmiş batch işlem)
+      console.log(`📦 ${allOrders.length} sipariş bulundu`);
+      
+      // Cache'i temizle (eski cache'leri kaldır)
+      TrendyolAPIService.clearExpiredCache();
+      
+      // Siparişlerde zaten yeterli bilgi varsa detay çekmeyi atla
+      // Sadece eksik bilgileri olan siparişler için detay çek
+      const ordersNeedingDetails = allOrders.filter(order => {
+        // Eğer siparişte items, lines veya orderLines yoksa detay çek
+        return !order.items && !order.lines && !order.orderLines;
+      });
+      
+      let ordersWithDetails = [...allOrders];
+      
+      if (ordersNeedingDetails.length > 0) {
+        console.log(`📋 ${ordersNeedingDetails.length} sipariş için detay çekiliyor (cache ile optimize edilmiş)...`);
+        
+        // Sipariş numaralarını topla
+        const orderNumbers = ordersNeedingDetails
+          .map(order => order.orderNumber || order.id?.toString())
+          .filter(num => num);
+        
+        // Batch olarak sipariş detaylarını çek (cache ile optimize edilmiş)
+        const detailResponses = await TrendyolAPIService.getOrderDetailsBatch(
               supplierId,
-              orderNumber,
-              cleanApiKey,
-              cleanApiSecret
-            );
-            if (detailResponse.success && detailResponse.data) {
-              ordersWithDetails.push(detailResponse.data);
-            } else {
-              // Detay çekilemezse mevcut veriyi kullan
-              ordersWithDetails.push(order);
+          orderNumbers,
+          cleanApiKey,
+          cleanApiSecret,
+          5 // Her batch'te 5 sipariş
+        );
+        
+        // Detayları sipariş numarasına göre map'le
+        const detailsMap = new Map();
+        detailResponses.forEach(response => {
+          if (response.success && response.data) {
+            const orderNum = response.data.orderNumber || response.data.id?.toString();
+            if (orderNum) {
+              detailsMap.set(orderNum, response.data);
             }
-          } else {
-            ordersWithDetails.push(order);
           }
-        } catch (error) {
-          console.error(`❌ Sipariş detayı çekilemedi: ${order.orderNumber || order.id}`, error.message);
-          // Hata durumunda mevcut veriyi kullan
-          ordersWithDetails.push(order);
-        }
+        });
+        
+        // Sadece detay gereken siparişleri güncelle
+        ordersWithDetails = allOrders.map(order => {
+          const orderNumber = order.orderNumber || order.id?.toString();
+          // Eğer detay gerekiyorsa ve cache'de varsa kullan
+          if (orderNumber && detailsMap.has(orderNumber)) {
+            return detailsMap.get(orderNumber);
+          }
+          // Detay yoksa mevcut veriyi kullan
+          return order;
+        });
+      } else {
+        console.log('✅ Tüm siparişlerde yeterli bilgi mevcut, detay çekmeye gerek yok');
       }
       
       ordersResponse = {
@@ -7242,7 +7296,7 @@ app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => 
     // Her sipariş için öğeleri çek - try-catch ile hata yakalama
     for (const order of orders) {
       try {
-        const [items] = await poolWrapper.execute(
+      const [items] = await poolWrapper.execute(
           'SELECT * FROM marketplace_order_items WHERE marketplaceOrderId = ? AND tenantId = ?',
           [order.id, tenantId]
         );

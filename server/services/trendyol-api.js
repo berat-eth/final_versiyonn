@@ -10,6 +10,20 @@ let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 500; // İstekler arası minimum bekleme süresi (ms) - 500ms = 2 istek/saniye
 const MAX_REQUESTS_PER_SECOND = 2; // Saniyede maksimum istek sayısı
 
+// Cache mekanizması - sipariş detaylarını cache'le
+const orderDetailCache = new Map();
+const orderListCache = new Map();
+const ORDER_CACHE_TTL = 5 * 60 * 1000; // 5 dakika cache süresi
+const ORDER_LIST_CACHE_TTL = 2 * 60 * 1000; // 2 dakika sipariş listesi cache
+
+// HTTP connection pooling için agent
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 10,
+  maxFreeSockets: 5
+});
+
 class TrendyolAPIService {
   /**
    * Rate limiting kontrolü - istekler arasında minimum bekleme süresi
@@ -20,11 +34,43 @@ class TrendyolAPIService {
     
     if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
       const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-      console.log(`⏳ Rate limit için ${waitTime}ms bekleniyor...`);
+      // Sadece uzun bekleme sürelerinde log (performans için)
+      if (waitTime > 200) {
+        console.log(`⏳ Rate limit için ${waitTime}ms bekleniyor...`);
+      }
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     
     lastRequestTime = Date.now();
+  }
+
+  /**
+   * Cache'i temizle (eski cache'leri kaldır)
+   */
+  static clearExpiredCache() {
+    const now = Date.now();
+    
+    // Sipariş detay cache'ini temizle
+    for (const [key, value] of orderDetailCache.entries()) {
+      if (now - value.timestamp > ORDER_CACHE_TTL) {
+        orderDetailCache.delete(key);
+      }
+    }
+    
+    // Sipariş listesi cache'ini temizle
+    for (const [key, value] of orderListCache.entries()) {
+      if (now - value.timestamp > ORDER_LIST_CACHE_TTL) {
+        orderListCache.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Tüm cache'i temizle
+   */
+  static clearAllCache() {
+    orderDetailCache.clear();
+    orderListCache.clear();
   }
   /**
    * Trendyol API için Basic Auth header oluştur
@@ -36,16 +82,38 @@ class TrendyolAPIService {
     if (!apiKey || !apiSecret) {
       throw new Error('API Key ve API Secret gereklidir');
     }
-    // API Key ve Secret'ı temizle (başında/sonunda boşluk varsa kaldır)
-    const cleanApiKey = String(apiKey).trim();
-    const cleanApiSecret = String(apiSecret).trim();
+    // API Key ve Secret'ı temizle
+    // - Başında/sonunda boşluk, newline, carriage return gibi karakterleri kaldır
+    // - İçindeki özel karakterleri koru (API Key/Secret'ın kendisi özel karakter içerebilir)
+    let cleanApiKey = String(apiKey || '').trim();
+    let cleanApiSecret = String(apiSecret || '').trim();
+    
+    // Görünmez karakterleri temizle (newline, carriage return, tab vb.)
+    cleanApiKey = cleanApiKey.replace(/[\r\n\t]/g, '');
+    cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
     
     if (!cleanApiKey || !cleanApiSecret) {
       throw new Error('API Key ve API Secret boş olamaz');
     }
     
-    const credentials = Buffer.from(`${cleanApiKey}:${cleanApiSecret}`).toString('base64');
-    return `Basic ${credentials}`;
+    // Trendyol API formatı: apiKey:apiSecret (UTF-8 encoding ile Base64)
+    // Format: Basic base64(apiKey:apiSecret)
+    // NOT: Bazı Trendyol API versiyonlarında Secret:Key formatı da kullanılabilir
+    // Ancak standart format Key:Secret'tır
+    const credentials = `${cleanApiKey}:${cleanApiSecret}`;
+    // UTF-8 encoding ile Base64 encode et
+    const encodedCredentials = Buffer.from(credentials, 'utf8').toString('base64');
+    
+    // Debug için (her zaman log - authentication sorunlarını tespit etmek için)
+    console.log('🔐 Trendyol Auth Debug:');
+    console.log('  API Key uzunluk:', cleanApiKey.length);
+    console.log('  API Secret uzunluk:', cleanApiSecret.length);
+    console.log('  API Key (ilk 8 karakter):', cleanApiKey.substring(0, 8) + '***');
+    console.log('  API Secret (son 4 karakter):', '***' + cleanApiSecret.substring(cleanApiSecret.length - 4));
+    console.log('  Credentials format:', 'apiKey:apiSecret');
+    console.log('  Encoded (ilk 30 karakter):', encodedCredentials.substring(0, 30) + '...');
+    
+    return `Basic ${encodedCredentials}`;
   }
 
   /**
@@ -98,26 +166,26 @@ class TrendyolAPIService {
         port: urlObj.port || 443,
         path: urlObj.pathname + urlObj.search,
         method: method,
+        agent: httpsAgent, // Connection pooling için
         headers: {
           'Authorization': authHeader,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': cleanUserAgent
+          'User-Agent': cleanUserAgent,
+          'Connection': 'keep-alive' // Connection reuse için
         }
       };
 
-      // Console log - İstek detayları
-      console.log('📤 Trendyol API İsteği:');
-      console.log('  Method:', method);
-      console.log('  URL:', url);
-      console.log('  Endpoint:', endpoint);
-      console.log('  Supplier ID:', supplierId);
-      console.log('  User-Agent:', userAgent);
-      console.log('  API Key (ilk 4 karakter):', cleanApiKey.substring(0, 4) + '***');
-      console.log('  API Secret (var mı):', cleanApiSecret ? 'Evet' : 'Hayır');
-      console.log('  Query Params:', JSON.stringify(queryParams, null, 2));
-      if (data) {
-        console.log('  Request Body:', JSON.stringify(data, null, 2));
+      // Console log - İstek detayları (sadece önemli istekler için)
+      const isImportantRequest = endpoint.includes('/orders') && !endpoint.includes('/orders/');
+      if (isImportantRequest || process.env.DEBUG_TRENDYOL === 'true') {
+        console.log('📤 Trendyol API İsteği:');
+        console.log('  Method:', method);
+        console.log('  Endpoint:', endpoint);
+        console.log('  Supplier ID:', supplierId);
+        console.log('  API Key (ilk 4 karakter):', cleanApiKey.substring(0, 4) + '***');
+        console.log('  API Secret (var mı):', cleanApiSecret ? 'Evet (' + cleanApiSecret.length + ' karakter)' : 'Hayır');
+        console.log('  Auth Header (ilk 30 karakter):', authHeader.substring(0, 30) + '...');
       }
 
       const req = https.request(options, (res) => {
@@ -131,27 +199,27 @@ class TrendyolAPIService {
           try {
             const jsonData = responseData ? JSON.parse(responseData) : {};
             
-            // Console log - Yanıt detayları
-            console.log('📥 Trendyol API Yanıtı:');
-            console.log('  Status Code:', res.statusCode);
-            console.log('  Success:', res.statusCode >= 200 && res.statusCode < 300);
-            if (res.statusCode >= 200 && res.statusCode < 300) {
-              console.log('  Response Data:', JSON.stringify(jsonData, null, 2).substring(0, 500));
+            // Console log - Yanıt detayları (sadece hatalar ve önemli istekler için)
+            const isImportantRequest = endpoint.includes('/orders') && !endpoint.includes('/orders/');
+            if (!isImportantRequest && res.statusCode >= 200 && res.statusCode < 300) {
+              // Başarılı detay istekleri için log yok (performans için)
             } else {
-              console.log('  Error:', jsonData.message || jsonData.error || 'API request failed');
-              if (res.statusCode === 401) {
-                console.log('  ❌ 401 Unauthorized - Authentication hatası:');
-                console.log('     - API Key ve Secret kontrol edin');
-                console.log('     - Trendyol Entegrasyon ayarlarını kontrol edin');
-                console.log('     - API Key ve Secret doğru mu?');
-                if (jsonData.errors && Array.isArray(jsonData.errors)) {
-                  console.log('     - Trendyol Hata Detayları:', JSON.stringify(jsonData.errors, null, 2));
+              console.log('📥 Trendyol API Yanıtı:');
+              console.log('  Status Code:', res.statusCode);
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                if (isImportantRequest) {
+                  const content = jsonData.content || jsonData;
+                  const count = Array.isArray(content) ? content.length : (content?.totalElements || 0);
+                  console.log(`  ✅ Başarılı - ${count} kayıt`);
                 }
-              }
-              if (res.statusCode === 429) {
-                console.log('  ⚠️ 429 Too Many Requests - Rate limit aşıldı:');
-                console.log('     - İstekler arasında bekleme süresi artırılıyor');
-                console.log('     - Retry mekanizması devreye girecek');
+              } else {
+                console.log('  Error:', jsonData.message || jsonData.error || 'API request failed');
+                if (res.statusCode === 401) {
+                  console.log('  ❌ 401 Unauthorized - Authentication hatası');
+                }
+                if (res.statusCode === 429) {
+                  console.log('  ⚠️ 429 Too Many Requests - Rate limit aşıldı');
+                }
               }
             }
             
@@ -221,14 +289,15 @@ class TrendyolAPIService {
   }
 
   /**
-   * Trendyol siparişlerini çek
+   * Trendyol siparişlerini çek (cache ile optimize edilmiş)
    * @param {string} supplierId - Trendyol Supplier ID
    * @param {string} apiKey - Trendyol API Key
    * @param {string} apiSecret - Trendyol API Secret
    * @param {object} options - Query options (startDate, endDate, page, size, orderByField, orderByDirection, status)
+   * @param {boolean} useCache - Cache kullanılsın mı (varsayılan: true)
    * @returns {Promise<object>} Sipariş listesi
    */
-  static async getOrders(supplierId, apiKey, apiSecret, options = {}) {
+  static async getOrders(supplierId, apiKey, apiSecret, options = {}, useCache = true) {
     try {
       const {
         startDate,
@@ -257,6 +326,19 @@ class TrendyolAPIService {
         queryParams.status = status;
       }
 
+      // Cache kontrolü (sadece sayfa 0 ve cache kullanılıyorsa)
+      if (useCache && page === 0 && !startDate && !endDate) {
+        const cacheKey = `${supplierId}_${status || 'all'}_${size}`;
+        if (orderListCache.has(cacheKey)) {
+          const cached = orderListCache.get(cacheKey);
+          if (Date.now() - cached.timestamp < ORDER_LIST_CACHE_TTL) {
+            return cached.data;
+          } else {
+            orderListCache.delete(cacheKey);
+          }
+        }
+      }
+
       const endpoint = `/${supplierId}/orders`;
       // Rate limiting için retry mekanizması ile istek gönder
       const response = await this.makeRequestWithRetry(
@@ -264,6 +346,15 @@ class TrendyolAPIService {
         3, // maxRetries
         2000 // initial delay (2 saniye)
       );
+
+      // Cache'e kaydet (sadece sayfa 0 ve başarılı ise)
+      if (useCache && page === 0 && !startDate && !endDate && response.success) {
+        const cacheKey = `${supplierId}_${status || 'all'}_${size}`;
+        orderListCache.set(cacheKey, {
+          data: response,
+          timestamp: Date.now()
+        });
+      }
       
       return response;
     } catch (error) {
@@ -273,15 +364,27 @@ class TrendyolAPIService {
   }
 
   /**
-   * Trendyol sipariş detayını çek
+   * Trendyol sipariş detayını çek (cache ile optimize edilmiş)
    * @param {string} supplierId - Trendyol Supplier ID
    * @param {string} orderNumber - Sipariş numarası
    * @param {string} apiKey - Trendyol API Key
    * @param {string} apiSecret - Trendyol API Secret
+   * @param {boolean} useCache - Cache kullanılsın mı (varsayılan: true)
    * @returns {Promise<object>} Sipariş detayı
    */
-  static async getOrderDetail(supplierId, orderNumber, apiKey, apiSecret) {
+  static async getOrderDetail(supplierId, orderNumber, apiKey, apiSecret, useCache = true) {
     try {
+      // Cache kontrolü
+      const cacheKey = `${supplierId}_${orderNumber}`;
+      if (useCache && orderDetailCache.has(cacheKey)) {
+        const cached = orderDetailCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < ORDER_CACHE_TTL) {
+          return cached.data;
+        } else {
+          orderDetailCache.delete(cacheKey);
+        }
+      }
+
       const endpoint = `/${supplierId}/orders/${orderNumber}`;
       // Rate limiting için retry mekanizması ile istek gönder
       const response = await this.makeRequestWithRetry(
@@ -289,11 +392,79 @@ class TrendyolAPIService {
         3, // maxRetries
         2000 // initial delay (2 saniye)
       );
+
+      // Cache'e kaydet
+      if (useCache && response.success) {
+        orderDetailCache.set(cacheKey, {
+          data: response,
+          timestamp: Date.now()
+        });
+      }
+
       return response;
     } catch (error) {
       console.error('❌ Trendyol API getOrderDetail error:', error);
       throw error;
     }
+  }
+
+  /**
+   * Birden fazla sipariş detayını batch olarak çek (optimize edilmiş)
+   * @param {string} supplierId - Trendyol Supplier ID
+   * @param {string[]} orderNumbers - Sipariş numaraları dizisi
+   * @param {string} apiKey - Trendyol API Key
+   * @param {string} apiSecret - Trendyol API Secret
+   * @param {number} batchSize - Her batch'te kaç sipariş çekilecek (varsayılan: 5)
+   * @returns {Promise<Array>} Sipariş detayları
+   */
+  static async getOrderDetailsBatch(supplierId, orderNumbers, apiKey, apiSecret, batchSize = 5) {
+    const results = [];
+    const uniqueOrderNumbers = [...new Set(orderNumbers)]; // Duplicate'leri kaldır
+
+    // Önce cache'den kontrol et
+    const uncachedOrders = [];
+    const cachedResults = [];
+
+    for (const orderNumber of uniqueOrderNumbers) {
+      const cacheKey = `${supplierId}_${orderNumber}`;
+      if (orderDetailCache.has(cacheKey)) {
+        const cached = orderDetailCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < ORDER_CACHE_TTL) {
+          cachedResults.push(cached.data);
+          continue;
+        } else {
+          orderDetailCache.delete(cacheKey);
+        }
+      }
+      uncachedOrders.push(orderNumber);
+    }
+
+    // Cache'den gelen sonuçları ekle
+    results.push(...cachedResults);
+
+    // Cache'de olmayan siparişleri batch'ler halinde çek
+    for (let i = 0; i < uncachedOrders.length; i += batchSize) {
+      const batch = uncachedOrders.slice(i, i + batchSize);
+      
+      // Batch içindeki siparişleri sıralı çek (rate limiting için)
+      for (const orderNumber of batch) {
+        try {
+          const detail = await this.getOrderDetail(supplierId, orderNumber, apiKey, apiSecret, true);
+          if (detail.success) {
+            results.push(detail);
+          }
+        } catch (error) {
+          console.error(`❌ Sipariş detayı çekilemedi: ${orderNumber}`, error.message);
+        }
+      }
+
+      // Batch'ler arasında bekleme (son batch değilse)
+      if (i + batchSize < uncachedOrders.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    return results;
   }
 
   /**
