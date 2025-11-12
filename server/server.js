@@ -6913,22 +6913,26 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       const TrendyolAPIService = require('./services/trendyol-api');
       console.log('📤 Trendyol API Servisi çağrılıyor...');
       // Sadece Created ve Pending durumundaki siparişleri çek
-      // Trendyol API'de iki ayrı istek yapıp birleştiriyoruz
+      // Rate limiting için paralel istek yerine sıralı istek yapıyoruz
       // API Key ve Secret'ı temizlenmiş versiyonları kullan
-      const [createdOrders, pendingOrders] = await Promise.all([
-        TrendyolAPIService.getOrders(
-          supplierId,
-          cleanApiKey,
-          cleanApiSecret,
-          { startDate, endDate, page, size, status: 'Created' }
-        ),
-        TrendyolAPIService.getOrders(
-          supplierId,
-          cleanApiKey,
-          cleanApiSecret,
-          { startDate, endDate, page, size, status: 'Pending' }
-        )
-      ]);
+      console.log('⏳ Created durumundaki siparişler çekiliyor...');
+      const createdOrders = await TrendyolAPIService.getOrders(
+        supplierId,
+        cleanApiKey,
+        cleanApiSecret,
+        { startDate, endDate, page, size, status: 'Created' }
+      );
+      
+      // İstekler arasında bekleme süresi (rate limiting için)
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
+      
+      console.log('⏳ Pending durumundaki siparişler çekiliyor...');
+      const pendingOrders = await TrendyolAPIService.getOrders(
+        supplierId,
+        cleanApiKey,
+        cleanApiSecret,
+        { startDate, endDate, page, size, status: 'Pending' }
+      );
       
       // İki sonucu birleştir
       const allOrders = [];
@@ -6940,17 +6944,25 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       }
       
       // Her sipariş için detaylı bilgi çek (tüm veriler için)
+      // Rate limiting için sıralı işlem yapıyoruz
       console.log(`📦 ${allOrders.length} sipariş bulundu, detaylar çekiliyor...`);
       const ordersWithDetails = [];
-      for (const order of allOrders) {
+      for (let i = 0; i < allOrders.length; i++) {
+        const order = allOrders[i];
         try {
+          // Her 5 siparişte bir rate limiting için bekleme
+          if (i > 0 && i % 5 === 0) {
+            console.log(`⏳ Rate limiting için bekleniyor... (${i}/${allOrders.length})`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
+          }
+          
           const orderNumber = order.orderNumber || order.id?.toString();
           if (orderNumber) {
             const detailResponse = await TrendyolAPIService.getOrderDetail(
               supplierId,
               orderNumber,
-              integration.apiKey,
-              integration.apiSecret
+              cleanApiKey,
+              cleanApiSecret
             );
             if (detailResponse.success && detailResponse.data) {
               ordersWithDetails.push(detailResponse.data);
@@ -7215,6 +7227,13 @@ app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => 
     );
     const total = countResult[0]?.total || 0;
 
+    // Toplam tutarı hesapla
+    const [totalAmountResult] = await poolWrapper.execute(
+      `SELECT COALESCE(SUM(totalAmount), 0) as totalAmount FROM marketplace_orders ${whereSql}`,
+      params
+    );
+    const totalAmount = parseFloat(totalAmountResult[0]?.totalAmount || 0);
+
     const [orders] = await poolWrapper.execute(
       `SELECT * FROM marketplace_orders ${whereSql} ORDER BY syncedAt DESC LIMIT ? OFFSET ?`,
       [...params, parseInt(limit), offset]
@@ -7234,7 +7253,7 @@ app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => 
       }
     }
 
-    res.json({ success: true, data: orders, total });
+    res.json({ success: true, data: orders, total, totalAmount });
   } catch (error) {
     console.error('❌ Error getting marketplace orders:', error);
     res.status(500).json({ success: false, message: 'Error getting marketplace orders' });

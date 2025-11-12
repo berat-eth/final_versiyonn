@@ -5,7 +5,27 @@ const https = require('https');
 
 const TRENDYOL_API_BASE_URL = 'https://api.trendyol.com/sapigw/suppliers';
 
+// Rate limiting için son istek zamanını takip et
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 500; // İstekler arası minimum bekleme süresi (ms) - 500ms = 2 istek/saniye
+const MAX_REQUESTS_PER_SECOND = 2; // Saniyede maksimum istek sayısı
+
 class TrendyolAPIService {
+  /**
+   * Rate limiting kontrolü - istekler arasında minimum bekleme süresi
+   */
+  static async waitForRateLimit() {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      console.log(`⏳ Rate limit için ${waitTime}ms bekleniyor...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    lastRequestTime = Date.now();
+  }
   /**
    * Trendyol API için Basic Auth header oluştur
    * @param {string} apiKey - Trendyol API Key
@@ -40,6 +60,9 @@ class TrendyolAPIService {
    * @returns {Promise<object>} API response
    */
   static async makeRequest(method, endpoint, apiKey, apiSecret, data = null, queryParams = {}, supplierId = null) {
+    // Rate limiting kontrolü
+    await this.waitForRateLimit();
+    
     return new Promise((resolve, reject) => {
       // API Key ve Secret'ı temizle
       const cleanApiKey = String(apiKey || '').trim();
@@ -125,6 +148,11 @@ class TrendyolAPIService {
                   console.log('     - Trendyol Hata Detayları:', JSON.stringify(jsonData.errors, null, 2));
                 }
               }
+              if (res.statusCode === 429) {
+                console.log('  ⚠️ 429 Too Many Requests - Rate limit aşıldı:');
+                console.log('     - İstekler arasında bekleme süresi artırılıyor');
+                console.log('     - Retry mekanizması devreye girecek');
+              }
             }
             
             if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -134,7 +162,7 @@ class TrendyolAPIService {
                 statusCode: res.statusCode
               });
             } else {
-              // 401 hatası için daha açıklayıcı mesaj
+              // 401 ve 429 hataları için daha açıklayıcı mesaj
               let errorMessage = jsonData.message || jsonData.error || 'API request failed';
               if (res.statusCode === 401) {
                 errorMessage = 'Trendyol API kimlik doğrulama hatası. Lütfen API Key ve API Secret bilgilerinizi kontrol edin.';
@@ -144,13 +172,21 @@ class TrendyolAPIService {
                     errorMessage += ` Detay: ${firstError.message}`;
                   }
                 }
+              } else if (res.statusCode === 429) {
+                errorMessage = 'Trendyol API rate limit aşıldı. İstekler yavaşlatılıyor, lütfen tekrar deneyin.';
+                // Retry-After header'ı varsa kullan
+                const retryAfter = res.headers['retry-after'] || res.headers['Retry-After'];
+                if (retryAfter) {
+                  errorMessage += ` Önerilen bekleme süresi: ${retryAfter} saniye`;
+                }
               }
               
               reject({
                 success: false,
                 error: errorMessage,
                 statusCode: res.statusCode,
-                data: jsonData
+                data: jsonData,
+                retryAfter: res.headers['retry-after'] || res.headers['Retry-After']
               });
             }
           } catch (error) {
@@ -222,7 +258,12 @@ class TrendyolAPIService {
       }
 
       const endpoint = `/${supplierId}/orders`;
-      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId);
+      // Rate limiting için retry mekanizması ile istek gönder
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId),
+        3, // maxRetries
+        2000 // initial delay (2 saniye)
+      );
       
       return response;
     } catch (error) {
@@ -242,7 +283,12 @@ class TrendyolAPIService {
   static async getOrderDetail(supplierId, orderNumber, apiKey, apiSecret) {
     try {
       const endpoint = `/${supplierId}/orders/${orderNumber}`;
-      const response = await this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId);
+      // Rate limiting için retry mekanizması ile istek gönder
+      const response = await this.makeRequestWithRetry(
+        () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId),
+        3, // maxRetries
+        2000 // initial delay (2 saniye)
+      );
       return response;
     } catch (error) {
       console.error('❌ Trendyol API getOrderDetail error:', error);
@@ -288,13 +334,34 @@ class TrendyolAPIService {
         return await requestFn();
       } catch (error) {
         lastError = error;
-        // 4xx hataları için retry yapma
-        if (error.statusCode >= 400 && error.statusCode < 500) {
+        
+        // 429 (Rate Limit) hatası için özel retry mekanizması
+        if (error.statusCode === 429) {
+          // Retry-After header'ı varsa onu kullan, yoksa exponential backoff
+          const retryAfter = error.retryAfter ? parseInt(error.retryAfter) * 1000 : null;
+          const waitTime = retryAfter || (delay * Math.pow(2, i)); // Exponential backoff: 1s, 2s, 4s
+          
+          console.log(`⏳ Rate limit nedeniyle ${waitTime}ms bekleniyor (deneme ${i + 1}/${maxRetries})...`);
+          
+          if (i < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            // Rate limit bekleme süresini artır
+            lastRequestTime = Date.now() + waitTime;
+            continue; // Tekrar dene
+          }
+        }
+        
+        // 401, 403, 404 gibi hatalar için retry yapma (429 hariç)
+        if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 429) {
           throw error;
         }
-        // Son deneme değilse bekle ve tekrar dene
-        if (i < maxRetries - 1) {
+        
+        // Son deneme değilse bekle ve tekrar dene (5xx hataları için)
+        if (i < maxRetries - 1 && error.statusCode >= 500) {
           await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        } else if (i < maxRetries - 1 && error.statusCode !== 429) {
+          // Diğer hatalar için kısa bekleme
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }

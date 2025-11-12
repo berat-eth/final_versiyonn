@@ -38,6 +38,7 @@ interface MarketplaceOrder {
 export default function TrendyolOrders() {
   const [orders, setOrders] = useState<MarketplaceOrder[]>([])
   const [totalOrders, setTotalOrders] = useState<number>(0)
+  const [totalAmount, setTotalAmount] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [showOrderDetailModal, setShowOrderDetailModal] = useState(false)
   const [showJsonModal, setShowJsonModal] = useState(false)
@@ -67,12 +68,21 @@ export default function TrendyolOrders() {
       const response = await api.get<ApiResponse<MarketplaceOrder[]>>('/admin/marketplace-orders', params)
       if (response.success && response.data) {
         setOrders(response.data)
-        // Toplam sipariş sayısını al (response.total varsa)
+        // Toplam sipariş sayısını ve tutarını al
         const responseWithTotal = response as any
         if (responseWithTotal.total !== undefined) {
           setTotalOrders(responseWithTotal.total)
         } else {
           setTotalOrders(response.data.length)
+        }
+        if (responseWithTotal.totalAmount !== undefined) {
+          setTotalAmount(responseWithTotal.totalAmount)
+        } else {
+          // Fallback: Frontend'de hesapla
+          const calculatedTotal = response.data.reduce((sum, order) => {
+            return sum + (parseFloat(String(order.totalAmount || 0)))
+          }, 0)
+          setTotalAmount(calculatedTotal)
         }
       }
     } catch (err: any) {
@@ -319,7 +329,7 @@ export default function TrendyolOrders() {
                   Trendyol'dan gelen siparişleri görüntüleyin ve yönetin
                   {totalOrders > 0 && (
                     <span className="ml-2 font-semibold text-orange-600 dark:text-orange-400">
-                      (Toplam: {totalOrders} sipariş)
+                      (Toplam: {totalOrders} sipariş • {totalAmount.toFixed(2)} TRY)
                     </span>
                   )}
                 </p>
