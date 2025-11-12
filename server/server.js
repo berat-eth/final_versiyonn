@@ -6946,35 +6946,86 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       
       const TrendyolAPIService = require('./services/trendyol-api');
       console.log('📤 Trendyol API Servisi çağrılıyor...');
-      // Sadece Created ve Pending durumundaki siparişleri çek
+      
+      // Tüm durumlardaki siparişleri çekmek için tüm bilinen durumları tek tek çekiyoruz
+      // Trendyol API'de bilinen durumlar: Created, Pending, Processing, Shipped, Delivered, Cancelled, Returned
       // Rate limiting için paralel istek yerine sıralı istek yapıyoruz
       // API Key ve Secret'ı temizlenmiş versiyonları kullan
-      console.log('⏳ Created durumundaki siparişler çekiliyor...');
-      const createdOrders = await TrendyolAPIService.getOrders(
-          supplierId,
-        cleanApiKey,
-        cleanApiSecret,
-          { startDate, endDate, page, size, status: 'Created' }
-      );
       
-      // İstekler arasında bekleme süresi (rate limiting için)
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
+      const allStatuses = [
+        'Created',
+        'Pending', 
+        'Processing',
+        'Shipped',
+        'Delivered',
+        'Cancelled',
+        'Returned',
+        'UnSupplied'
+      ];
       
-      console.log('⏳ Pending durumundaki siparişler çekiliyor...');
-      const pendingOrders = await TrendyolAPIService.getOrders(
-          supplierId,
-        cleanApiKey,
-        cleanApiSecret,
-          { startDate, endDate, page, size, status: 'Pending' }
-      );
+      console.log(`⏳ Tüm durumlardaki siparişler çekiliyor (${allStatuses.length} durum)...`);
       
-      // İki sonucu birleştir
       const allOrders = [];
-      if (createdOrders.success && createdOrders.data?.content) {
-        allOrders.push(...createdOrders.data.content);
+      const orderMap = new Map(); // Duplicate siparişleri önlemek için
+      
+      // Her durum için siparişleri çek
+      for (let i = 0; i < allStatuses.length; i++) {
+        const status = allStatuses[i];
+        try {
+          console.log(`  📋 ${status} durumundaki siparişler çekiliyor... (${i + 1}/${allStatuses.length})`);
+          
+          const statusOrders = await TrendyolAPIService.getOrders(
+            supplierId,
+            cleanApiKey,
+            cleanApiSecret,
+            { startDate, endDate, page, size, status }
+          );
+          
+          // Başarılı ise siparişleri ekle (duplicate kontrolü ile)
+          if (statusOrders.success && statusOrders.data?.content) {
+            statusOrders.data.content.forEach(order => {
+              const orderId = order.orderNumber || order.id?.toString();
+              if (orderId && !orderMap.has(orderId)) {
+                orderMap.set(orderId, order);
+                allOrders.push(order);
+              }
+            });
+            console.log(`    ✅ ${statusOrders.data.content.length} sipariş bulundu (Toplam: ${allOrders.length})`);
+          }
+          
+          // İstekler arasında bekleme süresi (rate limiting için) - son durum değilse
+          if (i < allStatuses.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 1 saniye bekle
+          }
+        } catch (error) {
+          console.error(`  ❌ ${status} durumundaki siparişler çekilemedi:`, error.message);
+          // Hata durumunda devam et, diğer durumları çekmeye devam et
+        }
       }
-      if (pendingOrders.success && pendingOrders.data?.content) {
-        allOrders.push(...pendingOrders.data.content);
+      
+      // Status parametresi olmadan da bir kez daha deneyelim (tüm siparişler için)
+      try {
+        console.log('  📋 Status filtresi olmadan tüm siparişler çekiliyor...');
+        const allStatusOrders = await TrendyolAPIService.getOrders(
+          supplierId,
+          cleanApiKey,
+          cleanApiSecret,
+          { startDate, endDate, page, size } // status parametresi yok
+        );
+        
+        if (allStatusOrders.success && allStatusOrders.data?.content) {
+          allStatusOrders.data.content.forEach(order => {
+            const orderId = order.orderNumber || order.id?.toString();
+            if (orderId && !orderMap.has(orderId)) {
+              orderMap.set(orderId, order);
+              allOrders.push(order);
+            }
+          });
+          console.log(`    ✅ ${allStatusOrders.data.content.length} ek sipariş bulundu (Toplam: ${allOrders.length})`);
+        }
+      } catch (error) {
+        console.error('  ❌ Status filtresi olmadan siparişler çekilemedi:', error.message);
+        // Hata durumunda devam et
       }
       
       // Her sipariş için detaylı bilgi çek (optimize edilmiş batch işlem)
