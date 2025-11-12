@@ -16,7 +16,15 @@ class TrendyolAPIService {
     if (!apiKey || !apiSecret) {
       throw new Error('API Key ve API Secret gereklidir');
     }
-    const credentials = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
+    // API Key ve Secret'ı temizle (başında/sonunda boşluk varsa kaldır)
+    const cleanApiKey = String(apiKey).trim();
+    const cleanApiSecret = String(apiSecret).trim();
+    
+    if (!cleanApiKey || !cleanApiSecret) {
+      throw new Error('API Key ve API Secret boş olamaz');
+    }
+    
+    const credentials = Buffer.from(`${cleanApiKey}:${cleanApiSecret}`).toString('base64');
     return `Basic ${credentials}`;
   }
 
@@ -33,7 +41,19 @@ class TrendyolAPIService {
    */
   static async makeRequest(method, endpoint, apiKey, apiSecret, data = null, queryParams = {}, supplierId = null) {
     return new Promise((resolve, reject) => {
-      const authHeader = this.createAuthHeader(apiKey, apiSecret);
+      // API Key ve Secret'ı temizle
+      const cleanApiKey = String(apiKey || '').trim();
+      const cleanApiSecret = String(apiSecret || '').trim();
+      
+      if (!cleanApiKey || !cleanApiSecret) {
+        return reject({
+          success: false,
+          error: 'API Key veya API Secret boş veya geçersiz',
+          statusCode: 400
+        });
+      }
+      
+      const authHeader = this.createAuthHeader(cleanApiKey, cleanApiSecret);
       
       // Query parameters ekle
       let url = `${TRENDYOL_API_BASE_URL}${endpoint}`;
@@ -70,6 +90,8 @@ class TrendyolAPIService {
       console.log('  Endpoint:', endpoint);
       console.log('  Supplier ID:', supplierId);
       console.log('  User-Agent:', userAgent);
+      console.log('  API Key (ilk 4 karakter):', cleanApiKey.substring(0, 4) + '***');
+      console.log('  API Secret (var mı):', cleanApiSecret ? 'Evet' : 'Hayır');
       console.log('  Query Params:', JSON.stringify(queryParams, null, 2));
       if (data) {
         console.log('  Request Body:', JSON.stringify(data, null, 2));
@@ -94,6 +116,15 @@ class TrendyolAPIService {
               console.log('  Response Data:', JSON.stringify(jsonData, null, 2).substring(0, 500));
             } else {
               console.log('  Error:', jsonData.message || jsonData.error || 'API request failed');
+              if (res.statusCode === 401) {
+                console.log('  ❌ 401 Unauthorized - Authentication hatası:');
+                console.log('     - API Key ve Secret kontrol edin');
+                console.log('     - Trendyol Entegrasyon ayarlarını kontrol edin');
+                console.log('     - API Key ve Secret doğru mu?');
+                if (jsonData.errors && Array.isArray(jsonData.errors)) {
+                  console.log('     - Trendyol Hata Detayları:', JSON.stringify(jsonData.errors, null, 2));
+                }
+              }
             }
             
             if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -103,9 +134,21 @@ class TrendyolAPIService {
                 statusCode: res.statusCode
               });
             } else {
+              // 401 hatası için daha açıklayıcı mesaj
+              let errorMessage = jsonData.message || jsonData.error || 'API request failed';
+              if (res.statusCode === 401) {
+                errorMessage = 'Trendyol API kimlik doğrulama hatası. Lütfen API Key ve API Secret bilgilerinizi kontrol edin.';
+                if (jsonData.errors && Array.isArray(jsonData.errors) && jsonData.errors.length > 0) {
+                  const firstError = jsonData.errors[0];
+                  if (firstError.message) {
+                    errorMessage += ` Detay: ${firstError.message}`;
+                  }
+                }
+              }
+              
               reject({
                 success: false,
-                error: jsonData.message || jsonData.error || 'API request failed',
+                error: errorMessage,
                 statusCode: res.statusCode,
                 data: jsonData
               });

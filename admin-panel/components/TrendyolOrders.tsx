@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { 
   ShoppingCart, Search, Loader2, X, User, Mail, Phone, 
   Calendar, DollarSign, Package, MapPin, Code, FileJson, 
-  Receipt, FileText, Download, ExternalLink, Printer
+  Receipt, FileText, Download, ExternalLink, Printer, RefreshCw
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
@@ -48,6 +48,8 @@ export default function TrendyolOrders() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
 
   useEffect(() => {
     loadOrders()
@@ -69,6 +71,52 @@ export default function TrendyolOrders() {
       setError('Siparişler yüklenemedi: ' + (err.message || 'Bilinmeyen hata'))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true)
+      setRefreshMessage(null)
+      setError(null)
+      
+      // Önce Trendyol entegrasyonunu bul
+      const integrationsResponse = await api.get<ApiResponse<any[]>>('/admin/integrations')
+      if (!integrationsResponse.success || !integrationsResponse.data) {
+        throw new Error('Entegrasyonlar yüklenemedi')
+      }
+      
+      const trendyolIntegration = integrationsResponse.data.find(
+        (int: any) => int.provider === 'Trendyol' && int.type === 'marketplace'
+      )
+      
+      if (!trendyolIntegration || !trendyolIntegration.id) {
+        throw new Error('Trendyol entegrasyonu bulunamadı. Lütfen önce entegrasyonu yapılandırın.')
+      }
+      
+      // Siparişleri Trendyol'dan çek
+      const syncResponse = await api.post<ApiResponse<{ synced: number; skipped: number; total: number; errors?: any[] }>>(
+        `/admin/integrations/${trendyolIntegration.id}/sync-orders`,
+        {}
+      )
+      
+      if (syncResponse.success && syncResponse.data) {
+        const { synced, skipped, total } = syncResponse.data
+        setRefreshMessage(`${synced} sipariş senkronize edildi, ${skipped} sipariş atlandı (Toplam: ${total})`)
+        
+        // Siparişleri yeniden yükle
+        await loadOrders()
+        
+        // Mesajı 5 saniye sonra temizle
+        setTimeout(() => setRefreshMessage(null), 5000)
+      } else {
+        throw new Error(syncResponse.message || 'Sipariş çekme başarısız')
+      }
+    } catch (err: any) {
+      setError('Siparişler yenilenemedi: ' + (err.message || 'Bilinmeyen hata'))
+      setRefreshMessage(null)
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -264,6 +312,15 @@ export default function TrendyolOrders() {
                 </p>
               </div>
             </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white rounded-lg transition-colors font-medium"
+              title="Siparişleri Trendyol'dan Yeniden Çek"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Yenileniyor...' : 'Yenile'}
+            </button>
           </div>
 
           {/* Alerts */}
@@ -274,6 +331,15 @@ export default function TrendyolOrders() {
               className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400"
             >
               {error}
+            </motion.div>
+          )}
+          {refreshMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400"
+            >
+              {refreshMessage}
             </motion.div>
           )}
 

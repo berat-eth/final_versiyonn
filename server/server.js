@@ -6876,8 +6876,22 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       });
     }
     
+    // API Key ve Secret'ı temizle (başında/sonunda boşluk varsa kaldır)
+    const cleanApiKey = String(integration.apiKey).trim();
+    const cleanApiSecret = String(integration.apiSecret).trim();
+    
+    if (!cleanApiKey || !cleanApiSecret) {
+      console.log('❌ API Key veya Secret boş (temizleme sonrası)');
+      return res.status(400).json({ 
+        success: false, 
+        message: 'API Key ve API Secret boş olamaz. Lütfen entegrasyon ayarlarını kontrol edin.' 
+      });
+    }
+    
     const config = typeof integration.config === 'string' ? JSON.parse(integration.config) : (integration.config || {});
     console.log('  Config:', JSON.stringify(config, null, 2));
+    console.log('  API Key (temizlenmiş, ilk 4 karakter):', cleanApiKey.substring(0, 4) + '***');
+    console.log('  API Secret (temizlenmiş, var mı):', cleanApiSecret ? 'Evet' : 'Hayır');
     
     let ordersResponse;
 
@@ -6898,17 +6912,18 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
       console.log('📤 Trendyol API Servisi çağrılıyor...');
       // Sadece Created ve Pending durumundaki siparişleri çek
       // Trendyol API'de iki ayrı istek yapıp birleştiriyoruz
+      // API Key ve Secret'ı temizlenmiş versiyonları kullan
       const [createdOrders, pendingOrders] = await Promise.all([
         TrendyolAPIService.getOrders(
           supplierId,
-          integration.apiKey,
-          integration.apiSecret,
+          cleanApiKey,
+          cleanApiSecret,
           { startDate, endDate, page, size, status: 'Created' }
         ),
         TrendyolAPIService.getOrders(
           supplierId,
-          integration.apiKey,
-          integration.apiSecret,
+          cleanApiKey,
+          cleanApiSecret,
           { startDate, endDate, page, size, status: 'Pending' }
         )
       ]);
