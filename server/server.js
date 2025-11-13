@@ -8864,46 +8864,6 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       }
     };
 
-    // Logo filigran ekleme (arka plan)
-    try {
-      const logoPath = path.join(__dirname, '../assets/logo.jpg');
-      if (fs.existsSync(logoPath)) {
-        // Logo boyutları: 350px x 450px
-        const logoWidth = 350;
-        const logoHeight = 450;
-        
-        // Sayfa boyutları: A5 dikey = 420pt x 595pt
-        const pageWidth = 420;
-        const pageHeight = 595;
-        
-        // Logo'yu tam ortaya yerleştir
-        const logoX = (pageWidth - logoWidth) / 2; // Yatay ortalama
-        const logoY = (pageHeight - logoHeight) / 2; // Dikey ortalama
-        
-        // Filigran için opacity ayarla (0.15 = %15 opaklık, çok hafif)
-        doc.opacity(0.15);
-        
-        // Logo'yu belirtilen boyutta ve tam ortada ekle
-        doc.image(logoPath, logoX, logoY, {
-          width: logoWidth,
-          height: logoHeight
-        });
-        
-        // Opacity'yi normale döndür
-        doc.opacity(1.0);
-        console.log('✅ Logo filigran eklendi:', {
-          size: `${logoWidth}x${logoHeight}px`,
-          position: `(${logoX.toFixed(1)}, ${logoY.toFixed(1)})`,
-          centered: true
-        });
-      } else {
-        console.warn('⚠️ Logo dosyası bulunamadı:', logoPath);
-      }
-    } catch (error) {
-      console.error('❌ Logo filigran ekleme hatası:', error);
-      // Hata olsa bile devam et
-    }
-
     // Üst başlık bölümü - Logo ile beyaz arka plan
     doc.rect(0, 0, 420, 55).fill('#ffffff'); // Beyaz arka plan
     
