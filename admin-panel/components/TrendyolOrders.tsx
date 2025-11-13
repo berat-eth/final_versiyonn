@@ -186,6 +186,9 @@ export default function TrendyolOrders() {
     if (!selectedOrder) return
     
     try {
+      // API base URL'i fonksiyonun başında tanımla
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+      
       // Fatura linki veya seçili fatura kontrolü
       let invoiceUrl = ''
       
@@ -201,8 +204,6 @@ export default function TrendyolOrders() {
         }
         
         // Direkt PDF dosyasına erişim için download URL'i oluştur
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
-        
         if (selectedInvoice.id) {
           // Admin endpoint ile direkt dosya indirme
           invoiceUrl = `${API_BASE_URL}/admin/invoices/${selectedInvoice.id}/download`
