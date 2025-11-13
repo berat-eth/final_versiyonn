@@ -185,9 +185,10 @@ export default function TrendyolOrders() {
   const handleGenerateCargoSlip = async () => {
     if (!selectedOrder) return
     
+    // API base URL'i fonksiyonun başında tanımla
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    
     try {
-      // API base URL'i fonksiyonun başında tanımla
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
       
       // Fatura linki veya seçili fatura kontrolü
       let invoiceUrl = ''
