@@ -9008,7 +9008,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       customerAddress,
       city,
       district,
-      items = []
+      items = [],
+      provider = null // 'hepsiburada' veya 'trendyol' veya null
     } = req.body;
 
     // Validasyon: orderId zorunlu
@@ -9174,9 +9175,9 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         const logoWidth = 120;
         const logoHeight = 40;
         
-        // Logo'yu üst başlık bölümünün ortasına yerleştir
+        // Logo'yu üst başlık bölümünün ortasına yerleştir (biraz aşağı kaydırıldı)
         const logoX = (420 - logoWidth) / 2; // Yatay ortalama
-        const logoY = (55 - logoHeight) / 2; // Dikey ortalama (üst başlık yüksekliği içinde)
+        const logoY = (55 - logoHeight) / 2 + 8; // Dikey ortalama + 8px aşağı kaydırıldı
         
         // Logo'yu ekle (opacity normal, filigran değil)
         doc.image(logoPath, logoX, logoY, {
@@ -9252,7 +9253,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     }
 
     // Müşteri bilgileri bölümü (sol taraf - dikey layout)
-    let yPos = 65; // Küçültüldü (70'ten 65'e, üst başlık küçültüldüğü için)
+    let yPos = 75; // 10px aşağı kaydırıldı (65'ten 75'e)
     doc.fillColor('#0f172a')
        .fontSize(11) // Küçültüldü (12'den 11'e)
        .font('Helvetica-Bold');
@@ -9601,11 +9602,15 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
        .fillColor('#64748b');
     addUTF8Text('Kargo Fisi', 220, finalFooterY + 16, { align: 'right', width: 180 });
     
-    // Trendyol bilgisi - en alt satır
+    // Marketplace bilgisi - en alt satır
     doc.fontSize(7)
        .font('Helvetica')
        .fillColor('#64748b');
-    addUTF8Text('Bu Siparis Trendyol.com\'dan olusturulmustur', 20, finalFooterY + 28, { align: 'center', width: 380 });
+    if (provider === 'hepsiburada') {
+      addUTF8Text('Bu Siparis Hepsiburada\'dan olusturulmustur', 20, finalFooterY + 28, { align: 'center', width: 380 });
+    } else {
+      addUTF8Text('Bu Siparis Trendyol.com\'dan olusturulmustur', 20, finalFooterY + 28, { align: 'center', width: 380 });
+    }
 
     // PDF'i response olarak gönder
     res.setHeader('Content-Type', 'application/pdf');

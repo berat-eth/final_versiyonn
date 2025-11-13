@@ -219,15 +219,9 @@ export default function HepsiburadaOrders() {
         return
       }
 
-      // Kargo bilgilerini al
-      const orderData = selectedOrder.orderData 
-        ? (typeof selectedOrder.orderData === 'string' 
-            ? JSON.parse(selectedOrder.orderData)
-            : selectedOrder.orderData)
-        : null
-      
-      const cargoTrackingNumber = orderData?.cargoTrackingNumber || ''
-      const cargoProviderName = orderData?.cargoProviderName || ''
+      // Kargo bilgilerini al - Hepsiburada siparişlerinde direkt tabloda saklanıyor
+      const cargoTrackingNumber = (selectedOrder as any).cargoTrackingNumber || ''
+      const cargoProviderName = (selectedOrder as any).cargoProviderName || ''
 
       // Backend'e istek gönder (blob response için doğrudan fetch)
       const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
@@ -253,6 +247,7 @@ export default function HepsiburadaOrders() {
           customerAddress: selectedOrder.shippingAddress || selectedOrder.fullAddress,
           city: selectedOrder.city,
           district: selectedOrder.district,
+          provider: 'hepsiburada', // Hepsiburada siparişi olduğunu belirt
           // Sadece productName ve productSku gönder (itemData gibi büyük alanları gönderme)
           items: (selectedOrder.items || []).map(item => ({
             productName: item.productName || '',
@@ -999,42 +994,35 @@ export default function HepsiburadaOrders() {
 
                   {/* Kargo Bilgileri */}
                   {(() => {
-                    if (!selectedOrder.orderData) return null
-                    try {
-                      const orderData = typeof selectedOrder.orderData === 'string' 
-                        ? JSON.parse(selectedOrder.orderData)
-                        : selectedOrder.orderData
-                      const cargoTrackingNumber = orderData?.cargoTrackingNumber
-                      const cargoProviderName = orderData?.cargoProviderName
-                      
-                      if (!cargoTrackingNumber && !cargoProviderName) return null
-                      
-                      return (
-                        <div>
-                          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Kargo Bilgileri</h3>
-                          <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
-                            {cargoProviderName && (
-                              <div>
-                                <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Firması</label>
-                                <p className="text-slate-900 dark:text-white font-medium">
-                                  {cargoProviderName}
-                                </p>
-                              </div>
-                            )}
-                            {cargoTrackingNumber && (
-                              <div>
-                                <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Kodu</label>
-                                <p className="text-slate-900 dark:text-white font-medium">
-                                  {cargoTrackingNumber}
-                                </p>
-                              </div>
-                            )}
-                          </div>
+                    // Hepsiburada siparişlerinde kargo bilgileri direkt tabloda saklanıyor
+                    const cargoTrackingNumber = (selectedOrder as any).cargoTrackingNumber
+                    const cargoProviderName = (selectedOrder as any).cargoProviderName
+                    
+                    if (!cargoTrackingNumber && !cargoProviderName) return null
+                    
+                    return (
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Kargo Bilgileri</h3>
+                        <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
+                          {cargoProviderName && (
+                            <div>
+                              <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Firması</label>
+                              <p className="text-slate-900 dark:text-white font-medium">
+                                {cargoProviderName}
+                              </p>
+                            </div>
+                          )}
+                          {cargoTrackingNumber && (
+                            <div>
+                              <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Kodu</label>
+                              <p className="text-slate-900 dark:text-white font-medium">
+                                {cargoTrackingNumber}
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      )
-                    } catch (error) {
-                      return null
-                    }
+                      </div>
+                    )
                   })()}
 
                   {/* Sipariş Tarihleri */}
