@@ -8864,6 +8864,36 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       }
     };
 
+    // Logo filigran ekleme (arka plan)
+    try {
+      const logoPath = path.join(__dirname, '../assets/logo.jpg');
+      if (fs.existsSync(logoPath)) {
+        // Filigran için opacity ayarla (0.15 = %15 opaklık, çok hafif)
+        doc.opacity(0.15);
+        
+        // Logo'yu sayfanın ortasına, büyük boyutta yerleştir
+        const logoWidth = 300; // Genişlik
+        const logoHeight = 300; // Yükseklik (orantılı olacak)
+        const logoX = (420 - logoWidth) / 2; // Yatay ortalama
+        const logoY = (595 - logoHeight) / 2; // Dikey ortalama
+        
+        // Logo'yu ekle
+        doc.image(logoPath, logoX, logoY, {
+          width: logoWidth,
+          height: logoHeight
+        });
+        
+        // Opacity'yi normale döndür
+        doc.opacity(1.0);
+        console.log('✅ Logo filigran eklendi');
+      } else {
+        console.warn('⚠️ Logo dosyası bulunamadı:', logoPath);
+      }
+    } catch (error) {
+      console.error('❌ Logo filigran ekleme hatası:', error);
+      // Hata olsa bile devam et
+    }
+
     // Üst başlık bölümü - gradient efekti için koyu arka plan (dikey için)
     doc.rect(0, 0, 420, 55).fill('#1e293b'); // Küçültüldü (60'tan 55'e)
     doc.fontSize(20) // Küçültüldü (22'den 20'ye)
