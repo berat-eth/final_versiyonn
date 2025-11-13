@@ -8221,16 +8221,16 @@ app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => 
   }
 });
 
-// Admin - Marketplace siparişlerini CSV'den import et
-app.post('/api/admin/marketplace-orders/import', authenticateAdmin, async (req, res) => {
+// Admin - Hepsiburada siparişlerini CSV'den import et
+app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
-    const { provider, orders } = req.body;
+    const { orders } = req.body;
 
-    if (!provider || !orders || !Array.isArray(orders) || orders.length === 0) {
+    if (!orders || !Array.isArray(orders) || orders.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Provider ve orders array gereklidir'
+        message: 'Orders array gereklidir'
       });
     }
 
@@ -8273,45 +8273,49 @@ app.post('/api/admin/marketplace-orders/import', authenticateAdmin, async (req, 
 
         // Mevcut siparişi kontrol et
         const [existingOrders] = await poolWrapper.execute(
-          'SELECT id FROM marketplace_orders WHERE tenantId = ? AND provider = ? AND externalOrderId = ?',
-          [tenantId, provider, externalOrderId]
+          'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND externalOrderId = ?',
+          [tenantId, externalOrderId]
         );
 
-        let marketplaceOrderId;
+        let hepsiburadaOrderId;
         const orderDataJson = {
-          packageNumber,
-          invoiceAddress,
-          cargoProviderName,
-          cargoTrackingNumber,
-          orderDate,
-          deliveryDate,
-          deliveryType,
-          packageStatus,
-          customerType,
-          isHepsiLogistic,
-          isReturned,
           rawData
         };
 
         if (existingOrders.length > 0) {
           // Mevcut siparişi güncelle
-          marketplaceOrderId = existingOrders[0].id;
+          hepsiburadaOrderId = existingOrders[0].id;
           await poolWrapper.execute(
-            `UPDATE marketplace_orders 
-             SET totalAmount = ?, status = ?, shippingAddress = ?, city = ?, district = ?, 
-                 fullAddress = ?, customerName = ?, customerEmail = ?, orderData = ?, updatedAt = CURRENT_TIMESTAMP
+            `UPDATE hepsiburada_orders 
+             SET packageNumber = ?, totalAmount = ?, status = ?, shippingAddress = ?, city = ?, district = ?, 
+                 fullAddress = ?, invoiceAddress = ?, customerName = ?, customerEmail = ?, 
+                 cargoProviderName = ?, cargoTrackingNumber = ?, orderDate = ?, deliveryDate = ?, 
+                 deliveryType = ?, packageStatus = ?, currency = ?, customerType = ?, 
+                 isHepsiLogistic = ?, isReturned = ?, orderData = ?, updatedAt = CURRENT_TIMESTAMP
              WHERE id = ? AND tenantId = ?`,
             [
+              packageNumber || null,
               totalAmount,
               status,
               shippingAddress || '',
-              city || '',
-              district || '',
+              city || null,
+              district || null,
               shippingAddress || '',
-              customerName || '',
-              customerEmail || '',
+              invoiceAddress || null,
+              customerName || null,
+              customerEmail || null,
+              cargoProviderName || null,
+              cargoTrackingNumber || null,
+              orderDate ? new Date(orderDate) : null,
+              deliveryDate || null,
+              deliveryType || null,
+              packageStatus || null,
+              currency,
+              customerType || null,
+              isHepsiLogistic || false,
+              isReturned || false,
               JSON.stringify(orderDataJson),
-              marketplaceOrderId,
+              hepsiburadaOrderId,
               tenantId
             ]
           );
@@ -8319,34 +8323,46 @@ app.post('/api/admin/marketplace-orders/import', authenticateAdmin, async (req, 
         } else {
           // Yeni sipariş ekle
           const [orderResult] = await poolWrapper.execute(
-            `INSERT INTO marketplace_orders 
-             (tenantId, provider, externalOrderId, totalAmount, status, shippingAddress, 
-              city, district, fullAddress, customerName, customerEmail, orderData, syncedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO hepsiburada_orders 
+             (tenantId, externalOrderId, packageNumber, totalAmount, status, shippingAddress, 
+              city, district, fullAddress, invoiceAddress, customerName, customerEmail, 
+              cargoProviderName, cargoTrackingNumber, orderDate, deliveryDate, deliveryType, 
+              packageStatus, currency, customerType, isHepsiLogistic, isReturned, orderData)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               tenantId,
-              provider,
               externalOrderId,
+              packageNumber || null,
               totalAmount,
               status,
               shippingAddress || '',
-              city || '',
-              district || '',
+              city || null,
+              district || null,
               shippingAddress || '',
-              customerName || '',
-              customerEmail || '',
-              JSON.stringify(orderDataJson),
-              orderDate ? new Date(orderDate) : new Date()
+              invoiceAddress || null,
+              customerName || null,
+              customerEmail || null,
+              cargoProviderName || null,
+              cargoTrackingNumber || null,
+              orderDate ? new Date(orderDate) : null,
+              deliveryDate || null,
+              deliveryType || null,
+              packageStatus || null,
+              currency,
+              customerType || null,
+              isHepsiLogistic || false,
+              isReturned || false,
+              JSON.stringify(orderDataJson)
             ]
           );
-          marketplaceOrderId = orderResult.insertId;
+          hepsiburadaOrderId = orderResult.insertId;
           importedCount++;
         }
 
         // Mevcut sipariş öğelerini sil
         await poolWrapper.execute(
-          'DELETE FROM marketplace_order_items WHERE marketplaceOrderId = ? AND tenantId = ?',
-          [marketplaceOrderId, tenantId]
+          'DELETE FROM hepsiburada_order_items WHERE hepsiburadaOrderId = ? AND tenantId = ?',
+          [hepsiburadaOrderId, tenantId]
         );
 
         // Sipariş öğelerini ekle
@@ -8368,27 +8384,27 @@ app.post('/api/admin/marketplace-orders/import', authenticateAdmin, async (req, 
           } = item;
 
           await poolWrapper.execute(
-            `INSERT INTO marketplace_order_items 
-             (tenantId, marketplaceOrderId, productName, productSku, quantity, price, itemData)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO hepsiburada_order_items 
+             (tenantId, hepsiburadaOrderId, itemNumber, productName, productSku, hepsiburadaProductCode, 
+              option1, option2, quantity, price, listingPrice, unitPrice, commission, taxRate, category, itemData)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               tenantId,
-              marketplaceOrderId,
+              hepsiburadaOrderId,
+              itemNumber || null,
               productName || '',
-              productSku || '',
+              productSku || null,
+              hepsiburadaProductCode || null,
+              option1 || null,
+              option2 || null,
               quantity,
               price,
-              JSON.stringify({
-                itemNumber,
-                hepsiburadaProductCode,
-                option1,
-                option2,
-                listingPrice,
-                unitPrice,
-                commission,
-                taxRate,
-                category
-              })
+              listingPrice || null,
+              unitPrice || null,
+              commission || null,
+              taxRate || null,
+              category || null,
+              JSON.stringify({})
             ]
           );
         }
@@ -8409,11 +8425,98 @@ app.post('/api/admin/marketplace-orders/import', authenticateAdmin, async (req, 
       }
     });
   } catch (error) {
-    console.error('❌ Error importing marketplace orders:', error);
+    console.error('❌ Error importing hepsiburada orders:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Sipariş import hatası'
     });
+  }
+});
+
+// Admin - Hepsiburada siparişlerini listele
+app.get('/api/admin/hepsiburada-orders', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { status, page = 1, limit = 50, startDate, endDate } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let whereClauses = ['tenantId = ?'];
+    let params = [tenantId];
+
+    if (status) {
+      whereClauses.push('status = ?');
+      params.push(status);
+    }
+
+    // Tarih filtresi ekle
+    if (startDate) {
+      whereClauses.push('DATE(createdAt) >= ?');
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClauses.push('DATE(createdAt) <= ?');
+      params.push(endDate);
+    }
+
+    const whereSql = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+    // Toplam sipariş sayısını al
+    const [countResult] = await poolWrapper.execute(
+      `SELECT COUNT(*) as total FROM hepsiburada_orders ${whereSql}`,
+      params
+    );
+    const total = countResult[0]?.total || 0;
+
+    // Toplam tutarı hesapla
+    const [totalAmountResult] = await poolWrapper.execute(
+      `SELECT COALESCE(SUM(totalAmount), 0) as totalAmount FROM hepsiburada_orders ${whereSql}`,
+      params
+    );
+    const totalAmount = parseFloat(totalAmountResult[0]?.totalAmount || 0);
+
+    const [orders] = await poolWrapper.execute(
+      `SELECT * FROM hepsiburada_orders ${whereSql} ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+      [...params, parseInt(limit), offset]
+    );
+
+    // Her sipariş için öğeleri çek
+    for (const order of orders) {
+      try {
+        const [items] = await poolWrapper.execute(
+          'SELECT * FROM hepsiburada_order_items WHERE hepsiburadaOrderId = ? AND tenantId = ?',
+          [order.id, tenantId]
+        );
+        order.items = items || [];
+      } catch (itemError) {
+        console.error(`❌ Error loading items for order ${order.id}:`, itemError);
+        order.items = [];
+      }
+    }
+
+    res.json({ success: true, data: orders, total, totalAmount });
+  } catch (error) {
+    console.error('❌ Error getting hepsiburada orders:', error);
+    res.status(500).json({ success: false, message: 'Error getting hepsiburada orders' });
+  }
+});
+
+// Admin - Hepsiburada siparişini sil
+app.delete('/api/admin/hepsiburada-orders/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+
+    // Sipariş öğeleri CASCADE ile otomatik silinecek
+    await poolWrapper.execute(
+      'DELETE FROM hepsiburada_orders WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+
+    res.json({ success: true, message: 'Sipariş başarıyla silindi' });
+  } catch (error) {
+    console.error('❌ Error deleting hepsiburada order:', error);
+    res.status(500).json({ success: false, message: 'Sipariş silinirken hata oluştu' });
   }
 });
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { 
   ShoppingCart, Search, Loader2, X, User, Mail, Phone, 
   Calendar, DollarSign, Package, MapPin, Code, FileJson, 
-  Receipt, FileText, Download, ExternalLink, Printer, RefreshCw, Upload, CheckCircle
+  Receipt, FileText, Download, ExternalLink, Printer, RefreshCw, Upload, CheckCircle, Trash2
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
@@ -58,6 +58,7 @@ export default function HepsiburadaOrders() {
   const [uploading, setUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
+  const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
 
   useEffect(() => {
     // Debounce: Filtre değişikliklerinde 500ms bekle
@@ -71,14 +72,12 @@ export default function HepsiburadaOrders() {
   const loadOrders = async () => {
     try {
       setLoading(true)
-      const params: Record<string, string> = {
-        provider: 'hepsiburada'
-      }
+      const params: Record<string, string> = {}
       if (statusFilter) params.status = statusFilter
       if (startDate) params.startDate = startDate
       if (endDate) params.endDate = endDate
       
-      const response = await api.get<ApiResponse<MarketplaceOrder[]>>('/admin/marketplace-orders', params)
+      const response = await api.get<ApiResponse<MarketplaceOrder[]>>('/admin/hepsiburada-orders', params)
       if (response.success && response.data) {
         setOrders(response.data)
         // Toplam sipariş sayısını ve tutarını al
@@ -309,6 +308,31 @@ export default function HepsiburadaOrders() {
     return labels[status] || status
   }
 
+  const handleDeleteOrder = async (orderId: number, orderNumber: string) => {
+    if (!confirm(`"${orderNumber}" siparişini silmek istediğinizden emin misiniz?`)) {
+      return
+    }
+
+    try {
+      setDeletingOrderId(orderId)
+      setError(null)
+
+      const response = await api.delete<ApiResponse<any>>(`/admin/hepsiburada-orders/${orderId}`)
+
+      if (response.success) {
+        setUploadSuccess('Sipariş başarıyla silindi')
+        await loadOrders()
+        setTimeout(() => setUploadSuccess(null), 3000)
+      } else {
+        throw new Error(response.message || 'Sipariş silinemedi')
+      }
+    } catch (err: any) {
+      setError('Sipariş silinirken hata oluştu: ' + (err.message || 'Bilinmeyen hata'))
+    } finally {
+      setDeletingOrderId(null)
+    }
+  }
+
   // CSV Parse fonksiyonu - Hepsiburada formatına özel
   const parseCSV = (csvText: string): any[] => {
     const lines = csvText.split('\n').filter(line => line.trim())
@@ -454,9 +478,8 @@ export default function HepsiburadaOrders() {
       
       // Backend'e gönder
       const response = await api.post<ApiResponse<{ imported: number; skipped: number; errors?: string[] }>>(
-        '/admin/marketplace-orders/import',
+        '/admin/hepsiburada-orders/import',
         {
-          provider: 'hepsiburada',
           orders: parsedOrders
         }
       )
@@ -664,11 +687,13 @@ export default function HepsiburadaOrders() {
                 key={order.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                onClick={() => handleOrderClick(order)}
-                className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
+                  <div 
+                    className="flex-1 cursor-pointer"
+                    onClick={() => handleOrderClick(order)}
+                  >
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
                         🛒 {order.externalOrderId}
@@ -695,7 +720,7 @@ export default function HepsiburadaOrders() {
                       )}
                       <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                         <Calendar className="w-4 h-4" />
-                        <span>{new Date(order.syncedAt).toLocaleDateString('tr-TR')}</span>
+                        <span>{new Date(order.createdAt || order.syncedAt).toLocaleDateString('tr-TR')}</span>
                       </div>
                       <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
                         <DollarSign className="w-4 h-4" />
@@ -724,6 +749,21 @@ export default function HepsiburadaOrders() {
                       </div>
                     )}
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteOrder(order.id, order.externalOrderId)
+                    }}
+                    disabled={deletingOrderId === order.id}
+                    className="ml-4 p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                    title="Siparişi Sil"
+                  >
+                    {deletingOrderId === order.id ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-5 h-5" />
+                    )}
+                  </button>
                 </div>
               </motion.div>
             ))}
@@ -1000,15 +1040,17 @@ export default function HepsiburadaOrders() {
                   {/* Sipariş Tarihleri */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <label className="text-slate-600 dark:text-slate-400">Senkronize Tarihi</label>
+                      <label className="text-slate-600 dark:text-slate-400">Oluşturulma Tarihi</label>
                       <p className="text-slate-900 dark:text-white font-medium">
-                        {new Date(selectedOrder.syncedAt).toLocaleString('tr-TR')}
+                        {new Date(selectedOrder.createdAt || selectedOrder.syncedAt).toLocaleString('tr-TR')}
                       </p>
                     </div>
                     <div>
-                      <label className="text-slate-600 dark:text-slate-400">Oluşturulma Tarihi</label>
+                      <label className="text-slate-600 dark:text-slate-400">Güncelleme Tarihi</label>
                       <p className="text-slate-900 dark:text-white font-medium">
-                        {new Date(selectedOrder.createdAt).toLocaleString('tr-TR')}
+                        {selectedOrder.updatedAt 
+                          ? new Date(selectedOrder.updatedAt).toLocaleString('tr-TR')
+                          : new Date(selectedOrder.createdAt || selectedOrder.syncedAt).toLocaleString('tr-TR')}
                       </p>
                     </div>
                   </div>
