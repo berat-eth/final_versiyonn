@@ -191,8 +191,9 @@ export default function HepsiburadaOrders() {
   const handleGenerateCargoSlip = async () => {
     if (!selectedOrder) return
     
-    // API base URL'i fonksiyonun başında tanımla
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api'
+    // API base URL'i api utility'sinden al (tutarlılık için)
+    // api utility'sinin baseUrl'ini kullan
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
     
     try {
       
@@ -224,18 +225,25 @@ export default function HepsiburadaOrders() {
       }
 
       // Kargo bilgilerini al - Hepsiburada siparişlerinde direkt tabloda saklanıyor
-      const cargoTrackingNumber = (selectedOrder as any).cargoTrackingNumber || ''
+      // Paket Numarası = Kargo Kodu olarak kullanılacak
+      const packageNumber = (selectedOrder as any).packageNumber || ''
       const cargoProviderName = (selectedOrder as any).cargoProviderName || ''
+      // Barkod alanı EAN-128 barkod olarak kullanılacak
       const barcode = (selectedOrder as any).barcode || ''
+      
+      // Kargo Kodu: Paket Numarası (veya Kargo Firması + Paket Numarası)
+      const cargoCode = packageNumber || ''
       
       // Debug: Kargo bilgilerini logla
       console.log('🔍 Kargo Fişi Debug:', {
         orderId: selectedOrder.id,
         externalOrderId: selectedOrder.externalOrderId,
-        cargoTrackingNumber,
+        packageNumber,
+        cargoCode,
         cargoProviderName,
         barcode,
         provider: 'hepsiburada',
+        apiBaseUrl: API_BASE_URL,
         selectedOrder: selectedOrder
       })
 
@@ -244,7 +252,10 @@ export default function HepsiburadaOrders() {
       const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
       const token = sessionStorage.getItem('authToken') || ''
       
-      const response = await fetch(`${API_BASE_URL}/admin/generate-cargo-slip`, {
+      const requestUrl = `${API_BASE_URL}/admin/generate-cargo-slip`
+      console.log('🔍 API Request URL:', requestUrl)
+      
+      const response = await fetch(requestUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -255,9 +266,9 @@ export default function HepsiburadaOrders() {
         body: JSON.stringify({
           orderId: selectedOrder.id,
           invoiceUrl: invoiceUrl,
-          cargoTrackingNumber: cargoTrackingNumber,
+          cargoTrackingNumber: cargoCode, // Paket Numarası = Kargo Kodu
           cargoProviderName: cargoProviderName,
-          barcode: barcode,
+          barcode: barcode, // EAN-128 için barkod
           customerName: selectedOrder.customerName,
           customerEmail: selectedOrder.customerEmail,
           customerPhone: selectedOrder.customerPhone,
@@ -746,8 +757,8 @@ export default function HepsiburadaOrders() {
                           Sipariş Öğeleri ({order.items.length})
                         </p>
                         <div className="space-y-2">
-                          {order.items.slice(0, 3).map((item) => (
-                            <div key={item.id} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                          {order.items.slice(0, 3).map((item, idx) => (
+                            <div key={item.id || `item-${order.id}-${idx}`} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                               <span>{item.productName}</span>
                               <span className="text-slate-400">x{item.quantity}</span>
                               <span className="ml-auto font-medium">{Number(item.price || 0).toFixed(2)} TRY</span>
@@ -967,9 +978,9 @@ export default function HepsiburadaOrders() {
                         Sipariş Öğeleri ({selectedOrder.items.length})
                       </h3>
                       <div className="space-y-3">
-                        {selectedOrder.items.map((item) => (
+                        {selectedOrder.items.map((item, idx) => (
                           <div
-                            key={item.id}
+                            key={item.id || `item-${selectedOrder.id}-${idx}`}
                             className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700"
                           >
                             {item.productImage && (

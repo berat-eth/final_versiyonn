@@ -9507,10 +9507,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     
     // Hepsiburada için özel kargo bilgileri
     if (provider === 'hepsiburada') {
-      // Kargo Kodu: Kargo Firması + Barkod
-      const cargoCode = cargoProviderName && barcode 
-        ? `${cargoProviderName} - ${barcode}`
-        : barcode || cargoProviderName || '';
+      // Kargo Kodu: cargoTrackingNumber (Paket Numarası) kullanılacak
+      const cargoCode = cargoTrackingNumber || '';
       
       // Kargo kodu varsa göster
       if (cargoCode) {
@@ -9521,7 +9519,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         cargoYPos += 18;
       }
       
-      // Barkod varsa EAN-128 (Code128) barkod oluştur
+      // Barkod varsa EAN-128 (Code128) barkod oluştur - Barkod alanından
       if (barcode) {
         const barcodeY = cargoYPos;
         const barcodeHeight = 28;
@@ -9538,9 +9536,19 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         // bwip-js ile EAN-128 (Code128) barkod oluştur - Barkod verisini kullan
         if (bwipjs) {
           try {
+            // Barkod verisini temizle ve 18 karaktere uygun hale getir
+            let barcodeText = String(barcode).trim();
+            
+            // EAN-128 için barkod verisini kontrol et
+            console.log('🔍 EAN-128 Barkod Oluşturma:', {
+              original: barcode,
+              cleaned: barcodeText,
+              length: barcodeText.length
+            });
+            
             const barcodeBuffer = await bwipjs.toBuffer({
               bcid: 'code128',        // Code128 formatı (EAN-128 uyumlu)
-              text: String(barcode),
+              text: barcodeText,
               scale: 2.5,
               height: 12,
               includetext: true,      // Barkod altında metin göster
@@ -9548,7 +9556,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
               textsize: 10
             });
             barcodeImage = barcodeBuffer;
-            console.log('✅ EAN-128 barkod oluşturuldu:', barcode);
+            console.log('✅ EAN-128 barkod oluşturuldu:', barcodeText, '(Uzunluk:', barcodeText.length, ')');
           } catch (error) {
             console.error('❌ EAN-128 barkod oluşturma hatası:', error);
             barcodeImage = null;
