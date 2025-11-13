@@ -8221,9 +8221,38 @@ app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'), async (req, res) => {
+// Multer hata yakalama middleware'i
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('❌ Multer error:', err);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: 'Dosya boyutu çok büyük (maksimum 10MB)' });
+    }
+    return res.status(400).json({ success: false, message: 'Dosya yükleme hatası: ' + err.message });
+  } else if (err) {
+    console.error('❌ File upload error:', err);
+    return res.status(400).json({ success: false, message: err.message || 'Dosya yükleme hatası' });
+  }
+  next();
+};
+
+app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'), handleMulterError, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
+    
+    // Debug: Dosya yükleme bilgilerini logla
+    console.log('📄 Invoice upload request received');
+    console.log('📄 Request file:', req.file ? {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      path: req.file.path
+    } : 'NO FILE');
+    console.log('📄 Request body:', req.body);
+    console.log('📄 Invoices directory:', invoicesDir);
+    console.log('📄 Directory exists:', fs.existsSync(invoicesDir));
+    
     const {
       invoiceNumber,
       customerName,
@@ -8258,9 +8287,32 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
     let fileSize = null;
 
     if (req.file) {
+      // Dosya yükleme başarılı - dosyanın gerçekten kaydedildiğini kontrol et
+      const fullPath = path.join(invoicesDir, req.file.filename);
+      const fileExists = fs.existsSync(fullPath);
+      
+      console.log('📄 File saved to:', fullPath);
+      console.log('📄 File exists:', fileExists);
+      
+      if (!fileExists) {
+        console.error('❌ File was not saved to disk!');
+        return res.status(500).json({
+          success: false,
+          message: 'Dosya kaydedilemedi. Lütfen tekrar deneyin.'
+        });
+      }
+      
       filePath = `/uploads/invoices/${req.file.filename}`;
       fileName = req.file.originalname;
       fileSize = req.file.size;
+      
+      console.log('✅ File uploaded successfully:', {
+        filePath,
+        fileName,
+        fileSize
+      });
+    } else {
+      console.warn('⚠️ No file in request');
     }
 
     const [result] = await poolWrapper.execute(
@@ -8306,9 +8358,20 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
   }
 });
 
-app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file'), async (req, res) => {
+app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file'), handleMulterError, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
+    
+    // Debug: Dosya yükleme bilgilerini logla
+    console.log('📄 Invoice update request received');
+    console.log('📄 Request file:', req.file ? {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      path: req.file.path
+    } : 'NO FILE');
+    console.log('📄 Request body:', req.body);
     const id = parseInt(req.params.id);
     const {
       invoiceNumber,
