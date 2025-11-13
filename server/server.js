@@ -8720,6 +8720,40 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       });
     }
 
+    // invoiceUrl admin endpoint ise, müşteri erişimi için share token URL'ine çevir
+    let finalInvoiceUrl = invoiceUrl;
+    if (invoiceUrl) {
+      // Admin endpoint pattern'ini kontrol et: /admin/invoices/{id}/download
+      const adminEndpointPattern = /\/admin\/invoices\/(\d+)\/download/;
+      const match = invoiceUrl.match(adminEndpointPattern);
+      
+      if (match) {
+        const invoiceId = parseInt(match[1]);
+        const tenantId = req.tenant?.id || 1;
+        
+        try {
+          // Faturanın shareToken'ını bul
+          const [invoiceRows] = await poolWrapper.execute(
+            'SELECT shareToken FROM invoices WHERE id = ? AND tenantId = ?',
+            [invoiceId, tenantId]
+          );
+          
+          if (invoiceRows.length > 0 && invoiceRows[0].shareToken) {
+            // Public share URL'ine çevir
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            finalInvoiceUrl = `${baseUrl}/api/invoices/share/${invoiceRows[0].shareToken}/download`;
+            console.log('✅ Invoice URL converted to public share URL:', finalInvoiceUrl);
+          } else {
+            console.warn('⚠️ Share token not found for invoice ID:', invoiceId);
+            // Share token yoksa, orijinal URL'i kullan (hata olabilir ama devam et)
+          }
+        } catch (error) {
+          console.error('❌ Error converting invoice URL to share URL:', error);
+          // Hata durumunda orijinal URL'i kullan
+        }
+      }
+    }
+
     // PDFKit'i dinamik olarak yükle
     let PDFDocument;
     try {
@@ -8824,7 +8858,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     // QR kod bölümü - önce oluştur (adres yanına yerleştirilecek)
     let qrCodeDataUrl;
     try {
-      qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl || 'https://example.com', {
+      qrCodeDataUrl = await QRCode.toDataURL(finalInvoiceUrl || 'https://example.com', {
         width: 80,
         margin: 1,
         color: {
