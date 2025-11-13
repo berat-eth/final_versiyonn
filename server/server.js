@@ -8507,7 +8507,7 @@ app.get('/api/admin/hepsiburada-orders', authenticateAdmin, async (req, res) => 
       [...params, parseInt(limit), offset]
     );
 
-    // Her sipariş için öğeleri çek
+    // Her sipariş için öğeleri çek ve orderData'dan barcode'u taşı
     for (const order of orders) {
       try {
         const [items] = await poolWrapper.execute(
@@ -8515,6 +8515,45 @@ app.get('/api/admin/hepsiburada-orders', authenticateAdmin, async (req, res) => 
           [order.id, tenantId]
         );
         order.items = items || [];
+        
+        // orderData JSON'undan barcode'u barcode sütununa taşı
+        if (!order.barcode && order.orderData) {
+          try {
+            let orderDataJson = order.orderData;
+            if (typeof orderDataJson === 'string') {
+              orderDataJson = JSON.parse(orderDataJson);
+            }
+            
+            // orderData içinde barcode var mı kontrol et
+            if (orderDataJson && orderDataJson.barcode) {
+              const barcodeFromJson = orderDataJson.barcode;
+              
+              // barcode sütununa kaydet
+              await poolWrapper.execute(
+                'UPDATE hepsiburada_orders SET barcode = ? WHERE id = ? AND tenantId = ?',
+                [barcodeFromJson, order.id, tenantId]
+              );
+              
+              // orderData'dan barcode'u kaldır (opsiyonel - isterseniz kaldırabilirsiniz)
+              delete orderDataJson.barcode;
+              
+              // orderData'yı güncelle (barcode olmadan)
+              await poolWrapper.execute(
+                'UPDATE hepsiburada_orders SET orderData = ? WHERE id = ? AND tenantId = ?',
+                [JSON.stringify(orderDataJson), order.id, tenantId]
+              );
+              
+              // order nesnesini güncelle
+              order.barcode = barcodeFromJson;
+              order.orderData = orderDataJson;
+              
+              console.log(`✅ Barcode taşındı: Order ${order.id} - ${barcodeFromJson}`);
+            }
+          } catch (jsonError) {
+            console.error(`❌ orderData JSON parse hatası (Order ${order.id}):`, jsonError);
+            // Hata olsa bile devam et
+          }
+        }
       } catch (itemError) {
         console.error(`❌ Error loading items for order ${order.id}:`, itemError);
         order.items = [];
@@ -9531,10 +9570,10 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     
     // Hepsiburada için özel kargo bilgileri
     if (provider === 'hepsiburada') {
-      // Kargo Kodu: cargoTrackingNumber (Paket Numarası) kullanılacak
-      const cargoCode = cargoTrackingNumber || '';
+      // Kargo Kodu: Barkod kullanılacak (Paket Numarası yerine)
+      const cargoCode = barcode || '';
       
-      // Kargo kodu varsa göster
+      // Kargo kodu (Barkod) varsa göster
       if (cargoCode) {
         doc.fillColor('#64748b').fontSize(7).font('Helvetica');
         addUTF8Text('Kargo Kodu:', 20, cargoYPos);

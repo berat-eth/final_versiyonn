@@ -225,21 +225,14 @@ export default function HepsiburadaOrders() {
       }
 
       // Kargo bilgilerini al - Hepsiburada siparişlerinde direkt tabloda saklanıyor
-      // Paket Numarası = Kargo Kodu olarak kullanılacak
-      const packageNumber = (selectedOrder as any).packageNumber || ''
       const cargoProviderName = (selectedOrder as any).cargoProviderName || ''
-      // Barkod alanı EAN-128 barkod olarak kullanılacak
+      // Barkod alanı Kargo Kodu ve EAN-128 barkod olarak kullanılacak
       const barcode = (selectedOrder as any).barcode || ''
-      
-      // Kargo Kodu: Paket Numarası (veya Kargo Firması + Paket Numarası)
-      const cargoCode = packageNumber || ''
       
       // Debug: Kargo bilgilerini logla
       console.log('🔍 Kargo Fişi Debug:', {
         orderId: selectedOrder.id,
         externalOrderId: selectedOrder.externalOrderId,
-        packageNumber,
-        cargoCode,
         cargoProviderName,
         barcode,
         provider: 'hepsiburada',
@@ -266,9 +259,9 @@ export default function HepsiburadaOrders() {
         body: JSON.stringify({
           orderId: selectedOrder.id,
           invoiceUrl: invoiceUrl,
-          cargoTrackingNumber: cargoCode, // Paket Numarası = Kargo Kodu
+          cargoTrackingNumber: '', // Kargo Kodu artık barkod olacak, bu alan boş
           cargoProviderName: cargoProviderName,
-          barcode: barcode, // EAN-128 için barkod
+          barcode: barcode, // Kargo Kodu ve EAN-128 için barkod
           customerName: selectedOrder.customerName,
           customerEmail: selectedOrder.customerEmail,
           customerPhone: selectedOrder.customerPhone,
