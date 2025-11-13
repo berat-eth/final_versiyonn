@@ -47,6 +47,7 @@ export default function TrendyolOrders() {
   const [invoicesLoading, setInvoicesLoading] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrder | null>(null)
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
+  const [invoiceLink, setInvoiceLink] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -151,6 +152,7 @@ export default function TrendyolOrders() {
     setSelectedOrder(order)
     setShowOrderDetailModal(true)
     setSelectedInvoiceId(null)
+    setInvoiceLink('')
     
     // Faturaları yükle
     try {
@@ -184,31 +186,35 @@ export default function TrendyolOrders() {
     if (!selectedOrder) return
     
     try {
-      // Seçili faturayı kontrol et
-      if (!selectedInvoiceId) {
-        alert('Lütfen bir fatura seçin.')
-        return
-      }
-
-      // Seçili faturayı bul
-      const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId)
-      if (!selectedInvoice) {
-        alert('Seçili fatura bulunamadı.')
-        return
-      }
-      
-      // Direkt PDF dosyasına erişim için download URL'i oluştur
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+      // Fatura linki veya seçili fatura kontrolü
       let invoiceUrl = ''
       
-      if (selectedInvoice.id) {
-        // Admin endpoint ile direkt dosya indirme
-        invoiceUrl = `${API_BASE_URL}/admin/invoices/${selectedInvoice.id}/download`
-      } else if (selectedInvoice.shareUrl) {
-        // Share URL varsa download endpoint'ine yönlendir
-        // shareUrl formatı: https://api.plaxsy.com/api/invoices/share/TOKEN
-        // download formatı: https://api.plaxsy.com/api/invoices/share/TOKEN/download
-        invoiceUrl = `${selectedInvoice.shareUrl}/download`
+      if (invoiceLink && invoiceLink.trim()) {
+        // Fatura linki girilmişse onu kullan
+        invoiceUrl = invoiceLink.trim()
+      } else if (selectedInvoiceId) {
+        // Seçili faturayı bul
+        const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId)
+        if (!selectedInvoice) {
+          alert('Seçili fatura bulunamadı.')
+          return
+        }
+        
+        // Direkt PDF dosyasına erişim için download URL'i oluştur
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+        
+        if (selectedInvoice.id) {
+          // Admin endpoint ile direkt dosya indirme
+          invoiceUrl = `${API_BASE_URL}/admin/invoices/${selectedInvoice.id}/download`
+        } else if (selectedInvoice.shareUrl) {
+          // Share URL varsa download endpoint'ine yönlendir
+          // shareUrl formatı: https://api.plaxsy.com/api/invoices/share/TOKEN
+          // download formatı: https://api.plaxsy.com/api/invoices/share/TOKEN/download
+          invoiceUrl = `${selectedInvoice.shareUrl}/download`
+        }
+      } else {
+        alert('Lütfen bir fatura seçin veya fatura linki girin.')
+        return
       }
 
       // Kargo bilgilerini al
@@ -579,35 +585,72 @@ export default function TrendyolOrders() {
 
                 <div className="p-6 space-y-6">
                   {/* Fatura Seçimi */}
-                  {invoices.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Fatura Seçimi</h3>
-                      <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Fatura Bilgileri</h3>
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-4">
+                      {/* Fatura Linki */}
+                      <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                          Kargo Fişi için Fatura
+                          Fatura Linki (Opsiyonel)
                         </label>
-                        <select
-                          value={selectedInvoiceId || ''}
-                          onChange={(e) => setSelectedInvoiceId(Number(e.target.value))}
+                        <input
+                          type="text"
+                          value={invoiceLink}
+                          onChange={(e) => {
+                            setInvoiceLink(e.target.value)
+                            if (e.target.value.trim()) {
+                              setSelectedInvoiceId(null)
+                            }
+                          }}
+                          placeholder="https://api.plaxsy.com/api/invoices/share/..."
                           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">Fatura Seçiniz</option>
-                          {invoices.map((invoice) => (
-                            <option key={invoice.id} value={invoice.id}>
-                              {invoice.invoiceNumber || `Fatura #${invoice.id}`} 
-                              {invoice.fileName && ` - ${invoice.fileName}`}
-                              {invoice.totalAmount && ` (${Number(invoice.totalAmount).toFixed(2)} ${invoice.currency || 'TRY'})`}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedInvoiceId && (
+                        />
+                        {invoiceLink && invoiceLink.trim() && (
                           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                            Seçili fatura kargo fişindeki QR kodda kullanılacak
+                            Fatura linki girildi. Bu link QR kodda kullanılacak.
                           </p>
                         )}
                       </div>
+                      
+                      {/* Fatura Seçimi - Link girildiğinde devre dışı */}
+                      {invoices.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Kargo Fişi için Fatura Seçimi
+                          </label>
+                          <select
+                            value={selectedInvoiceId || ''}
+                            onChange={(e) => {
+                              setSelectedInvoiceId(Number(e.target.value))
+                              if (e.target.value) {
+                                setInvoiceLink('')
+                              }
+                            }}
+                            disabled={!!(invoiceLink && invoiceLink.trim())}
+                            className={`w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                              invoiceLink && invoiceLink.trim() 
+                                ? 'opacity-50 cursor-not-allowed' 
+                                : ''
+                            }`}
+                          >
+                            <option value="">Fatura Seçiniz</option>
+                            {invoices.map((invoice) => (
+                              <option key={invoice.id} value={invoice.id}>
+                                {invoice.invoiceNumber || `Fatura #${invoice.id}`} 
+                                {invoice.fileName && ` - ${invoice.fileName}`}
+                                {invoice.totalAmount && ` (${Number(invoice.totalAmount).toFixed(2)} ${invoice.currency || 'TRY'})`}
+                              </option>
+                            ))}
+                          </select>
+                          {selectedInvoiceId && !invoiceLink && (
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                              Seçili fatura kargo fişindeki QR kodda kullanılacak
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   {/* Müşteri Bilgileri */}
                   <div>

@@ -65,6 +65,18 @@ export default function Invoices() {
       // Faturaları yükle
       const invoicesResponse = await api.get<ApiResponse<Invoice[]>>('/admin/invoices', params)
       if (invoicesResponse.success && invoicesResponse.data) {
+        // Debug: API'den dönen verileri kontrol et
+        console.log('Loaded invoices:', invoicesResponse.data)
+        invoicesResponse.data.forEach((inv, idx) => {
+          console.log(`Invoice ${idx + 1}:`, {
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            fileName: inv.fileName,
+            filePath: inv.filePath,
+            fileUrl: inv.fileUrl,
+            shareUrl: inv.shareUrl
+          })
+        })
         setInvoices(invoicesResponse.data)
       }
     } catch (err: any) {
@@ -233,6 +245,74 @@ export default function Invoices() {
     setTimeout(() => setSuccess(null), 2000)
   }
 
+  const showPDFInIframe = (pdfUrl: string) => {
+    // Mevcut iframe varsa kaldır
+    const existingContainer = document.getElementById('pdf-viewer-container')
+    if (existingContainer) existingContainer.remove()
+    
+    // Iframe container oluştur
+    const container = document.createElement('div')
+    container.id = 'pdf-viewer-container'
+    container.style.position = 'fixed'
+    container.style.top = '0'
+    container.style.left = '0'
+    container.style.width = '100%'
+    container.style.height = '100vh'
+    container.style.zIndex = '9999'
+    container.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'
+    
+    // Iframe oluştur
+    const iframe = document.createElement('iframe')
+    iframe.id = 'pdf-viewer-iframe'
+    iframe.src = pdfUrl
+    iframe.style.width = '100%'
+    iframe.style.height = '100%'
+    iframe.style.border = 'none'
+    iframe.style.backgroundColor = 'white'
+    
+    // Kapatma butonu
+    const closeBtn = document.createElement('button')
+    closeBtn.id = 'pdf-viewer-close'
+    closeBtn.textContent = '✕ Kapat'
+    closeBtn.style.position = 'absolute'
+    closeBtn.style.top = '15px'
+    closeBtn.style.right = '15px'
+    closeBtn.style.zIndex = '10000'
+    closeBtn.style.padding = '12px 24px'
+    closeBtn.style.backgroundColor = 'rgba(239, 68, 68, 0.9)'
+    closeBtn.style.color = 'white'
+    closeBtn.style.border = 'none'
+    closeBtn.style.borderRadius = '8px'
+    closeBtn.style.cursor = 'pointer'
+    closeBtn.style.fontSize = '14px'
+    closeBtn.style.fontWeight = '600'
+    closeBtn.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)'
+    closeBtn.onclick = () => {
+      container.remove()
+    }
+    
+    // Hover efekti
+    closeBtn.onmouseenter = () => {
+      closeBtn.style.backgroundColor = 'rgba(220, 38, 38, 0.9)'
+    }
+    closeBtn.onmouseleave = () => {
+      closeBtn.style.backgroundColor = 'rgba(239, 68, 68, 0.9)'
+    }
+    
+    container.appendChild(iframe)
+    container.appendChild(closeBtn)
+    document.body.appendChild(container)
+    
+    // ESC tuşu ile kapat
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        container.remove()
+        document.removeEventListener('keydown', handleEsc)
+      }
+    }
+    document.addEventListener('keydown', handleEsc)
+  }
+
   const generateShareLink = async (invoiceId: number) => {
     try {
       setError(null)
@@ -254,112 +334,101 @@ export default function Invoices() {
 
   const viewInvoicePDF = async (invoice: Invoice) => {
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+      // Debug: Invoice verilerini kontrol et
+      console.log('Invoice data:', invoice)
       
-      // URL oluşturma önceliği: fileUrl > shareUrl > id ile endpoint
-      let viewUrl: string | null = null
-      
-      if (invoice.fileUrl) {
-        // Direkt file URL varsa onu kullan
-        viewUrl = invoice.fileUrl.startsWith('http') ? invoice.fileUrl : `${API_BASE_URL}${invoice.fileUrl}`
-      } else if (invoice.filePath) {
-        // filePath varsa onu kullan
-        viewUrl = invoice.filePath.startsWith('http') ? invoice.filePath : `${API_BASE_URL}${invoice.filePath}`
-      } else if (invoice.shareUrl) {
-        // Share URL varsa onu kullan
-        viewUrl = invoice.shareUrl.includes('/download') ? invoice.shareUrl : `${invoice.shareUrl}/download`
-      } else if (invoice.id) {
-        // Varsayılan endpoint'i kullan
-        viewUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
-      }
-      
-      if (!viewUrl) {
-        setError('Fatura görüntüleme URL\'si bulunamadı. Lütfen faturayı kontrol edin.')
+      if (!invoice.id) {
+        setError('Fatura ID bulunamadı. Lütfen faturayı kontrol edin.')
         return
       }
-
-      // Authentication header'ları kaldırıldı - paylaşım linkleri için auth gerekmez
-      const response = await fetch(viewUrl)
-
-      // Content-Type kontrolü
-      const contentType = response.headers.get('content-type') || ''
       
-      if (!response.ok) {
-        // Hata durumunda JSON yanıtı olabilir
-        if (contentType.includes('application/json')) {
-          const errorData = await response.json()
-          const errorMsg = errorData.message || `HTTP ${response.status}: ${response.statusText}`
+      // Share URL'den token çıkar veya invoice ID kullan
+      let shareToken: string | null = null
+      
+      if (invoice.shareUrl) {
+        // Share URL formatı: https://api.plaxsy.com/api/invoices/share/TOKEN
+        const shareUrlMatch = invoice.shareUrl.match(/\/share\/([^\/]+)/)
+        if (shareUrlMatch) {
+          shareToken = shareUrlMatch[1]
+          console.log('Extracted share token:', shareToken)
+        }
+      }
+      
+      // Proxy endpoint URL'i oluştur
+      let proxyUrl = `/api/invoices/${invoice.id}/download`
+      if (shareToken) {
+        proxyUrl += `?token=${encodeURIComponent(shareToken)}`
+      }
+      
+      console.log('Using proxy URL:', proxyUrl)
+      
+      // Proxy endpoint'ten PDF'i kontrol et
+      try {
+        const response = await fetch(proxyUrl)
+        
+        if (!response.ok) {
+          // Hata durumunda JSON yanıtı olabilir
+          const contentType = response.headers.get('content-type') || ''
           
-          // Özel hata mesajları
-          if (errorMsg.includes('not found') || errorMsg.includes('bulunamadı')) {
-            setError('Fatura dosyası bulunamadı. Dosya silinmiş veya taşınmış olabilir. Lütfen faturayı yeniden yükleyin.')
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json()
+            const errorMsg = errorData.message || `HTTP ${response.status}: ${response.statusText}`
+            
+            console.error('PDF proxy error:', {
+              url: proxyUrl,
+              status: response.status,
+              error: errorData
+            })
+            
+            if (errorMsg.includes('not found') || errorMsg.includes('bulunamadı') || errorMsg.includes('ERR_FILE_NOT_FOUND')) {
+              setError(`Fatura dosyası bulunamadı (ID: ${invoice.id}). Dosya backend'de kaydedilmemiş olabilir. Lütfen faturayı yeniden yükleyin.`)
+            } else {
+              setError(errorMsg)
+            }
+            return
           } else {
-            setError(errorMsg)
+            const errorText = await response.text().catch(() => '')
+            if (errorText.includes('ERR_FILE_NOT_FOUND') || errorText.includes('not found')) {
+              setError('Fatura dosyası bulunamadı. Dosya backend\'de kaydedilmemiş olabilir.')
+            } else {
+              setError(`HTTP ${response.status}: ${response.statusText}`)
+            }
+            return
+          }
+        }
+        
+        // Response başarılı, PDF'i aç
+        const contentType = response.headers.get('content-type') || ''
+        console.log('Proxy Content-Type:', contentType)
+        
+        // PDF ise proxy URL'den aç
+        if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
+          // Proxy URL'ini yeni sekmede aç
+          try {
+            const newWindow = window.open(proxyUrl, '_blank')
+            
+            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+              // Popup engellenmişse, iframe ile göster
+              showPDFInIframe(proxyUrl)
+            }
+          } catch (err) {
+            console.error('Window open error:', err)
+            // Iframe ile göster
+            showPDFInIframe(proxyUrl)
           }
         } else {
-          setError(`HTTP ${response.status}: ${response.statusText}`)
-        }
-        return
-      }
-
-      // PDF kontrolü
-      if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        
-        // Yeni sekmede PDF'i aç
-        const newWindow = window.open(url, '_blank')
-        if (!newWindow) {
-          // Popup engellenmişse, iframe ile göster
-          const iframe = document.createElement('iframe')
-          iframe.src = url
-          iframe.style.width = '100%'
-          iframe.style.height = '100vh'
-          iframe.style.border = 'none'
-          iframe.style.position = 'fixed'
-          iframe.style.top = '0'
-          iframe.style.left = '0'
-          iframe.style.zIndex = '9999'
-          iframe.style.backgroundColor = 'white'
-          
-          // Kapatma butonu ekle
-          const closeBtn = document.createElement('button')
-          closeBtn.textContent = '✕ Kapat'
-          closeBtn.style.position = 'fixed'
-          closeBtn.style.top = '10px'
-          closeBtn.style.right = '10px'
-          closeBtn.style.zIndex = '10000'
-          closeBtn.style.padding = '10px 20px'
-          closeBtn.style.backgroundColor = 'rgba(0,0,0,0.7)'
-          closeBtn.style.color = 'white'
-          closeBtn.style.border = 'none'
-          closeBtn.style.borderRadius = '5px'
-          closeBtn.style.cursor = 'pointer'
-          closeBtn.onclick = () => {
-            document.body.removeChild(iframe)
-            document.body.removeChild(closeBtn)
-            window.URL.revokeObjectURL(url)
+          // Beklenmeyen content type
+          const text = await response.text().catch(() => '')
+          try {
+            const jsonData = JSON.parse(text)
+            setError(jsonData.message || 'Beklenmeyen yanıt formatı')
+          } catch {
+            setError('PDF görüntülenemedi. Yanıt formatı geçersiz.')
           }
-          
-          document.body.appendChild(iframe)
-          document.body.appendChild(closeBtn)
         }
-        
-        // URL'i temizle (yeni sekme açıldıysa)
-        setTimeout(() => {
-          if (newWindow) {
-            window.URL.revokeObjectURL(url)
-          }
-        }, 100)
-      } else {
-        // JSON yanıtı gelirse (hata mesajı)
-        const text = await response.text()
-        try {
-          const jsonData = JSON.parse(text)
-          setError(jsonData.message || 'Beklenmeyen yanıt formatı')
-        } catch {
-          setError('PDF görüntülenemedi. Yanıt formatı geçersiz.')
-        }
+      } catch (fetchError: any) {
+        console.error('Proxy fetch error:', fetchError)
+        setError('PDF görüntülenirken bir hata oluştu: ' + (fetchError.message || 'Bilinmeyen hata'))
       }
     } catch (err: any) {
       console.error('PDF görüntüleme hatası:', err)
@@ -565,106 +634,107 @@ export default function Invoices() {
                         <Copy className="w-4 h-4" />
                       </button>
                     )}
-                    {(() => {
-                      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
-                      const token = sessionStorage.getItem('authToken') || ''
-                      const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-                      const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
-                      
-                      const viewUrl = invoice.id 
-                        ? `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
-                        : invoice.shareUrl 
-                          ? `${invoice.shareUrl}/download`
-                          : null
-                      
-                      if (!viewUrl) return null
-
-                      return (
-                        <>
-                          <button
-                            onClick={() => viewInvoicePDF(invoice)}
-                            className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                            title="Görüntüle"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
-                                
-                                // URL oluşturma (viewInvoicePDF ile aynı mantık)
-                                let downloadUrl: string | null = null
-                                
-                                if (invoice.fileUrl) {
-                                  downloadUrl = invoice.fileUrl.startsWith('http') ? invoice.fileUrl : `${API_BASE_URL}${invoice.fileUrl}`
-                                } else if (invoice.filePath) {
-                                  downloadUrl = invoice.filePath.startsWith('http') ? invoice.filePath : `${API_BASE_URL}${invoice.filePath}`
-                                } else if (invoice.shareUrl) {
-                                  downloadUrl = invoice.shareUrl.includes('/download') ? invoice.shareUrl : `${invoice.shareUrl}/download`
-                                } else if (invoice.id) {
-                                  downloadUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
-                                }
-                                
-                                if (!downloadUrl) {
-                                  setError('Fatura indirme URL\'si bulunamadı. Lütfen faturayı kontrol edin.')
-                                  return
-                                }
-                                
-                                // Authentication header'ları kaldırıldı - paylaşım linkleri için auth gerekmez
-                                const response = await fetch(downloadUrl)
-
-                                if (!response.ok) {
-                                  const contentType = response.headers.get('content-type') || ''
-                                  if (contentType.includes('application/json')) {
-                                    const errorData = await response.json()
-                                    const errorMsg = errorData.message || `HTTP ${response.status}: ${response.statusText}`
-                                    if (errorMsg.includes('not found') || errorMsg.includes('bulunamadı')) {
-                                      setError('Fatura dosyası bulunamadı. Dosya silinmiş veya taşınmış olabilir. Lütfen faturayı yeniden yükleyin.')
-                                    } else {
-                                      setError(errorMsg)
-                                    }
-                                  } else {
-                                    setError(`HTTP ${response.status}: ${response.statusText}`)
-                                  }
-                                  return
-                                }
-
-                                const contentType = response.headers.get('content-type') || ''
-                                if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
-                                  const blob = await response.blob()
-                                  const url = window.URL.createObjectURL(blob)
-                                  const a = document.createElement('a')
-                                  a.href = url
-                                  a.download = invoice.fileName || `fatura-${invoice.id}.pdf`
-                                  document.body.appendChild(a)
-                                  a.click()
-                                  window.URL.revokeObjectURL(url)
-                                  document.body.removeChild(a)
-                                  setSuccess('Fatura indirildi')
-                                  setTimeout(() => setSuccess(null), 2000)
-                                } else {
-                                  const text = await response.text()
-                                  try {
-                                    const jsonData = JSON.parse(text)
-                                    setError(jsonData.message || 'Beklenmeyen yanıt formatı')
-                                  } catch {
-                                    setError('PDF indirilemedi. Yanıt formatı geçersiz.')
-                                  }
-                                }
-                              } catch (err: any) {
-                                console.error('PDF indirme hatası:', err)
-                                setError(err.message || 'PDF indirilemedi')
+                    {invoice.id && (
+                      <>
+                        <button
+                          onClick={() => viewInvoicePDF(invoice)}
+                          className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                          title="Görüntüle"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              if (!invoice.id) {
+                                setError('Fatura ID bulunamadı. Lütfen faturayı kontrol edin.')
+                                return
                               }
-                            }}
-                            className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-                            title="İndir"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </>
-                      )
-                    })()}
+                              
+                              // Share URL'den token çıkar veya invoice ID kullan
+                              let shareToken: string | null = null
+                              
+                              if (invoice.shareUrl) {
+                                const shareUrlMatch = invoice.shareUrl.match(/\/share\/([^\/]+)/)
+                                if (shareUrlMatch) {
+                                  shareToken = shareUrlMatch[1]
+                                }
+                              }
+                              
+                              // Proxy endpoint URL'i oluştur
+                              let proxyUrl = `/api/invoices/${invoice.id}/download`
+                              if (shareToken) {
+                                proxyUrl += `?token=${encodeURIComponent(shareToken)}`
+                              }
+                              
+                              console.log('Downloading from proxy URL:', proxyUrl)
+                              
+                              // Proxy endpoint'ten PDF'i indir
+                              const response = await fetch(proxyUrl)
+
+                              if (!response.ok) {
+                                const contentType = response.headers.get('content-type') || ''
+                                if (contentType.includes('application/json')) {
+                                  const errorData = await response.json()
+                                  const errorMsg = errorData.message || `HTTP ${response.status}: ${response.statusText}`
+                                  console.error('Download error:', {
+                                    url: proxyUrl,
+                                    status: response.status,
+                                    error: errorData
+                                  })
+                                  if (errorMsg.includes('not found') || errorMsg.includes('bulunamadı') || errorMsg.includes('ERR_FILE_NOT_FOUND')) {
+                                    setError('Fatura dosyası bulunamadı. Dosya backend\'de kaydedilmemiş olabilir. Lütfen faturayı yeniden yükleyin.')
+                                  } else {
+                                    setError(errorMsg)
+                                  }
+                                } else {
+                                  const errorText = await response.text().catch(() => '')
+                                  console.error('Download error (non-JSON):', {
+                                    url: proxyUrl,
+                                    status: response.status,
+                                    text: errorText
+                                  })
+                                  setError(`HTTP ${response.status}: ${response.statusText}`)
+                                }
+                                return
+                              }
+
+                              const contentType = response.headers.get('content-type') || ''
+                              if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
+                                const blob = await response.blob()
+                                const url = window.URL.createObjectURL(blob)
+                                const a = document.createElement('a')
+                                a.href = url
+                                a.download = invoice.fileName || `fatura-${invoice.id}.pdf`
+                                document.body.appendChild(a)
+                                a.click()
+                                window.URL.revokeObjectURL(url)
+                                document.body.removeChild(a)
+                                setSuccess('Fatura indirildi')
+                                setTimeout(() => setSuccess(null), 2000)
+                              } else {
+                                const text = await response.text()
+                                try {
+                                  const jsonData = JSON.parse(text)
+                                  console.error('Invalid response format:', jsonData)
+                                  setError(jsonData.message || 'Beklenmeyen yanıt formatı')
+                                } catch {
+                                  console.error('Invalid response format (non-JSON):', text)
+                                  setError('PDF indirilemedi. Yanıt formatı geçersiz.')
+                                }
+                              }
+                            } catch (err: any) {
+                              console.error('PDF indirme hatası:', err)
+                              setError(err.message || 'PDF indirilemedi')
+                            }
+                          }}
+                          className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                          title="İndir"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                     <button
                       onClick={() => handleEdit(invoice)}
                       className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
