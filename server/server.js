@@ -8910,15 +8910,21 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     console.log('  - Using QR code URL:', qrCodeUrl);
     
     try {
+      // QR kod için daha yüksek kalite ayarları
       qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-        width: 80,
-        margin: 1,
+        width: 300, // Daha yüksek çözünürlük için artırıldı (80'den 300'e)
+        margin: 4, // Okunabilirlik için margin artırıldı (1'den 4'e)
+        errorCorrectionLevel: 'H', // En yüksek hata düzeltme seviyesi (L, M, Q, H)
         color: {
           dark: '#000000',
           light: '#FFFFFF'
-        }
+        },
+        type: 'image/png' // PNG formatı daha iyi kalite sağlar
       });
-      console.log('✅ QR code generated successfully');
+      console.log('✅ QR code generated successfully with high quality settings');
+      console.log('  - Size: 300x300px');
+      console.log('  - Error Correction: H (High)');
+      console.log('  - Margin: 4');
     } catch (error) {
       console.error('❌ QR kod oluşturma hatası:', error);
       qrCodeDataUrl = null;
@@ -9003,45 +9009,77 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       
       // QR kod sağ tarafta (adres yanında)
       if (qrCodeDataUrl) {
-        const qrSize = 55; // Küçültüldü (60'tan 55'e)
-        const qrX = 320;
+        const qrSize = 80; // Okunabilirlik için artırıldı (55'ten 80'e)
+        const qrX = 310; // Biraz sola kaydırıldı (320'den 310'a)
         const qrY = addressStartY;
         
         // QR kod arka plan kutusu
-        doc.rect(qrX - 3, qrY - 3, qrSize + 6, qrSize + 12) // Küçültüldü (15'ten 12'ye)
-           .fill('#f8fafc')
+        doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 15)
+           .fill('#ffffff')
            .stroke('#e2e8f0')
-           .lineWidth(0.5);
+           .lineWidth(1);
         
-        const qrImage = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-        doc.image(qrImage, qrX, qrY, { width: qrSize, height: qrSize });
+        try {
+          // Base64 decode işlemi - data URL formatını doğru parse et
+          let imageData;
+          if (qrCodeDataUrl.includes(',')) {
+            imageData = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+          } else {
+            imageData = Buffer.from(qrCodeDataUrl, 'base64');
+          }
+          
+          // PDF'e yüksek kaliteli ekleme
+          doc.image(imageData, qrX, qrY, { 
+            width: qrSize, 
+            height: qrSize
+          });
+          console.log('✅ QR code image added to PDF successfully');
+        } catch (imageError) {
+          console.error('❌ Error adding QR code image to PDF:', imageError);
+        }
         
-        doc.fontSize(6)
+        doc.fontSize(7)
            .fillColor('#475569')
            .font('Helvetica-Bold');
-        addUTF8Text('FATURA', qrX, qrY + qrSize + 2, { width: qrSize, align: 'center' });
+        addUTF8Text('FATURA', qrX, qrY + qrSize + 3, { width: qrSize, align: 'center' });
       }
       
       yPos += 3; // Küçültüldü (5'ten 3'e)
     } else {
       // Adres yoksa QR kod yine sağda göster
       if (qrCodeDataUrl) {
-        const qrSize = 55; // Küçültüldü (60'tan 55'e)
-        const qrX = 320;
+        const qrSize = 80; // Okunabilirlik için artırıldı (55'ten 80'e)
+        const qrX = 310; // Biraz sola kaydırıldı (320'den 310'a)
         const qrY = yPos;
         
-        doc.rect(qrX - 3, qrY - 3, qrSize + 6, qrSize + 12) // Küçültüldü (15'ten 12'ye)
-           .fill('#f8fafc')
+        doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 15)
+           .fill('#ffffff')
            .stroke('#e2e8f0')
-           .lineWidth(0.5);
+           .lineWidth(1);
         
-        const qrImage = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-        doc.image(qrImage, qrX, qrY, { width: qrSize, height: qrSize });
+        try {
+          // Base64 decode işlemi - data URL formatını doğru parse et
+          let imageData;
+          if (qrCodeDataUrl.includes(',')) {
+            imageData = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+          } else {
+            imageData = Buffer.from(qrCodeDataUrl, 'base64');
+          }
+          
+          // PDF'e yüksek kaliteli ekleme
+          doc.image(imageData, qrX, qrY, { 
+            width: qrSize, 
+            height: qrSize
+          });
+          console.log('✅ QR code image added to PDF successfully');
+        } catch (imageError) {
+          console.error('❌ Error adding QR code image to PDF:', imageError);
+        }
         
-        doc.fontSize(6)
+        doc.fontSize(7)
            .fillColor('#475569')
            .font('Helvetica-Bold');
-        addUTF8Text('FATURA', qrX, qrY + qrSize + 2, { width: qrSize, align: 'center' });
+        addUTF8Text('FATURA', qrX, qrY + qrSize + 3, { width: qrSize, align: 'center' });
       }
       yPos += 15; // Küçültüldü (20'den 15'e)
     }
