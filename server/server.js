@@ -8868,49 +8868,34 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     try {
       const logoPath = path.join(__dirname, '../assets/logo.jpg');
       if (fs.existsSync(logoPath)) {
-        // Logo boyutunu almak için sharp kullan (eğer yüklüyse)
-        let logoWidth, logoHeight;
-        try {
-          const sharp = require('sharp');
-          const metadata = await sharp(logoPath).metadata();
-          logoWidth = metadata.width;
-          logoHeight = metadata.height;
-          console.log('📐 Logo orijinal boyutu:', logoWidth, 'x', logoHeight);
-        } catch (sharpError) {
-          // Sharp yoksa veya hata varsa, PDFKit otomatik boyutlandıracak
-          console.warn('⚠️ Sharp bulunamadı, PDFKit otomatik boyutlandıracak');
-          logoWidth = null;
-          logoHeight = null;
-        }
+        // Logo boyutları: 350px x 450px
+        const logoWidth = 350;
+        const logoHeight = 450;
+        
+        // Sayfa boyutları: A5 dikey = 420pt x 595pt
+        const pageWidth = 420;
+        const pageHeight = 595;
+        
+        // Logo'yu tam ortaya yerleştir
+        const logoX = (pageWidth - logoWidth) / 2; // Yatay ortalama
+        const logoY = (pageHeight - logoHeight) / 2; // Dikey ortalama
         
         // Filigran için opacity ayarla (0.15 = %15 opaklık, çok hafif)
         doc.opacity(0.15);
         
-        // Logo'yu sayfanın ortasına yerleştir
-        let logoX, logoY;
-        if (logoWidth && logoHeight) {
-          // Orijinal boyutları kullan
-          logoX = (420 - logoWidth) / 2; // Yatay ortalama
-          logoY = (595 - logoHeight) / 2; // Dikey ortalama
-          
-          // Logo'yu orijinal boyutunda ekle
-          doc.image(logoPath, logoX, logoY, {
-            width: logoWidth,
-            height: logoHeight
-          });
-        } else {
-          // Boyut bilgisi yoksa, PDFKit otomatik boyutlandıracak
-          // Sayfanın ortasına yerleştir (yaklaşık)
-          logoX = 210; // Sayfa genişliğinin yarısı (420/2)
-          logoY = 297.5; // Sayfa yüksekliğinin yarısı (595/2)
-          
-          // Logo'yu ekle (boyut belirtilmediği için orijinal boyutta)
-          doc.image(logoPath, logoX, logoY);
-        }
+        // Logo'yu belirtilen boyutta ve tam ortada ekle
+        doc.image(logoPath, logoX, logoY, {
+          width: logoWidth,
+          height: logoHeight
+        });
         
         // Opacity'yi normale döndür
         doc.opacity(1.0);
-        console.log('✅ Logo filigran eklendi (orijinal boyut)');
+        console.log('✅ Logo filigran eklendi:', {
+          size: `${logoWidth}x${logoHeight}px`,
+          position: `(${logoX.toFixed(1)}, ${logoY.toFixed(1)})`,
+          centered: true
+        });
       } else {
         console.warn('⚠️ Logo dosyası bulunamadı:', logoPath);
       }
