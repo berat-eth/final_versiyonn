@@ -8721,15 +8721,26 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     }
 
     // invoiceUrl admin endpoint ise, müşteri erişimi için share token URL'ine çevir
-    let finalInvoiceUrl = invoiceUrl;
-    if (invoiceUrl) {
+    let finalInvoiceUrl = invoiceUrl || null;
+    
+    console.log('🔍 Invoice URL conversion check:');
+    console.log('  - Received invoiceUrl:', invoiceUrl);
+    console.log('  - Type:', typeof invoiceUrl);
+    
+    if (invoiceUrl && typeof invoiceUrl === 'string' && invoiceUrl.trim() !== '') {
       // Admin endpoint pattern'ini kontrol et: /admin/invoices/{id}/download
+      // Hem tam URL hem de path formatını destekle
       const adminEndpointPattern = /\/admin\/invoices\/(\d+)\/download/;
       const match = invoiceUrl.match(adminEndpointPattern);
+      
+      console.log('  - Pattern match:', match ? 'Found' : 'Not found');
       
       if (match) {
         const invoiceId = parseInt(match[1]);
         const tenantId = req.tenant?.id || 1;
+        
+        console.log('  - Extracted invoice ID:', invoiceId);
+        console.log('  - Tenant ID:', tenantId);
         
         try {
           // Faturanın shareToken'ını bul
@@ -8737,6 +8748,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
             'SELECT shareToken FROM invoices WHERE id = ? AND tenantId = ?',
             [invoiceId, tenantId]
           );
+          
+          console.log('  - Invoice rows found:', invoiceRows.length);
           
           if (invoiceRows.length > 0 && invoiceRows[0].shareToken) {
             // Public share URL'ine çevir
@@ -8746,13 +8759,23 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           } else {
             console.warn('⚠️ Share token not found for invoice ID:', invoiceId);
             // Share token yoksa, orijinal URL'i kullan (hata olabilir ama devam et)
+            finalInvoiceUrl = invoiceUrl;
           }
         } catch (error) {
           console.error('❌ Error converting invoice URL to share URL:', error);
           // Hata durumunda orijinal URL'i kullan
+          finalInvoiceUrl = invoiceUrl;
         }
+      } else {
+        console.log('  - Not an admin endpoint, using original URL');
+        finalInvoiceUrl = invoiceUrl;
       }
+    } else {
+      console.warn('⚠️ invoiceUrl is empty or invalid');
+      finalInvoiceUrl = null;
     }
+    
+    console.log('  - Final invoiceUrl:', finalInvoiceUrl);
 
     // PDFKit'i dinamik olarak yükle
     let PDFDocument;
@@ -8857,8 +8880,37 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
 
     // QR kod bölümü - önce oluştur (adres yanına yerleştirilecek)
     let qrCodeDataUrl;
+    
+    // Debug: QR kod için kullanılacak URL'i kontrol et
+    console.log('📱 QR Code Debug:');
+    console.log('  - Original invoiceUrl:', invoiceUrl);
+    console.log('  - Final invoiceUrl:', finalInvoiceUrl);
+    
+    // finalInvoiceUrl boş veya geçersizse, invoiceUrl'i tekrar kontrol et
+    let qrCodeUrl = finalInvoiceUrl;
+    if (!qrCodeUrl || qrCodeUrl.trim() === '') {
+      console.warn('⚠️ finalInvoiceUrl is empty, checking invoiceUrl');
+      if (invoiceUrl && invoiceUrl.trim() !== '') {
+        qrCodeUrl = invoiceUrl;
+      } else {
+        console.error('❌ Both invoiceUrl and finalInvoiceUrl are empty!');
+        qrCodeUrl = 'https://example.com'; // Fallback
+      }
+    }
+    
+    // URL formatını kontrol et (http veya https ile başlamalı)
+    if (!qrCodeUrl.startsWith('http://') && !qrCodeUrl.startsWith('https://')) {
+      console.warn('⚠️ QR code URL does not start with http/https:', qrCodeUrl);
+      // Eğer sadece path ise, base URL ekle
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      qrCodeUrl = `${baseUrl}${qrCodeUrl.startsWith('/') ? '' : '/'}${qrCodeUrl}`;
+      console.log('  - Fixed QR code URL:', qrCodeUrl);
+    }
+    
+    console.log('  - Using QR code URL:', qrCodeUrl);
+    
     try {
-      qrCodeDataUrl = await QRCode.toDataURL(finalInvoiceUrl || 'https://example.com', {
+      qrCodeDataUrl = await QRCode.toDataURL(qrCodeUrl, {
         width: 80,
         margin: 1,
         color: {
@@ -8866,8 +8918,9 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           light: '#FFFFFF'
         }
       });
+      console.log('✅ QR code generated successfully');
     } catch (error) {
-      console.error('QR kod oluşturma hatası:', error);
+      console.error('❌ QR kod oluşturma hatası:', error);
       qrCodeDataUrl = null;
     }
 
