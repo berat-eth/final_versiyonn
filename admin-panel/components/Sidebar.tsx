@@ -151,6 +151,12 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
       ]
     },
     {
+      title: 'Hepsiburada',
+      items: [
+        { id: 'hepsiburada-orders', label: 'Hepsiburada Siparişleri', icon: ShoppingCart },
+      ]
+    },
+    {
       title: 'Sistem',
       items: [
         { id: 'server-stats', label: 'Sunucu İstatistikleri', icon: Activity },

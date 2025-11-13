@@ -68,6 +68,7 @@ import TrendyolBrands from '@/components/TrendyolBrands'
 import TrendyolCategories from '@/components/TrendyolCategories'
 import TrendyolBatch from '@/components/TrendyolBatch'
 import TrendyolAddresses from '@/components/TrendyolAddresses'
+import HepsiburadaOrders from '@/components/HepsiburadaOrders'
 
 
 export default function DashboardPage() {
@@ -296,6 +297,7 @@ export default function DashboardPage() {
           {activeTab === 'trendyol-categories' && <TrendyolCategories />}
           {activeTab === 'trendyol-batch' && <TrendyolBatch />}
           {activeTab === 'trendyol-addresses' && <TrendyolAddresses />}
+          {activeTab === 'hepsiburada-orders' && <HepsiburadaOrders />}
           {activeTab === 'invoices' && <Invoices />}
         </main>
       </div>

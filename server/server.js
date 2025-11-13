@@ -8221,6 +8221,202 @@ app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => 
   }
 });
 
+// Admin - Marketplace siparişlerini CSV'den import et
+app.post('/api/admin/marketplace-orders/import', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { provider, orders } = req.body;
+
+    if (!provider || !orders || !Array.isArray(orders) || orders.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Provider ve orders array gereklidir'
+      });
+    }
+
+    let importedCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+
+    for (const orderData of orders) {
+      try {
+        const {
+          externalOrderId,
+          packageNumber,
+          customerName,
+          customerEmail,
+          shippingAddress,
+          city,
+          district,
+          invoiceAddress,
+          cargoProviderName,
+          cargoTrackingNumber,
+          orderDate,
+          deliveryDate,
+          deliveryType,
+          packageStatus,
+          status = 'pending',
+          totalAmount = 0,
+          currency = 'TRY',
+          customerType,
+          isHepsiLogistic,
+          isReturned,
+          items = [],
+          rawData
+        } = orderData;
+
+        if (!externalOrderId) {
+          skippedCount++;
+          errors.push(`Sipariş numarası eksik: ${JSON.stringify(orderData).substring(0, 50)}`);
+          continue;
+        }
+
+        // Mevcut siparişi kontrol et
+        const [existingOrders] = await poolWrapper.execute(
+          'SELECT id FROM marketplace_orders WHERE tenantId = ? AND provider = ? AND externalOrderId = ?',
+          [tenantId, provider, externalOrderId]
+        );
+
+        let marketplaceOrderId;
+        const orderDataJson = {
+          packageNumber,
+          invoiceAddress,
+          cargoProviderName,
+          cargoTrackingNumber,
+          orderDate,
+          deliveryDate,
+          deliveryType,
+          packageStatus,
+          customerType,
+          isHepsiLogistic,
+          isReturned,
+          rawData
+        };
+
+        if (existingOrders.length > 0) {
+          // Mevcut siparişi güncelle
+          marketplaceOrderId = existingOrders[0].id;
+          await poolWrapper.execute(
+            `UPDATE marketplace_orders 
+             SET totalAmount = ?, status = ?, shippingAddress = ?, city = ?, district = ?, 
+                 fullAddress = ?, customerName = ?, customerEmail = ?, orderData = ?, updatedAt = CURRENT_TIMESTAMP
+             WHERE id = ? AND tenantId = ?`,
+            [
+              totalAmount,
+              status,
+              shippingAddress || '',
+              city || '',
+              district || '',
+              shippingAddress || '',
+              customerName || '',
+              customerEmail || '',
+              JSON.stringify(orderDataJson),
+              marketplaceOrderId,
+              tenantId
+            ]
+          );
+          skippedCount++;
+        } else {
+          // Yeni sipariş ekle
+          const [orderResult] = await poolWrapper.execute(
+            `INSERT INTO marketplace_orders 
+             (tenantId, provider, externalOrderId, totalAmount, status, shippingAddress, 
+              city, district, fullAddress, customerName, customerEmail, orderData, syncedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              tenantId,
+              provider,
+              externalOrderId,
+              totalAmount,
+              status,
+              shippingAddress || '',
+              city || '',
+              district || '',
+              shippingAddress || '',
+              customerName || '',
+              customerEmail || '',
+              JSON.stringify(orderDataJson),
+              orderDate ? new Date(orderDate) : new Date()
+            ]
+          );
+          marketplaceOrderId = orderResult.insertId;
+          importedCount++;
+        }
+
+        // Mevcut sipariş öğelerini sil
+        await poolWrapper.execute(
+          'DELETE FROM marketplace_order_items WHERE marketplaceOrderId = ? AND tenantId = ?',
+          [marketplaceOrderId, tenantId]
+        );
+
+        // Sipariş öğelerini ekle
+        for (const item of items) {
+          const {
+            itemNumber,
+            productName,
+            productSku,
+            hepsiburadaProductCode,
+            option1,
+            option2,
+            quantity = 1,
+            price = 0,
+            listingPrice = 0,
+            unitPrice = 0,
+            commission = 0,
+            taxRate = 0,
+            category = ''
+          } = item;
+
+          await poolWrapper.execute(
+            `INSERT INTO marketplace_order_items 
+             (tenantId, marketplaceOrderId, productName, productSku, quantity, price, itemData)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              tenantId,
+              marketplaceOrderId,
+              productName || '',
+              productSku || '',
+              quantity,
+              price,
+              JSON.stringify({
+                itemNumber,
+                hepsiburadaProductCode,
+                option1,
+                option2,
+                listingPrice,
+                unitPrice,
+                commission,
+                taxRate,
+                category
+              })
+            ]
+          );
+        }
+      } catch (orderError) {
+        console.error(`❌ Error importing order ${orderData.externalOrderId}:`, orderError);
+        skippedCount++;
+        errors.push(`Sipariş ${orderData.externalOrderId}: ${orderError.message || 'Bilinmeyen hata'}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        imported: importedCount,
+        skipped: skippedCount,
+        total: orders.length,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error importing marketplace orders:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Sipariş import hatası'
+    });
+  }
+});
+
 app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
