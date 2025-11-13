@@ -76,6 +76,12 @@ export default function Header() {
                   Hakkımızda
                 </span>
               </Link>
+              <Link className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isTransparent ? 'text-white hover:text-purple-300 hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`} href="/galeri">
+                <span className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg">photo_library</span>
+                  Galeri
+                </span>
+              </Link>
               <Link className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isTransparent ? 'text-white hover:text-purple-300 hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`} href="/mobil-uygulama">
                 <span className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg">smartphone</span>
@@ -116,6 +122,10 @@ export default function Header() {
               <Link className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2" href="/hakkimizda">
                 <span className="material-symbols-outlined text-lg">info</span>
                 Hakkımızda
+              </Link>
+              <Link className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2" href="/galeri">
+                <span className="material-symbols-outlined text-lg">photo_library</span>
+                Galeri
               </Link>
               <Link className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2" href="/mobil-uygulama">
                 <span className="material-symbols-outlined text-lg">smartphone</span>

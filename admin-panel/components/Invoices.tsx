@@ -26,6 +26,8 @@ interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'cancelled'
   fileName?: string
   fileSize?: number
+  filePath?: string
+  fileUrl?: string
   shareToken?: string
   shareUrl?: string
   notes?: string
@@ -231,6 +233,140 @@ export default function Invoices() {
     setTimeout(() => setSuccess(null), 2000)
   }
 
+  const generateShareLink = async (invoiceId: number) => {
+    try {
+      setError(null)
+      const response = await api.post<ApiResponse<{ shareUrl: string; shareToken: string }>>(`/admin/invoices/${invoiceId}/share`)
+      if (response.success && response.data) {
+        setSuccess('Paylaşım linki oluşturuldu!')
+        loadInvoices() // Faturaları yeniden yükle (shareUrl güncellenmiş olacak)
+        setTimeout(() => setSuccess(null), 3000)
+        return response.data.shareUrl
+      } else {
+        setError(response.message || 'Paylaşım linki oluşturulamadı')
+        return null
+      }
+    } catch (err: any) {
+      setError(err.message || 'Paylaşım linki oluşturulurken bir hata oluştu')
+      return null
+    }
+  }
+
+  const viewInvoicePDF = async (invoice: Invoice) => {
+    try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+      
+      // URL oluşturma önceliği: fileUrl > shareUrl > id ile endpoint
+      let viewUrl: string | null = null
+      
+      if (invoice.fileUrl) {
+        // Direkt file URL varsa onu kullan
+        viewUrl = invoice.fileUrl.startsWith('http') ? invoice.fileUrl : `${API_BASE_URL}${invoice.fileUrl}`
+      } else if (invoice.filePath) {
+        // filePath varsa onu kullan
+        viewUrl = invoice.filePath.startsWith('http') ? invoice.filePath : `${API_BASE_URL}${invoice.filePath}`
+      } else if (invoice.shareUrl) {
+        // Share URL varsa onu kullan
+        viewUrl = invoice.shareUrl.includes('/download') ? invoice.shareUrl : `${invoice.shareUrl}/download`
+      } else if (invoice.id) {
+        // Varsayılan endpoint'i kullan
+        viewUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
+      }
+      
+      if (!viewUrl) {
+        setError('Fatura görüntüleme URL\'si bulunamadı. Lütfen faturayı kontrol edin.')
+        return
+      }
+
+      // Authentication header'ları kaldırıldı - paylaşım linkleri için auth gerekmez
+      const response = await fetch(viewUrl)
+
+      // Content-Type kontrolü
+      const contentType = response.headers.get('content-type') || ''
+      
+      if (!response.ok) {
+        // Hata durumunda JSON yanıtı olabilir
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json()
+          const errorMsg = errorData.message || `HTTP ${response.status}: ${response.statusText}`
+          
+          // Özel hata mesajları
+          if (errorMsg.includes('not found') || errorMsg.includes('bulunamadı')) {
+            setError('Fatura dosyası bulunamadı. Dosya silinmiş veya taşınmış olabilir. Lütfen faturayı yeniden yükleyin.')
+          } else {
+            setError(errorMsg)
+          }
+        } else {
+          setError(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        return
+      }
+
+      // PDF kontrolü
+      if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        
+        // Yeni sekmede PDF'i aç
+        const newWindow = window.open(url, '_blank')
+        if (!newWindow) {
+          // Popup engellenmişse, iframe ile göster
+          const iframe = document.createElement('iframe')
+          iframe.src = url
+          iframe.style.width = '100%'
+          iframe.style.height = '100vh'
+          iframe.style.border = 'none'
+          iframe.style.position = 'fixed'
+          iframe.style.top = '0'
+          iframe.style.left = '0'
+          iframe.style.zIndex = '9999'
+          iframe.style.backgroundColor = 'white'
+          
+          // Kapatma butonu ekle
+          const closeBtn = document.createElement('button')
+          closeBtn.textContent = '✕ Kapat'
+          closeBtn.style.position = 'fixed'
+          closeBtn.style.top = '10px'
+          closeBtn.style.right = '10px'
+          closeBtn.style.zIndex = '10000'
+          closeBtn.style.padding = '10px 20px'
+          closeBtn.style.backgroundColor = 'rgba(0,0,0,0.7)'
+          closeBtn.style.color = 'white'
+          closeBtn.style.border = 'none'
+          closeBtn.style.borderRadius = '5px'
+          closeBtn.style.cursor = 'pointer'
+          closeBtn.onclick = () => {
+            document.body.removeChild(iframe)
+            document.body.removeChild(closeBtn)
+            window.URL.revokeObjectURL(url)
+          }
+          
+          document.body.appendChild(iframe)
+          document.body.appendChild(closeBtn)
+        }
+        
+        // URL'i temizle (yeni sekme açıldıysa)
+        setTimeout(() => {
+          if (newWindow) {
+            window.URL.revokeObjectURL(url)
+          }
+        }, 100)
+      } else {
+        // JSON yanıtı gelirse (hata mesajı)
+        const text = await response.text()
+        try {
+          const jsonData = JSON.parse(text)
+          setError(jsonData.message || 'Beklenmeyen yanıt formatı')
+        } catch {
+          setError('PDF görüntülenemedi. Yanıt formatı geçersiz.')
+        }
+      }
+    } catch (err: any) {
+      console.error('PDF görüntüleme hatası:', err)
+      setError(err.message || 'PDF görüntülenirken bir hata oluştu')
+    }
+  }
+
   const getStatusColor = (status: Invoice['status']) => {
     switch (status) {
       case 'paid':
@@ -406,6 +542,20 @@ export default function Invoices() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {!invoice.shareUrl && (
+                      <button
+                        onClick={async () => {
+                          const shareUrl = await generateShareLink(invoice.id)
+                          if (shareUrl) {
+                            copyShareLink(shareUrl)
+                          }
+                        }}
+                        className="p-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                        title="Paylaşım Linki Oluştur"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    )}
                     {invoice.shareUrl && (
                       <button
                         onClick={() => copyShareLink(invoice.shareUrl!)}
@@ -432,43 +582,57 @@ export default function Invoices() {
                       return (
                         <>
                           <button
-                            onClick={() => {
-                              // PDF'i yeni sekmede aç
-                              fetch(viewUrl, {
-                                headers: {
-                                  'Authorization': `Bearer ${token}`,
-                                  'X-API-Key': API_KEY,
-                                  'X-Admin-Key': ADMIN_KEY
-                                }
-                              })
-                                .then(res => res.blob())
-                                .then(blob => {
-                                  const url = window.URL.createObjectURL(blob)
-                                  window.open(url, '_blank')
-                                  setTimeout(() => window.URL.revokeObjectURL(url), 100)
-                                })
-                                .catch(err => {
-                                  console.error('PDF görüntüleme hatası:', err)
-                                  alert('PDF görüntülenemedi')
-                                })
-                            }}
+                            onClick={() => viewInvoicePDF(invoice)}
                             className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                             title="Görüntüle"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => {
-                              // PDF'i indir
-                              fetch(viewUrl, {
-                                headers: {
-                                  'Authorization': `Bearer ${token}`,
-                                  'X-API-Key': API_KEY,
-                                  'X-Admin-Key': ADMIN_KEY
+                            onClick={async () => {
+                              try {
+                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+                                
+                                // URL oluşturma (viewInvoicePDF ile aynı mantık)
+                                let downloadUrl: string | null = null
+                                
+                                if (invoice.fileUrl) {
+                                  downloadUrl = invoice.fileUrl.startsWith('http') ? invoice.fileUrl : `${API_BASE_URL}${invoice.fileUrl}`
+                                } else if (invoice.filePath) {
+                                  downloadUrl = invoice.filePath.startsWith('http') ? invoice.filePath : `${API_BASE_URL}${invoice.filePath}`
+                                } else if (invoice.shareUrl) {
+                                  downloadUrl = invoice.shareUrl.includes('/download') ? invoice.shareUrl : `${invoice.shareUrl}/download`
+                                } else if (invoice.id) {
+                                  downloadUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
                                 }
-                              })
-                                .then(res => res.blob())
-                                .then(blob => {
+                                
+                                if (!downloadUrl) {
+                                  setError('Fatura indirme URL\'si bulunamadı. Lütfen faturayı kontrol edin.')
+                                  return
+                                }
+                                
+                                // Authentication header'ları kaldırıldı - paylaşım linkleri için auth gerekmez
+                                const response = await fetch(downloadUrl)
+
+                                if (!response.ok) {
+                                  const contentType = response.headers.get('content-type') || ''
+                                  if (contentType.includes('application/json')) {
+                                    const errorData = await response.json()
+                                    const errorMsg = errorData.message || `HTTP ${response.status}: ${response.statusText}`
+                                    if (errorMsg.includes('not found') || errorMsg.includes('bulunamadı')) {
+                                      setError('Fatura dosyası bulunamadı. Dosya silinmiş veya taşınmış olabilir. Lütfen faturayı yeniden yükleyin.')
+                                    } else {
+                                      setError(errorMsg)
+                                    }
+                                  } else {
+                                    setError(`HTTP ${response.status}: ${response.statusText}`)
+                                  }
+                                  return
+                                }
+
+                                const contentType = response.headers.get('content-type') || ''
+                                if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
+                                  const blob = await response.blob()
                                   const url = window.URL.createObjectURL(blob)
                                   const a = document.createElement('a')
                                   a.href = url
@@ -477,11 +641,21 @@ export default function Invoices() {
                                   a.click()
                                   window.URL.revokeObjectURL(url)
                                   document.body.removeChild(a)
-                                })
-                                .catch(err => {
-                                  console.error('PDF indirme hatası:', err)
-                                  alert('PDF indirilemedi')
-                                })
+                                  setSuccess('Fatura indirildi')
+                                  setTimeout(() => setSuccess(null), 2000)
+                                } else {
+                                  const text = await response.text()
+                                  try {
+                                    const jsonData = JSON.parse(text)
+                                    setError(jsonData.message || 'Beklenmeyen yanıt formatı')
+                                  } catch {
+                                    setError('PDF indirilemedi. Yanıt formatı geçersiz.')
+                                  }
+                                }
+                              } catch (err: any) {
+                                console.error('PDF indirme hatası:', err)
+                                setError(err.message || 'PDF indirilemedi')
+                              }
                             }}
                             className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
                             title="İndir"

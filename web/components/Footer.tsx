@@ -7,12 +7,12 @@ export default function Footer() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-300 overflow-hidden">
+    <footer className="relative bg-gradient-to-br from-gray-700 via-gray-600 to-gray-700 text-gray-200 overflow-hidden">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-pink-600/5 rounded-full blur-3xl"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-pink-500/15 rounded-full blur-3xl"></div>
       </div>
 
       <div className="relative z-10 px-4 sm:px-8 md:px-12 lg:px-16 xl:px-24 2xl:px-32 mx-auto max-w-[1920px]">
@@ -21,31 +21,17 @@ export default function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 lg:gap-12 xl:gap-16">
             {/* Company Info & Logo */}
             <div className="lg:col-span-1 space-y-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="relative w-12 h-12">
-                  <Image
-                    src="/assets/logo.png"
-                    alt="Huğlu Tekstil Logo"
-                    fill
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-                <h3 className="text-xl font-black bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  Huğlu Tekstil
-                </h3>
-              </div>
-              <p className="text-sm text-gray-400 leading-relaxed">
+              <p className="text-sm text-gray-300 leading-relaxed">
                 Özel iş kıyafetlerinde güvenilir çözüm ortağınız. Kalite, konfor ve şıklığı bir araya getiriyoruz.
               </p>
-              <div className="pt-2 border-t border-gray-700/50">
-                <p className="text-xs text-gray-500 leading-relaxed italic">
+              <div className="pt-2 border-t border-gray-500/50">
+                <p className="text-xs text-gray-400 leading-relaxed italic">
                   Huğlu Tekstil, bir{' '}
                   <a
                     href="https://huglu.com.tr"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-blue-400 underline transition-colors"
+                    className="text-gray-300 hover:text-blue-300 underline transition-colors"
                   >
                     Huğlu Av tüfekleri Kooperatifi
                   </a>{' '}
@@ -54,16 +40,16 @@ export default function Footer() {
               </div>
               
               {/* Social Media */}
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex items-center gap-4 pt-2">
                 <a
                   href="https://www.facebook.com/hugluoutdoor"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group p-2.5 bg-gray-800/50 hover:bg-gradient-to-br hover:from-blue-600 hover:to-blue-700 rounded-xl transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-blue-500/30"
+                  className="group relative p-3 bg-gradient-to-br from-gray-600/60 to-gray-700/60 hover:from-blue-500 hover:to-blue-600 rounded-2xl transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-blue-500/50 hover:-translate-y-1 border border-gray-500/30 hover:border-blue-400/50"
                   aria-label="Facebook"
                 >
                   <svg
-                    className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors"
+                    className="h-6 w-6 text-gray-200 group-hover:text-white transition-all duration-300 group-hover:drop-shadow-lg"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                     aria-hidden="true"
@@ -79,11 +65,11 @@ export default function Footer() {
                   href="https://www.instagram.com/hugluoutdoor"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group p-2.5 bg-gray-800/50 hover:bg-gradient-to-br hover:from-pink-600 hover:to-purple-600 rounded-xl transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-pink-500/30"
+                  className="group relative p-3 bg-gradient-to-br from-gray-600/60 to-gray-700/60 hover:from-pink-500 hover:via-purple-500 hover:to-pink-500 rounded-2xl transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-pink-500/50 hover:-translate-y-1 border border-gray-500/30 hover:border-pink-400/50"
                   aria-label="Instagram"
                 >
                   <svg
-                    className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors"
+                    className="h-6 w-6 text-gray-200 group-hover:text-white transition-all duration-300 group-hover:drop-shadow-lg"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                     aria-hidden="true"
@@ -99,10 +85,10 @@ export default function Footer() {
                   href="https://wa.me/905303125813"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group p-2.5 bg-gray-800/50 hover:bg-gradient-to-br hover:from-green-500 hover:to-green-600 rounded-xl transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-green-500/30"
+                  className="group relative p-3 bg-gradient-to-br from-gray-600/60 to-gray-700/60 hover:from-green-400 hover:to-green-500 rounded-2xl transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-green-500/50 hover:-translate-y-1 border border-gray-500/30 hover:border-green-400/50"
                   aria-label="WhatsApp"
                 >
-                  <span className="material-symbols-outlined text-gray-400 group-hover:text-white transition-colors text-xl">
+                  <span className="material-symbols-outlined text-gray-200 group-hover:text-white transition-all duration-300 text-2xl group-hover:drop-shadow-lg">
                     chat
                   </span>
                 </a>
@@ -111,64 +97,77 @@ export default function Footer() {
 
             {/* Quick Links */}
             <div>
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <span className="material-symbols-outlined text-purple-400">explore</span>
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
+                <span className="material-symbols-outlined text-2xl bg-gradient-to-br from-purple-400 to-pink-400 bg-clip-text text-transparent drop-shadow-lg">
+                  explore
+                </span>
                 Hızlı Bağlantılar
               </h3>
               <ul className="space-y-3">
                 <li>
                   <Link
                     href="/"
-                    className="group flex items-center gap-2 text-sm text-gray-400 hover:text-purple-400 transition-all duration-200"
+                    className="group flex items-center gap-3 text-sm text-gray-300 hover:text-purple-300 transition-all duration-200 hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-xs opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all">
+                    <span className="material-symbols-outlined text-base opacity-0 group-hover:opacity-100 -translate-x-3 group-hover:translate-x-0 transition-all text-purple-400 group-hover:drop-shadow-lg">
                       arrow_forward
                     </span>
-                    <span>Ana Sayfa</span>
+                    <span className="group-hover:font-medium">Ana Sayfa</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/urunler"
-                    className="group flex items-center gap-2 text-sm text-gray-400 hover:text-purple-400 transition-all duration-200"
+                    className="group flex items-center gap-3 text-sm text-gray-300 hover:text-purple-300 transition-all duration-200 hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-xs opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all">
+                    <span className="material-symbols-outlined text-base opacity-0 group-hover:opacity-100 -translate-x-3 group-hover:translate-x-0 transition-all text-purple-400 group-hover:drop-shadow-lg">
                       arrow_forward
                     </span>
-                    <span>Ürünler</span>
+                    <span className="group-hover:font-medium">Ürünler</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/hakkimizda"
-                    className="group flex items-center gap-2 text-sm text-gray-400 hover:text-purple-400 transition-all duration-200"
+                    className="group flex items-center gap-3 text-sm text-gray-300 hover:text-purple-300 transition-all duration-200 hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-xs opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all">
+                    <span className="material-symbols-outlined text-base opacity-0 group-hover:opacity-100 -translate-x-3 group-hover:translate-x-0 transition-all text-purple-400 group-hover:drop-shadow-lg">
                       arrow_forward
                     </span>
-                    <span>Hakkımızda</span>
+                    <span className="group-hover:font-medium">Hakkımızda</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/galeri"
+                    className="group flex items-center gap-3 text-sm text-gray-300 hover:text-purple-300 transition-all duration-200 hover:translate-x-1"
+                  >
+                    <span className="material-symbols-outlined text-base opacity-0 group-hover:opacity-100 -translate-x-3 group-hover:translate-x-0 transition-all text-purple-400 group-hover:drop-shadow-lg">
+                      arrow_forward
+                    </span>
+                    <span className="group-hover:font-medium">Galeri</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/teklif-al"
-                    className="group flex items-center gap-2 text-sm text-gray-400 hover:text-purple-400 transition-all duration-200"
+                    className="group flex items-center gap-3 text-sm text-gray-300 hover:text-purple-300 transition-all duration-200 hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-xs opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all">
+                    <span className="material-symbols-outlined text-base opacity-0 group-hover:opacity-100 -translate-x-3 group-hover:translate-x-0 transition-all text-purple-400 group-hover:drop-shadow-lg">
                       arrow_forward
                     </span>
-                    <span>Teklif Al</span>
+                    <span className="group-hover:font-medium">Teklif Al</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/iletisim"
-                    className="group flex items-center gap-2 text-sm text-gray-400 hover:text-purple-400 transition-all duration-200"
+                    className="group flex items-center gap-3 text-sm text-gray-300 hover:text-purple-300 transition-all duration-200 hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-xs opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all">
+                    <span className="material-symbols-outlined text-base opacity-0 group-hover:opacity-100 -translate-x-3 group-hover:translate-x-0 transition-all text-purple-400 group-hover:drop-shadow-lg">
                       arrow_forward
                     </span>
-                    <span>İletişim</span>
+                    <span className="group-hover:font-medium">İletişim</span>
                   </Link>
                 </li>
               </ul>
@@ -176,16 +175,18 @@ export default function Footer() {
 
             {/* Contact Info */}
             <div>
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <span className="material-symbols-outlined text-blue-400">contact_mail</span>
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
+                <span className="material-symbols-outlined text-2xl bg-gradient-to-br from-blue-400 to-cyan-400 bg-clip-text text-transparent drop-shadow-lg">
+                  contact_mail
+                </span>
                 İletişim Bilgileri
               </h3>
               <ul className="space-y-4">
                 <li className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-blue-400 text-xl mt-0.5 flex-shrink-0">
+                  <span className="material-symbols-outlined text-blue-300 text-2xl mt-0.5 flex-shrink-0 drop-shadow-md group-hover:drop-shadow-lg transition-all">
                     location_on
                   </span>
-                  <span className="text-sm text-gray-400 leading-relaxed">
+                  <span className="text-sm text-gray-300 leading-relaxed">
                     KOMEK, Huğlu, 43173.SK SİTESİ NO:20<br />
                     42700 Beyşehir/Konya
                   </span>
@@ -193,19 +194,23 @@ export default function Footer() {
                 <li>
                   <a
                     href="tel:+905303125813"
-                    className="flex items-center gap-3 text-sm text-gray-400 hover:text-blue-400 transition-colors group"
+                    className="flex items-center gap-3 text-sm text-gray-300 hover:text-blue-300 transition-all duration-200 group hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-blue-400 text-xl">phone</span>
-                    <span className="group-hover:underline">0530 312 58 13</span>
+                    <span className="material-symbols-outlined text-blue-300 text-2xl group-hover:scale-110 group-hover:drop-shadow-lg transition-all">
+                      phone
+                    </span>
+                    <span className="group-hover:underline group-hover:font-medium">0530 312 58 13</span>
                   </a>
                 </li>
                 <li>
                   <a
                     href="mailto:info@hugluoutdoor.com"
-                    className="flex items-center gap-3 text-sm text-gray-400 hover:text-blue-400 transition-colors group"
+                    className="flex items-center gap-3 text-sm text-gray-300 hover:text-blue-300 transition-all duration-200 group hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-blue-400 text-xl">email</span>
-                    <span className="group-hover:underline break-all">info@hugluoutdoor.com</span>
+                    <span className="material-symbols-outlined text-blue-300 text-2xl group-hover:scale-110 group-hover:drop-shadow-lg transition-all">
+                      email
+                    </span>
+                    <span className="group-hover:underline group-hover:font-medium break-all">info@hugluoutdoor.com</span>
                   </a>
                 </li>
                 <li>
@@ -213,10 +218,12 @@ export default function Footer() {
                     href="https://wa.me/905303125813"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 text-sm text-gray-400 hover:text-green-400 transition-colors group"
+                    className="flex items-center gap-3 text-sm text-gray-300 hover:text-green-300 transition-all duration-200 group hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-green-400 text-xl">chat</span>
-                    <span className="group-hover:underline">WhatsApp Destek</span>
+                    <span className="material-symbols-outlined text-green-300 text-2xl group-hover:scale-110 group-hover:drop-shadow-lg transition-all">
+                      chat
+                    </span>
+                    <span className="group-hover:underline group-hover:font-medium">WhatsApp Destek</span>
                   </a>
                 </li>
               </ul>
@@ -224,54 +231,64 @@ export default function Footer() {
 
             {/* Legal & Newsletter */}
             <div>
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <span className="material-symbols-outlined text-pink-400">gavel</span>
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-3">
+                <span className="material-symbols-outlined text-2xl bg-gradient-to-br from-pink-400 to-rose-400 bg-clip-text text-transparent drop-shadow-lg">
+                  gavel
+                </span>
                 Yasal
               </h3>
               <ul className="space-y-3 mb-6">
                 <li>
                   <Link
                     href="/gizlilik"
-                    className="text-sm text-gray-400 hover:text-pink-400 transition-colors inline-flex items-center gap-2 group"
+                    className="text-sm text-gray-300 hover:text-pink-300 transition-all duration-200 inline-flex items-center gap-2 group hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-xs">lock</span>
-                    <span>Gizlilik Politikası</span>
+                    <span className="material-symbols-outlined text-base text-pink-400 group-hover:scale-110 group-hover:drop-shadow-lg transition-all">
+                      lock
+                    </span>
+                    <span className="group-hover:font-medium">Gizlilik Politikası</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/kullanim-kosullari"
-                    className="text-sm text-gray-400 hover:text-pink-400 transition-colors inline-flex items-center gap-2 group"
+                    className="text-sm text-gray-300 hover:text-pink-300 transition-all duration-200 inline-flex items-center gap-2 group hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-xs">description</span>
-                    <span>Kullanım Koşulları</span>
+                    <span className="material-symbols-outlined text-base text-pink-400 group-hover:scale-110 group-hover:drop-shadow-lg transition-all">
+                      description
+                    </span>
+                    <span className="group-hover:font-medium">Kullanım Koşulları</span>
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/cerez-politikasi"
-                    className="text-sm text-gray-400 hover:text-pink-400 transition-colors inline-flex items-center gap-2 group"
+                    className="text-sm text-gray-300 hover:text-pink-300 transition-all duration-200 inline-flex items-center gap-2 group hover:translate-x-1"
                   >
-                    <span className="material-symbols-outlined text-xs">cookie</span>
-                    <span>Çerez Politikası</span>
+                    <span className="material-symbols-outlined text-base text-pink-400 group-hover:scale-110 group-hover:drop-shadow-lg transition-all">
+                      cookie
+                    </span>
+                    <span className="group-hover:font-medium">Çerez Politikası</span>
                   </Link>
                 </li>
               </ul>
 
               {/* Trust Badge */}
-              <div className="p-4 bg-gradient-to-br from-blue-900/30 to-purple-900/30 border border-blue-500/20 rounded-xl backdrop-blur-sm">
+              <div className="p-4 bg-gradient-to-br from-blue-700/40 to-purple-700/40 border border-blue-400/30 rounded-xl backdrop-blur-sm hover:border-blue-400/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-yellow-400 text-xl">verified</span>
+                  <span className="material-symbols-outlined text-yellow-300 text-2xl drop-shadow-lg animate-pulse">
+                    verified
+                  </span>
                   <span className="text-sm font-bold text-white">Güvenli Alışveriş</span>
                 </div>
-                <p className="text-xs text-gray-400">SSL sertifikalı güvenli ödeme sistemi</p>
+                <p className="text-xs text-gray-300">SSL sertifikalı güvenli ödeme sistemi</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Brand Statement */}
-        <div className="border-t border-gray-800/50 pt-8 pb-6">
+        <div className="border-t border-gray-600/50 pt-8 pb-6">
           <div className="flex flex-col items-center text-center gap-4">
             <Link href="/" className="inline-block">
               <Image
@@ -279,17 +296,17 @@ export default function Footer() {
                 alt="Huğlu Tekstil Logo"
                 width={180}
                 height={72}
-                className="h-16 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                className="h-16 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
                 unoptimized
               />
             </Link>
-            <p className="text-sm text-gray-500 font-medium">
+            <p className="text-sm text-gray-400 font-medium">
               Huğlu Tekstil, bir{' '}
               <a
                 href="https://huglu.com.tr"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 font-semibold hover:text-blue-400 underline transition-colors"
+                className="text-gray-300 font-semibold hover:text-blue-300 underline transition-colors"
               >
                 Huğlu Av tüfekleri Kooperatifi
               </a>{' '}
@@ -299,16 +316,18 @@ export default function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-gray-800/50 py-8">
+        <div className="border-t border-gray-600/50 py-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4 text-sm text-gray-500">
+            <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4 text-sm text-gray-400">
               <p>© {currentYear} Huğlu Tekstil Atölyesi.</p>
               <p className="hidden md:block">Tüm hakları saklıdır.</p>
             </div>
-            <div className="flex flex-wrap justify-center gap-4 md:gap-6 text-xs md:text-sm text-gray-500">
-              <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-xs">code</span>
-                Made with ❤️ in Konya
+            <div className="flex flex-wrap justify-center gap-4 md:gap-6 text-xs md:text-sm text-gray-400">
+              <span className="flex items-center gap-2 group">
+                <span className="material-symbols-outlined text-base text-gray-300 group-hover:text-purple-300 group-hover:scale-110 transition-all drop-shadow-md">
+                  code
+                </span>
+                <span className="group-hover:text-gray-300 transition-colors">Made with ❤️ in Konya</span>
               </span>
             </div>
           </div>
