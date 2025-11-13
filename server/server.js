@@ -8443,6 +8443,30 @@ app.get('/api/admin/hepsiburada-orders', authenticateAdmin, async (req, res) => 
     const { status, page = 1, limit = 50, startDate, endDate } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
+    // Veritabanında barcode sütununun var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'hepsiburada_orders' 
+        AND COLUMN_NAME = 'barcode'
+      `);
+      
+      if (columns.length === 0) {
+        // barcode sütunu yoksa ekle
+        console.log('⚠️ barcode sütunu bulunamadı, ekleniyor...');
+        await poolWrapper.execute(`
+          ALTER TABLE hepsiburada_orders 
+          ADD COLUMN barcode VARCHAR(100) NULL AFTER cargoTrackingNumber
+        `);
+        console.log('✅ barcode sütunu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ barcode sütunu kontrolü/ekleme hatası:', alterError);
+      // Hata olsa bile devam et
+    }
+
     let whereClauses = ['tenantId = ?'];
     let params = [tenantId];
 

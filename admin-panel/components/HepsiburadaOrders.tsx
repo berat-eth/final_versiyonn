@@ -1021,38 +1021,53 @@ export default function HepsiburadaOrders() {
                     </div>
                   </div>
 
-                  {/* Kargo Bilgileri */}
-                  {(() => {
-                    // Hepsiburada siparişlerinde kargo bilgileri direkt tabloda saklanıyor
-                    const cargoTrackingNumber = (selectedOrder as any).cargoTrackingNumber
-                    const cargoProviderName = (selectedOrder as any).cargoProviderName
-                    
-                    if (!cargoTrackingNumber && !cargoProviderName) return null
-                    
-                    return (
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Kargo Bilgileri</h3>
-                        <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
-                          {cargoProviderName && (
-                            <div>
-                              <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Firması</label>
-                              <p className="text-slate-900 dark:text-white font-medium">
-                                {cargoProviderName}
-                              </p>
-                            </div>
-                          )}
-                          {cargoTrackingNumber && (
-                            <div>
-                              <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Kodu</label>
-                              <p className="text-slate-900 dark:text-white font-medium">
-                                {cargoTrackingNumber}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })()}
+                   {/* Kargo Bilgileri */}
+                   {(() => {
+                     // Hepsiburada siparişlerinde kargo bilgileri direkt tabloda saklanıyor
+                     const cargoTrackingNumber = (selectedOrder as any).cargoTrackingNumber
+                     const cargoProviderName = (selectedOrder as any).cargoProviderName
+                     const barcode = (selectedOrder as any).barcode
+                     const packageNumber = (selectedOrder as any).packageNumber
+                     
+                     // Hepsiburada siparişi kontrolü - bu sayfa sadece Hepsiburada siparişleri için
+                     // Bu sayfada olduğumuz için tüm siparişler Hepsiburada siparişidir
+                     const isHepsiburada = true
+                     
+                     if (!cargoTrackingNumber && !cargoProviderName && !barcode && !packageNumber) return null
+                     
+                     return (
+                       <div>
+                         <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Kargo Bilgileri</h3>
+                         <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
+                           {cargoProviderName && (
+                             <div>
+                               <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Firması</label>
+                               <p className="text-slate-900 dark:text-white font-medium">
+                                 {cargoProviderName}
+                               </p>
+                             </div>
+                           )}
+                           {cargoTrackingNumber && (
+                             <div>
+                               <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Kodu</label>
+                               <p className="text-slate-900 dark:text-white font-medium">
+                                 {cargoTrackingNumber}
+                               </p>
+                             </div>
+                           )}
+                           {/* Barkod bilgisi sadece Hepsiburada siparişlerinde göster */}
+                           {isHepsiburada && barcode && (
+                             <div>
+                               <label className="text-sm text-slate-600 dark:text-slate-400">Barkod</label>
+                               <p className="text-slate-900 dark:text-white font-medium font-mono">
+                                 {barcode}
+                               </p>
+                             </div>
+                           )}
+                         </div>
+                       </div>
+                     )
+                   })()}
 
                   {/* Sipariş Tarihleri */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
