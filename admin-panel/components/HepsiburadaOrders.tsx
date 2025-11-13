@@ -227,6 +227,17 @@ export default function HepsiburadaOrders() {
       const cargoTrackingNumber = (selectedOrder as any).cargoTrackingNumber || ''
       const cargoProviderName = (selectedOrder as any).cargoProviderName || ''
       const barcode = (selectedOrder as any).barcode || ''
+      
+      // Debug: Kargo bilgilerini logla
+      console.log('🔍 Kargo Fişi Debug:', {
+        orderId: selectedOrder.id,
+        externalOrderId: selectedOrder.externalOrderId,
+        cargoTrackingNumber,
+        cargoProviderName,
+        barcode,
+        provider: 'hepsiburada',
+        selectedOrder: selectedOrder
+      })
 
       // Backend'e istek gönder (blob response için doğrudan fetch)
       const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'

@@ -9015,6 +9015,18 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       items = [],
       provider = null // 'hepsiburada' veya 'trendyol' veya null
     } = req.body;
+    
+    // Debug: Gelen verileri logla
+    console.log('🔍 Kargo Fişi Backend Debug:', {
+      orderId,
+      provider,
+      cargoTrackingNumber,
+      cargoProviderName,
+      barcode,
+      hasBarcode: !!barcode,
+      hasProvider: !!provider,
+      isHepsiburada: provider === 'hepsiburada'
+    });
 
     // Validasyon: orderId zorunlu
     if (!orderId) {
@@ -9494,20 +9506,23 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     cargoYPos += 18; // Küçültüldü (22'den 18'e)
     
     // Hepsiburada için özel kargo bilgileri
-    if (provider === 'hepsiburada' && barcode) {
+    if (provider === 'hepsiburada') {
       // Kargo Kodu: Kargo Firması + Barkod
       const cargoCode = cargoProviderName && barcode 
         ? `${cargoProviderName} - ${barcode}`
         : barcode || cargoProviderName || '';
       
+      // Kargo kodu varsa göster
       if (cargoCode) {
         doc.fillColor('#64748b').fontSize(7).font('Helvetica');
         addUTF8Text('Kargo Kodu:', 20, cargoYPos);
         doc.fillColor('#0f172a').fontSize(9).font('Helvetica-Bold');
         addUTF8Text(replaceTurkishChars(cargoCode), 120, cargoYPos, { width: 280 });
         cargoYPos += 18;
-        
-        // EAN-128 (Code128) barkod oluştur - Barkod verisini kullan
+      }
+      
+      // Barkod varsa EAN-128 (Code128) barkod oluştur
+      if (barcode) {
         const barcodeY = cargoYPos;
         const barcodeHeight = 28;
         const barcodeWidth = 320;
@@ -9521,7 +9536,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         let barcodeImage = null;
         
         // bwip-js ile EAN-128 (Code128) barkod oluştur - Barkod verisini kullan
-        if (bwipjs && barcode) {
+        if (bwipjs) {
           try {
             const barcodeBuffer = await bwipjs.toBuffer({
               bcid: 'code128',        // Code128 formatı (EAN-128 uyumlu)
@@ -9533,6 +9548,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
               textsize: 10
             });
             barcodeImage = barcodeBuffer;
+            console.log('✅ EAN-128 barkod oluşturuldu:', barcode);
           } catch (error) {
             console.error('❌ EAN-128 barkod oluşturma hatası:', error);
             barcodeImage = null;
@@ -9543,7 +9559,14 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         if (barcodeImage) {
           doc.image(barcodeImage, 30, barcodeY, { width: barcodeWidth, height: barcodeHeight });
           cargoYPos += barcodeHeight + 6;
-        } else {
+          
+          // EAN-128 etiketi
+          doc.fontSize(7)
+             .font('Helvetica')
+             .fillColor('#64748b');
+          addUTF8Text('EAN-128', 20, cargoYPos, { align: 'center', width: barcodeWidth });
+          cargoYPos += 12;
+        } else if (barcode) {
           // Fallback: QR kod kullan
           try {
             const barcodeDataUrl = await QRCode.toDataURL(barcode, {
@@ -9566,13 +9589,6 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
             cargoYPos += 35;
           }
         }
-        
-        // EAN-128 etiketi
-        doc.fontSize(7)
-           .font('Helvetica')
-           .fillColor('#64748b');
-        addUTF8Text('EAN-128', 20, cargoYPos, { align: 'center', width: barcodeWidth });
-        cargoYPos += 12;
       }
     } else {
       // Trendyol veya diğer marketplace'ler için normal kargo bilgileri
