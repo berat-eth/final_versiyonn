@@ -11,7 +11,7 @@ import { api, type ApiResponse } from '@/lib/api'
 
 interface MarketplaceOrder {
   id: number
-  provider: string
+  provider?: string
   externalOrderId: string
   totalAmount: number
   status: string
@@ -22,9 +22,13 @@ interface MarketplaceOrder {
   city?: string
   district?: string
   fullAddress?: string
-  syncedAt: string
+  syncedAt?: string
   createdAt: string
+  updatedAt?: string
   orderData?: any // JSON data from marketplace API
+  cargoTrackingNumber?: string
+  cargoProviderName?: string
+  barcode?: string
   items?: Array<{
     id: number
     productName: string
@@ -222,6 +226,7 @@ export default function HepsiburadaOrders() {
       // Kargo bilgilerini al - Hepsiburada siparişlerinde direkt tabloda saklanıyor
       const cargoTrackingNumber = (selectedOrder as any).cargoTrackingNumber || ''
       const cargoProviderName = (selectedOrder as any).cargoProviderName || ''
+      const barcode = (selectedOrder as any).barcode || ''
 
       // Backend'e istek gönder (blob response için doğrudan fetch)
       const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
@@ -241,6 +246,7 @@ export default function HepsiburadaOrders() {
           invoiceUrl: invoiceUrl,
           cargoTrackingNumber: cargoTrackingNumber,
           cargoProviderName: cargoProviderName,
+          barcode: barcode,
           customerName: selectedOrder.customerName,
           customerEmail: selectedOrder.customerEmail,
           customerPhone: selectedOrder.customerPhone,
@@ -409,6 +415,7 @@ export default function HepsiburadaOrders() {
           invoiceAddress: row['Fatura Adresi'] || '',
           cargoProviderName: row['Kargo Firması'] || '',
           cargoTrackingNumber: row['Kargo Takip No'] || '',
+          barcode: row['Barkod'] || '',
           orderDate: parsedDate.toISOString(),
           deliveryDate: row['Kargoya Son Teslim Tarihi'] || '',
           deliveryType: row['Teslimat Tipi'] || '',
@@ -715,7 +722,7 @@ export default function HepsiburadaOrders() {
                       )}
                       <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                         <Calendar className="w-4 h-4" />
-                        <span>{new Date(order.createdAt || order.syncedAt).toLocaleDateString('tr-TR')}</span>
+                        <span>{new Date(order.createdAt || order.syncedAt || Date.now()).toLocaleDateString('tr-TR')}</span>
                       </div>
                       <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
                         <DollarSign className="w-4 h-4" />
@@ -1030,7 +1037,7 @@ export default function HepsiburadaOrders() {
                     <div>
                       <label className="text-slate-600 dark:text-slate-400">Oluşturulma Tarihi</label>
                       <p className="text-slate-900 dark:text-white font-medium">
-                        {new Date(selectedOrder.createdAt || selectedOrder.syncedAt).toLocaleString('tr-TR')}
+                        {new Date(selectedOrder.createdAt || selectedOrder.syncedAt || Date.now()).toLocaleString('tr-TR')}
                       </p>
                     </div>
                     <div>
@@ -1038,7 +1045,7 @@ export default function HepsiburadaOrders() {
                       <p className="text-slate-900 dark:text-white font-medium">
                         {selectedOrder.updatedAt 
                           ? new Date(selectedOrder.updatedAt).toLocaleString('tr-TR')
-                          : new Date(selectedOrder.createdAt || selectedOrder.syncedAt).toLocaleString('tr-TR')}
+                          : new Date(selectedOrder.createdAt || selectedOrder.syncedAt || Date.now()).toLocaleString('tr-TR')}
                       </p>
                     </div>
                   </div>

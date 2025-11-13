@@ -795,6 +795,7 @@ async function createDatabaseSchema(pool) {
       customerPhone VARCHAR(50),
       cargoProviderName VARCHAR(100),
       cargoTrackingNumber VARCHAR(100),
+      barcode VARCHAR(100),
       orderDate DATETIME,
       deliveryDate VARCHAR(100),
       deliveryType VARCHAR(100),
