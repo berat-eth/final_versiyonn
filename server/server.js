@@ -8904,18 +8904,40 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       // Hata olsa bile devam et
     }
 
-    // Üst başlık bölümü - gradient efekti için koyu arka plan (dikey için)
-    doc.rect(0, 0, 420, 55).fill('#1e293b'); // Küçültüldü (60'tan 55'e)
-    doc.fontSize(20) // Küçültüldü (22'den 20'ye)
-       .fillColor('#ffffff')
-       .font('Helvetica-Bold');
-    addUTF8Text('KARGO FISI', 20, 18, { align: 'center', width: 380 }); // Küçültüldü (20'den 18'e)
+    // Üst başlık bölümü - Logo ile beyaz arka plan
+    doc.rect(0, 0, 420, 55).fill('#ffffff'); // Beyaz arka plan
     
-    // Alt çizgi
-    doc.strokeColor('#3b82f6')
-       .lineWidth(1.5)
-       .moveTo(60, 47) // Küçültüldü (50'den 47'ye)
-       .lineTo(360, 47)
+    // Logo'yu üst başlık bölümüne ekle
+    try {
+      const logoPath = path.join(__dirname, '../assets/logo.jpg');
+      if (fs.existsSync(logoPath)) {
+        // Logo boyutları (üst başlık için uygun boyut)
+        const logoWidth = 120;
+        const logoHeight = 40;
+        
+        // Logo'yu üst başlık bölümünün ortasına yerleştir
+        const logoX = (420 - logoWidth) / 2; // Yatay ortalama
+        const logoY = (55 - logoHeight) / 2; // Dikey ortalama (üst başlık yüksekliği içinde)
+        
+        // Logo'yu ekle (opacity normal, filigran değil)
+        doc.image(logoPath, logoX, logoY, {
+          width: logoWidth,
+          height: logoHeight
+        });
+        console.log('✅ Logo added to header');
+      } else {
+        console.warn('⚠️ Logo dosyası bulunamadı:', logoPath);
+      }
+    } catch (error) {
+      console.error('❌ Logo ekleme hatası:', error);
+      // Hata olsa bile devam et
+    }
+    
+    // Alt çizgi (opsiyonel - isterseniz kaldırabilirsiniz)
+    doc.strokeColor('#e2e8f0')
+       .lineWidth(1)
+       .moveTo(20, 54)
+       .lineTo(400, 54)
        .stroke();
 
     // QR kod bölümü - önce oluştur (adres yanına yerleştirilecek)
