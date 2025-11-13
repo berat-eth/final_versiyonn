@@ -8943,7 +8943,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     // QR kod zaten yukarıda adres yanında gösterildi, burada tekrar oluşturmaya gerek yok
 
     // Alt bilgi bölümü - footer (dikey için)
-    const footerHeight = 30; // Küçültüldü (35'ten 30'a)
+    const footerHeight = 40; // Trendyol metni için artırıldı (30'dan 40'a)
     let finalFooterY = cargoYPos + 10; // Küçültüldü (15'ten 10'a)
     
     // Footer sayfa dışına taşmasın - tek sayfada kalması için
@@ -8971,6 +8971,12 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
        .font('Helvetica')
        .fillColor('#64748b');
     addUTF8Text('Kargo Fisi', 220, finalFooterY + 16, { align: 'right', width: 180 });
+    
+    // Trendyol bilgisi - en alt satır
+    doc.fontSize(7)
+       .font('Helvetica')
+       .fillColor('#64748b');
+    addUTF8Text('Bu Siparis Trendyol.com\'dan olusturulmustur', 20, finalFooterY + 28, { align: 'center', width: 380 });
 
     // PDF'i response olarak gönder
     res.setHeader('Content-Type', 'application/pdf');
