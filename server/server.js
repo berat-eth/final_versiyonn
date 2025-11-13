@@ -665,8 +665,24 @@ if (!fs.existsSync(uploadsDir)) {
 // Invoices PDF yükleme için uploads klasörünü oluştur
 const invoicesDir = path.join(__dirname, 'uploads', 'invoices');
 if (!fs.existsSync(invoicesDir)) {
-  fs.mkdirSync(invoicesDir, { recursive: true });
-  console.log('✅ Invoices uploads directory created:', invoicesDir);
+  try {
+    fs.mkdirSync(invoicesDir, { recursive: true });
+    console.log('✅ Invoices uploads directory created:', invoicesDir);
+  } catch (error) {
+    console.error('❌ Error creating invoices directory:', error);
+    throw error;
+  }
+} else {
+  console.log('✅ Invoices uploads directory already exists:', invoicesDir);
+}
+
+// Dizin yazma izinlerini kontrol et
+try {
+  fs.accessSync(invoicesDir, fs.constants.W_OK);
+  console.log('✅ Invoices directory is writable');
+} catch (error) {
+  console.error('❌ Invoices directory is NOT writable:', error);
+  console.error('❌ Please check directory permissions:', invoicesDir);
 }
 
 // GÜVENLİK: File upload security utilities
@@ -8430,10 +8446,31 @@ app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file
         }
       }
 
+      // Dosya yükleme başarılı - dosyanın gerçekten kaydedildiğini kontrol et
+      const fullPath = path.join(invoicesDir, req.file.filename);
+      const fileExists = fs.existsSync(fullPath);
+      
+      console.log('📄 File saved to:', fullPath);
+      console.log('📄 File exists:', fileExists);
+      
+      if (!fileExists) {
+        console.error('❌ File was not saved to disk!');
+        return res.status(500).json({
+          success: false,
+          message: 'Dosya kaydedilemedi. Lütfen tekrar deneyin.'
+        });
+      }
+      
       const filePath = `/uploads/invoices/${req.file.filename}`;
       fields.push('filePath = ?'); params.push(filePath);
       fields.push('fileName = ?'); params.push(req.file.originalname);
       fields.push('fileSize = ?'); params.push(req.file.size);
+      
+      console.log('✅ File uploaded successfully:', {
+        filePath,
+        fileName: req.file.originalname,
+        fileSize: req.file.size
+      });
     }
 
     if (fields.length === 0) {
