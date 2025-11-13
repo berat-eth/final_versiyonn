@@ -334,6 +334,9 @@ export default function Invoices() {
 
   const viewInvoicePDF = async (invoice: Invoice) => {
     try {
+      setError(null)
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+      
       // Debug: Invoice verilerini kontrol et
       console.log('Invoice data:', invoice)
       
@@ -342,93 +345,41 @@ export default function Invoices() {
         return
       }
       
-      // Share URL'den token çıkar veya invoice ID kullan
-      let shareToken: string | null = null
+      // Direkt backend URL'i oluştur
+      let viewUrl: string | null = null
       
-      if (invoice.shareUrl) {
-        // Share URL formatı: https://api.plaxsy.com/api/invoices/share/TOKEN
-        const shareUrlMatch = invoice.shareUrl.match(/\/share\/([^\/]+)/)
-        if (shareUrlMatch) {
-          shareToken = shareUrlMatch[1]
-          console.log('Extracted share token:', shareToken)
-        }
+      // Öncelik sırası: fileUrl > filePath > shareUrl > default download endpoint
+      if (invoice.fileUrl) {
+        viewUrl = invoice.fileUrl.startsWith('http') ? invoice.fileUrl : `${API_BASE_URL}${invoice.fileUrl}`
+      } else if (invoice.filePath) {
+        viewUrl = invoice.filePath.startsWith('http') ? invoice.filePath : `${API_BASE_URL}${invoice.filePath}`
+      } else if (invoice.shareUrl) {
+        // Share URL varsa download endpoint'ine yönlendir
+        viewUrl = invoice.shareUrl.includes('/download') ? invoice.shareUrl : `${invoice.shareUrl}/download`
+      } else if (invoice.id) {
+        // Admin endpoint ile direkt dosya indirme
+        viewUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
       }
       
-      // Proxy endpoint URL'i oluştur
-      let proxyUrl = `/api/invoices/${invoice.id}/download`
-      if (shareToken) {
-        proxyUrl += `?token=${encodeURIComponent(shareToken)}`
+      if (!viewUrl) {
+        setError('Fatura görüntüleme URL\'si bulunamadı. Lütfen faturayı kontrol edin.')
+        return
       }
       
-      console.log('Using proxy URL:', proxyUrl)
+      console.log('Using direct backend URL:', viewUrl)
       
-      // Proxy endpoint'ten PDF'i kontrol et
+      // Direkt backend URL'ini yeni sekmede aç
       try {
-        const response = await fetch(proxyUrl)
+        const newWindow = window.open(viewUrl, '_blank')
         
-        if (!response.ok) {
-          // Hata durumunda JSON yanıtı olabilir
-          const contentType = response.headers.get('content-type') || ''
-          
-          if (contentType.includes('application/json')) {
-            const errorData = await response.json()
-            const errorMsg = errorData.message || `HTTP ${response.status}: ${response.statusText}`
-            
-            console.error('PDF proxy error:', {
-              url: proxyUrl,
-              status: response.status,
-              error: errorData
-            })
-            
-            if (errorMsg.includes('not found') || errorMsg.includes('bulunamadı') || errorMsg.includes('ERR_FILE_NOT_FOUND')) {
-              setError(`Fatura dosyası bulunamadı (ID: ${invoice.id}). Dosya backend'de kaydedilmemiş olabilir. Lütfen faturayı yeniden yükleyin.`)
-            } else {
-              setError(errorMsg)
-            }
-            return
-          } else {
-            const errorText = await response.text().catch(() => '')
-            if (errorText.includes('ERR_FILE_NOT_FOUND') || errorText.includes('not found')) {
-              setError('Fatura dosyası bulunamadı. Dosya backend\'de kaydedilmemiş olabilir.')
-            } else {
-              setError(`HTTP ${response.status}: ${response.statusText}`)
-            }
-            return
-          }
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+          // Popup engellenmişse, iframe ile göster
+          showPDFInIframe(viewUrl)
         }
-        
-        // Response başarılı, PDF'i aç
-        const contentType = response.headers.get('content-type') || ''
-        console.log('Proxy Content-Type:', contentType)
-        
-        // PDF ise proxy URL'den aç
-        if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
-          // Proxy URL'ini yeni sekmede aç
-          try {
-            const newWindow = window.open(proxyUrl, '_blank')
-            
-            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-              // Popup engellenmişse, iframe ile göster
-              showPDFInIframe(proxyUrl)
-            }
-          } catch (err) {
-            console.error('Window open error:', err)
-            // Iframe ile göster
-            showPDFInIframe(proxyUrl)
-          }
-        } else {
-          // Beklenmeyen content type
-          const text = await response.text().catch(() => '')
-          try {
-            const jsonData = JSON.parse(text)
-            setError(jsonData.message || 'Beklenmeyen yanıt formatı')
-          } catch {
-            setError('PDF görüntülenemedi. Yanıt formatı geçersiz.')
-          }
-        }
-      } catch (fetchError: any) {
-        console.error('Proxy fetch error:', fetchError)
-        setError('PDF görüntülenirken bir hata oluştu: ' + (fetchError.message || 'Bilinmeyen hata'))
+      } catch (err) {
+        console.error('Window open error:', err)
+        // Iframe ile göster
+        showPDFInIframe(viewUrl)
       }
     } catch (err: any) {
       console.error('PDF görüntüleme hatası:', err)
@@ -651,26 +602,33 @@ export default function Invoices() {
                                 return
                               }
                               
-                              // Share URL'den token çıkar veya invoice ID kullan
-                              let shareToken: string | null = null
+                              const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
                               
-                              if (invoice.shareUrl) {
-                                const shareUrlMatch = invoice.shareUrl.match(/\/share\/([^\/]+)/)
-                                if (shareUrlMatch) {
-                                  shareToken = shareUrlMatch[1]
-                                }
+                              // Direkt backend URL'i oluştur
+                              let downloadUrl: string | null = null
+                              
+                              // Öncelik sırası: fileUrl > filePath > shareUrl > default download endpoint
+                              if (invoice.fileUrl) {
+                                downloadUrl = invoice.fileUrl.startsWith('http') ? invoice.fileUrl : `${API_BASE_URL}${invoice.fileUrl}`
+                              } else if (invoice.filePath) {
+                                downloadUrl = invoice.filePath.startsWith('http') ? invoice.filePath : `${API_BASE_URL}${invoice.filePath}`
+                              } else if (invoice.shareUrl) {
+                                // Share URL varsa download endpoint'ine yönlendir
+                                downloadUrl = invoice.shareUrl.includes('/download') ? invoice.shareUrl : `${invoice.shareUrl}/download`
+                              } else if (invoice.id) {
+                                // Admin endpoint ile direkt dosya indirme
+                                downloadUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
                               }
                               
-                              // Proxy endpoint URL'i oluştur
-                              let proxyUrl = `/api/invoices/${invoice.id}/download`
-                              if (shareToken) {
-                                proxyUrl += `?token=${encodeURIComponent(shareToken)}`
+                              if (!downloadUrl) {
+                                setError('Fatura indirme URL\'si bulunamadı. Lütfen faturayı kontrol edin.')
+                                return
                               }
                               
-                              console.log('Downloading from proxy URL:', proxyUrl)
+                              console.log('Downloading from direct backend URL:', downloadUrl)
                               
-                              // Proxy endpoint'ten PDF'i indir
-                              const response = await fetch(proxyUrl)
+                              // Direkt backend'den PDF'i indir
+                              const response = await fetch(downloadUrl)
 
                               if (!response.ok) {
                                 const contentType = response.headers.get('content-type') || ''
@@ -678,7 +636,7 @@ export default function Invoices() {
                                   const errorData = await response.json()
                                   const errorMsg = errorData.message || `HTTP ${response.status}: ${response.statusText}`
                                   console.error('Download error:', {
-                                    url: proxyUrl,
+                                    url: downloadUrl,
                                     status: response.status,
                                     error: errorData
                                   })
@@ -690,7 +648,7 @@ export default function Invoices() {
                                 } else {
                                   const errorText = await response.text().catch(() => '')
                                   console.error('Download error (non-JSON):', {
-                                    url: proxyUrl,
+                                    url: downloadUrl,
                                     status: response.status,
                                     text: errorText
                                   })
