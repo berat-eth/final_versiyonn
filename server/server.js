@@ -755,14 +755,31 @@ const upload = multer({
 // PDF yükleme için multer yapılandırması
 const invoiceStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, invoicesDir);
+    // Dizinin var olduğundan ve yazılabilir olduğundan emin ol
+    try {
+      if (!fs.existsSync(invoicesDir)) {
+        console.log('📁 Creating invoices directory:', invoicesDir);
+        fs.mkdirSync(invoicesDir, { recursive: true });
+      }
+      
+      // Yazma iznini kontrol et
+      fs.accessSync(invoicesDir, fs.constants.W_OK);
+      console.log('✅ Invoices directory is accessible for upload:', invoicesDir);
+      cb(null, invoicesDir);
+    } catch (error) {
+      console.error('❌ Error accessing invoices directory:', error);
+      console.error('❌ Directory path:', invoicesDir);
+      cb(error, null);
+    }
   },
   filename: (req, file, cb) => {
     const sanitized = sanitizeFileName(file.originalname);
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(sanitized);
     const baseName = path.basename(sanitized, ext);
-    cb(null, `${baseName}-${uniqueSuffix}${ext}`);
+    const filename = `${baseName}-${uniqueSuffix}${ext}`;
+    console.log('📝 Generated filename:', filename);
+    cb(null, filename);
   }
 });
 
@@ -8304,19 +8321,51 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
 
     if (req.file) {
       // Dosya yükleme başarılı - dosyanın gerçekten kaydedildiğini kontrol et
-      const fullPath = path.join(invoicesDir, req.file.filename);
-      const fileExists = fs.existsSync(fullPath);
+      // Multer'ın kaydettiği dosya yolu
+      const multerPath = req.file.path;
+      // Beklenen dosya yolu
+      const expectedPath = path.join(invoicesDir, req.file.filename);
       
-      console.log('📄 File saved to:', fullPath);
-      console.log('📄 File exists:', fileExists);
+      console.log('📄 Multer file path:', multerPath);
+      console.log('📄 Expected file path:', expectedPath);
+      console.log('📄 Invoices directory:', invoicesDir);
+      console.log('📄 File filename:', req.file.filename);
+      
+      // Önce Multer'ın kaydettiği yolu kontrol et
+      let actualPath = multerPath;
+      if (!fs.existsSync(multerPath)) {
+        // Multer path yoksa, expected path'i kontrol et
+        console.warn('⚠️ Multer path does not exist, checking expected path');
+        actualPath = expectedPath;
+      }
+      
+      const fileExists = fs.existsSync(actualPath);
+      console.log('📄 File exists at actual path:', fileExists);
+      console.log('📄 Actual file path:', actualPath);
       
       if (!fileExists) {
         console.error('❌ File was not saved to disk!');
+        console.error('❌ Multer path:', multerPath);
+        console.error('❌ Expected path:', expectedPath);
+        console.error('❌ Directory exists:', fs.existsSync(invoicesDir));
+        console.error('❌ Directory is writable:', (() => {
+          try {
+            fs.accessSync(invoicesDir, fs.constants.W_OK);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        })());
         return res.status(500).json({
           success: false,
           message: 'Dosya kaydedilemedi. Lütfen tekrar deneyin.'
         });
       }
+      
+      // Dosya boyutunu kontrol et
+      const stats = fs.statSync(actualPath);
+      console.log('📄 File size on disk:', stats.size, 'bytes');
+      console.log('📄 File size from Multer:', req.file.size, 'bytes');
       
       filePath = `/uploads/invoices/${req.file.filename}`;
       fileName = req.file.originalname;
@@ -8325,7 +8374,8 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
       console.log('✅ File uploaded successfully:', {
         filePath,
         fileName,
-        fileSize
+        fileSize,
+        actualPath
       });
     } else {
       console.warn('⚠️ No file in request');
@@ -8447,19 +8497,51 @@ app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file
       }
 
       // Dosya yükleme başarılı - dosyanın gerçekten kaydedildiğini kontrol et
-      const fullPath = path.join(invoicesDir, req.file.filename);
-      const fileExists = fs.existsSync(fullPath);
+      // Multer'ın kaydettiği dosya yolu
+      const multerPath = req.file.path;
+      // Beklenen dosya yolu
+      const expectedPath = path.join(invoicesDir, req.file.filename);
       
-      console.log('📄 File saved to:', fullPath);
-      console.log('📄 File exists:', fileExists);
+      console.log('📄 Multer file path:', multerPath);
+      console.log('📄 Expected file path:', expectedPath);
+      console.log('📄 Invoices directory:', invoicesDir);
+      console.log('📄 File filename:', req.file.filename);
+      
+      // Önce Multer'ın kaydettiği yolu kontrol et
+      let actualPath = multerPath;
+      if (!fs.existsSync(multerPath)) {
+        // Multer path yoksa, expected path'i kontrol et
+        console.warn('⚠️ Multer path does not exist, checking expected path');
+        actualPath = expectedPath;
+      }
+      
+      const fileExists = fs.existsSync(actualPath);
+      console.log('📄 File exists at actual path:', fileExists);
+      console.log('📄 Actual file path:', actualPath);
       
       if (!fileExists) {
         console.error('❌ File was not saved to disk!');
+        console.error('❌ Multer path:', multerPath);
+        console.error('❌ Expected path:', expectedPath);
+        console.error('❌ Directory exists:', fs.existsSync(invoicesDir));
+        console.error('❌ Directory is writable:', (() => {
+          try {
+            fs.accessSync(invoicesDir, fs.constants.W_OK);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        })());
         return res.status(500).json({
           success: false,
           message: 'Dosya kaydedilemedi. Lütfen tekrar deneyin.'
         });
       }
+      
+      // Dosya boyutunu kontrol et
+      const stats = fs.statSync(actualPath);
+      console.log('📄 File size on disk:', stats.size, 'bytes');
+      console.log('📄 File size from Multer:', req.file.size, 'bytes');
       
       const filePath = `/uploads/invoices/${req.file.filename}`;
       fields.push('filePath = ?'); params.push(filePath);
@@ -8469,7 +8551,8 @@ app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file
       console.log('✅ File uploaded successfully:', {
         filePath,
         fileName: req.file.originalname,
-        fileSize: req.file.size
+        fileSize: req.file.size,
+        actualPath
       });
     }
 
