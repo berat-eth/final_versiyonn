@@ -401,7 +401,8 @@ export default function HepsiburadaOrders() {
       if (!line) continue
       
       const values = line.split(';')
-      if (values.length < headers.length) continue
+      // Eğer kolon sayısı çok azsa (3'ten az) atla, yoksa devam et (eksik kolonlar boş string olur)
+      if (values.length < 3) continue
       
       const row: any = {}
       headers.forEach((header, index) => {
@@ -414,9 +415,11 @@ export default function HepsiburadaOrders() {
       const itemNumber = row['Kalem Numarası']
       
       // Paket numarası yoksa, sipariş numarasını kullan (fallback)
-      const groupKey = packageNumber || orderNumber || `order-${i}`
+      // Eğer ikisi de yoksa, satır numarası ile benzersiz bir ID oluştur (hiçbir sipariş atlanmasın)
+      const groupKey = packageNumber || orderNumber || `csv-row-${i}-${Date.now()}`
       
-      if (!packageNumber && !orderNumber) continue
+      // Paket numarası ve sipariş numarası yoksa bile devam et (fallback ID ile)
+      // if (!packageNumber && !orderNumber) continue // KALDIRILDI - hiçbir sipariş atlanmasın
       
       // Aynı paket numarasına sahip sipariş zaten varsa, sadece item ekle
       if (orderMap.has(groupKey)) {
@@ -464,7 +467,7 @@ export default function HepsiburadaOrders() {
         }
         
         const order = {
-          externalOrderId: orderNumber || packageNumber, // Sipariş numarası yoksa paket numarasını kullan
+          externalOrderId: orderNumber || packageNumber || `CSV-ROW-${i}`, // Sipariş numarası yoksa paket numarasını kullan, o da yoksa fallback ID
           packageNumber: packageNumber,
           customerName: row['Alıcı'] || '',
           customerEmail: row['Alıcı Mail Adresi'] || '',
