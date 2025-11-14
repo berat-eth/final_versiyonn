@@ -492,6 +492,19 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       return;
     }
 
+    // Canlı destek action'ı - LiveSupportScreen'e yönlendir
+    if (quickReply.action === 'live_support') {
+      if (navigation) {
+        navigation.navigate('LiveSupport');
+        // Chatbot'u kapat
+        toggleChatbot();
+      } else {
+        // Navigation yoksa mesaj gönder
+        await sendMessage('Canlı destek istiyorum', 'live_support');
+      }
+      return;
+    }
+
     // Navigasyon eylemi kontrolü
     if (quickReply.action.includes('navigate_') || 
         quickReply.action.includes('view_') || 

@@ -18323,6 +18323,7 @@ async function startServer() {
     try {
       const tenantId = req.tenant?.id || 1;
       
+      // Canlı destek mesajlarını öncelikli göster (live_support ve admin_message intent'leri)
       const [rows] = await poolWrapper.execute(`
         SELECT 
           ca.id,
@@ -18340,12 +18341,18 @@ async function startServer() {
           ca.timestamp,
           p.name as productFullName,
           p.price as productFullPrice,
-          p.image as productFullImage
+          p.image as productFullImage,
+          CASE 
+            WHEN ca.intent = 'live_support' OR ca.intent = 'admin_message' THEN 1
+            ELSE 0
+          END as isLiveSupport
         FROM chatbot_analytics ca
         LEFT JOIN users u ON ca.userId = u.id AND u.tenantId = ca.tenantId
         LEFT JOIN products p ON ca.productId = p.id AND p.tenantId = ca.tenantId
         WHERE ca.tenantId = ?
-        ORDER BY ca.timestamp DESC
+        ORDER BY 
+          isLiveSupport DESC,
+          ca.timestamp DESC
         LIMIT 500
       `, [tenantId]);
 
@@ -18452,6 +18459,97 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ success: false });
+    }
+  });
+
+  // Canlı destek - Mesaj gönder
+  app.post('/api/chatbot/live-support/message', async (req, res) => {
+    try {
+      const { userId, message } = req.body;
+
+      if (!userId || !message || !message.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'userId ve message gerekli'
+        });
+      }
+
+      // Tenant kontrolü (kullanıcının tenant'ı)
+      const [userRow] = await poolWrapper.execute(
+        'SELECT tenantId FROM users WHERE id = ? LIMIT 1',
+        [userId]
+      );
+
+      if (userRow.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Kullanıcı bulunamadı'
+        });
+      }
+
+      const tenantId = userRow[0].tenantId || 1;
+
+      // Canlı destek mesajını kaydet
+      const [result] = await poolWrapper.execute(
+        `INSERT INTO chatbot_analytics (tenantId, userId, message, intent, timestamp) 
+         VALUES (?, ?, ?, ?, NOW())`,
+        [
+          tenantId,
+          userId,
+          message.substring(0, 1000),
+          'live_support'
+        ]
+      );
+
+      res.json({
+        success: true,
+        message: 'Mesaj gönderildi',
+        data: {
+          id: result.insertId,
+          message: message.substring(0, 1000),
+          sender: 'user',
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('❌ Canlı destek mesaj gönderme hatası:', error);
+      res.status(500).json({ success: false, message: 'Mesaj gönderilemedi' });
+    }
+  });
+
+  // Canlı destek - Mesaj geçmişi getir
+  app.get('/api/chatbot/live-support/history/:userId', async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (!userId || userId <= 0) {
+        return res.status(400).json({ success: false, message: 'Geçersiz userId' });
+      }
+
+      // Tenant kontrolü (kullanıcının tenant'ı)
+      const [userRow] = await poolWrapper.execute(
+        'SELECT tenantId FROM users WHERE id = ? LIMIT 1',
+        [userId]
+      );
+
+      const tenantId = userRow.length > 0 ? userRow[0].tenantId : 1;
+
+      // Canlı destek mesajlarını getir (live_support ve admin_message intent'leri)
+      const [rows] = await poolWrapper.execute(
+        `SELECT id, message, intent, timestamp 
+         FROM chatbot_analytics 
+         WHERE userId = ? AND tenantId = ? AND (intent = 'live_support' OR intent = 'admin_message')
+         ORDER BY timestamp ASC
+         LIMIT 100`,
+        [userId, tenantId]
+      );
+
+      res.json({
+        success: true,
+        data: rows
+      });
+    } catch (error) {
+      console.error('❌ Canlı destek mesaj geçmişi getirme hatası:', error);
+      res.status(500).json({ success: false, message: 'Mesaj geçmişi getirilemedi' });
     }
   });
 

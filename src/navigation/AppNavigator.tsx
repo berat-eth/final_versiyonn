@@ -34,6 +34,7 @@ import { ForgotPasswordScreen } from '../views/ForgotPasswordScreen';
 import { ReturnRequestsScreen } from '../views/ReturnRequestsScreen';
 import { FAQScreen } from '../views/FAQScreen';
 import { SupportScreen } from '../views/SupportScreen';
+import { LiveSupportScreen } from '../views/LiveSupportScreen';
 import { AnythingLLMSettingsScreen } from '../views/AnythingLLMSettingsScreen';
 import EditProfileScreen from '../views/EditProfileScreen';
 import ChangePasswordScreen from '../views/ChangePasswordScreen';
@@ -577,6 +578,11 @@ const ProfileStack = () => {
         name="Support"
         component={SupportScreen}
         options={{ title: 'Destek', headerShown: false }}
+      />
+      <Stack.Screen
+        name="LiveSupport"
+        component={LiveSupportScreen}
+        options={{ title: 'Canlı Destek', headerShown: false }}
       />
       <Stack.Screen
         name="AnythingLLMSettings"

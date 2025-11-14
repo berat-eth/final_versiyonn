@@ -85,10 +85,10 @@ export const SupportScreen: React.FC<SupportScreenProps> = ({ navigation }) => {
       title: 'Canlı Destek',
       description: 'Anında yardım alın',
       icon: 'support-agent',
-      available: false,
-      workingHours: 'Çevrimdışı',
+      available: true,
+      workingHours: '7/24 Aktif',
       action: () => {
-        Alert.alert('Bilgi', 'Canlı destek şu anda çevrimdışı. Lütfen diğer iletişim yöntemlerini kullanın.');
+        navigation.navigate('LiveSupport');
       }
     }
   ];

@@ -70,6 +70,8 @@ export default function Chatbot() {
           if (!msg || !msg.userId) return
           
           const userId = msg.userId
+          const isLiveSupport = msg.intent === 'live_support' || msg.intent === 'admin_message'
+          const isAdminMessage = msg.intent === 'admin_message'
           
           if (!conversationMap.has(userId)) {
             const customerName = msg.userName || msg.userEmail || 'Misafir Kullanıcı'
@@ -80,7 +82,7 @@ export default function Chatbot() {
               lastMessage: msg.message || 'Mesaj yok',
               time: msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : 'Bilinmiyor',
               unread: 0,
-              status: 'offline' as const,
+              status: isLiveSupport ? 'online' as const : 'offline' as const,
               messages: [],
               productId: msg.productId || msg.productFullName ? msg.productId : undefined,
               productName: msg.productName || msg.productFullName,
@@ -97,7 +99,7 @@ export default function Chatbot() {
           if (msg.message && msg.timestamp) {
             conv.messages.push({
               id: msg.id || Date.now(),
-              sender: 'customer' as const,
+              sender: isAdminMessage ? 'agent' as const : 'customer' as const,
               text: msg.message,
               time: new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
               read: true
@@ -106,6 +108,10 @@ export default function Chatbot() {
             if (new Date(msg.timestamp) > new Date(conv.time || 0)) {
               conv.lastMessage = msg.message
               conv.time = new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+              // Canlı destek mesajları için status'u online yap
+              if (isLiveSupport) {
+                conv.status = 'online' as const
+              }
             }
           }
         })
@@ -395,6 +401,11 @@ export default function Chatbot() {
                         {conv.userId && (
                           <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs flex-shrink-0">
                             ✓
+                          </span>
+                        )}
+                        {conv.status === 'online' && (
+                          <span className="px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-xs flex-shrink-0 font-bold">
+                            🎧 Canlı Destek
                           </span>
                         )}
                       </div>
