@@ -349,6 +349,34 @@ export default function HepsiburadaOrders() {
     }
   }
 
+  // Türkçe sayı formatını parse et (1.200,00 → 1200.00)
+  const parseTurkishNumber = (value: string): number => {
+    if (!value || !value.trim()) return 0
+    
+    const trimmed = value.trim()
+    
+    // Türkçe format: binlik ayırıcı nokta, ondalık ayırıcı virgül (örn: 1.200,00)
+    // Önce binlik ayırıcıları (noktaları) kaldır, sonra virgülü noktaya çevir
+    let normalized = trimmed
+    
+    // Virgül varsa (ondalık kısım var)
+    if (normalized.includes(',')) {
+      // Son virgülden önceki noktaları kaldır (binlik ayırıcılar)
+      const parts = normalized.split(',')
+      if (parts.length === 2) {
+        const integerPart = parts[0].replace(/\./g, '') // Binlik ayırıcıları kaldır
+        const decimalPart = parts[1]
+        normalized = `${integerPart}.${decimalPart}`
+      }
+    } else {
+      // Virgül yoksa, tüm noktaları kaldır (binlik ayırıcılar)
+      normalized = normalized.replace(/\./g, '')
+    }
+    
+    const parsed = parseFloat(normalized)
+    return isNaN(parsed) ? 0 : parsed
+  }
+
   // Barkod alanını normalize et - bilimsel notasyonu tam sayıya çevir (formatlamadan, ham haliyle)
   const normalizeBarcode = (barcode: string): string => {
     if (!barcode || !barcode.trim()) return ''
@@ -434,16 +462,16 @@ export default function HepsiburadaOrders() {
           option1: row['Seçenek 1'] || '',
           option2: row['Seçenek 2'] || '',
           quantity: parseInt(row['Adet'] || '1', 10) || 1,
-          price: parseFloat((row['Faturalandırılacak Satış Fiyatı'] || '0').replace(',', '.')) || 0,
-          listingPrice: parseFloat((row['Listeleme Fiyatı'] || '0').replace(',', '.')) || 0,
-          unitPrice: parseFloat((row['Faturalandırılacak Birim Satış Fiyatı'] || '0').replace(',', '.')) || 0,
-          commission: parseFloat((row['Komisyon Tutarı (KDV Dahil)'] || '0').replace(',', '.')) || 0,
-          taxRate: parseFloat((row['KDV(%)'] || '0').replace(',', '.')) || 0,
+          price: parseTurkishNumber(row['Faturalandırılacak Satış Fiyatı'] || '0'),
+          listingPrice: parseTurkishNumber(row['Listeleme Fiyatı'] || '0'),
+          unitPrice: parseTurkishNumber(row['Faturalandırılacak Birim Satış Fiyatı'] || '0'),
+          commission: parseTurkishNumber(row['Komisyon Tutarı (KDV Dahil)'] || '0'),
+          taxRate: parseTurkishNumber(row['KDV(%)'] || '0'),
           category: row['Kategori'] || '',
         })
         
         // Toplam tutarı güncelle
-        existingOrder.totalAmount += parseFloat((row['Faturalandırılacak Satış Fiyatı'] || '0').replace(',', '.')) || 0
+        existingOrder.totalAmount += parseTurkishNumber(row['Faturalandırılacak Satış Fiyatı'] || '0')
         
         // Eğer farklı sipariş numaraları varsa, externalOrderId'yi birleştir
         if (orderNumber && !existingOrder.externalOrderId.includes(orderNumber)) {
@@ -484,7 +512,7 @@ export default function HepsiburadaOrders() {
           packageStatus: row['Paket Durumu'] || 'Gönderime Hazır',
           status: row['Paket Durumu'] === 'Gönderime Hazır' ? 'pending' : 
                   row['Paket Durumu']?.toLowerCase().includes('teslim') ? 'completed' : 'processing',
-          totalAmount: parseFloat((row['Faturalandırılacak Satış Fiyatı'] || '0').replace(',', '.')) || 0,
+          totalAmount: parseTurkishNumber(row['Faturalandırılacak Satış Fiyatı'] || '0'),
           currency: row['Para Birimi'] || 'TRY',
           customerType: row['Müşteri Tipi'] || '',
           isHepsiLogistic: row['Hepsilojistik Siparişi mi?'] === 'Evet',
@@ -496,12 +524,12 @@ export default function HepsiburadaOrders() {
             hepsiburadaProductCode: row['Hepsiburada Ürün Kodu'] || '',
             option1: row['Seçenek 1'] || '',
             option2: row['Seçenek 2'] || '',
-            quantity: parseInt(row['Adet'] || '1', 10) || 1,
-            price: parseFloat((row['Faturalandırılacak Satış Fiyatı'] || '0').replace(',', '.')) || 0,
-            listingPrice: parseFloat((row['Listeleme Fiyatı'] || '0').replace(',', '.')) || 0,
-            unitPrice: parseFloat((row['Faturalandırılacak Birim Satış Fiyatı'] || '0').replace(',', '.')) || 0,
-            commission: parseFloat((row['Komisyon Tutarı (KDV Dahil)'] || '0').replace(',', '.')) || 0,
-            taxRate: parseFloat((row['KDV(%)'] || '0').replace(',', '.')) || 0,
+          quantity: parseInt(row['Adet'] || '1', 10) || 1,
+          price: parseTurkishNumber(row['Faturalandırılacak Satış Fiyatı'] || '0'),
+          listingPrice: parseTurkishNumber(row['Listeleme Fiyatı'] || '0'),
+          unitPrice: parseTurkishNumber(row['Faturalandırılacak Birim Satış Fiyatı'] || '0'),
+          commission: parseTurkishNumber(row['Komisyon Tutarı (KDV Dahil)'] || '0'),
+          taxRate: parseTurkishNumber(row['KDV(%)'] || '0'),
             category: row['Kategori'] || '',
           }],
           rawData: row // Tüm ham veriyi sakla
