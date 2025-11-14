@@ -8310,59 +8310,107 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
           // Mevcut siparişi güncelle
           hepsiburadaOrderId = existingOrders[0].id;
           
-          // Mevcut externalOrderId'yi al ve yeni gelen externalOrderId ile birleştir (eğer farklıysa)
-          const [currentOrder] = await poolWrapper.execute(
-            'SELECT externalOrderId FROM hepsiburada_orders WHERE id = ? AND tenantId = ?',
-            [hepsiburadaOrderId, tenantId]
-          );
+          // Eğer externalOrderId ile bulunduysak, externalOrderId'yi değiştirmemeliyiz (unique constraint)
+          // Eğer paket numarası ile bulunduysak, externalOrderId'yi birleştirebiliriz
+          let finalExternalOrderId = null;
+          let updateExternalOrderId = false;
           
-          let finalExternalOrderId = externalOrderId;
-          if (currentOrder.length > 0 && currentOrder[0].externalOrderId) {
-            const currentExternalId = currentOrder[0].externalOrderId;
-            // Eğer yeni externalOrderId mevcut olanı içermiyorsa, birleştir
-            if (externalOrderId && !currentExternalId.includes(externalOrderId)) {
-              finalExternalOrderId = `${currentExternalId}, ${externalOrderId}`;
-            } else {
-              finalExternalOrderId = currentExternalId;
+          if (!foundByExternalId) {
+            // Paket numarası ile bulunduysak, externalOrderId'yi birleştir
+            const [currentOrder] = await poolWrapper.execute(
+              'SELECT externalOrderId FROM hepsiburada_orders WHERE id = ? AND tenantId = ?',
+              [hepsiburadaOrderId, tenantId]
+            );
+            
+            if (currentOrder.length > 0 && currentOrder[0].externalOrderId) {
+              const currentExternalId = currentOrder[0].externalOrderId;
+              // Eğer yeni externalOrderId mevcut olanı içermiyorsa, birleştir
+              if (externalOrderId && !currentExternalId.includes(externalOrderId)) {
+                finalExternalOrderId = `${currentExternalId}, ${externalOrderId}`;
+                updateExternalOrderId = true;
+              }
+            } else if (externalOrderId) {
+              finalExternalOrderId = externalOrderId;
+              updateExternalOrderId = true;
             }
           }
           
-          await poolWrapper.execute(
-            `UPDATE hepsiburada_orders 
-             SET externalOrderId = ?, packageNumber = ?, totalAmount = ?, status = ?, shippingAddress = ?, city = ?, district = ?, 
-                 fullAddress = ?, invoiceAddress = ?, customerName = ?, customerEmail = ?, 
-                 cargoProviderName = ?, cargoTrackingNumber = ?, barcode = ?, orderDate = ?, deliveryDate = ?, 
-                 deliveryType = ?, packageStatus = ?, currency = ?, customerType = ?, 
-                 isHepsiLogistic = ?, isReturned = ?, orderData = ?, updatedAt = CURRENT_TIMESTAMP
-             WHERE id = ? AND tenantId = ?`,
-            [
-              finalExternalOrderId,
-              packageNumber || null,
-              totalAmount,
-              status,
-              shippingAddress || '',
-              city || null,
-              district || null,
-              shippingAddress || '',
-              invoiceAddress || null,
-              customerName || null,
-              customerEmail || null,
-              cargoProviderName || null,
-              cargoTrackingNumber || null,
-              barcode || null,
-              orderDate ? new Date(orderDate) : null,
-              deliveryDate || null,
-              deliveryType || null,
-              packageStatus || null,
-              currency,
-              customerType || null,
-              isHepsiLogistic || false,
-              isReturned || false,
-              JSON.stringify(orderDataJson),
-              hepsiburadaOrderId,
-              tenantId
-            ]
-          );
+          // UPDATE sorgusu - externalOrderId'yi sadece gerekirse güncelle
+          if (updateExternalOrderId) {
+            await poolWrapper.execute(
+              `UPDATE hepsiburada_orders 
+               SET externalOrderId = ?, packageNumber = ?, totalAmount = ?, status = ?, shippingAddress = ?, city = ?, district = ?, 
+                   fullAddress = ?, invoiceAddress = ?, customerName = ?, customerEmail = ?, 
+                   cargoProviderName = ?, cargoTrackingNumber = ?, barcode = ?, orderDate = ?, deliveryDate = ?, 
+                   deliveryType = ?, packageStatus = ?, currency = ?, customerType = ?, 
+                   isHepsiLogistic = ?, isReturned = ?, orderData = ?, updatedAt = CURRENT_TIMESTAMP
+               WHERE id = ? AND tenantId = ?`,
+              [
+                finalExternalOrderId,
+                packageNumber || null,
+                totalAmount,
+                status,
+                shippingAddress || '',
+                city || null,
+                district || null,
+                shippingAddress || '',
+                invoiceAddress || null,
+                customerName || null,
+                customerEmail || null,
+                cargoProviderName || null,
+                cargoTrackingNumber || null,
+                barcode || null,
+                orderDate ? new Date(orderDate) : null,
+                deliveryDate || null,
+                deliveryType || null,
+                packageStatus || null,
+                currency,
+                customerType || null,
+                isHepsiLogistic || false,
+                isReturned || false,
+                JSON.stringify(orderDataJson),
+                hepsiburadaOrderId,
+                tenantId
+              ]
+            );
+          } else {
+            // externalOrderId'yi güncelleme
+            await poolWrapper.execute(
+              `UPDATE hepsiburada_orders 
+               SET packageNumber = ?, totalAmount = ?, status = ?, shippingAddress = ?, city = ?, district = ?, 
+                   fullAddress = ?, invoiceAddress = ?, customerName = ?, customerEmail = ?, 
+                   cargoProviderName = ?, cargoTrackingNumber = ?, barcode = ?, orderDate = ?, deliveryDate = ?, 
+                   deliveryType = ?, packageStatus = ?, currency = ?, customerType = ?, 
+                   isHepsiLogistic = ?, isReturned = ?, orderData = ?, updatedAt = CURRENT_TIMESTAMP
+               WHERE id = ? AND tenantId = ?`,
+              [
+                packageNumber || null,
+                totalAmount,
+                status,
+                shippingAddress || '',
+                city || null,
+                district || null,
+                shippingAddress || '',
+                invoiceAddress || null,
+                customerName || null,
+                customerEmail || null,
+                cargoProviderName || null,
+                cargoTrackingNumber || null,
+                barcode || null,
+                orderDate ? new Date(orderDate) : null,
+                deliveryDate || null,
+                deliveryType || null,
+                packageStatus || null,
+                currency,
+                customerType || null,
+                isHepsiLogistic || false,
+                isReturned || false,
+                JSON.stringify(orderDataJson),
+                hepsiburadaOrderId,
+                tenantId
+              ]
+            );
+          }
           skippedCount++;
         } else {
           // Yeni sipariş ekle
