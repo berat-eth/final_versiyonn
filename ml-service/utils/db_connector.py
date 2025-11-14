@@ -4,23 +4,49 @@ import logging
 from typing import Optional, List, Dict, Any
 import asyncio
 from contextlib import contextmanager
+import threading
 
 logger = logging.getLogger(__name__)
 
 class DBConnector:
-    def __init__(self, host: str, port: int, user: str, password: str, database: str):
+    def __init__(self, host: str, port: int, user: str, password: str, database: str, pool_size: int = 5):
         self.host = host
         self.port = port
         self.user = user
         self.password = password
         self.database = database
-        self.pool = None
+        self.pool_size = pool_size
+        self.pool = []
+        self.pool_lock = threading.Lock()
+        self._create_pool()
     
-    async def connect(self):
-        """Create database connection pool"""
-        try:
-            # pymysql is synchronous, so we'll use it in thread pool
-            self.pool = pymysql.connect(
+    def _create_pool(self):
+        """Create connection pool"""
+        self.pool = []
+        for _ in range(self.pool_size):
+            try:
+                conn = pymysql.connect(
+                    host=self.host,
+                    port=self.port,
+                    user=self.user,
+                    password=self.password,
+                    database=self.database,
+                    charset='utf8mb4',
+                    cursorclass=pymysql.cursors.DictCursor,
+                    autocommit=False
+                )
+                self.pool.append(conn)
+            except Exception as e:
+                logger.error(f"Error creating connection in pool: {e}")
+                raise
+    
+    def _get_connection(self):
+        """Get connection from pool"""
+        with self.pool_lock:
+            if self.pool:
+                return self.pool.pop()
+            # If pool is empty, create a new connection
+            return pymysql.connect(
                 host=self.host,
                 port=self.port,
                 user=self.user,
@@ -30,42 +56,68 @@ class DBConnector:
                 cursorclass=pymysql.cursors.DictCursor,
                 autocommit=False
             )
-            logger.info("✅ Database connected")
+    
+    def _return_connection(self, conn):
+        """Return connection to pool"""
+        with self.pool_lock:
+            if len(self.pool) < self.pool_size:
+                self.pool.append(conn)
+            else:
+                conn.close()
+    
+    async def connect(self):
+        """Create database connection pool"""
+        try:
+            # Test connection
+            test_conn = self._get_connection()
+            test_conn.ping()
+            self._return_connection(test_conn)
+            logger.info(f"✅ Database connected (pool size: {self.pool_size})")
         except Exception as e:
             logger.error(f"❌ Database connection error: {e}")
             raise
     
     async def close(self):
-        """Close database connection"""
-        if self.pool:
-            self.pool.close()
-            logger.info("Database connection closed")
+        """Close database connection pool"""
+        with self.pool_lock:
+            for conn in self.pool:
+                try:
+                    conn.close()
+                except:
+                    pass
+            self.pool = []
+        logger.info("Database connection pool closed")
     
     async def ping(self) -> bool:
         """Check database connection"""
         try:
-            if self.pool:
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, self.pool.ping, True)
+            conn = self._get_connection()
+            try:
+                conn.ping()
                 return True
-            return False
+            finally:
+                self._return_connection(conn)
         except:
             return False
     
     def _execute(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
         """Execute query synchronously (will be run in thread pool)"""
+        conn = self._get_connection()
         try:
-            with self.pool.cursor() as cursor:
+            with conn.cursor() as cursor:
                 cursor.execute(query, params or ())
                 if query.strip().upper().startswith('SELECT'):
-                    return cursor.fetchall()
+                    result = cursor.fetchall()
+                    return result
                 else:
-                    self.pool.commit()
+                    conn.commit()
                     return []
         except Exception as e:
-            self.pool.rollback()
+            conn.rollback()
             logger.error(f"Database query error: {e}")
             raise
+        finally:
+            self._return_connection(conn)
     
     async def execute(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
         """Execute query asynchronously"""

@@ -10,7 +10,8 @@ from config import config
 from utils.redis_connector import RedisConnector
 from utils.db_connector import DBConnector
 from realtime_processor import RealtimeProcessor
-from api.model_management import router as model_router
+from api.model_management import router as model_router, set_trainer, set_db_connector
+from trainer import ModelTrainer
 
 # Logging setup
 logging.basicConfig(
@@ -54,6 +55,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Database connection failed: {e}")
         logger.error(f"   Host: {config.DB_HOST}, Port: {config.DB_PORT}, User: {config.DB_USER}, Database: {config.DB_NAME}")
+        raise
+    
+    # Initialize trainer
+    trainer = None
+    try:
+        trainer = ModelTrainer(db_connector)
+        set_trainer(trainer)
+        set_db_connector(db_connector)
+        logger.info("✅ Model trainer initialized")
+    except Exception as e:
+        logger.error(f"❌ Trainer initialization failed: {e}")
         raise
     
     # Initialize realtime processor
