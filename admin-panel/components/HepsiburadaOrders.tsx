@@ -388,6 +388,64 @@ export default function HepsiburadaOrders() {
       .replace(/\B(?=(\d{3})+(?!\d))/g, '.') // Binlik ayırıcıları ekle
   }
 
+  // Fatura ismini düzelt - encoding sorunlarını çöz
+  const fixInvoiceFileName = (fileName: string): string => {
+    if (!fileName) return ''
+    
+    try {
+      // Önce URL decode dene
+      let decoded = fileName
+      try {
+        decoded = decodeURIComponent(fileName)
+      } catch {
+        decoded = fileName
+      }
+      
+      // ISO-8859-1 → UTF-8 encoding sorunlarını düzelt
+      // Yaygın bozuk karakterleri düzelt (daha kapsamlı)
+      const encodingFixes: Array<[RegExp, string]> = [
+        // Büyük harfler
+        [/Å/g, 'A'], [/Ä/g, 'A'], [/Ã/g, 'A'], [/À/g, 'A'], [/Á/g, 'A'], [/Â/g, 'A'],
+        [/Ç/g, 'C'], [/Ã/g, 'C'],
+        [/È/g, 'E'], [/É/g, 'E'], [/Ê/g, 'E'], [/Ë/g, 'E'], [/Ä/g, 'E'], [/Ã/g, 'E'],
+        [/Ì/g, 'I'], [/Í/g, 'I'], [/Î/g, 'I'], [/Ï/g, 'I'], [/Ä/g, 'I'], [/Ã/g, 'I'],
+        [/Ò/g, 'O'], [/Ó/g, 'O'], [/Ô/g, 'O'], [/Õ/g, 'O'], [/Ö/g, 'O'], [/Ä/g, 'O'], [/Ã/g, 'O'],
+        [/Ù/g, 'U'], [/Ú/g, 'U'], [/Û/g, 'U'], [/Ü/g, 'U'], [/Ä/g, 'U'], [/Ã/g, 'U'],
+        [/Ý/g, 'Y'], [/Ä/g, 'Y'], [/Ã/g, 'Y'],
+        [/Å/g, 'S'], [/Ş/g, 'S'],
+        [/Ğ/g, 'G'], [/Ä/g, 'G'], [/Ã/g, 'G'],
+        // Küçük harfler
+        [/å/g, 'a'], [/ä/g, 'a'], [/ã/g, 'a'], [/à/g, 'a'], [/á/g, 'a'], [/â/g, 'a'],
+        [/ç/g, 'c'], [/ã/g, 'c'],
+        [/è/g, 'e'], [/é/g, 'e'], [/ê/g, 'e'], [/ë/g, 'e'], [/ä/g, 'e'], [/ã/g, 'e'],
+        [/ì/g, 'i'], [/í/g, 'i'], [/î/g, 'i'], [/ï/g, 'i'], [/ä/g, 'i'], [/ã/g, 'i'], [/ı/g, 'i'],
+        [/ò/g, 'o'], [/ó/g, 'o'], [/ô/g, 'o'], [/õ/g, 'o'], [/ö/g, 'o'], [/ä/g, 'o'], [/ã/g, 'o'],
+        [/ù/g, 'u'], [/ú/g, 'u'], [/û/g, 'u'], [/ü/g, 'u'], [/ä/g, 'u'], [/ã/g, 'u'],
+        [/ý/g, 'y'], [/ÿ/g, 'y'], [/ä/g, 'y'], [/ã/g, 'y'],
+        [/å/g, 's'], [/ş/g, 's'],
+        [/ğ/g, 'g'], [/ä/g, 'g'], [/ã/g, 'g'],
+        // Özel durumlar ve kelimeler
+        [/BÄRÄ°NCÄ°/g, 'BIRINCI'],
+        [/ÃOMER/g, 'COMER'],
+        [/ÅDENAY/g, 'ADENAY'],
+        [/ÅDINGIR/g, 'ADINGIR'],
+        [/Ä°/g, 'I'], // Ä° → I
+        [/Ä±/g, 'i'], // Ä± → i
+      ]
+      
+      // Encoding düzeltmelerini uygula
+      let fixed = decoded
+      for (const [pattern, replacement] of encodingFixes) {
+        fixed = fixed.replace(pattern, replacement)
+      }
+      
+      return fixed
+    } catch (error) {
+      console.error('Fatura ismi düzeltme hatası:', error)
+      return fileName
+    }
+  }
+
   // Barkod alanını normalize et - bilimsel notasyonu tam sayıya çevir (formatlamadan, ham haliyle)
   const normalizeBarcode = (barcode: string): string => {
     if (!barcode || !barcode.trim()) return ''
@@ -985,8 +1043,8 @@ export default function HepsiburadaOrders() {
                             {invoices.map((invoice) => (
                               <option key={invoice.id} value={invoice.id}>
                                 {invoice.invoiceNumber || `Fatura #${invoice.id}`} 
-                                {invoice.fileName && ` - ${invoice.fileName}`}
-                                {invoice.totalAmount && ` (${Number(invoice.totalAmount).toFixed(2)} ${invoice.currency || 'TRY'})`}
+                                {invoice.fileName && ` - ${fixInvoiceFileName(invoice.fileName)}`}
+                                {invoice.totalAmount && ` (${formatTurkishNumber(invoice.totalAmount)} ${invoice.currency || 'TRY'})`}
                               </option>
                             ))}
                           </select>
@@ -1317,7 +1375,7 @@ export default function HepsiburadaOrders() {
                                 </h3>
                                 {invoice.fileName && (
                                   <span className="text-sm text-slate-600 dark:text-slate-400">
-                                    {invoice.fileName}
+                                    {fixInvoiceFileName(invoice.fileName)}
                                   </span>
                                 )}
                               </div>
@@ -1332,7 +1390,7 @@ export default function HepsiburadaOrders() {
                                   <div>
                                     <label className="text-slate-600 dark:text-slate-400">Tutar</label>
                                     <p className="text-slate-900 dark:text-white">
-                                      {Number(invoice.totalAmount).toFixed(2)} {invoice.currency || 'TRY'}
+                                      {formatTurkishNumber(invoice.totalAmount)} {invoice.currency || 'TRY'}
                                     </p>
                                   </div>
                                 )}

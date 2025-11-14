@@ -8875,7 +8875,18 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
       console.log('📄 File size from Multer:', req.file.size, 'bytes');
       
       filePath = `/uploads/invoices/${req.file.filename}`;
-      fileName = req.file.originalname;
+      // Dosya ismini UTF-8 olarak decode et (Türkçe karakterler için)
+      try {
+        // Eğer originalname encoding sorunu varsa düzelt
+        fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        // Eğer decode edilmiş isim bozuksa, orijinali kullan
+        if (!fileName || fileName.includes('')) {
+          fileName = req.file.originalname;
+        }
+      } catch (error) {
+        console.warn('⚠️ File name encoding error, using original:', error);
+        fileName = req.file.originalname;
+      }
       fileSize = req.file.size;
       
       console.log('✅ File uploaded successfully:', {
@@ -9052,7 +9063,18 @@ app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file
       
       const filePath = `/uploads/invoices/${req.file.filename}`;
       fields.push('filePath = ?'); params.push(filePath);
-      fields.push('fileName = ?'); params.push(req.file.originalname);
+      // Dosya ismini UTF-8 olarak decode et (Türkçe karakterler için)
+      let updatedFileName = req.file.originalname;
+      try {
+        updatedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        if (!updatedFileName || updatedFileName.includes('')) {
+          updatedFileName = req.file.originalname;
+        }
+      } catch (error) {
+        console.warn('⚠️ File name encoding error, using original:', error);
+        updatedFileName = req.file.originalname;
+      }
+      fields.push('fileName = ?'); params.push(updatedFileName);
       fields.push('fileSize = ?'); params.push(req.file.size);
       
       console.log('✅ File uploaded successfully:', {
