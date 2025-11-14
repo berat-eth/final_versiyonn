@@ -8273,18 +8273,30 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
           continue;
         }
 
-        // Mevcut siparişi kontrol et - önce paket numarasına göre, yoksa externalOrderId'ye göre
-        let existingOrders;
-        if (packageNumber) {
-          [existingOrders] = await poolWrapper.execute(
-            'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND packageNumber = ?',
-            [tenantId, packageNumber]
-          );
-        } else {
-          [existingOrders] = await poolWrapper.execute(
+        // Mevcut siparişi kontrol et - hem paket numarasına hem de externalOrderId'ye göre kontrol et
+        // Çünkü aynı externalOrderId zaten var olabilir (unique constraint)
+        let existingOrders = [];
+        
+        // Önce externalOrderId'ye göre kontrol et (unique constraint için)
+        if (externalOrderId) {
+          const [ordersByExternalId] = await poolWrapper.execute(
             'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND externalOrderId = ?',
             [tenantId, externalOrderId]
           );
+          if (ordersByExternalId.length > 0) {
+            existingOrders = ordersByExternalId;
+          }
+        }
+        
+        // Eğer externalOrderId ile bulunamadıysa, paket numarasına göre kontrol et
+        if (existingOrders.length === 0 && packageNumber) {
+          const [ordersByPackage] = await poolWrapper.execute(
+            'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND packageNumber = ?',
+            [tenantId, packageNumber]
+          );
+          if (ordersByPackage.length > 0) {
+            existingOrders = ordersByPackage;
+          }
         }
 
         let hepsiburadaOrderId;
@@ -8295,15 +8307,34 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
         if (existingOrders.length > 0) {
           // Mevcut siparişi güncelle
           hepsiburadaOrderId = existingOrders[0].id;
+          
+          // Mevcut externalOrderId'yi al ve yeni gelen externalOrderId ile birleştir (eğer farklıysa)
+          const [currentOrder] = await poolWrapper.execute(
+            'SELECT externalOrderId FROM hepsiburada_orders WHERE id = ? AND tenantId = ?',
+            [hepsiburadaOrderId, tenantId]
+          );
+          
+          let finalExternalOrderId = externalOrderId;
+          if (currentOrder.length > 0 && currentOrder[0].externalOrderId) {
+            const currentExternalId = currentOrder[0].externalOrderId;
+            // Eğer yeni externalOrderId mevcut olanı içermiyorsa, birleştir
+            if (externalOrderId && !currentExternalId.includes(externalOrderId)) {
+              finalExternalOrderId = `${currentExternalId}, ${externalOrderId}`;
+            } else {
+              finalExternalOrderId = currentExternalId;
+            }
+          }
+          
           await poolWrapper.execute(
             `UPDATE hepsiburada_orders 
-             SET packageNumber = ?, totalAmount = ?, status = ?, shippingAddress = ?, city = ?, district = ?, 
+             SET externalOrderId = ?, packageNumber = ?, totalAmount = ?, status = ?, shippingAddress = ?, city = ?, district = ?, 
                  fullAddress = ?, invoiceAddress = ?, customerName = ?, customerEmail = ?, 
                  cargoProviderName = ?, cargoTrackingNumber = ?, barcode = ?, orderDate = ?, deliveryDate = ?, 
                  deliveryType = ?, packageStatus = ?, currency = ?, customerType = ?, 
                  isHepsiLogistic = ?, isReturned = ?, orderData = ?, updatedAt = CURRENT_TIMESTAMP
              WHERE id = ? AND tenantId = ?`,
             [
+              finalExternalOrderId,
               packageNumber || null,
               totalAmount,
               status,
