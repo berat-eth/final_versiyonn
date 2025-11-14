@@ -144,10 +144,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
         { id: 'trendyol-auth', label: 'Trendyol Auth', icon: Key },
         { id: 'trendyol-orders', label: 'Trendyol Siparişleri', icon: ShoppingCart },
         { id: 'trendyol-products', label: 'Trendyol Ürün Listesi', icon: List },
-        { id: 'trendyol-brands', label: 'Trendyol Markalar', icon: Package },
-        { id: 'trendyol-categories', label: 'Trendyol Kategoriler', icon: FolderTree },
-        { id: 'trendyol-batch', label: 'Toplu İşlem Kontrolü', icon: Activity },
-        { id: 'trendyol-addresses', label: 'İade/Sevkiyat Adresleri', icon: Map },
       ]
     },
     {

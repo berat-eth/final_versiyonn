@@ -69,7 +69,7 @@ export default function TrendyolProductList() {
       
       return () => clearTimeout(timeoutId)
     }
-  }, [trendyolIntegration, page, filters])
+  }, [trendyolIntegration, page, filters, searchQuery])
 
   const loadTrendyolIntegration = async () => {
     try {
@@ -125,6 +125,9 @@ export default function TrendyolProductList() {
       }
       if (filters.productMainId) {
         params.productMainId = filters.productMainId
+      }
+      if (searchQuery) {
+        params.search = searchQuery
       }
 
       const response = await api.get<ApiResponse<any>>('/admin/trendyol/products', params)
@@ -205,18 +208,8 @@ export default function TrendyolProductList() {
     })
   }
 
-  const filteredProducts = products.filter(product => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      return (
-        product.title?.toLowerCase().includes(query) ||
-        product.barcode?.toLowerCase().includes(query) ||
-        product.stockCode?.toLowerCase().includes(query) ||
-        product.productMainId?.toLowerCase().includes(query)
-      )
-    }
-    return true
-  })
+  // Artık API'den arama yapıldığı için client-side filtreleme gerekmiyor
+  const filteredProducts = products
 
   if (loading && products.length === 0) {
     return (
@@ -336,7 +329,10 @@ export default function TrendyolProductList() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setPage(0)
+              }}
               placeholder="Ürün adı, barcode, stock code veya product main ID ile ara..."
               className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
             />

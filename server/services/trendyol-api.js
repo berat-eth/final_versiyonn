@@ -47,72 +47,13 @@ const httpsAgent = new https.Agent({
 
 class TrendyolAPIService {
   /**
-   * Rate limiting kontrolü - Trendyol API servis limitlerine uygun
-   * https://developers.trendyol.com/docs/trendyol-servis-limitleri
-   * @param {string} endpoint - API endpoint (GET /products için özel rate limiting)
+   * Rate limiting kontrolü - DEVRE DIŞI
+   * Rate limitler kaldırıldı, anında istek gönderiliyor
+   * @param {string} endpoint - API endpoint (artık kullanılmıyor)
    */
   static async waitForRateLimit(endpoint = '') {
-    const now = Date.now();
-    
-    // GET /products istekleri için özel rate limiting (Cloudflare bypass için çok daha yavaş)
-    const isProductListRequest = endpoint.includes('/products') && !endpoint.includes('/products/');
-    // Ürün listesi için 2 saniye bekleme (Cloudflare bypass için agresif yaklaşım)
-    const requestInterval = isProductListRequest ? 2000 : MIN_REQUEST_INTERVAL;
-    
-    // Dakika ve saat sıfırlama kontrolü
-    const minuteElapsed = now - minuteStartTime;
-    const hourElapsed = now - hourStartTime;
-    
-    if (minuteElapsed >= 60000) { // 1 dakika geçti
-      requestCountInMinute = 0;
-      minuteStartTime = now;
-    }
-    
-    if (hourElapsed >= 3600000) { // 1 saat geçti
-      requestCountInHour = 0;
-      hourStartTime = now;
-    }
-    
-    // Saatlik limit kontrolü
-    if (requestCountInHour >= MAX_REQUESTS_PER_HOUR) {
-      const waitTime = 3600000 - hourElapsed; // Saatin bitmesine kalan süre
-      console.log(`⏳ Saatlik limit aşıldı (${MAX_REQUESTS_PER_HOUR} istek, mevcut: ${requestCountInHour}). ${Math.ceil(waitTime / 1000)} saniye bekleniyor...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      // Bekleme sonrası sayaçları sıfırla
-      requestCountInHour = 0;
-      hourStartTime = Date.now();
-    }
-    
-    // Dakikalık limit kontrolü
-    if (requestCountInMinute >= MAX_REQUESTS_PER_MINUTE) {
-      const waitTime = 60000 - minuteElapsed; // Dakikanın bitmesine kalan süre
-      console.log(`⏳ Dakikalık limit aşıldı (${MAX_REQUESTS_PER_MINUTE} istek, mevcut: ${requestCountInMinute}). ${Math.ceil(waitTime / 1000)} saniye bekleniyor...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      // Bekleme sonrası sayaçları sıfırla
-      requestCountInMinute = 0;
-      minuteStartTime = Date.now();
-    }
-    
-    // Saniyelik limit kontrolü (istekler arası minimum bekleme)
-    const timeSinceLastRequest = now - lastRequestTime;
-    if (timeSinceLastRequest < requestInterval) {
-      const waitTime = requestInterval - timeSinceLastRequest;
-      // Sadece uzun bekleme sürelerinde log (performans için)
-      if (waitTime > 50) {
-        console.log(`⏳ Rate limit için ${waitTime}ms bekleniyor... (${isProductListRequest ? 'Ürün Listesi' : 'Normal'})`);
-      }
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-    
-    // İstek sayacını güncelle
-    lastRequestTime = Date.now();
-    requestCountInMinute++;
-    requestCountInHour++;
-    
-    // Debug: Her 100 istekte bir sayaç durumunu logla (çok fazla log önlemek için)
-    if (requestCountInHour % 100 === 0) {
-      console.log(`📊 Rate Limit Durumu - Dakika: ${requestCountInMinute}/${MAX_REQUESTS_PER_MINUTE}, Saat: ${requestCountInHour}/${MAX_REQUESTS_PER_HOUR}`);
-    }
+    // Rate limitler kaldırıldı - hiçbir bekleme yapılmıyor
+    return Promise.resolve();
   }
   
   /**
@@ -586,7 +527,7 @@ class TrendyolAPIService {
       const response = await this.makeRequestWithRetry(
         () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId),
         3, // maxRetries
-        2000 // initial delay (2 saniye)
+        0 // Delay kaldırıldı - rate limitler devre dışı
       );
 
       // Cache'e kaydet (sadece sayfa 0 ve başarılı ise)
@@ -632,7 +573,7 @@ class TrendyolAPIService {
       const response = await this.makeRequestWithRetry(
         () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, {}, supplierId),
         3, // maxRetries
-        2000 // initial delay (2 saniye)
+        0 // Delay kaldırıldı - rate limitler devre dışı
       );
 
       // Cache'e kaydet
@@ -700,10 +641,7 @@ class TrendyolAPIService {
         }
       }
 
-      // Batch'ler arasında bekleme (son batch değilse)
-      if (i + batchSize < uncachedOrders.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      // Batch'ler arasında bekleme kaldırıldı - rate limitler devre dışı
     }
 
     return results;
@@ -737,10 +675,10 @@ class TrendyolAPIService {
    * Retry mekanizması ile API isteği gönder
    * @param {Function} requestFn - İstek fonksiyonu
    * @param {number} maxRetries - Maksimum deneme sayısı (varsayılan: 3)
-   * @param {number} delay - Retry arası bekleme süresi (ms, varsayılan: 1000)
+   * @param {number} delay - Retry arası bekleme süresi (ms, varsayılan: 0 - rate limitler kaldırıldı)
    * @returns {Promise<object>} API response
    */
-  static async makeRequestWithRetry(requestFn, maxRetries = 3, delay = 1000) {
+  static async makeRequestWithRetry(requestFn, maxRetries = 3, delay = 0) {
     let lastError;
     for (let i = 0; i < maxRetries; i++) {
       try {
@@ -749,27 +687,10 @@ class TrendyolAPIService {
         lastError = error;
         
         // 429 (Rate Limit) veya 403 (Cloudflare) hatası için özel retry mekanizması
+        // Rate limitler kaldırıldı - delay yok, anında retry
         if (error.statusCode === 429 || error.statusCode === 403 || error.isCloudflareBlock) {
-          // Retry-After header'ı varsa onu kullan, yoksa exponential backoff
-          const retryAfter = error.retryAfter ? parseInt(error.retryAfter) * 1000 : null;
-          // 403 hatası için daha uzun bekleme (Cloudflare bypass için)
-          const baseDelay = error.statusCode === 403 || error.isCloudflareBlock ? delay * 3 : delay;
-          const waitTime = retryAfter || (baseDelay * Math.pow(2, i + 1)); // Exponential backoff: 6s, 12s, 24s (403 için)
-          
-          console.log(`⏳ ${error.statusCode === 403 || error.isCloudflareBlock ? 'Cloudflare engellemesi' : 'Rate limit'} nedeniyle ${Math.ceil(waitTime / 1000)} saniye bekleniyor (deneme ${i + 1}/${maxRetries})...`);
-          
           if (i < maxRetries - 1) {
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            // Rate limit veya Cloudflare engellemesi geldiğinde sadece zaman damgalarını güncelle
-            // Sayaçları MAX değerlerine set etme - bu limitin hemen aşılmasına neden olur!
-            // Bunun yerine, beklediğimiz süre kadar zaman damgasını ileri al
-            lastRequestTime = Date.now();
-            // Dakika ve saat başlangıç zamanlarını güncelle (sayaçlar otomatik sıfırlanacak)
-            minuteStartTime = Date.now();
-            hourStartTime = Date.now();
-            // Sayaçları sıfırla (yeni zaman dilimi başladı)
-            requestCountInMinute = 0;
-            requestCountInHour = 0;
+            // Delay kaldırıldı - anında retry
             continue; // Tekrar dene
           }
         }
@@ -779,12 +700,13 @@ class TrendyolAPIService {
           throw error;
         }
         
-        // Son deneme değilse bekle ve tekrar dene (5xx hataları için)
+        // Son deneme değilse tekrar dene (5xx hataları için) - delay kaldırıldı
         if (i < maxRetries - 1 && error.statusCode >= 500) {
-          await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+          // Delay kaldırıldı - anında retry
+          continue;
         } else if (i < maxRetries - 1 && error.statusCode !== 429 && error.statusCode !== 403) {
-          // Diğer hatalar için kısa bekleme
-          await new Promise(resolve => setTimeout(resolve, delay));
+          // Diğer hatalar için de delay yok - anında retry
+          continue;
         }
       }
     }
@@ -807,7 +729,7 @@ class TrendyolAPIService {
       const response = await this.makeRequestWithRetry(
         () => this.makeRequest('POST', endpoint, apiKey, apiSecret, productData, {}, supplierId),
         3, // maxRetries
-        2000 // initial delay (2 saniye)
+        0 // Delay kaldırıldı - rate limitler devre dışı
       );
       
       return response;
@@ -833,7 +755,7 @@ class TrendyolAPIService {
       const response = await this.makeRequestWithRetry(
         () => this.makeRequest('POST', endpoint, apiKey, apiSecret, productsData, {}, supplierId),
         3, // maxRetries
-        2000 // initial delay (2 saniye)
+        0 // Delay kaldırıldı - rate limitler devre dışı
       );
       
       return response;
@@ -1147,15 +1069,13 @@ class TrendyolAPIService {
         }
       }
       
-      // Rate limiting için retry mekanizması ile istek gönder
-      // GET /products için daha fazla retry ve daha uzun delay (Cloudflare bypass için)
+      // Rate limiting kaldırıldı - retry mekanizması ile istek gönder (delay yok)
       const maxRetries = 5; // Ürün listesi için 5 retry
-      const initialDelay = 5000; // Ürün listesi için 5 saniye başlangıç delay
       
       const response = await this.makeRequestWithRetry(
         () => this.makeRequest('GET', endpoint, apiKey, apiSecret, null, queryParams, supplierId),
         maxRetries,
-        initialDelay
+        0 // Delay kaldırıldı
       );
       
       // Cache'e kaydet (başarılı ise)
@@ -1209,7 +1129,7 @@ class TrendyolAPIService {
       const response = await this.makeRequestWithRetry(
         () => this.makeRequest('PUT', endpoint, apiKey, apiSecret, updateData, {}, supplierId),
         3, // maxRetries
-        2000 // initial delay (2 saniye)
+        0 // Delay kaldırıldı - rate limitler devre dışı
       );
       
       return response;

@@ -48,7 +48,7 @@ export default function TrendyolProducts() {
     if (trendyolIntegration?.id) {
       loadProducts()
     }
-  }, [trendyolIntegration, productsPage, productsFilters])
+  }, [trendyolIntegration, productsPage, productsFilters, searchQuery])
 
   // Cache bypass için refresh butonu ile manuel yenileme
   const handleForceRefresh = () => {
@@ -174,6 +174,9 @@ export default function TrendyolProducts() {
       }
         if (productsFilters.productMainId) {
           params.productMainId = productsFilters.productMainId
+        }
+        if (searchQuery) {
+          params.search = searchQuery
         }
         
         const response = await api.get<ApiResponse<any>>('/admin/trendyol/products', params)
@@ -388,7 +391,10 @@ export default function TrendyolProducts() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setProductsPage(0)
+                }}
                 placeholder="Ürün adı ile ara..."
                 className="w-full pl-12 pr-12 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all shadow-sm hover:shadow-md"
               />
@@ -488,7 +494,7 @@ export default function TrendyolProducts() {
                     {searchQuery ? (
                       <>
                         <span className="text-orange-600 dark:text-orange-400 font-bold">"{searchQuery}"</span> için{' '}
-                        <span className="font-bold">{products.filter(p => p.title?.toLowerCase().includes(searchQuery.toLowerCase())).length}</span> ürün bulundu
+                        <span className="font-bold">{products.length}</span> ürün bulundu
                         {' '}<span className="text-slate-500 dark:text-slate-400">(Toplam: {productsTotalElements})</span>
                       </>
                     ) : (
@@ -514,14 +520,7 @@ export default function TrendyolProducts() {
             <>
               <div className="space-y-3 max-h-[600px] overflow-y-auto p-4">
                 {(() => {
-                  // Ürün ismine göre filtreleme
-                  const filteredProducts = searchQuery
-                    ? products.filter(product =>
-                        product.title?.toLowerCase().includes(searchQuery.toLowerCase())
-                      )
-                    : products
-
-                  if (filteredProducts.length === 0) {
+                  if (products.length === 0) {
                     return (
                       <div className="text-center py-8 text-slate-500">
                         {searchQuery ? `"${searchQuery}" için ürün bulunamadı` : 'Ürün bulunamadı'}
@@ -529,7 +528,7 @@ export default function TrendyolProducts() {
                     )
                   }
 
-                  return filteredProducts.map((product, index) => (
+                  return products.map((product, index) => (
                     <div
                       key={product.id || index}
                       className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/50"

@@ -6923,9 +6923,16 @@ app.get('/api/admin/trendyol/products', authenticateAdmin, async (req, res) => {
     }
     
     // Query parametrelerini al (_t parametresini ignore et - cache bypass için)
+    const searchQuery = req.query.search || null;
+    const requestedPage = parseInt(req.query.page) || 0;
+    const requestedSize = parseInt(req.query.size) || 10;
+    
+    // Eğer search parametresi varsa, tüm ürünleri çekmek için tüm sayfaları çekeceğiz
+    const fetchSize = searchQuery ? 200 : requestedSize;
+    
     const options = {
-      page: parseInt(req.query.page) || 0,
-      size: parseInt(req.query.size) || 10,
+      page: searchQuery ? 0 : requestedPage,
+      size: fetchSize,
       approved: req.query.approved !== undefined ? req.query.approved === 'true' : null,
       barcode: req.query.barcode || null,
       stockCode: req.query.stockCode || null,
@@ -6954,7 +6961,7 @@ app.get('/api/admin/trendyol/products', authenticateAdmin, async (req, res) => {
     cleanApiSecret = cleanApiSecret.replace(/[\r\n\t]/g, '');
     
     try {
-      const response = await TrendyolAPIService.filterProducts(
+      let response = await TrendyolAPIService.filterProducts(
         sellerId,
         cleanApiKey,
         cleanApiSecret,
@@ -6962,6 +6969,71 @@ app.get('/api/admin/trendyol/products', authenticateAdmin, async (req, res) => {
       );
       
       if (response.success) {
+        let products = response.data.content || [];
+        let totalElements = response.data.totalElements || 0;
+        
+        // Eğer search parametresi varsa, tüm sayfaları çekip filtrele
+        if (searchQuery) {
+          const searchLower = searchQuery.toLowerCase();
+          let allProducts = [...products];
+          
+          // Eğer daha fazla sayfa varsa, tüm sayfaları çek
+          const totalPages = response.data.totalPages || 1;
+          if (totalPages > 1) {
+            for (let page = 1; page < totalPages; page++) {
+              try {
+                const pageOptions = { ...options, page: page };
+                const pageResponse = await TrendyolAPIService.filterProducts(
+                  sellerId,
+                  cleanApiKey,
+                  cleanApiSecret,
+                  pageOptions
+                );
+                if (pageResponse.success && pageResponse.data.content) {
+                  allProducts = allProducts.concat(pageResponse.data.content);
+                }
+              } catch (err) {
+                console.error(`Sayfa ${page} çekilirken hata:`, err);
+                break; // Hata durumunda döngüyü durdur
+              }
+            }
+          }
+          
+          // Ürünleri filtrele
+          products = allProducts.filter(product => {
+            const title = (product.title || '').toLowerCase();
+            const barcode = (product.barcode || '').toLowerCase();
+            const stockCode = (product.stockCode || '').toLowerCase();
+            const productMainId = (product.productMainId || '').toLowerCase();
+            
+            return title.includes(searchLower) || 
+                   barcode.includes(searchLower) || 
+                   stockCode.includes(searchLower) || 
+                   productMainId.includes(searchLower);
+          });
+          
+          totalElements = products.length;
+          
+          // Sayfalama uygula
+          const startIndex = requestedPage * requestedSize;
+          const endIndex = startIndex + requestedSize;
+          products = products.slice(startIndex, endIndex);
+          
+          // Toplam sayfa sayısını hesapla
+          const calculatedTotalPages = Math.ceil(totalElements / requestedSize);
+          
+          return res.json({ 
+            success: true, 
+            data: {
+              content: products,
+              totalElements: totalElements,
+              totalPages: calculatedTotalPages,
+              page: requestedPage,
+              size: requestedSize
+            }
+          });
+        }
+        
         return res.json({ 
           success: true, 
           data: response.data
