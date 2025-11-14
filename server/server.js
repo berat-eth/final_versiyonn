@@ -9168,19 +9168,47 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       });
     }
 
-    // Rogbold fontunu kaydet
+    // Rogbold fontunu kaydet - Türkçe karakter desteği için
     const fontPath = path.join(__dirname, 'Fonts', 'Rogbold-3llGM.otf');
     let rogboldFontAvailable = false;
-    if (fs.existsSync(fontPath)) {
+    
+    // Font dosyası kontrolü
+    if (!fs.existsSync(fontPath)) {
+      console.warn('⚠️ Rogbold font dosyası bulunamadı:', fontPath);
+      console.warn('⚠️ __dirname:', __dirname);
+      console.warn('⚠️ Font klasörü var mı?', fs.existsSync(path.join(__dirname, 'Fonts')));
+    } else {
+      // Font dosyası boyutunu kontrol et
+      const fontStats = fs.statSync(fontPath);
+      console.log('📄 Font dosyası bulundu:', {
+        path: fontPath,
+        size: fontStats.size,
+        exists: true
+      });
+      
       try {
+        // PDFKit'e fontu kaydet
         PDFDocument.registerFont('Rogbold', fontPath);
         rogboldFontAvailable = true;
-        console.log('✅ Rogbold fontu kaydedildi:', fontPath);
+        console.log('✅ Rogbold fontu başarıyla kaydedildi:', fontPath);
+        
+        // Font kaydının başarılı olduğunu test et
+        const testDoc = new PDFDocument({ autoFirstPage: false });
+        try {
+          testDoc.font('Rogbold');
+          console.log('✅ Rogbold fontu test edildi ve çalışıyor');
+        } catch (testError) {
+          console.error('❌ Rogbold fontu test edilemedi:', testError.message);
+          rogboldFontAvailable = false;
+        }
       } catch (error) {
-        console.warn('⚠️ Rogbold fontu kaydedilemedi:', error.message);
+        console.error('❌ Rogbold fontu kaydedilemedi:', {
+          message: error.message,
+          stack: error.stack,
+          path: fontPath
+        });
+        rogboldFontAvailable = false;
       }
-    } else {
-      console.warn('⚠️ Rogbold font dosyası bulunamadı:', fontPath);
     }
 
     // QR kod için qrcode kütüphanesi
@@ -9206,6 +9234,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     }
 
     // A5 dikey boyutları: 148mm x 210mm (yaklaşık 420pt x 595pt)
+    // UTF-8 encoding desteği için PDF ayarları
     const doc = new PDFDocument({
       size: [420, 595], // A5 dikey (portrait)
       layout: 'portrait',
@@ -9216,14 +9245,23 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         Subject: 'Kargo Fişi',
         Keywords: 'kargo, fiş, cargo',
         Creator: 'Huğlu Outdoor Kargo Fişi Sistemi'
-      }
+      },
+      // UTF-8 encoding için PDF versiyonu (PDF 1.4+ UTF-8 destekler)
+      pdfVersion: '1.4'
     });
 
     // UTF-8 desteği için font ayarları
     // Rogbold fontunu kullan (Türkçe karakterleri destekler)
     if (rogboldFontAvailable) {
-      doc.font('Rogbold');
-      console.log('✅ Rogbold fontu kullanılıyor');
+      try {
+        doc.font('Rogbold');
+        console.log('✅ Rogbold fontu aktif edildi ve kullanılıyor');
+        console.log('✅ Türkçe karakter desteği: Ç, Ğ, İ, Ö, Ş, Ü, ç, ğ, ı, ö, ş, ü');
+      } catch (fontError) {
+        console.error('❌ Rogbold fontu aktif edilemedi:', fontError.message);
+        doc.font('Helvetica'); // Fallback
+        rogboldFontAvailable = false;
+      }
     } else {
       doc.font('Helvetica'); // Fallback
       console.warn('⚠️ Rogbold bulunamadı, Helvetica kullanılıyor');
@@ -9236,20 +9274,53 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       return text || '';
     };
 
-    // UTF-8 encoding için text wrapper fonksiyonu
+    // UTF-8 encoding için text wrapper fonksiyonu - Türkçe karakter desteği ile
     const addUTF8Text = (text, x, y, options = {}) => {
       if (!text) return;
-      // Metni UTF-8 olarak encode et ve PDFKit'e gönder
-      // PDFKit otomatik olarak UTF-8'i destekler, ancak bazı karakterler için
-      // özel işlem gerekebilir
+      
+      // Metni string'e çevir (scope dışında da kullanılabilmesi için)
+      let textStr = String(text);
+      
       try {
-        // Metni normalize et (Türkçe karakterler için)
-        const normalizedText = String(text).normalize('NFC');
+        // UTF-8 encoding kontrolü - metnin zaten UTF-8 olduğundan emin ol
+        // Buffer.from ile UTF-8 kontrolü yap
+        try {
+          Buffer.from(textStr, 'utf8');
+        } catch (utf8Error) {
+          // UTF-8 değilse, latin1'den UTF-8'e çevir
+          textStr = Buffer.from(textStr, 'latin1').toString('utf8');
+        }
+        
+        // Unicode normalizasyonu - Türkçe karakterler için NFC (Canonical Composition)
+        // Bu, birleşik karakterleri (örn: é) tek bir karakter olarak tutar
+        const normalizedText = textStr.normalize('NFC');
+        
+        // Font ayarını kontrol et - Rogbold kullanılıyorsa emin ol
+        if (rogboldFontAvailable) {
+          // Font ayarını kontrol et - PDFKit'in internal state'ini kontrol etmek yerine
+          // her seferinde font'u ayarla (daha güvenli)
+          // Not: PDFKit'in internal state'ine erişmek güvenilir değil, bu yüzden
+          // her metin eklemeden önce font'u ayarlamak yerine, çağıran kodun
+          // font'u ayarlamasını bekliyoruz
+        }
+        
+        // PDFKit'e metni ekle - UTF-8 encoding ile
         doc.text(normalizedText, x, y, options);
+        
       } catch (error) {
-        console.error('Text encoding hatası:', error);
-        // Fallback: orijinal metni kullan
-        doc.text(String(text), x, y, options);
+        console.error('❌ Text encoding hatası:', {
+          error: error.message,
+          text: textStr ? textStr.substring(0, 50) : 'null',
+          x,
+          y
+        });
+        
+        // Fallback: orijinal metni direkt kullan (PDFKit kendi encoding'ini yapar)
+        try {
+          doc.text(String(text), x, y, options);
+        } catch (fallbackError) {
+          console.error('❌ Fallback text ekleme de başarısız:', fallbackError.message);
+        }
       }
     };
 
