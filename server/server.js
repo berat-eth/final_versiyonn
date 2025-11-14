@@ -651,7 +651,15 @@ const advancedSecurity = new AdvancedSecurity();
 
 // Basic request size limiting
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb', parameterLimit: 50000 }));
+// UTF-8 encoding desteği için charset ayarı
+app.use((req, res, next) => {
+  if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+    // Multer dosya yükleme için encoding ayarı
+    req.setEncoding('utf8');
+  }
+  next();
+});
 // XML gövdeleri için text parser (text/xml, application/xml)
 app.use(express.text({ type: ['text/xml', 'application/xml'], limit: '20mb' }));
 
