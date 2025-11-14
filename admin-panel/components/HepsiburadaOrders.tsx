@@ -377,6 +377,17 @@ export default function HepsiburadaOrders() {
     return isNaN(parsed) ? 0 : parsed
   }
 
+  // Sayıyı Türkçe formata çevir (1200.00 → 1.200,00)
+  const formatTurkishNumber = (value: number | string): string => {
+    const numValue = typeof value === 'string' ? parseFloat(value) : value
+    if (isNaN(numValue)) return '0,00'
+    
+    // Türkçe format: binlik ayırıcı nokta, ondalık ayırıcı virgül
+    return numValue.toFixed(2)
+      .replace('.', ',') // Ondalık ayırıcıyı virgüle çevir
+      .replace(/\B(?=(\d{3})+(?!\d))/g, '.') // Binlik ayırıcıları ekle
+  }
+
   // Barkod alanını normalize et - bilimsel notasyonu tam sayıya çevir (formatlamadan, ham haliyle)
   const normalizeBarcode = (barcode: string): string => {
     if (!barcode || !barcode.trim()) return ''
@@ -643,7 +654,7 @@ export default function HepsiburadaOrders() {
                   Hepsiburada'dan gelen siparişleri görüntüleyin ve yönetin
                   {totalOrders > 0 && (
                     <span className="ml-2 font-semibold text-purple-600 dark:text-purple-400">
-                      (Toplam: {totalOrders} sipariş • {totalAmount.toFixed(2)} TRY)
+                      (Toplam: {totalOrders} sipariş • {formatTurkishNumber(totalAmount)} TRY)
                     </span>
                   )}
                 </p>
@@ -816,7 +827,7 @@ export default function HepsiburadaOrders() {
                       </div>
                       <div className="flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
                         <DollarSign className="w-4 h-4" />
-                        <span>{Number(order.totalAmount || 0).toFixed(2)} TRY</span>
+                        <span>{formatTurkishNumber(order.totalAmount || 0)} TRY</span>
                       </div>
                     </div>
                     {order.items && order.items.length > 0 && (
@@ -829,7 +840,7 @@ export default function HepsiburadaOrders() {
                             <div key={item.id || `item-${order.id}-${idx}`} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                               <span>{item.productName}</span>
                               <span className="text-slate-400">x{item.quantity}</span>
-                              <span className="ml-auto font-medium">{Number(item.price || 0).toFixed(2)} TRY</span>
+                              <span className="ml-auto font-medium">{formatTurkishNumber(item.price || 0)} TRY</span>
                             </div>
                           ))}
                           {order.items.length > 3 && (
@@ -1067,10 +1078,10 @@ export default function HepsiburadaOrders() {
                             <div className="text-right">
                               <p className="text-sm text-slate-600 dark:text-slate-400">Adet: {item.quantity}</p>
                               <p className="font-semibold text-slate-900 dark:text-white">
-                                {Number(item.price || 0).toFixed(2)} TRY
+                                {formatTurkishNumber(item.price || 0)} TRY
                               </p>
                               <p className="text-sm text-slate-600 dark:text-slate-400">
-                                Toplam: {(Number(item.price || 0) * item.quantity).toFixed(2)} TRY
+                                Toplam: {formatTurkishNumber((Number(item.price || 0) * item.quantity))} TRY
                               </p>
                             </div>
                           </div>
@@ -1084,7 +1095,7 @@ export default function HepsiburadaOrders() {
                     <div className="flex items-center justify-between">
                       <span className="text-lg font-semibold text-slate-900 dark:text-white">Toplam Tutar</span>
                       <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                        {Number(selectedOrder.totalAmount || 0).toFixed(2)} TRY
+                        {formatTurkishNumber(selectedOrder.totalAmount || 0)} TRY
                       </span>
                     </div>
                   </div>
