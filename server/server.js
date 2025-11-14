@@ -8276,6 +8276,7 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
         // Mevcut siparişi kontrol et - hem paket numarasına hem de externalOrderId'ye göre kontrol et
         // Çünkü aynı externalOrderId zaten var olabilir (unique constraint)
         let existingOrders = [];
+        let foundByExternalId = false;
         
         // Önce externalOrderId'ye göre kontrol et (unique constraint için)
         if (externalOrderId) {
@@ -8285,6 +8286,7 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
           );
           if (ordersByExternalId.length > 0) {
             existingOrders = ordersByExternalId;
+            foundByExternalId = true;
           }
         }
         
