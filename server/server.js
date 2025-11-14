@@ -9168,6 +9168,21 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       });
     }
 
+    // Rogbold fontunu kaydet
+    const fontPath = path.join(__dirname, 'Fonts', 'Rogbold-3llGM.otf');
+    let rogboldFontAvailable = false;
+    if (fs.existsSync(fontPath)) {
+      try {
+        PDFDocument.registerFont('Rogbold', fontPath);
+        rogboldFontAvailable = true;
+        console.log('✅ Rogbold fontu kaydedildi:', fontPath);
+      } catch (error) {
+        console.warn('⚠️ Rogbold fontu kaydedilemedi:', error.message);
+      }
+    } else {
+      console.warn('⚠️ Rogbold font dosyası bulunamadı:', fontPath);
+    }
+
     // QR kod için qrcode kütüphanesi
     let QRCode;
     try {
@@ -9205,25 +9220,20 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     });
 
     // UTF-8 desteği için font ayarları
-    // Helvetica Türkçe karakterleri destekler
-    doc.font('Helvetica');
+    // Rogbold fontunu kullan (Türkçe karakterleri destekler)
+    if (rogboldFontAvailable) {
+      doc.font('Rogbold');
+      console.log('✅ Rogbold fontu kullanılıyor');
+    } else {
+      doc.font('Helvetica'); // Fallback
+      console.warn('⚠️ Rogbold bulunamadı, Helvetica kullanılıyor');
+    }
     
-    // Türkçe karakterleri İngilizce karşılıklarına çevir
+    // replaceTurkishChars fonksiyonu artık gerekli değil - Rogbold Türkçe karakterleri destekliyor
+    // Ancak geriye dönük uyumluluk için fonksiyonu koruyoruz ama kullanmıyoruz
     const replaceTurkishChars = (text) => {
-      if (!text) return '';
-      return String(text)
-        .replace(/ğ/g, 'g')
-        .replace(/Ğ/g, 'G')
-        .replace(/ü/g, 'u')
-        .replace(/Ü/g, 'U')
-        .replace(/ş/g, 's')
-        .replace(/Ş/g, 'S')
-        .replace(/ı/g, 'i')
-        .replace(/İ/g, 'I')
-        .replace(/ö/g, 'o')
-        .replace(/Ö/g, 'O')
-        .replace(/ç/g, 'c')
-        .replace(/Ç/g, 'C');
+      // Artık Türkçe karakterleri değiştirmiyoruz - direkt metni döndürüyoruz
+      return text || '';
     };
 
     // UTF-8 encoding için text wrapper fonksiyonu
@@ -9335,8 +9345,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     let yPos = 75; // 10px aşağı kaydırıldı (65'ten 75'e)
     doc.fillColor('#0f172a')
        .fontSize(11) // Küçültüldü (12'den 11'e)
-       .font('Helvetica-Bold');
-    addUTF8Text('MUSTERI BILGILERI', 20, yPos);
+       .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold');
+    addUTF8Text('MÜŞTERİ BİLGİLERİ', 20, yPos);
     
     // Alt çizgi
     doc.strokeColor('#cbd5e1')
@@ -9348,38 +9358,38 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     yPos += 20; // Küçültüldü (25'ten 20'ye)
     doc.fillColor('#1e293b')
        .fontSize(9)
-       .font('Helvetica');
+       .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica');
     
     if (customerName) {
-      doc.fillColor('#64748b').fontSize(7).font('Helvetica'); // Küçültüldü (8'den 7'ye)
+      doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (8'den 7'ye)
       addUTF8Text('Ad Soyad:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(8).font('Helvetica-Bold'); // Küçültüldü (9'dan 8'e)
-      addUTF8Text(replaceTurkishChars(customerName || ''), 85, yPos, { width: 220 });
+      doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold'); // Küçültüldü (9'dan 8'e)
+      addUTF8Text(customerName || '', 85, yPos, { width: 220 });
       yPos += 12; // Küçültüldü (15'ten 12'ye)
     }
     if (customerPhone) {
-      doc.fillColor('#64748b').fontSize(7).font('Helvetica'); // Küçültüldü (8'den 7'ye)
+      doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (8'den 7'ye)
       addUTF8Text('Telefon:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(8).font('Helvetica'); // Küçültüldü (9'dan 8'e)
-      addUTF8Text(replaceTurkishChars(customerPhone || ''), 85, yPos, { width: 220 });
+      doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (9'dan 8'e)
+      addUTF8Text(customerPhone || '', 85, yPos, { width: 220 });
       yPos += 12; // Küçültüldü (15'ten 12'ye)
     }
     if (customerEmail) {
-      doc.fillColor('#64748b').fontSize(7).font('Helvetica'); // Küçültüldü (8'den 7'ye)
+      doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (8'den 7'ye)
       addUTF8Text('E-posta:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(7).font('Helvetica'); // Küçültüldü (8'den 7'ye)
-      addUTF8Text(replaceTurkishChars(customerEmail || ''), 85, yPos, { width: 220, lineGap: 1 });
+      doc.fillColor('#0f172a').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (8'den 7'ye)
+      addUTF8Text(customerEmail || '', 85, yPos, { width: 220, lineGap: 1 });
       yPos += 13; // Küçültüldü (16'dan 13'e)
     }
     
     // QR kod ve adres yan yana
     const addressStartY = yPos;
     if (customerAddress) {
-      doc.fillColor('#64748b').fontSize(8).font('Helvetica');
+      doc.fillColor('#64748b').fontSize(8).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica');
       addUTF8Text('Adres:', 20, yPos);
       
       // Adresi 50 karakter ile sınırla
-      const addressText = replaceTurkishChars(customerAddress || '');
+      const addressText = customerAddress || '';
       const maxChars = 50;
       const addressLines = [];
       let remainingText = addressText;
@@ -9400,7 +9410,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         remainingText = remainingText.substring(cutPoint).trim();
       }
       
-      doc.fillColor('#0f172a').fontSize(8).font('Helvetica');
+      doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica');
       addressLines.forEach((line, idx) => {
         addUTF8Text(line, 85, yPos + (idx * 10), { width: 220, lineGap: 1 });
       });
@@ -9441,7 +9451,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         doc.fontSize(7)
            .fillColor('#475569')
-           .font('Helvetica-Bold');
+           .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold');
         addUTF8Text('FATURA', qrX, qrY + qrSize + 3, { width: qrSize, align: 'center' });
       }
       
@@ -9479,17 +9489,17 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         doc.fontSize(7)
            .fillColor('#475569')
-           .font('Helvetica-Bold');
+           .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold');
         addUTF8Text('FATURA', qrX, qrY + qrSize + 3, { width: qrSize, align: 'center' });
       }
       yPos += 15; // Küçültüldü (20'den 15'e)
     }
     
     if (district || city) {
-      doc.fillColor('#64748b').fontSize(7).font('Helvetica'); // Küçültüldü (8'den 7'ye)
-      addUTF8Text('Ilce/Il:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(8).font('Helvetica'); // Küçültüldü (9'dan 8'e)
-      addUTF8Text(replaceTurkishChars(`${district || ''} ${city || ''}`.trim()), 85, yPos, { width: 220 });
+      doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (8'den 7'ye)
+      addUTF8Text('İlçe/İl:', 20, yPos);
+      doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (9'dan 8'e)
+      addUTF8Text(`${district || ''} ${city || ''}`.trim(), 85, yPos, { width: 220 });
       yPos += 12; // Küçültüldü (16'dan 12'ye)
     }
 
@@ -9498,8 +9508,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     if (items && items.length > 0) {
       doc.fillColor('#0f172a')
          .fontSize(10) // Küçültüldü (11'den 10'a)
-         .font('Helvetica-Bold');
-      addUTF8Text('URUN BILGILERI', 20, productYPos);
+         .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold');
+      addUTF8Text('ÜRÜN BİLGİLERİ', 20, productYPos);
       
       // Alt çizgi
       doc.strokeColor('#cbd5e1')
@@ -9518,11 +9528,11 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           return;
         }
         
-        const productName = replaceTurkishChars(item.productName || 'Urun Adi');
-        const productSku = item.productSku ? replaceTurkishChars(String(item.productSku)) : '';
+        const productName = item.productName || 'Ürün Adı';
+        const productSku = item.productSku ? String(item.productSku) : '';
         
         // Ürün adı (maksimum kompakt, tek satır, ellipsis ile)
-        doc.fillColor('#64748b').fontSize(7).font('Helvetica'); // Küçültüldü (8'den 7'ye)
+        doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (8'den 7'ye)
         // Ürün adını tek satırla sınırla (max 60 karakter)
         const truncatedName = productName.length > 60 ? productName.substring(0, 57) + '...' : productName;
         addUTF8Text(`${index + 1}. ${truncatedName}`, 20, productYPos, { width: 360, lineGap: 0.5 });
@@ -9530,7 +9540,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         // SKU bilgisi (ürün adının altında, daha kompakt)
         if (productSku && String(productSku).trim() !== '') {
-          doc.fillColor('#64748b').fontSize(6).font('Helvetica'); // Küçültüldü (7'den 6'ya)
+          doc.fillColor('#64748b').fontSize(6).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica'); // Küçültüldü (7'den 6'ya)
           addUTF8Text(`SKU: ${productSku}`, 20, productYPos, { width: 360 });
           productYPos += 8; // Küçültüldü (10'dan 8'e)
         } else {
@@ -9556,8 +9566,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     let cargoYPos = items && items.length > 0 ? productYPos : 225; // Ürün yoksa 225'ten başla
     doc.fillColor('#0f172a')
        .fontSize(10) // Küçültüldü (11'den 10'a)
-       .font('Helvetica-Bold');
-    addUTF8Text('KARGO BILGILERI', 20, cargoYPos);
+       .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold');
+    addUTF8Text('KARGO BİLGİLERİ', 20, cargoYPos);
     
     // Alt çizgi
     doc.strokeColor('#cbd5e1')
@@ -9575,10 +9585,10 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       
       // Kargo kodu (Barkod) varsa göster
       if (cargoCode) {
-        doc.fillColor('#64748b').fontSize(7).font('Helvetica');
+        doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica');
         addUTF8Text('Kargo Kodu:', 20, cargoYPos);
-        doc.fillColor('#0f172a').fontSize(9).font('Helvetica-Bold');
-        addUTF8Text(replaceTurkishChars(cargoCode), 120, cargoYPos, { width: 280 });
+        doc.fillColor('#0f172a').fontSize(9).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold');
+        addUTF8Text(cargoCode, 120, cargoYPos, { width: 280 });
         cargoYPos += 18;
       }
       
@@ -9633,7 +9643,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           
           // EAN-128 etiketi
           doc.fontSize(7)
-             .font('Helvetica')
+             .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica')
              .fillColor('#64748b');
           addUTF8Text('EAN-128', 20, cargoYPos, { align: 'center', width: barcodeWidth });
           cargoYPos += 12;
@@ -9664,17 +9674,17 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     } else {
       // Trendyol veya diğer marketplace'ler için normal kargo bilgileri
       if (cargoProviderName) {
-        doc.fillColor('#64748b').fontSize(7).font('Helvetica');
-        addUTF8Text('Kargo Firmasi:', 20, cargoYPos);
-        doc.fillColor('#0f172a').fontSize(8).font('Helvetica-Bold');
-        addUTF8Text(replaceTurkishChars(cargoProviderName || ''), 120, cargoYPos, { width: 280 });
+        doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica');
+        addUTF8Text('Kargo Firması:', 20, cargoYPos);
+        doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold');
+        addUTF8Text(cargoProviderName || '', 120, cargoYPos, { width: 280 });
         cargoYPos += 13;
       }
       
       if (cargoTrackingNumber) {
-        doc.fillColor('#64748b').fontSize(7).font('Helvetica');
+        doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica');
         addUTF8Text('Kargo Kodu:', 20, cargoYPos);
-        doc.fillColor('#0f172a').fontSize(9).font('Helvetica-Bold');
+        doc.fillColor('#0f172a').fontSize(9).font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold');
         addUTF8Text(cargoTrackingNumber || '', 120, cargoYPos, { width: 280 });
         cargoYPos += 18;
         
@@ -9740,7 +9750,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         // EAN-128 etiketi
         doc.fontSize(7)
-           .font('Helvetica')
+           .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica')
            .fillColor('#64748b');
         addUTF8Text('EAN-128', 20, cargoYPos, { align: 'center', width: barcodeWidth });
       }
@@ -9761,31 +9771,31 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     doc.rect(0, finalFooterY, 420, footerHeight).fill('#f1f5f9');
     
     doc.fontSize(7)
-       .font('Helvetica')
+       .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica')
        .fillColor('#475569');
-    addUTF8Text(`Siparis No: ${orderId}`, 20, finalFooterY + 6, { align: 'left' });
+    addUTF8Text(`Sipariş No: ${orderId}`, 20, finalFooterY + 6, { align: 'left' });
     
-    addUTF8Text(`Olusturulma: ${new Date().toLocaleString('tr-TR')}`, 20, finalFooterY + 16, { align: 'left' });
+    addUTF8Text(`Oluşturulma: ${new Date().toLocaleString('tr-TR')}`, 20, finalFooterY + 16, { align: 'left' });
     
     // Sağ tarafta logo/şirket bilgisi
     doc.fontSize(8)
-       .font('Helvetica-Bold')
+       .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica-Bold')
        .fillColor('#1e293b');
-    addUTF8Text('Huglu Outdoor', 220, finalFooterY + 6, { align: 'right', width: 180 });
+    addUTF8Text('Huğlu Outdoor', 220, finalFooterY + 6, { align: 'right', width: 180 });
     
     doc.fontSize(6)
-       .font('Helvetica')
+       .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica')
        .fillColor('#64748b');
-    addUTF8Text('Kargo Fisi', 220, finalFooterY + 16, { align: 'right', width: 180 });
+    addUTF8Text('Kargo Fişi', 220, finalFooterY + 16, { align: 'right', width: 180 });
     
     // Marketplace bilgisi - en alt satır
     doc.fontSize(7)
-       .font('Helvetica')
+       .font(rogboldFontAvailable ? 'Rogbold' : 'Helvetica')
        .fillColor('#64748b');
     if (provider === 'hepsiburada') {
-      addUTF8Text('Bu Siparis Hepsiburada\'dan olusturulmustur', 20, finalFooterY + 28, { align: 'center', width: 380 });
+      addUTF8Text('Bu Sipariş Hepsiburada\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
     } else {
-      addUTF8Text('Bu Siparis Trendyol.com\'dan olusturulmustur', 20, finalFooterY + 28, { align: 'center', width: 380 });
+      addUTF8Text('Bu Sipariş Trendyol.com\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
     }
 
     // PDF'i response olarak gönder
