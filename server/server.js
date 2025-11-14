@@ -8266,17 +8266,26 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
           rawData
         } = orderData;
 
-        if (!externalOrderId) {
+        // Paket numarası veya externalOrderId kontrolü
+        if (!packageNumber && !externalOrderId) {
           skippedCount++;
-          errors.push(`Sipariş numarası eksik: ${JSON.stringify(orderData).substring(0, 50)}`);
+          errors.push(`Paket numarası ve sipariş numarası eksik: ${JSON.stringify(orderData).substring(0, 50)}`);
           continue;
         }
 
-        // Mevcut siparişi kontrol et
-        const [existingOrders] = await poolWrapper.execute(
-          'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND externalOrderId = ?',
-          [tenantId, externalOrderId]
-        );
+        // Mevcut siparişi kontrol et - önce paket numarasına göre, yoksa externalOrderId'ye göre
+        let existingOrders;
+        if (packageNumber) {
+          [existingOrders] = await poolWrapper.execute(
+            'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND packageNumber = ?',
+            [tenantId, packageNumber]
+          );
+        } else {
+          [existingOrders] = await poolWrapper.execute(
+            'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND externalOrderId = ?',
+            [tenantId, externalOrderId]
+          );
+        }
 
         let hepsiburadaOrderId;
         const orderDataJson = {
