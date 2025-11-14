@@ -8411,7 +8411,8 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
               ]
             );
           }
-          skippedCount++;
+          // UPDATE yapıldı - sipariş güncellendi, atlanmadı
+          importedCount++;
         } else {
           // Yeni sipariş ekle
           const [orderResult] = await poolWrapper.execute(
@@ -8452,7 +8453,7 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
           importedCount++;
         }
 
-        // Mevcut sipariş öğelerini sil
+        // Mevcut sipariş öğelerini sil (hem UPDATE hem INSERT durumunda)
         await poolWrapper.execute(
           'DELETE FROM hepsiburada_order_items WHERE hepsiburadaOrderId = ? AND tenantId = ?',
           [hepsiburadaOrderId, tenantId]

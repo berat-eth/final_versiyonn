@@ -349,6 +349,41 @@ export default function HepsiburadaOrders() {
     }
   }
 
+  // Barkod alanını normalize et - bilimsel notasyonu tam sayıya çevir (formatlamadan, ham haliyle)
+  const normalizeBarcode = (barcode: string): string => {
+    if (!barcode || !barcode.trim()) return ''
+    
+    const trimmed = barcode.trim()
+    
+    // Bilimsel notasyon kontrolü (örn: 6,25541E+13 veya 6.25541E+13)
+    const scientificNotationRegex = /^([\d,\.]+)[eE]([\+\-]?\d+)$/
+    const match = trimmed.match(scientificNotationRegex)
+    
+    if (match) {
+      const base = match[1].replace(',', '.') // Virgülü noktaya çevir
+      const exponent = parseInt(match[2], 10)
+      
+      // Sayıyı parse et
+      const baseNum = parseFloat(base)
+      if (!isNaN(baseNum) && !isNaN(exponent)) {
+        // Bilimsel notasyonu hesapla
+        const result = baseNum * Math.pow(10, exponent)
+        
+        // Formatlamadan, tam sayı olarak string'e çevir (ondalık kısmı yoksa)
+        // Büyük sayılar için güvenli yöntem: Number.isInteger kontrolü ve toString
+        if (Number.isInteger(result)) {
+          // Formatlamadan, direkt string'e çevir
+          return result.toString()
+        }
+        // Ondalıklı sayıysa (olması beklenmez ama yine de) - formatlamadan
+        return result.toString()
+      }
+    }
+    
+    // Normal string olarak döndür (bilimsel notasyon değilse) - hiçbir formatlama yapmadan, ham haliyle
+    return trimmed
+  }
+
   // CSV Parse fonksiyonu - Hepsiburada formatına özel
   const parseCSV = (csvText: string): any[] => {
     const lines = csvText.split('\n').filter(line => line.trim())
@@ -439,7 +474,7 @@ export default function HepsiburadaOrders() {
           invoiceAddress: row['Fatura Adresi'] || '',
           cargoProviderName: row['Kargo Firması'] || '',
           cargoTrackingNumber: row['Kargo Takip No'] || '',
-          barcode: row['Barkod'] || '',
+          barcode: normalizeBarcode(row['Barkod'] || ''),
           orderDate: parsedDate.toISOString(),
           deliveryDate: row['Kargoya Son Teslim Tarihi'] || '',
           deliveryType: row['Teslimat Tipi'] || '',
