@@ -113,11 +113,23 @@ export default function MLInsights() {
 
   const triggerTraining = async (modelType: string) => {
     try {
-      await api.post('/admin/ml/train', { modelType })
-      alert(`${modelType} model eğitimi başlatıldı`)
-    } catch (error) {
+      console.log(`🚀 Eğitim başlatılıyor: ${modelType}`)
+      const response = await api.post('/admin/ml/train', { modelType, days: 30 }) as any
+      
+      if (response.success) {
+        alert(`✅ ${modelType} model eğitimi başlatıldı!\n\nKonsol loglarını kontrol edin.`)
+        console.log('✅ Eğitim başlatıldı:', response)
+        // Veriyi yenile
+        if (activeSection === 'models') {
+          loadData()
+        }
+      } else {
+        throw new Error(response.message || 'Eğitim başlatılamadı')
+      }
+    } catch (error: any) {
       console.error('❌ Training error:', error)
-      alert('Eğitim başlatılamadı')
+      const errorMsg = error.message || error.response?.data?.message || 'Eğitim başlatılamadı'
+      alert(`❌ Hata: ${errorMsg}\n\nML servisinin çalıştığından emin olun (http://localhost:8001)`)
     }
   }
 
@@ -666,7 +678,7 @@ function ModelsSection({ data, onTrain, theme }: any) {
       <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Model Durumu</h3>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => onTrain('purchase_prediction')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
@@ -678,6 +690,24 @@ function ModelsSection({ data, onTrain, theme }: any) {
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
             >
               Recommendation Model Eğit
+            </button>
+            <button
+              onClick={() => onTrain('anomaly_detection')}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
+            >
+              Anomaly Model Eğit
+            </button>
+            <button
+              onClick={() => onTrain('segmentation')}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+            >
+              Segmentation Model Eğit
+            </button>
+            <button
+              onClick={() => onTrain('all')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+            >
+              Tüm Modelleri Eğit
             </button>
           </div>
         </div>

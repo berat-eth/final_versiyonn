@@ -210,7 +210,7 @@ router.get('/statistics', async (req, res) => {
  */
 router.post('/train', async (req, res) => {
   try {
-    const { modelType } = req.body;
+    const { modelType, days } = req.body;
 
     if (!modelType) {
       return res.status(400).json({
@@ -219,18 +219,46 @@ router.post('/train', async (req, res) => {
       });
     }
 
-    // TODO: Trigger training via ML service API
-    // For now, just return success
+    // ML Service URL - environment variable veya default
+    const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8001';
+    
+    console.log(`🚀 ML eğitim isteği: ${modelType} -> ${ML_SERVICE_URL}/api/models/train`);
+    
+    // ML servisine istek gönder (Node.js 18+ built-in fetch kullanıyoruz)
+    const response = await fetch(`${ML_SERVICE_URL}/api/models/train`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model_type: modelType,
+        days: days || 30
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ ML servisi hatası (${response.status}):`, errorText);
+      throw new Error(`ML servisi hatası: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    
+    console.log(`✅ ML eğitim başlatıldı: ${modelType}`, result);
+    
     res.json({
       success: true,
       message: `Training started for ${modelType}`,
-      jobId: `train_${Date.now()}`
+      model_type: modelType,
+      status: 'training',
+      ml_service_response: result
     });
   } catch (error) {
     console.error('❌ Error triggering training:', error);
     res.status(500).json({
       success: false,
-      message: 'Error triggering training'
+      message: `Error triggering training: ${error.message}`,
+      error: error.message
     });
   }
 });
