@@ -652,14 +652,6 @@ const advancedSecurity = new AdvancedSecurity();
 // Basic request size limiting
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb', parameterLimit: 50000 }));
-// UTF-8 encoding desteği için charset ayarı
-app.use((req, res, next) => {
-  if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
-    // Multer dosya yükleme için encoding ayarı
-    req.setEncoding('utf8');
-  }
-  next();
-});
 // XML gövdeleri için text parser (text/xml, application/xml)
 app.use(express.text({ type: ['text/xml', 'application/xml'], limit: '20mb' }));
 
@@ -781,12 +773,43 @@ const invoiceStorage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    const sanitized = sanitizeFileName(file.originalname);
+    // 1. UTF-8 normalize et
+    let original = file.originalname.normalize('NFC');
+    
+    // 2. Türkçe karakterleri ASCII karşılığına çevir (dosya sistemi uyumluluğu için)
+    original = original
+      .replace(/ğ/g, 'g')
+      .replace(/Ğ/g, 'G')
+      .replace(/ü/g, 'u')
+      .replace(/Ü/g, 'U')
+      .replace(/ş/g, 's')
+      .replace(/Ş/g, 'S')
+      .replace(/ı/g, 'i')
+      .replace(/İ/g, 'I')
+      .replace(/ö/g, 'o')
+      .replace(/Ö/g, 'O')
+      .replace(/ç/g, 'c')
+      .replace(/Ç/g, 'C');
+    
+    // 3. Boşluk ve özel karakter temizliği
+    const safe = original
+      .replace(/[<>:"|?*\x00-\x1F]/g, '') // Windows yasak karakterleri
+      .replace(/\.\./g, '') // Path traversal
+      .replace(/\/|\\/g, '_') // Path separator'ları
+      .replace(/[\s]+/g, '_') // Boşlukları alt çizgi ile değiştir
+      .replace(/[^\w\-\.]/g, '_') // Sadece alphanumeric, tire, alt çizgi ve nokta
+      .trim();
+    
+    // 4. Uzantıyı al
+    const ext = path.extname(safe) || '.pdf';
+    const baseName = path.basename(safe, ext) || 'invoice';
+    
+    // 5. Benzersiz dosya adı oluştur
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(sanitized);
-    const baseName = path.basename(sanitized, ext);
     const filename = `${baseName}-${uniqueSuffix}${ext}`;
-    console.log('📝 Generated filename:', filename);
+    
+    console.log('📝 Original filename:', file.originalname);
+    console.log('📝 Normalized filename:', filename);
     cb(null, filename);
   }
 });
@@ -8883,73 +8906,9 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
       console.log('📄 File size from Multer:', req.file.size, 'bytes');
       
       filePath = `/uploads/invoices/${req.file.filename}`;
-      // Dosya ismini UTF-8 olarak decode et (Türkçe karakterler için)
-      // Multer bazen dosya ismini yanlış encoding ile alabilir
-      try {
-        let decoded = req.file.originalname;
-        
-        // Önce string'i buffer'a çevir ve farklı encoding'leri dene
-        // Multer genellikle latin1 veya binary olarak alır
-        try {
-          // Eğer zaten UTF-8 ise, direkt kullan
-          // Ama genellikle latin1 olarak gelir, bu yüzden decode et
-          const buffer = Buffer.from(req.file.originalname, 'binary');
-          decoded = buffer.toString('utf8');
-          
-          // Eğer decode edilmiş isim bozuksa (replacement character içeriyorsa)
-          if (decoded.includes('') || decoded === req.file.originalname) {
-            // Farklı bir yöntem dene: latin1 → utf8
-            decoded = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-          }
-          
-          // Hala bozuksa, orijinali kullan ama encoding düzeltmeleri yap
-          if (decoded.includes('') || decoded === req.file.originalname) {
-            // Manuel encoding düzeltmeleri yap
-            decoded = req.file.originalname
-              .replace(/\x9F/g, 'ğ') // \x9F → ğ
-              .replace(/\x9E/g, 'Ğ') // \x9E → Ğ
-              .replace(/Ä±/g, 'ı')
-              .replace(/Ä°/g, 'İ')
-              .replace(/ÄŸ/g, 'ğ')
-              .replace(/Äž/g, 'Ğ')
-              .replace(/Åž/g, 'Ş')
-              .replace(/ÅŸ/g, 'ş')
-              .replace(/Ã§/g, 'ç')
-              .replace(/Ã‡/g, 'Ç')
-              .replace(/Ã¼/g, 'ü')
-              .replace(/Ãœ/g, 'Ü')
-              .replace(/Ã¶/g, 'ö')
-              .replace(/Ã–/g, 'Ö')
-              .replace(/Ä±/g, 'ı')
-              .replace(/Ä°/g, 'İ');
-          }
-        } catch (decodeError) {
-          console.warn('⚠️ Encoding decode error:', decodeError);
-          // Manuel düzeltmeleri uygula
-          decoded = req.file.originalname
-            .replace(/\x9F/g, 'ğ') // \x9F → ğ
-            .replace(/\x9E/g, 'Ğ') // \x9E → Ğ
-            .replace(/Ä±/g, 'ı') // Ä± → ı
-            .replace(/Ä°/g, 'İ') // Ä° → İ
-            .replace(/ÄŸ/g, 'ğ') // ÄŸ → ğ
-            .replace(/Äž/g, 'Ğ') // Äž → Ğ
-            .replace(/Åž/g, 'Ş') // Åž → Ş
-            .replace(/ÅŸ/g, 'ş') // ÅŸ → ş
-            .replace(/Ã§/g, 'ç') // Ã§ → ç
-            .replace(/Ã‡/g, 'Ç') // Ã‡ → Ç
-            .replace(/Ã¼/g, 'ü') // Ã¼ → ü
-            .replace(/Ãœ/g, 'Ü') // Ãœ → Ü
-            .replace(/Ã¶/g, 'ö') // Ã¶ → ö
-            .replace(/Ã–/g, 'Ö'); // Ã– → Ö
-        }
-        
-        fileName = decoded || req.file.originalname;
-        console.log('📝 Original filename:', req.file.originalname);
-        console.log('📝 Decoded filename:', fileName);
-      } catch (error) {
-        console.warn('⚠️ File name encoding error, using original:', error);
-        fileName = req.file.originalname;
-      }
+      // Dosya ismini direkt kullan (Node zaten UTF-8 ile çalışır, decode etmeye gerek yok)
+      // Orijinal dosya ismini veritabanına kaydet (kullanıcıya gösterilecek)
+      fileName = req.file.originalname;
       fileSize = req.file.size;
       
       console.log('✅ File uploaded successfully:', {
@@ -9126,72 +9085,8 @@ app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file
       
       const filePath = `/uploads/invoices/${req.file.filename}`;
       fields.push('filePath = ?'); params.push(filePath);
-      // Dosya ismini UTF-8 olarak decode et (Türkçe karakterler için)
-      let updatedFileName = req.file.originalname;
-      try {
-        let decoded = req.file.originalname;
-        
-        // Önce string'i buffer'a çevir ve farklı encoding'leri dene
-        try {
-          const buffer = Buffer.from(req.file.originalname, 'binary');
-          decoded = buffer.toString('utf8');
-          
-          // Eğer decode edilmiş isim bozuksa (replacement character içeriyorsa)
-          if (decoded.includes('') || decoded === req.file.originalname) {
-            // Farklı bir yöntem dene: latin1 → utf8
-            decoded = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-          }
-          
-          // Hala bozuksa, manuel encoding düzeltmeleri yap
-          if (decoded.includes('') || decoded === req.file.originalname) {
-            decoded = req.file.originalname
-              .replace(/\x9F/g, 'ğ') // \x9F → ğ
-              .replace(/\x9E/g, 'Ğ') // \x9E → Ğ
-              .replace(/Ä±/g, 'ı')
-              .replace(/Ä°/g, 'İ')
-              .replace(/ÄŸ/g, 'ğ')
-              .replace(/Äž/g, 'Ğ')
-              .replace(/Åž/g, 'Ş')
-              .replace(/ÅŸ/g, 'ş')
-              .replace(/Ã§/g, 'ç')
-              .replace(/Ã‡/g, 'Ç')
-              .replace(/Ã¼/g, 'ü')
-              .replace(/Ãœ/g, 'Ü')
-              .replace(/Ã¶/g, 'ö')
-              .replace(/Ã–/g, 'Ö')
-              .replace(/Ä±/g, 'ı')
-              .replace(/Ä°/g, 'İ');
-          }
-        } catch (decodeError) {
-          console.warn('⚠️ Encoding decode error:', decodeError);
-          // Manuel düzeltmeleri uygula
-          decoded = req.file.originalname
-            .replace(/\x9F/g, 'ğ') // \x9F → ğ
-            .replace(/\x9E/g, 'Ğ') // \x9E → Ğ
-            .replace(/Ä±/g, 'ı')
-            .replace(/Ä°/g, 'İ')
-            .replace(/ÄŸ/g, 'ğ')
-            .replace(/Äž/g, 'Ğ')
-            .replace(/Åž/g, 'Ş')
-            .replace(/ÅŸ/g, 'ş')
-            .replace(/Ã§/g, 'ç')
-            .replace(/Ã‡/g, 'Ç')
-            .replace(/Ã¼/g, 'ü')
-            .replace(/Ãœ/g, 'Ü')
-            .replace(/Ã¶/g, 'ö')
-            .replace(/Ã–/g, 'Ö')
-            .replace(/Ä±/g, 'ı')
-            .replace(/Ä°/g, 'İ');
-        }
-        
-        updatedFileName = decoded || req.file.originalname;
-        console.log('📝 Updated original filename:', req.file.originalname);
-        console.log('📝 Updated decoded filename:', updatedFileName);
-      } catch (error) {
-        console.warn('⚠️ File name encoding error, using original:', error);
-        updatedFileName = req.file.originalname;
-      }
-      fields.push('fileName = ?'); params.push(updatedFileName);
+      // Dosya ismini direkt kullan (Node zaten UTF-8 ile çalışır, decode etmeye gerek yok)
+      fields.push('fileName = ?'); params.push(req.file.originalname);
       fields.push('fileSize = ?'); params.push(req.file.size);
       
       console.log('✅ File uploaded successfully:', {
