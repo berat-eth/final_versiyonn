@@ -6999,17 +6999,33 @@ app.get('/api/admin/trendyol/products', authenticateAdmin, async (req, res) => {
             }
           }
           
-          // Ürünleri filtrele
+          // Ürünleri filtrele - daha kesin arama
           products = allProducts.filter(product => {
-            const title = (product.title || '').toLowerCase();
-            const barcode = (product.barcode || '').toLowerCase();
-            const stockCode = (product.stockCode || '').toLowerCase();
-            const productMainId = (product.productMainId || '').toLowerCase();
+            const title = (product.title || '').toLowerCase().trim();
+            const barcode = (product.barcode || '').toLowerCase().trim();
+            const stockCode = (product.stockCode || '').toLowerCase().trim();
+            const productMainId = (product.productMainId || '').toLowerCase().trim();
             
-            return title.includes(searchLower) || 
-                   barcode.includes(searchLower) || 
-                   stockCode.includes(searchLower) || 
-                   productMainId.includes(searchLower);
+            // Arama terimini kelimelere böl
+            const searchTerms = searchLower.trim().split(/\s+/).filter(term => term.length > 0);
+            
+            // Title'da kelime bazlı arama (her kelime title'da geçmeli)
+            const titleMatch = searchTerms.length > 0 && searchTerms.every(term => {
+              // Kelime başlangıcı veya kelime sınırında eşleşme
+              const wordBoundaryRegex = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+              return wordBoundaryRegex.test(title) || title.startsWith(term);
+            });
+            
+            // Barcode, stockCode ve productMainId için tam eşleşme veya başlangıç eşleşmesi
+            const exactMatch = barcode === searchLower || 
+                              stockCode === searchLower || 
+                              productMainId === searchLower ||
+                              barcode.startsWith(searchLower) ||
+                              stockCode.startsWith(searchLower) ||
+                              productMainId.startsWith(searchLower);
+            
+            // Title'da arama teriminin geçmesi (kelime bazlı) veya diğer alanlarda tam/başlangıç eşleşmesi
+            return titleMatch || exactMatch;
           });
           
           totalElements = products.length;
