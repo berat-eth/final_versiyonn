@@ -20,10 +20,12 @@ const nextConfig = {
       },
     ],
     formats: ['image/avif', 'image/webp'],
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    minimumCacheTTL: 60,
+    minimumCacheTTL: 31536000,
     unoptimized: false,
+    dangerouslyAllowSVG: false,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   compress: true,
   poweredByHeader: false,
@@ -35,33 +37,36 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['react-icons'],
   },
-  // Cache bypass için ayarlar
+  // Optimized cache headers
   async headers() {
     return [
       {
-        source: '/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate, max-age=0',
-          },
-          {
-            key: 'Pragma',
-            value: 'no-cache',
-          },
-          {
-            key: 'Expires',
-            value: '0',
-          },
-        ],
-      },
-      {
-        // Static dosyalar için bile agresif cache bypass
+        // Static assets - long cache
         source: '/_next/static/:path*',
         headers: [
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // Images - medium cache
+        source: '/assets/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
+      {
+        // API routes - no cache
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
           },
         ],
       },

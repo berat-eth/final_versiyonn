@@ -297,7 +297,8 @@ export default function Footer() {
                 width={180}
                 height={72}
                 className="h-16 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
-                unoptimized
+                quality={85}
+                loading="lazy"
               />
             </Link>
             <p className="text-sm text-gray-400 font-medium">

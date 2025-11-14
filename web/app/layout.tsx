@@ -68,9 +68,6 @@ export default function RootLayout({
   return (
     <html lang="tr" className="light">
       <head>
-        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
-        <meta httpEquiv="Pragma" content="no-cache" />
-        <meta httpEquiv="Expires" content="0" />
         <link rel="icon" href="/assets/logo.png" type="image/png" />
         <link rel="shortcut icon" href="/assets/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/assets/logo.png" />
@@ -130,40 +127,16 @@ export default function RootLayout({
       <body className="bg-background-light dark:bg-background-dark font-sans">
         <Script
           id="material-symbols-check"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // Ensure Material Symbols font is loaded
-                if (typeof document !== 'undefined') {
-                  // Check font loading immediately
-                  function checkFont() {
-                    var fontLink = document.querySelector('link[href*="Material+Symbols+Outlined"]');
-                    if (!fontLink) return;
-                    
-                    // Use Font Loading API to check if font is loaded
-                    if (document.fonts && document.fonts.check) {
-                      var isLoaded = document.fonts.check('24px "Material Symbols Outlined"');
-                      if (!isLoaded) {
-                        // Font not loaded, force reload with cache bust
-                        var newLink = fontLink.cloneNode(true);
-                        newLink.href = fontLink.href.split('&v=')[0] + '&v=' + Date.now();
-                        fontLink.parentNode.replaceChild(newLink, fontLink);
-                      }
-                    }
-                  }
-                  
-                  // Check immediately
-                  if (document.readyState === 'complete') {
-                    checkFont();
-                  } else {
-                    window.addEventListener('load', checkFont);
-                  }
-                  
-                  // Also check after fonts ready
-                  if (document.fonts && document.fonts.ready) {
-                    document.fonts.ready.then(checkFont);
-                  }
+                if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+                  document.fonts.ready.then(function() {
+                    // Font yüklendi, ek işlem gerekmiyor
+                  }).catch(function() {
+                    // Font yüklenemedi, sessizce devam et
+                  });
                 }
               })();
             `,
@@ -174,38 +147,28 @@ export default function RootLayout({
           {children}
           <WhatsAppWrapper />
         </AuthProvider>
-        <Script id="service-worker" strategy="afterInteractive">
+        <Script id="service-worker" strategy="lazyOnload">
           {`
-            if ('serviceWorker' in navigator) {
-              window.addEventListener('load', function() {
-                // Önce tüm service worker'ları unregister et (eski cache'leri temizlemek için)
+            if ('serviceWorker' in navigator && 'requestIdleCallback' in window) {
+              requestIdleCallback(function() {
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                  for(let registration of registrations) {
+                  // Eski service worker'ları temizle
+                  registrations.forEach(function(registration) {
                     registration.unregister();
-                  }
-                  // Sonra yeni service worker'ı register et
-                  navigator.serviceWorker.register('/sw.js?v=' + Date.now(), {
+                  });
+                  // Yeni service worker'ı register et
+                  navigator.serviceWorker.register('/sw.js', {
                     updateViaCache: 'none'
                   }).then(function(registration) {
-                    console.log('ServiceWorker registered:', registration.scope);
-                    // Hemen güncelleme kontrolü yap
-                    registration.update();
-                  }).catch(function(err) {
-                    console.error('ServiceWorker registration failed:', err);
-                  });
-                });
-              });
-              
-              // Sayfa yüklendiğinde cache'i temizle
-              if ('caches' in window) {
-                caches.keys().then(function(names) {
-                  names.forEach(function(name) {
-                    if (name !== 'huglu-tekstil-v4') {
-                      caches.delete(name);
+                    // Background'da güncelleme kontrolü yap
+                    if (registration.update) {
+                      registration.update();
                     }
+                  }).catch(function(err) {
+                    // Sessizce hata yakala
                   });
                 });
-              }
+              }, { timeout: 2000 });
             }
           `}
         </Script>

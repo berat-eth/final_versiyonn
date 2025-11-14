@@ -3,11 +3,38 @@
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 
 const Header = dynamic(() => import('@/components/Header'), { ssr: true })
 const Footer = dynamic(() => import('@/components/Footer'), { ssr: true })
+
+const SLIDES = [
+  {
+    image: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=1200&q=75&auto=format&fit=crop',
+    title: 'Özel İş Kıyafetlerinde',
+    highlight: 'Kalite ve Ustalık',
+    description: 'Size özel tasarımlarla, işinize en uygun kıyafetleri üretiyoruz'
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=1200&q=75&auto=format&fit=crop',
+    title: 'Profesyonel Üretim',
+    highlight: 'Modern Teknoloji',
+    description: 'En son teknoloji ile kusursuz işçilik sunuyoruz'
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=1200&q=75&auto=format&fit=crop',
+    title: 'Markanıza Özel',
+    highlight: 'Tasarım Çözümleri',
+    description: 'Logo baskı ve nakış ile markanızı öne çıkarın'
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1200&q=75&auto=format&fit=crop',
+    title: 'Hızlı ve Güvenilir',
+    highlight: 'Teslimat Garantisi',
+    description: 'Siparişlerinizi zamanında ve eksiksiz teslim ediyoruz'
+  }
+] as const
 
 export default function Home() {
   const pathname = usePathname()
@@ -23,51 +50,26 @@ export default function Home() {
     }
   }, [pathname])
 
-  const handleRetailClick = () => {
+  const handleRetailClick = useCallback(() => {
     window.location.href = 'https://hugluoutdoor.com'
-  }
+  }, [])
 
-  const handleCustomClick = () => {
+  const handleCustomClick = useCallback(() => {
     setShowPopup(false)
-  }
+  }, [])
 
-  const slides = [
-    {
-      image: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=1200&q=75&auto=format&fit=crop',
-      title: 'Özel İş Kıyafetlerinde',
-      highlight: 'Kalite ve Ustalık',
-      description: 'Size özel tasarımlarla, işinize en uygun kıyafetleri üretiyoruz'
-    },
-    {
-      image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=1200&q=75&auto=format&fit=crop',
-      title: 'Profesyonel Üretim',
-      highlight: 'Modern Teknoloji',
-      description: 'En son teknoloji ile kusursuz işçilik sunuyoruz'
-    },
-    {
-      image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=1200&q=75&auto=format&fit=crop',
-      title: 'Markanıza Özel',
-      highlight: 'Tasarım Çözümleri',
-      description: 'Logo baskı ve nakış ile markanızı öne çıkarın'
-    },
-    {
-      image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1200&q=75&auto=format&fit=crop',
-      title: 'Hızlı ve Güvenilir',
-      highlight: 'Teslimat Garantisi',
-      description: 'Siparişlerinizi zamanında ve eksiksiz teslim ediyoruz'
-    }
-  ]
+  const slides = useMemo(() => SLIDES, [])
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length)
+      setCurrentSlide((prev) => (prev + 1) % SLIDES.length)
     }, 5000)
     return () => clearInterval(timer)
-  }, [slides.length])
+  }, [])
 
-  const goToSlide = (index: number) => {
+  const goToSlide = useCallback((index: number) => {
     setCurrentSlide(index)
-  }
+  }, [])
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Popup Modal */}
@@ -86,9 +88,8 @@ export default function Home() {
                   width={140}
                   height={56}
                   className="h-14 w-auto object-contain"
-                  quality={100}
+                  quality={90}
                   priority
-                  unoptimized
                 />
               </div>
 
@@ -146,9 +147,11 @@ export default function Home() {
                       fill
                       priority={index === 0}
                       loading={index === 0 ? 'eager' : 'lazy'}
-                      quality={75}
+                      quality={index === 0 ? 85 : 70}
                       sizes="100vw"
                       className="object-cover -z-10"
+                      placeholder="blur"
+                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQAD8AElzOveIckqyjLh4m6jWyH54N6qHQ0X1B5fdnLm4iQfdSklRDq9zX//2Q=="
                     />
                     <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 -z-5"></div>
                     {/* Decorative Elements */}

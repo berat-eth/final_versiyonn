@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import UserMenu from './UserMenu'
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
-  const [lastScrollY, setLastScrollY] = useState(0)
+  const lastScrollYRef = useRef(0)
   const [isScrolled, setIsScrolled] = useState(false)
   const pathname = usePathname()
   
@@ -17,30 +17,38 @@ export default function Header() {
   const isHomePage = pathname === '/'
 
   useEffect(() => {
+    let ticking = false
+
     const handleScroll = () => {
-      const currentScrollY = window.scrollY
-      
-      // Ana sayfada scroll durumunu kontrol et
-      if (isHomePage) {
-        setIsScrolled(currentScrollY > 50)
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY
+          
+          // Ana sayfada scroll durumunu kontrol et
+          if (isHomePage) {
+            setIsScrolled(currentScrollY > 50)
+          }
+          
+          if (currentScrollY < 10) {
+            setIsVisible(true)
+          } else if (currentScrollY > lastScrollYRef.current) {
+            // Aşağı kaydırma - header'ı gizle
+            setIsVisible(false)
+          } else {
+            // Yukarı kaydırma - header'ı göster
+            setIsVisible(true)
+          }
+          
+          lastScrollYRef.current = currentScrollY
+          ticking = false
+        })
+        ticking = true
       }
-      
-      if (currentScrollY < 10) {
-        setIsVisible(true)
-      } else if (currentScrollY > lastScrollY) {
-        // Aşağı kaydırma - header'ı gizle
-        setIsVisible(false)
-      } else {
-        // Yukarı kaydırma - header'ı göster
-        setIsVisible(true)
-      }
-      
-      setLastScrollY(currentScrollY)
     }
 
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [lastScrollY, isHomePage])
+  }, [isHomePage])
   
   // Ana sayfada transparent (scroll edilmediğinde), diğer sayfalarda her zaman beyaz
   const isTransparent = isHomePage && !isScrolled
@@ -57,8 +65,7 @@ export default function Header() {
               height={77}
               className="h-20 w-auto object-contain group-hover:scale-105 transition-transform duration-300"
               priority
-              quality={100}
-              unoptimized
+              quality={90}
             />
           </Link>
 
