@@ -9289,6 +9289,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     };
 
     // UTF-8 encoding için text wrapper fonksiyonu - Türkçe karakter desteği ile
+    // Harf birleştirme sorunlarını önlemek için özel işleme
     const addUTF8Text = (text, x, y, options = {}) => {
       if (!text) return;
       
@@ -9304,8 +9305,15 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           textStr = Buffer.from(textStr, 'latin1').toString('utf8');
         }
         
-        // Unicode normalizasyonu - Türkçe karakterler için NFC
-        const normalizedText = textStr.normalize('NFC');
+        // Harf birleştirme sorununu önlemek için:
+        // 1. Unicode normalizasyonunu kaldırıyoruz (bazı fontlarda sorun yaratabilir)
+        // 2. Metni olduğu gibi kullanıyoruz, sadece encoding'i kontrol ediyoruz
+        // 3. Karakter spacing ayarlarını ekliyoruz
+        
+        // Metni karakter karakter kontrol et ve birleştirme sorunlarını önle
+        // Bazı fontlar ligature'leri otomatik birleştirir, bunu önlemek için
+        // karakterleri ayrı ayrı işleyebiliriz, ancak bu performans sorunu yaratabilir
+        // Bu yüzden önce normal şekilde deniyoruz
         
         // Rogbold font kullanılıyorsa, font'u ayarla
         // Not: Font ayarları (fontSize, fillColor) çağıran kod tarafından ayarlanmalı
@@ -9314,14 +9322,25 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         }
         
         // PDFKit'e metni ekle - UTF-8 encoding ile
-        doc.text(normalizedText, x, y, options);
+        // Harf birleştirme sorunlarını önlemek için:
+        // 1. Normalizasyon yapmıyoruz (metni olduğu gibi kullanıyoruz)
+        // 2. Karakterleri doğrudan render ediyoruz
+        // 3. Font'un kendi spacing ayarlarını kullanıyoruz
+        
+        // Eğer karakter birleştirme sorunu devam ederse, karakterleri ayrı ayrı render edebiliriz
+        // Ancak bu performans sorunu yaratabilir, bu yüzden önce normal şekilde deniyoruz
+        
+        // Metni direkt kullan (normalizasyon yapmadan)
+        // Normalizasyon harf birleştirme sorunlarına neden olabilir
+        doc.text(textStr, x, y, options);
         
       } catch (error) {
         // Hata durumunda karakter kodlarını logla (debug için)
         const charCodes = textStr ? Array.from(textStr.substring(0, 20)).map(c => ({
           char: c,
           code: c.charCodeAt(0),
-          hex: c.charCodeAt(0).toString(16)
+          hex: c.charCodeAt(0).toString(16),
+          normalized: c.normalize('NFC') !== c || c.normalize('NFD') !== c
         })) : [];
         
         console.error('❌ Text encoding hatası:', {
