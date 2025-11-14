@@ -9168,28 +9168,69 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       });
     }
 
-    // Rogbold fontunu kaydet - Türkçe karakter desteği için
-    const fontPath = path.join(__dirname, 'Fonts', 'Rogbold-3llGM.otf');
-    let rogboldFontAvailable = false;
+    // DejaVuSans veya Roboto fontunu kullan - Türkçe karakter desteği için
+    // Öncelik sırası: DejaVuSans > Roboto > Helvetica (fallback)
+    let customFontPath = null;
+    let customFontAvailable = false;
+    let customFontName = 'Helvetica'; // Fallback
     
-    // Font dosyası kontrolü
-    if (!fs.existsSync(fontPath)) {
-      console.warn('⚠️ Rogbold font dosyası bulunamadı:', fontPath);
-      console.warn('⚠️ __dirname:', __dirname);
-      console.warn('⚠️ Font klasörü var mı?', fs.existsSync(path.join(__dirname, 'Fonts')));
+    // 1. DejaVuSans fontunu kontrol et (server/Fonts klasöründe)
+    const dejaVuSansPaths = [
+      path.join(__dirname, 'Fonts', 'DejaVuSans.ttf'),
+      path.join(__dirname, 'Fonts', 'dejavu-sans.ttf'),
+      path.join(__dirname, 'Fonts', 'DejaVuSans.otf'),
+      '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', // Linux sistem fontu
+      '/usr/share/fonts/TTF/DejaVuSans.ttf', // Linux alternatif
+      'C:\\Windows\\Fonts\\DejaVuSans.ttf' // Windows sistem fontu
+    ];
+    
+    for (const dejaVuPath of dejaVuSansPaths) {
+      if (fs.existsSync(dejaVuPath)) {
+        customFontPath = dejaVuPath;
+        customFontAvailable = true;
+        customFontName = 'DejaVuSans';
+        console.log('✅ DejaVuSans fontu bulundu:', dejaVuPath);
+        break;
+      }
+    }
+    
+    // 2. DejaVuSans bulunamazsa Roboto'yu kontrol et
+    if (!customFontAvailable) {
+      const robotoPaths = [
+        path.join(__dirname, 'Fonts', 'Roboto-Regular.ttf'),
+        path.join(__dirname, 'Fonts', 'Roboto.ttf'),
+        path.join(__dirname, 'Fonts', 'roboto-regular.ttf'),
+        '/usr/share/fonts/truetype/roboto/Roboto-Regular.ttf', // Linux sistem fontu
+        'C:\\Windows\\Fonts\\Roboto-Regular.ttf' // Windows sistem fontu
+      ];
+      
+      for (const robotoPath of robotoPaths) {
+        if (fs.existsSync(robotoPath)) {
+          customFontPath = robotoPath;
+          customFontAvailable = true;
+          customFontName = 'Roboto';
+          console.log('✅ Roboto fontu bulundu:', robotoPath);
+          break;
+        }
+      }
+    }
+    
+    // 3. Hiçbiri bulunamazsa uyarı ver
+    if (!customFontAvailable) {
+      console.warn('⚠️ DejaVuSans veya Roboto fontu bulunamadı');
+      console.warn('⚠️ Font dosyalarını şu konumlara ekleyebilirsiniz:');
+      console.warn('   - server/Fonts/DejaVuSans.ttf');
+      console.warn('   - server/Fonts/Roboto-Regular.ttf');
+      console.warn('⚠️ Helvetica fallback kullanılacak');
     } else {
       // Font dosyası boyutunu kontrol et
-      const fontStats = fs.statSync(fontPath);
-      console.log('📄 Font dosyası bulundu:', {
-        path: fontPath,
+      const fontStats = fs.statSync(customFontPath);
+      console.log('📄 Font dosyası hazır:', {
+        name: customFontName,
+        path: customFontPath,
         size: fontStats.size,
         exists: true
       });
-      
-      // PDFKit 0.15.0'da registerFont static metod değil
-      // Font dosyası mevcut olduğunu işaretle, document oluşturulduktan sonra kaydedeceğiz
-      rogboldFontAvailable = true;
-      console.log('✅ Rogbold font dosyası hazır, document oluşturulduktan sonra kaydedilecek');
     }
 
     // QR kod için qrcode kütüphanesi
@@ -9233,11 +9274,11 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
 
     // PDFKit 0.15.0'da font kaydetme - document oluşturulduktan sonra
     // PDFKit 0.15.0'da registerFont static metod değil, font dosyasını direkt path olarak kullanıyoruz
-    if (rogboldFontAvailable && fs.existsSync(fontPath)) {
+    if (customFontAvailable && customFontPath && fs.existsSync(customFontPath)) {
       try {
         // Font dosyasını direkt path olarak kullan - PDFKit otomatik olarak yükler
-        doc.font(fontPath);
-        console.log('✅ Rogbold fontu aktif edildi (direkt path ile)');
+        doc.font(customFontPath);
+        console.log(`✅ ${customFontName} fontu aktif edildi (direkt path ile)`);
         
         // Türkçe karakterleri test et - font'un karakterleri desteklediğini doğrula
         const turkishTestChars = 'ÇĞİÖŞÜçğıöşü';
@@ -9246,25 +9287,26 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           // Eğer font karakterleri desteklemiyorsa hata verecek
           const testY = -1000; // Sayfa dışında
           doc.text(turkishTestChars, 0, testY, { width: 0, height: 0 });
-          console.log('✅ Rogbold fontu Türkçe karakterleri destekliyor: Ç, Ğ, İ, Ö, Ş, Ü, ç, ğ, ı, ö, ş, ü');
+          console.log(`✅ ${customFontName} fontu Türkçe karakterleri destekliyor: Ç, Ğ, İ, Ö, Ş, Ü, ç, ğ, ı, ö, ş, ü`);
         } catch (testError) {
-          console.warn('⚠️ Rogbold fontu Türkçe karakter testi başarısız:', testError.message);
+          console.warn(`⚠️ ${customFontName} fontu Türkçe karakter testi başarısız:`, testError.message);
           // Font yine de kullanılabilir, sadece bazı karakterler eksik olabilir
         }
       } catch (fontError) {
-        console.error('❌ Rogbold fontu aktif edilemedi:', fontError.message);
+        console.error(`❌ ${customFontName} fontu aktif edilemedi:`, fontError.message);
         doc.font('Helvetica'); // Fallback
-        rogboldFontAvailable = false;
+        customFontAvailable = false;
+        customFontPath = null;
       }
     } else {
       doc.font('Helvetica'); // Fallback
-      console.warn('⚠️ Rogbold bulunamadı, Helvetica kullanılıyor');
+      console.warn('⚠️ Özel font bulunamadı, Helvetica kullanılıyor');
     }
     
     // Font path'ini global olarak sakla (tüm kodda kullanmak için)
-    const rogboldFontPath = rogboldFontAvailable ? fontPath : null;
+    const customFontPathForUse = customFontAvailable ? customFontPath : null;
     
-    // replaceTurkishChars fonksiyonu artık gerekli değil - Rogbold Türkçe karakterleri destekliyor
+    // replaceTurkishChars fonksiyonu artık gerekli değil - DejaVuSans/Roboto Türkçe karakterleri destekliyor
     // Ancak geriye dönük uyumluluk için fonksiyonu koruyoruz ama kullanmıyoruz
     const replaceTurkishChars = (text) => {
       // Artık Türkçe karakterleri değiştirmiyoruz - direkt metni döndürüyoruz
@@ -9315,10 +9357,10 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         // karakterleri ayrı ayrı işleyebiliriz, ancak bu performans sorunu yaratabilir
         // Bu yüzden önce normal şekilde deniyoruz
         
-        // Rogbold font kullanılıyorsa, font'u ayarla
+        // Özel font (DejaVuSans/Roboto) kullanılıyorsa, font'u ayarla
         // Not: Font ayarları (fontSize, fillColor) çağıran kod tarafından ayarlanmalı
-        if (rogboldFontAvailable && rogboldFontPath) {
-          setFontSafely(rogboldFontPath);
+        if (customFontAvailable && customFontPathForUse) {
+          setFontSafely(customFontPathForUse);
         }
         
         // PDFKit'e metni ekle - UTF-8 encoding ile
@@ -9453,7 +9495,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     let yPos = 75; // 10px aşağı kaydırıldı (65'ten 75'e)
     doc.fillColor('#0f172a')
        .fontSize(11) // Küçültüldü (12'den 11'e)
-       .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold');
+       .font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
     addUTF8Text('MÜŞTERİ BİLGİLERİ', 20, yPos);
     
     // Alt çizgi
@@ -9466,26 +9508,26 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     yPos += 20; // Küçültüldü (25'ten 20'ye)
     doc.fillColor('#1e293b')
        .fontSize(9)
-       .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica');
+       .font(customFontAvailable ? customFontPathForUse : 'Helvetica');
     
     if (customerName) {
-      doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (8'den 7'ye)
+      doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (8'den 7'ye)
       addUTF8Text('Ad Soyad:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold'); // Küçültüldü (9'dan 8'e)
+      doc.fillColor('#0f172a').fontSize(8).font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold'); // Küçültüldü (9'dan 8'e)
       addUTF8Text(customerName || '', 85, yPos, { width: 220 });
       yPos += 12; // Küçültüldü (15'ten 12'ye)
     }
     if (customerPhone) {
-      doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (8'den 7'ye)
+      doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (8'den 7'ye)
       addUTF8Text('Telefon:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (9'dan 8'e)
+      doc.fillColor('#0f172a').fontSize(8).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (9'dan 8'e)
       addUTF8Text(customerPhone || '', 85, yPos, { width: 220 });
       yPos += 12; // Küçültüldü (15'ten 12'ye)
     }
     if (customerEmail) {
-      doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (8'den 7'ye)
+      doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (8'den 7'ye)
       addUTF8Text('E-posta:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (8'den 7'ye)
+      doc.fillColor('#0f172a').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (8'den 7'ye)
       addUTF8Text(customerEmail || '', 85, yPos, { width: 220, lineGap: 1 });
       yPos += 13; // Küçültüldü (16'dan 13'e)
     }
@@ -9493,7 +9535,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     // QR kod ve adres yan yana
     const addressStartY = yPos;
     if (customerAddress) {
-      doc.fillColor('#64748b').fontSize(8).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica');
+      doc.fillColor('#64748b').fontSize(8).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
       addUTF8Text('Adres:', 20, yPos);
       
       // Adresi 50 karakter ile sınırla
@@ -9518,7 +9560,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         remainingText = remainingText.substring(cutPoint).trim();
       }
       
-      doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica');
+      doc.fillColor('#0f172a').fontSize(8).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
       addressLines.forEach((line, idx) => {
         addUTF8Text(line, 85, yPos + (idx * 10), { width: 220, lineGap: 1 });
       });
@@ -9559,7 +9601,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         doc.fontSize(7)
            .fillColor('#475569')
-           .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold');
+           .font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
         addUTF8Text('FATURA', qrX, qrY + qrSize + 3, { width: qrSize, align: 'center' });
       }
       
@@ -9597,16 +9639,16 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         doc.fontSize(7)
            .fillColor('#475569')
-           .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold');
+           .font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
         addUTF8Text('FATURA', qrX, qrY + qrSize + 3, { width: qrSize, align: 'center' });
       }
       yPos += 15; // Küçültüldü (20'den 15'e)
     }
     
     if (district || city) {
-      doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (8'den 7'ye)
+      doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (8'den 7'ye)
       addUTF8Text('İlçe/İl:', 20, yPos);
-      doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (9'dan 8'e)
+      doc.fillColor('#0f172a').fontSize(8).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (9'dan 8'e)
       addUTF8Text(`${district || ''} ${city || ''}`.trim(), 85, yPos, { width: 220 });
       yPos += 12; // Küçültüldü (16'dan 12'ye)
     }
@@ -9616,7 +9658,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     if (items && items.length > 0) {
       doc.fillColor('#0f172a')
          .fontSize(10) // Küçültüldü (11'den 10'a)
-         .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold');
+         .font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
       addUTF8Text('ÜRÜN BİLGİLERİ', 20, productYPos);
       
       // Alt çizgi
@@ -9640,7 +9682,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         const productSku = item.productSku ? String(item.productSku) : '';
         
         // Ürün adı (maksimum kompakt, tek satır, ellipsis ile)
-        doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (8'den 7'ye)
+        doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (8'den 7'ye)
         // Ürün adını tek satırla sınırla (max 60 karakter)
         const truncatedName = productName.length > 60 ? productName.substring(0, 57) + '...' : productName;
         addUTF8Text(`${index + 1}. ${truncatedName}`, 20, productYPos, { width: 360, lineGap: 0.5 });
@@ -9648,7 +9690,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         // SKU bilgisi (ürün adının altında, daha kompakt)
         if (productSku && String(productSku).trim() !== '') {
-          doc.fillColor('#64748b').fontSize(6).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica'); // Küçültüldü (7'den 6'ya)
+          doc.fillColor('#64748b').fontSize(6).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (7'den 6'ya)
           addUTF8Text(`SKU: ${productSku}`, 20, productYPos, { width: 360 });
           productYPos += 8; // Küçültüldü (10'dan 8'e)
         } else {
@@ -9674,7 +9716,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     let cargoYPos = items && items.length > 0 ? productYPos : 225; // Ürün yoksa 225'ten başla
     doc.fillColor('#0f172a')
        .fontSize(10) // Küçültüldü (11'den 10'a)
-       .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold');
+       .font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
     addUTF8Text('KARGO BİLGİLERİ', 20, cargoYPos);
     
     // Alt çizgi
@@ -9693,9 +9735,9 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       
       // Kargo kodu (Barkod) varsa göster
       if (cargoCode) {
-        doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica');
+        doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
         addUTF8Text('Kargo Kodu:', 20, cargoYPos);
-        doc.fillColor('#0f172a').fontSize(9).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold');
+        doc.fillColor('#0f172a').fontSize(9).font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
         addUTF8Text(cargoCode, 120, cargoYPos, { width: 280 });
         cargoYPos += 18;
       }
@@ -9751,7 +9793,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           
           // EAN-128 etiketi
           doc.fontSize(7)
-             .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica')
+             .font(customFontAvailable ? customFontPathForUse : 'Helvetica')
              .fillColor('#64748b');
           addUTF8Text('EAN-128', 20, cargoYPos, { align: 'center', width: barcodeWidth });
           cargoYPos += 12;
@@ -9782,17 +9824,17 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     } else {
       // Trendyol veya diğer marketplace'ler için normal kargo bilgileri
       if (cargoProviderName) {
-        doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica');
+        doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
         addUTF8Text('Kargo Firması:', 20, cargoYPos);
-        doc.fillColor('#0f172a').fontSize(8).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold');
+        doc.fillColor('#0f172a').fontSize(8).font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
         addUTF8Text(cargoProviderName || '', 120, cargoYPos, { width: 280 });
         cargoYPos += 13;
       }
       
       if (cargoTrackingNumber) {
-        doc.fillColor('#64748b').fontSize(7).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica');
+        doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
         addUTF8Text('Kargo Kodu:', 20, cargoYPos);
-        doc.fillColor('#0f172a').fontSize(9).font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold');
+        doc.fillColor('#0f172a').fontSize(9).font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
         addUTF8Text(cargoTrackingNumber || '', 120, cargoYPos, { width: 280 });
         cargoYPos += 18;
         
@@ -9858,7 +9900,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         // EAN-128 etiketi
         doc.fontSize(7)
-           .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica')
+           .font(customFontAvailable ? customFontPathForUse : 'Helvetica')
            .fillColor('#64748b');
         addUTF8Text('EAN-128', 20, cargoYPos, { align: 'center', width: barcodeWidth });
       }
@@ -9879,7 +9921,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     doc.rect(0, finalFooterY, 420, footerHeight).fill('#f1f5f9');
     
     doc.fontSize(7)
-       .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica')
+       .font(customFontAvailable ? customFontPathForUse : 'Helvetica')
        .fillColor('#475569');
     addUTF8Text(`Sipariş No: ${orderId}`, 20, finalFooterY + 6, { align: 'left' });
     
@@ -9887,18 +9929,18 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     
     // Sağ tarafta logo/şirket bilgisi
     doc.fontSize(8)
-       .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica-Bold')
+       .font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold')
        .fillColor('#1e293b');
     addUTF8Text('Huğlu Outdoor', 220, finalFooterY + 6, { align: 'right', width: 180 });
     
     doc.fontSize(6)
-       .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica')
+       .font(customFontAvailable ? customFontPathForUse : 'Helvetica')
        .fillColor('#64748b');
     addUTF8Text('Kargo Fişi', 220, finalFooterY + 16, { align: 'right', width: 180 });
     
     // Marketplace bilgisi - en alt satır
     doc.fontSize(7)
-       .font(rogboldFontAvailable ? rogboldFontPath : 'Helvetica')
+       .font(customFontAvailable ? customFontPathForUse : 'Helvetica')
        .fillColor('#64748b');
     if (provider === 'hepsiburada') {
       addUTF8Text('Bu Sipariş Hepsiburada\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
