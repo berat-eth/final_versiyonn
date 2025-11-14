@@ -29,6 +29,9 @@ class ModelTrainer:
     async def prepare_training_data_purchase(self, days: int = 30) -> tuple:
         """Prepare training data for purchase prediction"""
         try:
+            print(f"🔍 Veritabanından event verileri çekiliyor (son {days} gün)...", flush=True)
+            logger.info(f"🔍 Veritabanından event verileri çekiliyor (son {days} gün)...")
+            
             # Get events from database
             query = """
                 SELECT 
@@ -44,7 +47,13 @@ class ModelTrainer:
             """
             events = await self.db.execute(query, (days,))
             
+            print(f"📥 {len(events)} event veritabanından çekildi", flush=True)
+            logger.info(f"📥 {len(events)} event veritabanından çekildi")
+            
             # Get purchase labels
+            print("🔍 Satın alma verileri çekiliyor...", flush=True)
+            logger.info("🔍 Satın alma verileri çekiliyor...")
+            
             purchase_query = """
                 SELECT 
                     userId,
@@ -55,7 +64,13 @@ class ModelTrainer:
             """
             purchases = await self.db.execute(purchase_query, (days,))
             
+            print(f"📥 {len(purchases)} satın alma kaydı bulundu", flush=True)
+            logger.info(f"📥 {len(purchases)} satın alma kaydı bulundu")
+            
             # Group events by user
+            print("📊 Event'ler kullanıcılara göre gruplandırılıyor...", flush=True)
+            logger.info("📊 Event'ler kullanıcılara göre gruplandırılıyor...")
+            
             user_events = {}
             for event in events:
                 user_id = event['userId']
@@ -63,15 +78,24 @@ class ModelTrainer:
                     user_events[user_id] = []
                 user_events[user_id].append(event)
             
+            print(f"👥 {len(user_events)} benzersiz kullanıcı bulundu", flush=True)
+            logger.info(f"👥 {len(user_events)} benzersiz kullanıcı bulundu")
+            
             # Create sequences and labels
+            print("🔧 Sequence ve feature'lar oluşturuluyor...", flush=True)
+            logger.info("🔧 Sequence ve feature'lar oluşturuluyor...")
+            
             sequences = []
             features = []
             labels = []
             
+            purchase_count = 0
             for user_id, events_list in user_events.items():
                 # Check if user made purchase
                 user_purchases = [p for p in purchases if p['userId'] == user_id]
                 has_purchase = len(user_purchases) > 0
+                if has_purchase:
+                    purchase_count += 1
                 
                 # Create sequence
                 sequence = self.data_processor.create_user_sequence(events_list)
@@ -80,6 +104,9 @@ class ModelTrainer:
                 sequences.append(sequence)
                 features.append(feature)
                 labels.append(1 if has_purchase else 0)
+            
+            print(f"✅ Veri hazırlandı: {len(sequences)} örnek, {purchase_count} satın alma etiketi", flush=True)
+            logger.info(f"✅ Veri hazırlandı: {len(sequences)} örnek, {purchase_count} satın alma etiketi")
             
             return np.array(sequences), np.array(features), np.array(labels)
             
@@ -196,14 +223,26 @@ class ModelTrainer:
     async def train_purchase_model(self, version: str = None):
         """Train purchase prediction model"""
         try:
-            logger.info("Starting purchase prediction model training...")
+            print("🔍 Veri hazırlanıyor...", flush=True)
+            logger.info("🔍 Veri hazırlanıyor...")
             
             # Prepare data
             sequences, features, labels = await self.prepare_training_data_purchase()
             
+            print(f"📊 Veri hazırlandı: {len(sequences)} örnek bulundu", flush=True)
+            logger.info(f"📊 Veri hazırlandı: {len(sequences)} örnek bulundu")
+            
             if len(sequences) == 0:
-                logger.warning("No training data available")
+                warning_msg = "⚠️ Eğitim verisi bulunamadı!"
+                print(warning_msg, flush=True)
+                logger.warning(warning_msg)
                 return
+            
+            print(f"📈 Veri boyutları - Sequences: {sequences.shape}, Features: {features.shape}, Labels: {labels.shape}", flush=True)
+            logger.info(f"📈 Veri boyutları - Sequences: {sequences.shape}, Features: {features.shape}, Labels: {labels.shape}")
+            
+            print("🏗️ Model oluşturuluyor...", flush=True)
+            logger.info("🏗️ Model oluşturuluyor...")
             
             # Create model
             model = PurchasePredictionModel(
@@ -215,12 +254,27 @@ class ModelTrainer:
             feature_dim = features.shape[1] if len(features.shape) > 1 else 50
             model.build_model(num_event_types, feature_dim)
             
+            print(f"✅ Model oluşturuldu - Event types: {num_event_types}, Feature dim: {feature_dim}", flush=True)
+            logger.info(f"✅ Model oluşturuldu - Event types: {num_event_types}, Feature dim: {feature_dim}")
+            
+            print("🎓 Model eğitimi başlatılıyor...", flush=True)
+            logger.info("🎓 Model eğitimi başlatılıyor...")
+            
             # Train
             history = model.train(sequences, features, labels)
+            
+            final_accuracy = float(history.history.get('accuracy', [0])[-1])
+            final_loss = float(history.history.get('loss', [0])[-1])
+            print(f"📊 Eğitim tamamlandı - Accuracy: {final_accuracy:.4f}, Loss: {final_loss:.4f}", flush=True)
+            logger.info(f"📊 Eğitim tamamlandı - Accuracy: {final_accuracy:.4f}, Loss: {final_loss:.4f}")
             
             # Save model
             version = version or f"v{int(datetime.now().timestamp())}"
             model_path = self.model_loader.get_model_path('purchase_model', version)
+            
+            print(f"💾 Model kaydediliyor: {model_path}", flush=True)
+            logger.info(f"💾 Model kaydediliyor: {model_path}")
+            
             model.save(model_path)
             
             # Save metadata
@@ -234,7 +288,9 @@ class ModelTrainer:
             }
             self.model_loader.save_model_metadata('purchase_model', version, metadata)
             
-            logger.info("Purchase prediction model trained successfully")
+            success_msg = f"✅ Purchase prediction modeli başarıyla eğitildi ve kaydedildi (v{version})"
+            print(success_msg, flush=True)
+            logger.info(success_msg)
             
         except Exception as e:
             logger.error(f"Error training purchase model: {e}")

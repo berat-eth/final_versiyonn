@@ -41,36 +41,91 @@ class AnalyzeRequest(BaseModel):
 
 async def train_model_background(model_type: str, days: int = 30):
     """Background task for model training"""
+    import sys
+    import traceback
+    
+    # Force flush logs immediately
+    print(f"\n{'='*60}", flush=True)
+    print(f"🚀 MODEL EĞİTİMİ BAŞLATILIYOR: {model_type}", flush=True)
+    print(f"{'='*60}\n", flush=True)
+    
+    logger.info(f"{'='*60}")
+    logger.info(f"🚀 MODEL EĞİTİMİ BAŞLATILIYOR: {model_type}")
+    logger.info(f"📅 Veri aralığı: Son {days} gün")
+    logger.info(f"{'='*60}")
+    
     try:
         if not trainer_instance:
-            logger.error("Trainer instance not set")
+            error_msg = "❌ Trainer instance not set"
+            print(error_msg, flush=True)
+            logger.error(error_msg)
             return
         
-        logger.info(f"Starting background training for {model_type}")
+        logger.info(f"✅ Trainer instance bulundu, eğitim başlatılıyor...")
+        print(f"✅ Trainer instance bulundu, eğitim başlatılıyor...", flush=True)
         
         if model_type == "purchase_prediction":
+            print(f"📊 Purchase prediction modeli eğitiliyor...", flush=True)
+            logger.info("📊 Purchase prediction modeli eğitiliyor...")
             await trainer_instance.train_purchase_model()
         elif model_type == "recommendation":
+            print(f"📊 Recommendation modeli eğitiliyor...", flush=True)
+            logger.info("📊 Recommendation modeli eğitiliyor...")
             await trainer_instance.train_recommendation_model()
         elif model_type == "anomaly_detection":
+            print(f"📊 Anomaly detection modeli eğitiliyor...", flush=True)
+            logger.info("📊 Anomaly detection modeli eğitiliyor...")
             await trainer_instance.train_anomaly_model()
         elif model_type == "segmentation":
+            print(f"📊 Segmentation modeli eğitiliyor...", flush=True)
+            logger.info("📊 Segmentation modeli eğitiliyor...")
             await trainer_instance.train_segmentation_model()
         elif model_type == "all":
+            print(f"📊 Tüm modeller eğitiliyor...", flush=True)
+            logger.info("📊 Tüm modeller eğitiliyor...")
             await trainer_instance.train_all_models()
         else:
-            logger.error(f"Unknown model type: {model_type}")
+            error_msg = f"❌ Unknown model type: {model_type}"
+            print(error_msg, flush=True)
+            logger.error(error_msg)
+            return
             
-        logger.info(f"Training completed for {model_type}")
+        success_msg = f"✅ Model eğitimi tamamlandı: {model_type}"
+        print(f"\n{'='*60}", flush=True)
+        print(success_msg, flush=True)
+        print(f"{'='*60}\n", flush=True)
+        logger.info(f"{'='*60}")
+        logger.info(success_msg)
+        logger.info(f"{'='*60}")
+        
     except Exception as e:
-        logger.error(f"Background training error: {e}", exc_info=True)
+        error_msg = f"❌ Model eğitimi hatası: {str(e)}"
+        print(f"\n{'='*60}", flush=True)
+        print(error_msg, flush=True)
+        print(f"Traceback:", flush=True)
+        traceback.print_exc(file=sys.stdout)
+        print(f"{'='*60}\n", flush=True)
+        logger.error(f"{'='*60}")
+        logger.error(error_msg, exc_info=True)
+        logger.error(f"{'='*60}")
 
 @router.post("/train")
 async def train_model(request: TrainRequest, background_tasks: BackgroundTasks):
     """Trigger model training"""
     try:
+        print(f"\n{'='*60}", flush=True)
+        print(f"📥 Eğitim isteği alındı: {request.model_type}", flush=True)
+        print(f"{'='*60}\n", flush=True)
+        
+        logger.info(f"{'='*60}")
+        logger.info(f"📥 Eğitim isteği alındı: {request.model_type}")
+        logger.info(f"{'='*60}")
+        
         if not trainer_instance:
-            raise HTTPException(status_code=503, detail="Trainer not initialized")
+            error_msg = "Trainer not initialized"
+            print(f"❌ {error_msg}", flush=True)
+            logger.error(error_msg)
+            raise HTTPException(status_code=503, detail=error_msg)
         
         # Start training in background
         background_tasks.add_task(
@@ -79,14 +134,21 @@ async def train_model(request: TrainRequest, background_tasks: BackgroundTasks):
             request.days or 30
         )
         
+        response_msg = f"✅ Eğitim başlatıldı: {request.model_type}"
+        print(response_msg, flush=True)
+        logger.info(response_msg)
+        
         return {
             "success": True,
             "message": f"Training started for {request.model_type}",
             "model_type": request.model_type,
-            "status": "training"
+            "status": "training",
+            "days": request.days or 30
         }
     except Exception as e:
-        logger.error(f"Training error: {e}")
+        error_msg = f"Training error: {e}"
+        print(f"❌ {error_msg}", flush=True)
+        logger.error(error_msg)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/deploy")
