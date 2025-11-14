@@ -105,6 +105,68 @@ export default function Invoices() {
     setSuccess(null)
   }
 
+  // Fatura ismini düzelt (Türkçe karakterleri koru, sadece özel karakterleri temizle)
+  const fixInvoiceFileName = (fileName: string): string => {
+    if (!fileName) return ''
+    try {
+      // URL decode et
+      let decoded = fileName
+      try {
+        decoded = decodeURIComponent(fileName)
+      } catch {
+        decoded = fileName
+      }
+      
+      // Encoding düzeltmeleri (ISO-8859-1 → UTF-8)
+      const encodingFixes: Array<[RegExp, string]> = [
+        [/Ä±/g, 'ı'], // Ä± → ı
+        [/Ä°/g, 'İ'], // Ä° → İ
+        [/ÄŸ/g, 'ğ'], // ÄŸ → ğ
+        [/Äž/g, 'Ğ'], // Äž → Ğ
+        [/Åž/g, 'Ş'], // Åž → Ş
+        [/ÅŸ/g, 'ş'], // ÅŸ → ş
+        [/Ã§/g, 'ç'], // Ã§ → ç
+        [/Ã‡/g, 'Ç'], // Ã‡ → Ç
+        [/Ã¼/g, 'ü'], // Ã¼ → ü
+        [/Ãœ/g, 'Ü'], // Ãœ → Ü
+        [/Ã¶/g, 'ö'], // Ã¶ → ö
+        [/Ã–/g, 'Ö'], // Ã– → Ö
+        [/\x9F/g, 'ğ'], // \x9F → ğ
+        [/\x9E/g, 'Ğ'], // \x9E → Ğ
+      ]
+      
+      let fixed = decoded
+      for (const [pattern, replacement] of encodingFixes) {
+        fixed = fixed.replace(pattern, replacement)
+      }
+      
+      return fixed
+    } catch (error) {
+      console.error('Fatura ismi düzeltme hatası:', error)
+      return fileName
+    }
+  }
+
+  // Dosya adından invoice number oluştur (Türkçe karakterleri koru)
+  const createInvoiceNumberFromFileName = (fileName: string): string => {
+    if (!fileName) return `FAT-${Date.now()}`
+    
+    // Uzantıyı kaldır
+    let name = fileName.replace(/\.pdf$/i, '')
+    
+    // Düzeltilmiş ismi al
+    name = fixInvoiceFileName(name)
+    
+    // Sadece dosya sistemi için tehlikeli karakterleri temizle (Türkçe karakterleri koru)
+    name = name
+      .replace(/[<>:"|?*\x00-\x1F]/g, '') // Windows yasak karakterleri
+      .replace(/\.\./g, '') // Path traversal
+      .replace(/\/|\\/g, '-') // Path separator'ları
+      .trim()
+    
+    return name || `FAT-${Date.now()}`
+  }
+
   const handleSave = async () => {
     try {
       setError(null)
@@ -131,8 +193,7 @@ export default function Invoices() {
         }
 
         const file = formData.files[0]
-        const fileName = file.name.replace('.pdf', '').replace(/[^a-zA-Z0-9]/g, '-')
-        const invoiceNumber = fileName || `FAT-${Date.now()}`
+        const invoiceNumber = createInvoiceNumberFromFileName(file.name)
 
         const formDataToSend = new FormData()
         formDataToSend.append('invoiceNumber', invoiceNumber)
@@ -170,8 +231,7 @@ export default function Invoices() {
 
         for (const file of formData.files) {
           try {
-            const fileName = file.name.replace('.pdf', '').replace(/[^a-zA-Z0-9]/g, '-')
-            const invoiceNumber = fileName || `FAT-${Date.now()}-${Math.random().toString(36).substring(7)}`
+            const invoiceNumber = createInvoiceNumberFromFileName(file.name) || `FAT-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
             const formDataToSend = new FormData()
             formDataToSend.append('invoiceNumber', invoiceNumber)
@@ -532,7 +592,7 @@ export default function Invoices() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                        {invoice.invoiceNumber}
+                        {fixInvoiceFileName(invoice.invoiceNumber)}
                       </h3>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(invoice.status)}`}>
                         {getStatusLabel(invoice.status)}
@@ -712,7 +772,7 @@ export default function Invoices() {
                 {invoice.fileName && (
                   <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                     <FileText className="w-4 h-4" />
-                    <span>{invoice.fileName}</span>
+                    <span>{fixInvoiceFileName(invoice.fileName)}</span>
                     {invoice.fileSize && (
                       <span className="text-xs">({(invoice.fileSize / 1024).toFixed(2)} KB)</span>
                     )}
