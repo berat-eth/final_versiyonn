@@ -359,7 +359,7 @@ export default function HepsiburadaOrders() {
     
     // Veri satırlarını parse et
     const orders: any[] = []
-    const orderMap = new Map<string, any>() // Sipariş numarasına göre grupla
+    const orderMap = new Map<string, any>() // Paket numarasına göre grupla
     
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim()
@@ -373,15 +373,19 @@ export default function HepsiburadaOrders() {
         row[header] = values[index]?.trim() || ''
       })
       
-      // Sipariş numarası ve kalem numarası
-      const orderNumber = row['Sipariş Numarası']
+      // Paket numarası ve kalem numarası
+      const packageNumber = row['Paket Numarası'] || ''
+      const orderNumber = row['Sipariş Numarası'] || ''
       const itemNumber = row['Kalem Numarası']
       
-      if (!orderNumber) continue
+      // Paket numarası yoksa, sipariş numarasını kullan (fallback)
+      const groupKey = packageNumber || orderNumber || `order-${i}`
       
-      // Sipariş zaten varsa, sadece item ekle
-      if (orderMap.has(orderNumber)) {
-        const existingOrder = orderMap.get(orderNumber)
+      if (!packageNumber && !orderNumber) continue
+      
+      // Aynı paket numarasına sahip sipariş zaten varsa, sadece item ekle
+      if (orderMap.has(groupKey)) {
+        const existingOrder = orderMap.get(groupKey)
         if (!existingOrder.items) existingOrder.items = []
         
         existingOrder.items.push({
@@ -402,6 +406,11 @@ export default function HepsiburadaOrders() {
         
         // Toplam tutarı güncelle
         existingOrder.totalAmount += parseFloat((row['Faturalandırılacak Satış Fiyatı'] || '0').replace(',', '.')) || 0
+        
+        // Eğer farklı sipariş numaraları varsa, externalOrderId'yi birleştir
+        if (orderNumber && !existingOrder.externalOrderId.includes(orderNumber)) {
+          existingOrder.externalOrderId = `${existingOrder.externalOrderId}, ${orderNumber}`
+        }
       } else {
         // Yeni sipariş oluştur
         const orderDate = row['Sipariş Tarihi'] || ''
@@ -420,8 +429,8 @@ export default function HepsiburadaOrders() {
         }
         
         const order = {
-          externalOrderId: orderNumber,
-          packageNumber: row['Paket Numarası'] || '',
+          externalOrderId: orderNumber || packageNumber, // Sipariş numarası yoksa paket numarasını kullan
+          packageNumber: packageNumber,
           customerName: row['Alıcı'] || '',
           customerEmail: row['Alıcı Mail Adresi'] || '',
           shippingAddress: row['Teslimat Adresi'] || '',
@@ -460,7 +469,7 @@ export default function HepsiburadaOrders() {
           rawData: row // Tüm ham veriyi sakla
         }
         
-        orderMap.set(orderNumber, order)
+        orderMap.set(groupKey, order)
       }
     }
     
