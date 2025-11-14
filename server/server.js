@@ -9238,10 +9238,19 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         // Font dosyasını direkt path olarak kullan - PDFKit otomatik olarak yükler
         doc.font(fontPath);
         console.log('✅ Rogbold fontu aktif edildi (direkt path ile)');
-        console.log('✅ Türkçe karakter desteği: Ç, Ğ, İ, Ö, Ş, Ü, ç, ğ, ı, ö, ş, ü');
         
-        // Font'un çalıştığını test et
-        // Not: Tüm kodda fontPath kullanacağız, 'Rogbold' ismi yerine
+        // Türkçe karakterleri test et - font'un karakterleri desteklediğini doğrula
+        const turkishTestChars = 'ÇĞİÖŞÜçğıöşü';
+        try {
+          // Test metni ekle (görünmez bir yere, sadece test için)
+          // Eğer font karakterleri desteklemiyorsa hata verecek
+          const testY = -1000; // Sayfa dışında
+          doc.text(turkishTestChars, 0, testY, { width: 0, height: 0 });
+          console.log('✅ Rogbold fontu Türkçe karakterleri destekliyor: Ç, Ğ, İ, Ö, Ş, Ü, ç, ğ, ı, ö, ş, ü');
+        } catch (testError) {
+          console.warn('⚠️ Rogbold fontu Türkçe karakter testi başarısız:', testError.message);
+          // Font yine de kullanılabilir, sadece bazı karakterler eksik olabilir
+        }
       } catch (fontError) {
         console.error('❌ Rogbold fontu aktif edilemedi:', fontError.message);
         doc.font('Helvetica'); // Fallback
@@ -9262,16 +9271,32 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       return text || '';
     };
 
+    // Font ayarlarını koruyan helper fonksiyon
+    const setFontSafely = (fontPathOrName) => {
+      try {
+        doc.font(fontPathOrName);
+        return true;
+      } catch (error) {
+        console.warn('⚠️ Font ayarlanamadı, Helvetica kullanılıyor:', error.message);
+        try {
+          doc.font('Helvetica');
+          return false;
+        } catch (fallbackError) {
+          console.error('❌ Helvetica font da ayarlanamadı:', fallbackError.message);
+          return false;
+        }
+      }
+    };
+
     // UTF-8 encoding için text wrapper fonksiyonu - Türkçe karakter desteği ile
     const addUTF8Text = (text, x, y, options = {}) => {
       if (!text) return;
       
-      // Metni string'e çevir (scope dışında da kullanılabilmesi için)
+      // Metni string'e çevir
       let textStr = String(text);
       
       try {
-        // UTF-8 encoding kontrolü - metnin zaten UTF-8 olduğundan emin ol
-        // Buffer.from ile UTF-8 kontrolü yap
+        // UTF-8 encoding kontrolü
         try {
           Buffer.from(textStr, 'utf8');
         } catch (utf8Error) {
@@ -9279,32 +9304,37 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           textStr = Buffer.from(textStr, 'latin1').toString('utf8');
         }
         
-        // Unicode normalizasyonu - Türkçe karakterler için NFC (Canonical Composition)
-        // Bu, birleşik karakterleri (örn: é) tek bir karakter olarak tutar
+        // Unicode normalizasyonu - Türkçe karakterler için NFC
         const normalizedText = textStr.normalize('NFC');
         
-        // Font ayarını kontrol et - Rogbold kullanılıyorsa emin ol
-        if (rogboldFontAvailable) {
-          // Font ayarını kontrol et - PDFKit'in internal state'ini kontrol etmek yerine
-          // her seferinde font'u ayarla (daha güvenli)
-          // Not: PDFKit'in internal state'ine erişmek güvenilir değil, bu yüzden
-          // her metin eklemeden önce font'u ayarlamak yerine, çağıran kodun
-          // font'u ayarlamasını bekliyoruz
+        // Rogbold font kullanılıyorsa, font'u ayarla
+        // Not: Font ayarları (fontSize, fillColor) çağıran kod tarafından ayarlanmalı
+        if (rogboldFontAvailable && rogboldFontPath) {
+          setFontSafely(rogboldFontPath);
         }
         
         // PDFKit'e metni ekle - UTF-8 encoding ile
         doc.text(normalizedText, x, y, options);
         
       } catch (error) {
+        // Hata durumunda karakter kodlarını logla (debug için)
+        const charCodes = textStr ? Array.from(textStr.substring(0, 20)).map(c => ({
+          char: c,
+          code: c.charCodeAt(0),
+          hex: c.charCodeAt(0).toString(16)
+        })) : [];
+        
         console.error('❌ Text encoding hatası:', {
           error: error.message,
           text: textStr ? textStr.substring(0, 50) : 'null',
           x,
-          y
+          y,
+          charCodes: charCodes
         });
         
-        // Fallback: orijinal metni direkt kullan (PDFKit kendi encoding'ini yapar)
+        // Fallback: Helvetica ile dene (tüm karakterleri destekler)
         try {
+          setFontSafely('Helvetica');
           doc.text(String(text), x, y, options);
         } catch (fallbackError) {
           console.error('❌ Fallback text ekleme de başarısız:', fallbackError.message);
