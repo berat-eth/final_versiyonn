@@ -773,10 +773,22 @@ const invoiceStorage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    // 1. UTF-8 normalize et
-    let original = file.originalname.normalize('NFC');
+    // 1. ÖNCE: Bozuk Latin1 string → doğru UTF-8'e çevir (Multer'dan gelen isim bozuk olabilir)
+    let decoded = file.originalname;
+    try {
+      // Latin1 olarak okunmuş string'i UTF-8'e çevir
+      const buf = Buffer.from(file.originalname, 'latin1');
+      decoded = buf.toString('utf8');
+      console.log('📝 Decoded from Latin1:', decoded);
+    } catch (error) {
+      console.warn('⚠️ Latin1 decode error, using original:', error);
+      decoded = file.originalname;
+    }
     
-    // 2. Türkçe karakterleri ASCII karşılığına çevir (dosya sistemi uyumluluğu için)
+    // 2. UTF-8 normalize et
+    let original = decoded.normalize('NFC');
+    
+    // 3. Türkçe karakterleri ASCII karşılığına çevir (dosya sistemi uyumluluğu için)
     original = original
       .replace(/ğ/g, 'g')
       .replace(/Ğ/g, 'G')
@@ -791,7 +803,7 @@ const invoiceStorage = multer.diskStorage({
       .replace(/ç/g, 'c')
       .replace(/Ç/g, 'C');
     
-    // 3. Boşluk ve özel karakter temizliği
+    // 4. Boşluk ve özel karakter temizliği
     const safe = original
       .replace(/[<>:"|?*\x00-\x1F]/g, '') // Windows yasak karakterleri
       .replace(/\.\./g, '') // Path traversal
@@ -800,16 +812,21 @@ const invoiceStorage = multer.diskStorage({
       .replace(/[^\w\-\.]/g, '_') // Sadece alphanumeric, tire, alt çizgi ve nokta
       .trim();
     
-    // 4. Uzantıyı al
+    // 5. Uzantıyı al
     const ext = path.extname(safe) || '.pdf';
     const baseName = path.basename(safe, ext) || 'invoice';
     
-    // 5. Benzersiz dosya adı oluştur
+    // 6. Benzersiz dosya adı oluştur
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const filename = `${baseName}-${uniqueSuffix}${ext}`;
     
-    console.log('📝 Original filename:', file.originalname);
-    console.log('📝 Normalized filename:', filename);
+    console.log('📝 Original filename (from Multer):', file.originalname);
+    console.log('📝 Decoded filename (Latin1→UTF8):', decoded);
+    console.log('📝 Safe filename (for filesystem):', filename);
+    
+    // Decode edilmiş orijinal ismi req'e ekle (veritabanına kaydetmek için)
+    req.decodedOriginalName = decoded;
+    
     cb(null, filename);
   }
 });
@@ -8906,9 +8923,9 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
       console.log('📄 File size from Multer:', req.file.size, 'bytes');
       
       filePath = `/uploads/invoices/${req.file.filename}`;
-      // Dosya ismini direkt kullan (Node zaten UTF-8 ile çalışır, decode etmeye gerek yok)
-      // Orijinal dosya ismini veritabanına kaydet (kullanıcıya gösterilecek)
-      fileName = req.file.originalname;
+      // Dosya ismini kullan - Multer filename fonksiyonunda decode edilmiş isim req'e eklenmiş
+      // Eğer decode edilmiş isim varsa onu kullan, yoksa orijinali kullan
+      fileName = req.decodedOriginalName || req.file.originalname;
       fileSize = req.file.size;
       
       console.log('✅ File uploaded successfully:', {
@@ -9085,8 +9102,9 @@ app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file
       
       const filePath = `/uploads/invoices/${req.file.filename}`;
       fields.push('filePath = ?'); params.push(filePath);
-      // Dosya ismini direkt kullan (Node zaten UTF-8 ile çalışır, decode etmeye gerek yok)
-      fields.push('fileName = ?'); params.push(req.file.originalname);
+      // Dosya ismini kullan - Multer filename fonksiyonunda decode edilmiş isim req'e eklenmiş
+      const updatedFileName = req.decodedOriginalName || req.file.originalname;
+      fields.push('fileName = ?'); params.push(updatedFileName);
       fields.push('fileSize = ?'); params.push(req.file.size);
       
       console.log('✅ File uploaded successfully:', {
