@@ -8876,13 +8876,19 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
       
       filePath = `/uploads/invoices/${req.file.filename}`;
       // Dosya ismini UTF-8 olarak decode et (Türkçe karakterler için)
+      // Multer bazen dosya ismini yanlış encoding ile alabilir
       try {
-        // Eğer originalname encoding sorunu varsa düzelt
-        fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-        // Eğer decode edilmiş isim bozuksa, orijinali kullan
-        if (!fileName || fileName.includes('')) {
-          fileName = req.file.originalname;
+        // Önce latin1 olarak decode et (yaygın encoding sorunu)
+        let decoded = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        
+        // Eğer decode edilmiş isim bozuksa veya replacement character içeriyorsa, farklı encoding dene
+        if (decoded.includes('') || decoded === req.file.originalname) {
+          // UTF-8 olarak direkt kullan
+          decoded = req.file.originalname;
         }
+        
+        // Eğer hala bozuksa, orijinali kullan
+        fileName = decoded || req.file.originalname;
       } catch (error) {
         console.warn('⚠️ File name encoding error, using original:', error);
         fileName = req.file.originalname;
@@ -9066,10 +9072,17 @@ app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file
       // Dosya ismini UTF-8 olarak decode et (Türkçe karakterler için)
       let updatedFileName = req.file.originalname;
       try {
-        updatedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-        if (!updatedFileName || updatedFileName.includes('')) {
-          updatedFileName = req.file.originalname;
+        // Önce latin1 olarak decode et (yaygın encoding sorunu)
+        let decoded = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        
+        // Eğer decode edilmiş isim bozuksa veya replacement character içeriyorsa, farklı encoding dene
+        if (decoded.includes('') || decoded === req.file.originalname) {
+          // UTF-8 olarak direkt kullan
+          decoded = req.file.originalname;
         }
+        
+        // Eğer hala bozuksa, orijinali kullan
+        updatedFileName = decoded || req.file.originalname;
       } catch (error) {
         console.warn('⚠️ File name encoding error, using original:', error);
         updatedFileName = req.file.originalname;
