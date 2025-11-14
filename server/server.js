@@ -8274,31 +8274,52 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
           console.log(`⚠️ Paket numarası ve sipariş numarası eksik, fallback ID oluşturuldu: ${externalOrderId}`);
         }
 
-        // Mevcut siparişi kontrol et - hem paket numarasına hem de externalOrderId'ye göre kontrol et
-        // Çünkü aynı externalOrderId zaten var olabilir (unique constraint)
+        // Mevcut siparişi kontrol et - ÖNCE paket numarasına göre kontrol et
+        // Çünkü aynı externalOrderId farklı paketlerde olabilir (farklı siparişler)
         let existingOrders = [];
+        let foundByPackage = false;
         let foundByExternalId = false;
         
-        // Önce externalOrderId'ye göre kontrol et (unique constraint için)
-        if (externalOrderId) {
-          const [ordersByExternalId] = await poolWrapper.execute(
-            'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND externalOrderId = ?',
-            [tenantId, externalOrderId]
-          );
-          if (ordersByExternalId.length > 0) {
-            existingOrders = ordersByExternalId;
-            foundByExternalId = true;
-          }
-        }
-        
-        // Eğer externalOrderId ile bulunamadıysa, paket numarasına göre kontrol et
-        if (existingOrders.length === 0 && packageNumber) {
+        // ÖNCE paket numarasına göre kontrol et (paket numarası birincil öncelik)
+        if (packageNumber) {
           const [ordersByPackage] = await poolWrapper.execute(
             'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND packageNumber = ?',
             [tenantId, packageNumber]
           );
           if (ordersByPackage.length > 0) {
             existingOrders = ordersByPackage;
+            foundByPackage = true;
+          }
+        }
+        
+        // Eğer paket numarası ile bulunamadıysa, externalOrderId'ye göre kontrol et (unique constraint için)
+        // AMA sadece paket numarası yoksa veya aynı paket numarasına sahip değilse
+        if (existingOrders.length === 0 && externalOrderId) {
+          const [ordersByExternalId] = await poolWrapper.execute(
+            'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND externalOrderId = ?',
+            [tenantId, externalOrderId]
+          );
+          if (ordersByExternalId.length > 0) {
+            // Aynı externalOrderId var ama paket numarası farklı mı kontrol et
+            const [existingOrderDetails] = await poolWrapper.execute(
+              'SELECT packageNumber FROM hepsiburada_orders WHERE id = ? AND tenantId = ?',
+              [ordersByExternalId[0].id, tenantId]
+            );
+            
+            // Eğer mevcut siparişin paket numarası yoksa veya farklıysa, yeni sipariş oluştur
+            // (Aynı externalOrderId farklı paketlerde olabilir)
+            if (existingOrderDetails.length > 0) {
+              const existingPackageNumber = existingOrderDetails[0].packageNumber;
+              // Paket numarası yoksa veya aynıysa güncelle, farklıysa yeni sipariş oluştur
+              if (!packageNumber || existingPackageNumber === packageNumber || !existingPackageNumber) {
+                existingOrders = ordersByExternalId;
+                foundByExternalId = true;
+              }
+              // Eğer paket numarası farklıysa, existingOrders boş kalır (yeni sipariş oluşturulacak)
+            } else {
+              existingOrders = ordersByExternalId;
+              foundByExternalId = true;
+            }
           }
         }
 
@@ -8416,6 +8437,21 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
           importedCount++;
         } else {
           // Yeni sipariş ekle
+          // Eğer aynı externalOrderId zaten varsa ama paket numarası farklıysa, externalOrderId'yi paket numarası ile birleştir
+          let finalExternalOrderId = externalOrderId;
+          if (externalOrderId && packageNumber) {
+            // Aynı externalOrderId'nin farklı paket numarası ile var olup olmadığını kontrol et
+            const [duplicateCheck] = await poolWrapper.execute(
+              'SELECT id FROM hepsiburada_orders WHERE tenantId = ? AND externalOrderId = ? AND (packageNumber IS NULL OR packageNumber != ?)',
+              [tenantId, externalOrderId, packageNumber]
+            );
+            if (duplicateCheck.length > 0) {
+              // Aynı externalOrderId farklı paket numarası ile var, paket numarasını ekle
+              finalExternalOrderId = `${externalOrderId}_PKG-${packageNumber}`;
+              console.log(`⚠️ Aynı externalOrderId farklı paket numarası ile var, externalOrderId güncellendi: ${finalExternalOrderId}`);
+            }
+          }
+          
           const [orderResult] = await poolWrapper.execute(
             `INSERT INTO hepsiburada_orders 
              (tenantId, externalOrderId, packageNumber, totalAmount, status, shippingAddress, 
@@ -8425,7 +8461,7 @@ app.post('/api/admin/hepsiburada-orders/import', authenticateAdmin, async (req, 
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               tenantId,
-              externalOrderId,
+              finalExternalOrderId,
               packageNumber || null,
               totalAmount,
               status,
