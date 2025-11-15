@@ -27,24 +27,6 @@ const getClientIP = (req) => {
 };
 
 /**
- * SQL Query endpoint için rate limiter
- * Çok kritik endpoint - SQL injection saldırılarına karşı koruma
- */
-const createSQLQueryLimiter = () => rateLimit({
-  windowMs: 60 * 1000, // 1 dakika
-  max: parseInt(process.env.RATE_LIMIT_SQL_QUERY || '10', 10), // 5'ten 10'a çıkarıldı
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const ip = getClientIP(req);
-    const adminId = req.user?.id || req.headers['x-admin-id'] || 'guest';
-    return `${ip}:${adminId}`;
-  },
-  message: 'Too many SQL queries. Please try again later.',
-  skip: (req) => isPrivateIP(req.ip)
-});
-
-/**
  * Wallet transfer endpoint için rate limiter
  * Finansal işlem - Finansal saldırılara karşı koruma
  */
@@ -192,7 +174,6 @@ const createGeneralAPILimiter = () => rateLimit({
 });
 
 module.exports = {
-  createSQLQueryLimiter,
   createWalletTransferLimiter,
   createPaymentLimiter,
   createGiftCardLimiter,

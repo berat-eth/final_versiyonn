@@ -53,10 +53,10 @@ export default function ProductionOrders() {
   }
 
   const statusColors = {
-    'Başlamadı': 'bg-slate-100 text-slate-700',
-    'Devam Ediyor': 'bg-blue-100 text-blue-700',
-    'Tamamlandı': 'bg-green-100 text-green-700',
-    'Gecikmiş': 'bg-red-100 text-red-700',
+    'Başlamadı': 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200',
+    'Devam Ediyor': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    'Tamamlandı': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+    'Gecikmiş': 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
   }
 
   // İstatistik kartları kaldırıldı (mock)
@@ -65,8 +65,8 @@ export default function ProductionOrders() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Üretim Emirleri</h2>
-          <p className="text-slate-500 mt-1">Üretim emirlerini takip edin</p>
+          <h2 className="text-3xl font-bold text-slate-800 dark:text-white">Üretim Emirleri</h2>
+          <p className="text-slate-500 dark:text-gray-400 mt-1">Üretim emirlerini takip edin</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -78,8 +78,8 @@ export default function ProductionOrders() {
 
       {/* İstatistik kartları kaldırıldı */}
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
-        <h3 className="text-xl font-bold text-slate-800 mb-6">Aktif Üretim Emirleri</h3>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
+        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6">Aktif Üretim Emirleri</h3>
         <div className="space-y-4">
           {orders.map((order, index) => (
             <motion.div
@@ -87,17 +87,17 @@ export default function ProductionOrders() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-gradient-to-r from-slate-50 to-white border border-slate-200 rounded-xl p-5 hover:shadow-lg transition-all"
+              className="bg-gradient-to-r from-slate-50 dark:from-slate-700/50 to-white dark:to-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl p-5 hover:shadow-lg transition-all"
             >
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg font-mono text-sm font-bold">
+                    <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg font-mono text-sm font-bold">
                       {order.id}
                     </span>
-                    <h4 className="text-lg font-bold text-slate-800">{order.product}</h4>
+                    <h4 className="text-lg font-bold text-slate-800 dark:text-white">{order.product}</h4>
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-slate-600 mb-3">
+                  <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-gray-400 mb-3">
                     <span className="flex items-center">
                       <Package className="w-4 h-4 mr-1" />
                       {order.quantity} Adet
@@ -113,14 +113,14 @@ export default function ProductionOrders() {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 max-w-xs">
-                      <div className="w-full bg-slate-200 rounded-full h-2">
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
                         <div 
-                          className={`h-2 rounded-full ${order.completion === 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+                          className={`h-2 rounded-full ${order.completion === 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-blue-500 dark:bg-blue-400'}`}
                           style={{ width: `${order.completion}%` }}
                         />
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-slate-700">{order.completion}%</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-gray-300">{order.completion}%</span>
                   </div>
                 </div>
                 <span className={`px-4 py-2 rounded-lg text-sm font-medium ${statusColors[order.status as keyof typeof statusColors]}`}>
@@ -142,34 +142,34 @@ export default function ProductionOrders() {
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+              className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-xl border border-slate-200 dark:border-slate-700"
               initial={{ scale: 0.95, opacity: 0, y: 8 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.98, opacity: 0 }}
             >
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-xl font-semibold text-slate-800">Yeni Üretim Emri</h4>
-                <button className="p-2 rounded-lg hover:bg-slate-100" onClick={() => setShowCreate(false)}>
+                <h4 className="text-xl font-semibold text-slate-800 dark:text-white">Yeni Üretim Emri</h4>
+                <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-gray-300" onClick={() => setShowCreate(false)}>
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Ürün ID</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Ürün ID</label>
                   <input
                     type="number"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={form.productId}
                     onChange={(e) => setForm({ ...form, productId: e.target.value })}
                     placeholder="Örn: 123"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Adet</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Adet</label>
                   <input
                     type="number"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={form.quantity}
                     onChange={(e) => setForm({ ...form, quantity: e.target.value })}
                     placeholder="Örn: 100"
@@ -178,28 +178,28 @@ export default function ProductionOrders() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Planlanan Başlangıç</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Planlanan Başlangıç</label>
                     <input
                       type="date"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={form.plannedStart}
                       onChange={(e) => setForm({ ...form, plannedStart: e.target.value })}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Planlanan Bitiş</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Planlanan Bitiş</label>
                     <input
                       type="date"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={form.plannedEnd}
                       onChange={(e) => setForm({ ...form, plannedEnd: e.target.value })}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Önem Seviyesi</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Önem Seviyesi</label>
                   <select
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={form.importance_level}
                     onChange={(e) => setForm({ ...form, importance_level: e.target.value })}
                   >
@@ -210,10 +210,10 @@ export default function ProductionOrders() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Notlar</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Notlar</label>
                   <textarea
                     rows={3}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
                     placeholder="Opsiyonel açıklama"
@@ -222,7 +222,7 @@ export default function ProductionOrders() {
               </div>
 
               {error && (
-                <div className="mt-3 text-sm text-red-600 flex items-center gap-2">
+                <div className="mt-3 text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4" />
                   {error}
                 </div>
@@ -230,7 +230,7 @@ export default function ProductionOrders() {
 
               <div className="mt-6 flex justify-end gap-3">
                 <button
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+                  className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                   onClick={() => setShowCreate(false)}
                   disabled={submitting}
                 >

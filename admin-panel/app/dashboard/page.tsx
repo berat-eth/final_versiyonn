@@ -34,7 +34,6 @@ import Coupons from '@/components/Coupons'
 import Reviews from '@/components/Reviews'
 import SnortLogs from '@/components/SnortLogs'
 import Settings from '@/components/Settings'
-import SQLQuery from '@/components/SQLQuery'
 import ProjectAjax from '@/components/ProjectAjax'
 import Email from '@/components/Email'
 import SMS from '@/components/SMS'
@@ -262,7 +261,6 @@ export default function DashboardPage() {
           {activeTab === 'chatbot' && <Chatbot />}
           {activeTab === 'security' && <Security />}
           {activeTab === 'snort-logs' && <SnortLogs />}
-          {activeTab === 'sql-query' && <SQLQuery />}
           {activeTab === 'settings' && <Settings />}
           {activeTab === 'bulk-custom-production' && <BulkCustomProduction />}
           {activeTab === 'quote-form-requests' && <QuoteFormRequests />}

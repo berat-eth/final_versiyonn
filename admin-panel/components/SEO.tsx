@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { api, ApiResponse } from '@/lib/api';
-import { Search, Globe, CheckCircle2, AlertCircle, XCircle, Loader2, ExternalLink, BarChart3 } from 'lucide-react';
+import { Search, Globe, CheckCircle2, AlertCircle, XCircle, Loader2, ExternalLink, BarChart3, Image, Link2, FileText, Zap, TrendingUp, Shield, Eye } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadialBarChart, RadialBar } from 'recharts';
+import { motion } from 'framer-motion';
 
 interface SEOAnalysis {
   url: string;
@@ -83,6 +85,34 @@ export default function SEO() {
     return 'bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700';
   };
 
+  const getScoreGradient = (score: number) => {
+    if (score >= 80) return ['#10b981', '#059669'];
+    if (score >= 60) return ['#f59e0b', '#d97706'];
+    return ['#ef4444', '#dc2626'];
+  };
+
+  // Pie chart için bağlantı verisi
+  const getLinksData = (analysis: SEOAnalysis) => {
+    return [
+      { name: 'İç Bağlantı', value: analysis.internalLinks, color: '#3b82f6' },
+      { name: 'Dış Bağlantı', value: analysis.externalLinks, color: '#8b5cf6' },
+    ];
+  };
+
+  // Bar chart için içerik verisi
+  const getContentData = (analysis: SEOAnalysis) => {
+    return [
+      { name: 'H1', value: analysis.h1Count, ideal: 1, color: '#3b82f6' },
+      { name: 'H2', value: analysis.h2Count, ideal: 3, color: '#8b5cf6' },
+      { name: 'Görsel', value: analysis.imagesCount, ideal: 5, color: '#10b981' },
+    ];
+  };
+
+  // Radial chart için skor verisi
+  const getRadialData = (score: number) => {
+    return [{ name: 'SEO Skoru', value: score, fill: getScoreGradient(score)[0] }];
+  };
+
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
@@ -150,48 +180,174 @@ export default function SEO() {
 
         {/* Analysis Results */}
         {analysis && (
-          <div className="space-y-6">
-            {/* Overall Score */}
-            <div className={`rounded-xl border-2 p-6 ${getScoreBgColor(analysis.score)}`}>
-              <div className="flex items-center justify-between">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="space-y-6"
+          >
+            {/* Overall Score - Dairesel Chart */}
+            <div className={`rounded-2xl border-2 p-8 ${getScoreBgColor(analysis.score)} shadow-lg`}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                    SEO Skoru
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                    <TrendingUp className="w-6 h-6" />
+                    SEO Performans Skoru
                   </h2>
-                  <p className="text-sm text-slate-600 dark:text-gray-400">
-                    Genel performans değerlendirmesi
+                  <p className="text-sm text-slate-600 dark:text-gray-400 mb-4">
+                    Genel performans değerlendirmesi ve öneriler
                   </p>
-                </div>
-                <div className="text-center">
-                  <div className={`text-6xl font-bold ${getScoreColor(analysis.score)}`}>
-                    {analysis.score}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-white/50 dark:bg-slate-800/50 rounded-lg">
+                      <span className="text-sm font-medium text-slate-700 dark:text-gray-300">Genel Skor</span>
+                      <span className={`text-2xl font-bold ${getScoreColor(analysis.score)}`}>
+                        {analysis.score}/100
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${analysis.score}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className={`h-full rounded-full ${
+                          analysis.score >= 80 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                          analysis.score >= 60 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
+                          'bg-gradient-to-r from-red-500 to-red-600'
+                        }`}
+                      />
+                    </div>
                   </div>
-                  <div className="text-sm text-slate-600 dark:text-gray-400 mt-1">/ 100</div>
+                </div>
+                <div className="flex justify-center">
+                  <div className="relative w-64 h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadialBarChart
+                        innerRadius="60%"
+                        outerRadius="90%"
+                        data={getRadialData(analysis.score)}
+                        startAngle={90}
+                        endAngle={-270}
+                      >
+                        <RadialBar
+                          dataKey="value"
+                          cornerRadius={10}
+                          fill={getScoreGradient(analysis.score)[0]}
+                        />
+                      </RadialBarChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className={`text-5xl font-bold ${getScoreColor(analysis.score)}`}>
+                          {analysis.score}
+                        </div>
+                        <div className="text-sm text-slate-600 dark:text-gray-400 mt-1">/ 100</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Metrik Kartları */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 }}
+                className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <FileText className="w-8 h-8 opacity-80" />
+                  <span className="text-3xl font-bold">{analysis.wordCount}</span>
+                </div>
+                <p className="text-sm opacity-90">Kelime Sayısı</p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <Image className="w-8 h-8 opacity-80" />
+                  <span className="text-3xl font-bold">{analysis.imagesCount}</span>
+                </div>
+                <p className="text-sm opacity-90">Toplam Görsel</p>
+                {analysis.imagesWithoutAlt > 0 && (
+                  <p className="text-xs opacity-75 mt-1">⚠️ {analysis.imagesWithoutAlt} alt text yok</p>
+                )}
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3 }}
+                className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <Link2 className="w-8 h-8 opacity-80" />
+                  <span className="text-3xl font-bold">{analysis.linksCount}</span>
+                </div>
+                <p className="text-sm opacity-90">Toplam Bağlantı</p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4 }}
+                className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <Zap className="w-8 h-8 opacity-80" />
+                  <span className="text-3xl font-bold">{analysis.loadTime || 'N/A'}</span>
+                </div>
+                <p className="text-sm opacity-90">Yükleme Süresi (ms)</p>
+              </motion.div>
             </div>
 
             {/* Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Title & Meta */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <BarChart3 className="w-5 h-5 text-blue-500" />
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg p-6"
+              >
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <BarChart3 className="w-5 h-5 text-blue-500" />
+                  </div>
                   <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                     Temel Bilgiler
                   </h2>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div>
-                    <label className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">
-                      Sayfa Başlığı
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">
+                        Sayfa Başlığı
+                      </label>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-gray-400">
+                        {analysis.title ? `${analysis.title.length}/60` : '0/60'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-2">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((analysis.title?.length || 0) / 60 * 100, 100)}%` }}
+                        transition={{ duration: 0.8 }}
+                        className={`h-full rounded-full ${
+                          analysis.title && analysis.title.length >= 30 && analysis.title.length <= 60
+                            ? 'bg-green-500'
+                            : 'bg-red-500'
+                        }`}
+                      />
+                    </div>
                     <p className="mt-1 text-sm text-slate-900 dark:text-white font-medium">
                       {analysis.title || 'Bulunamadı'}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
-                      {analysis.title ? `${analysis.title.length} karakter` : '0 karakter'}
                     </p>
                     {analysis.title && (
                       <div className="mt-2 flex items-center gap-1">
@@ -202,7 +358,7 @@ export default function SEO() {
                         )}
                         <span className="text-xs text-slate-600 dark:text-gray-400">
                           {analysis.title.length >= 30 && analysis.title.length <= 60
-                            ? 'İdeal uzunluk'
+                            ? 'İdeal uzunluk ✓'
                             : 'İdeal uzunluk 30-60 karakter arası'}
                         </span>
                       </div>
@@ -210,14 +366,28 @@ export default function SEO() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">
-                      Meta Açıklama
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-medium text-slate-500 dark:text-gray-400 uppercase tracking-wide">
+                        Meta Açıklama
+                      </label>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-gray-400">
+                        {analysis.metaDescription ? `${analysis.metaDescription.length}/160` : '0/160'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-2">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((analysis.metaDescription?.length || 0) / 160 * 100, 100)}%` }}
+                        transition={{ duration: 0.8 }}
+                        className={`h-full rounded-full ${
+                          analysis.metaDescription && analysis.metaDescription.length >= 120 && analysis.metaDescription.length <= 160
+                            ? 'bg-green-500'
+                            : 'bg-red-500'
+                        }`}
+                      />
+                    </div>
                     <p className="mt-1 text-sm text-slate-900 dark:text-white">
                       {analysis.metaDescription || 'Bulunamadı'}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
-                      {analysis.metaDescription ? `${analysis.metaDescription.length} karakter` : '0 karakter'}
                     </p>
                     {analysis.metaDescription && (
                       <div className="mt-2 flex items-center gap-1">
@@ -228,7 +398,7 @@ export default function SEO() {
                         )}
                         <span className="text-xs text-slate-600 dark:text-gray-400">
                           {analysis.metaDescription.length >= 120 && analysis.metaDescription.length <= 160
-                            ? 'İdeal uzunluk'
+                            ? 'İdeal uzunluk ✓'
                             : 'İdeal uzunluk 120-160 karakter arası'}
                         </span>
                       </div>
@@ -244,76 +414,122 @@ export default function SEO() {
                     </p>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Technical SEO */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Globe className="w-5 h-5 text-purple-500" />
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg p-6"
+              >
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <Globe className="w-5 h-5 text-purple-500" />
+                  </div>
                   <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                     Teknik SEO
                   </h2>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">HTTP Durum Kodu</span>
-                    <span className={`text-sm font-medium ${
-                      analysis.statusCode === 200 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      {analysis.statusCode}
-                    </span>
-                  </div>
-
-                  {analysis.loadTime && (
-                    <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                      <span className="text-sm text-slate-600 dark:text-gray-400">Yükleme Süresi</span>
-                      <span className="text-sm font-medium text-slate-900 dark:text-white">
-                        {analysis.loadTime}ms
+                <div className="space-y-4">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-slate-600 dark:text-gray-400">HTTP Durum Kodu</span>
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${
+                        analysis.statusCode === 200 
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      }`}>
+                        {analysis.statusCode}
                       </span>
                     </div>
-                  )}
+                  </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">Canonical URL</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white break-all text-right max-w-xs">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-600 dark:text-gray-400">Mobil Uyumlu</span>
+                      {analysis.mobileFriendly ? (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-5 h-5 text-green-500" />
+                          <span className="text-xs text-green-600 dark:text-green-400 font-semibold">Evet</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <XCircle className="w-5 h-5 text-red-500" />
+                          <span className="text-xs text-red-600 dark:text-red-400 font-semibold">Hayır</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-slate-600 dark:text-gray-400">Schema Markup</span>
+                      {analysis.schemaMarkup ? (
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-500" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <span className="text-xs font-medium text-slate-500 dark:text-gray-400 block mb-1">Canonical URL</span>
+                    <span className="text-xs text-slate-900 dark:text-white break-all">
                       {analysis.canonicalUrl || 'Bulunamadı'}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">Robots</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <span className="text-xs font-medium text-slate-500 dark:text-gray-400 block mb-1">Robots</span>
+                    <span className="text-xs text-slate-900 dark:text-white">
                       {analysis.robots || 'Bulunamadı'}
                     </span>
                   </div>
-
-                  <div className="flex items-center justify-between py-2">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">Mobil Uyumlu</span>
-                    {analysis.mobileFriendly ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-500" />
-                    )}
-                  </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
-            {/* Content Analysis */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-                  İçerik Analizi
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">Kelime Sayısı</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{analysis.wordCount}</span>
+            {/* Content Analysis & Links Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* İçerik Analizi - Bar Chart */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg p-6"
+              >
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                    <FileText className="w-5 h-5 text-indigo-500" />
                   </div>
-                  <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    İçerik Analizi
+                  </h3>
+                </div>
+                <div className="h-64 mb-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={getContentData(analysis)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" stroke="#94a3b8" />
+                      <YAxis stroke="#94a3b8" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: 'none',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Bar dataKey="value" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded">
                     <span className="text-sm text-slate-600 dark:text-gray-400">H1 Etiketleri</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{analysis.h1Count}</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">{analysis.h1Count}</span>
                   </div>
                   {analysis.h1Tags.length > 0 && (
                     <div className="mt-2 pl-4 border-l-2 border-blue-500">
@@ -324,78 +540,166 @@ export default function SEO() {
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded">
                     <span className="text-sm text-slate-600 dark:text-gray-400">H2 Etiketleri</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{analysis.h2Count}</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">{analysis.h2Count}</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-                  Medya ve Bağlantılar
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">Toplam Görsel</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{analysis.imagesCount}</span>
+              {/* Bağlantı Dağılımı - Pie Chart */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg p-6"
+              >
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <Link2 className="w-5 h-5 text-green-500" />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">Alt Text Olmayan Görsel</span>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    Bağlantı Dağılımı
+                  </h3>
+                </div>
+                <div className="h-64 mb-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={getLinksData(analysis)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {getLinksData(analysis).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${
-                        analysis.imagesWithoutAlt === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {analysis.imagesWithoutAlt}
+                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                      <span className="text-sm text-slate-600 dark:text-gray-400">İç Bağlantı</span>
+                    </div>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">{analysis.internalLinks}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                      <span className="text-sm text-slate-600 dark:text-gray-400">Dış Bağlantı</span>
+                    </div>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">{analysis.externalLinks}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded">
+                    <span className="text-sm text-slate-600 dark:text-gray-400">Toplam Bağlantı</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">{analysis.linksCount}</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Görsel Analizi */}
+            {analysis.imagesCount > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg p-6"
+              >
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <Image className="w-5 h-5 text-purple-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    Görsel Analizi
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mb-1">
+                      {analysis.imagesCount}
+                    </div>
+                    <div className="text-sm text-slate-600 dark:text-gray-400">Toplam Görsel</div>
+                  </div>
+                  <div className={`p-4 rounded-lg ${
+                    analysis.imagesWithoutAlt === 0
+                      ? 'bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20'
+                      : 'bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20'
+                  }`}>
+                    <div className={`text-2xl font-bold mb-1 ${
+                      analysis.imagesWithoutAlt === 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {analysis.imagesWithoutAlt}
+                    </div>
+                    <div className="text-sm text-slate-600 dark:text-gray-400">Alt Text Eksik</div>
+                  </div>
+                  <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-1">
+                      {analysis.imagesCount - analysis.imagesWithoutAlt}
+                    </div>
+                    <div className="text-sm text-slate-600 dark:text-gray-400">Alt Text Var</div>
+                  </div>
+                </div>
+                {analysis.imagesWithoutAlt > 0 && (
+                  <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                    <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="text-sm">
+                        {analysis.imagesWithoutAlt} görselde alt text eksik. SEO için tüm görsellere alt text ekleyin.
                       </span>
-                      {analysis.imagesWithoutAlt === 0 && (
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      )}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">Toplam Bağlantı</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{analysis.linksCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">İç Bağlantı</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{analysis.internalLinks}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600 dark:text-gray-400">Dış Bağlantı</span>
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{analysis.externalLinks}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+                )}
+              </motion.div>
+            )}
 
             {/* Open Graph */}
             {(analysis.ogTitle || analysis.ogDescription || analysis.ogImage) && (
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-                  Open Graph (Sosyal Medya)
-                </h3>
-                <div className="space-y-3">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7 }}
+                className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border-2 border-blue-200 dark:border-blue-700 shadow-lg p-6"
+              >
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Eye className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    Open Graph (Sosyal Medya Önizleme)
+                  </h3>
+                </div>
+                <div className="space-y-4">
                   {analysis.ogTitle && (
-                    <div>
-                      <span className="text-xs font-medium text-slate-500 dark:text-gray-400">OG Title</span>
-                      <p className="mt-1 text-sm text-slate-900 dark:text-white">{analysis.ogTitle}</p>
+                    <div className="p-3 bg-white/50 dark:bg-slate-800/50 rounded-lg">
+                      <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">OG Title</span>
+                      <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{analysis.ogTitle}</p>
                     </div>
                   )}
                   {analysis.ogDescription && (
-                    <div>
-                      <span className="text-xs font-medium text-slate-500 dark:text-gray-400">OG Description</span>
+                    <div className="p-3 bg-white/50 dark:bg-slate-800/50 rounded-lg">
+                      <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">OG Description</span>
                       <p className="mt-1 text-sm text-slate-900 dark:text-white">{analysis.ogDescription}</p>
                     </div>
                   )}
                   {analysis.ogImage && (
-                    <div>
-                      <span className="text-xs font-medium text-slate-500 dark:text-gray-400">OG Image</span>
+                    <div className="p-3 bg-white/50 dark:bg-slate-800/50 rounded-lg">
+                      <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide block mb-2">OG Image</span>
                       <div className="mt-2">
                         <img
                           src={analysis.ogImage}
                           alt="OG Image"
-                          className="max-w-md h-auto rounded-lg border border-slate-200 dark:border-slate-700"
+                          className="max-w-md h-auto rounded-lg border-2 border-blue-200 dark:border-blue-700 shadow-md"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
@@ -404,29 +708,42 @@ export default function SEO() {
                     </div>
                   )}
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* Issues */}
             {analysis.issues.length > 0 && (
-              <div className="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-700 shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <AlertCircle className="w-5 h-5 text-red-500" />
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 }}
+                className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-xl border-2 border-red-200 dark:border-red-700 shadow-lg p-6"
+              >
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                  </div>
                   <h3 className="text-lg font-semibold text-red-900 dark:text-red-300">
-                    Tespit Edilen Sorunlar
+                    Tespit Edilen Sorunlar ({analysis.issues.length})
                   </h3>
                 </div>
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {analysis.issues.map((issue, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
-                      <span className="mt-0.5">•</span>
-                      <span>{issue}</span>
-                    </li>
+                    <motion.li
+                      key={idx}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.8 + idx * 0.1 }}
+                      className="flex items-start gap-3 p-3 bg-white/50 dark:bg-slate-800/50 rounded-lg border-l-4 border-red-400"
+                    >
+                      <XCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm text-red-700 dark:text-red-300">{issue}</span>
+                    </motion.li>
                   ))}
                 </ul>
-              </div>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

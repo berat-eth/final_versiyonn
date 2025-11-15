@@ -161,7 +161,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
         { id: 'seo', label: 'SEO Panel', icon: Search },
         { id: 'admin-logs', label: 'Yönetici Logları', icon: FileText },
         { id: 'snort-logs', label: 'Snort IDS Logları', icon: AlertTriangle },
-        { id: 'sql-query', label: 'SQL Sorgu Penceresi', icon: Database },
         { id: 'chatbot', label: 'Chatbot', icon: MessageSquare },
       ]
     },

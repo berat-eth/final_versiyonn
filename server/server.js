@@ -563,7 +563,6 @@ const {
   createLoginLimiter,
   createAdminLimiter,
   createCriticalLimiter,
-  createSQLQueryLimiter,
   createWalletTransferLimiter,
   createPaymentLimiter,
   createGiftCardLimiter,
@@ -586,7 +585,6 @@ const criticalLimiter = createCriticalLimiter();
 
 // OPTİMİZASYON: Kritik endpoint'ler için özel rate limiting - Utility'den al
 // Key generator'lar iyileştirildi (unknown yerine IP bazlı fallback)
-const sqlQueryLimiter = createSQLQueryLimiter();
 const walletTransferLimiter = createWalletTransferLimiter();
 const paymentLimiter = createPaymentLimiter();
 const giftCardLimiter = createGiftCardLimiter();
@@ -603,8 +601,7 @@ const suspiciousIPLimiter = createSuspiciousIPLimiter();
 app.use('/api/users/login', loginLimiter);
 app.use('/api/admin/login', loginLimiter);
 
-// 2. Kritik endpoint'ler (finansal, SQL query)
-app.use('/api/admin/sql/query', sqlQueryLimiter);
+// 2. Kritik endpoint'ler (finansal)
 app.use('/api/wallet/transfer', walletTransferLimiter);
 app.use('/api/wallet/gift-card', giftCardLimiter);
 app.use('/api/payments/process', paymentLimiter);
@@ -612,7 +609,6 @@ app.use('/api/admin/wallets/transfer', adminWalletTransferLimiter);
 
 // 3. Kategori bazlı endpoint'ler (admin, orders, critical)
 app.use('/api/orders', criticalLimiter);
-// NOT: /api/admin için adminLimiter uygulanıyor ama /api/admin/sql/query önce geldiği için çakışma yok
 
 // 4. Genel endpoint'ler (users, products)
 // NOT: /api/cart için relaxedCartLimiter daha sonra uygulanıyor (satır 12089), burada authLimiter kaldırıldı
@@ -5079,198 +5075,6 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Admin - SQL utilities (read-only)
-app.get('/api/admin/sql/tables', authenticateAdmin, async (req, res) => {
-  try {
-    const [tables] = await poolWrapper.execute(
-      `SELECT TABLE_NAME as name
-       FROM INFORMATION_SCHEMA.TABLES
-       WHERE TABLE_SCHEMA = DATABASE()
-       ORDER BY TABLE_NAME`
-    );
-    const limit = 5;
-    const result = [];
-    for (const t of tables) {
-      try {
-        const [cols] = await poolWrapper.execute(`SHOW COLUMNS FROM \`${t.name}\``);
-        const [cnt] = await poolWrapper.execute(`SELECT COUNT(*) as c FROM \`${t.name}\``);
-        result.push({ name: t.name, columns: cols.map(c => c.Field), rowCount: cnt[0]?.c || 0 });
-        if (result.length >= 50) break; // avoid heavy payload
-      } catch { }
-    }
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('❌ Error listing tables:', error);
-    res.status(500).json({ success: false, message: 'Error listing tables' });
-  }
-});
-
-// GÜVENLİK: Admin SQL query endpoint'i - SQL Injection koruması ile güçlendirildi
-app.post('/api/admin/sql/query', authenticateAdmin, async (req, res) => {
-  try {
-    const sql = String(req.body?.query || '').trim();
-    if (!sql) return res.status(400).json({ success: false, message: 'Query required' });
-    
-    // SQL Injection koruması - Kapsamlı güvenlik kontrolleri
-    const upper = sql.toUpperCase().trim();
-    
-    // 1. Sadece SELECT sorgularına izin ver
-    if (!upper.startsWith('SELECT')) {
-      return res.status(400).json({ success: false, message: 'Only SELECT queries are allowed' });
-    }
-    
-    // 2. Tehlikeli SQL komutlarını engelle
-    const forbiddenKeywords = [
-      'UPDATE', 'DELETE', 'DROP', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE', 
-      'REPLACE', 'GRANT', 'REVOKE', 'EXEC', 'EXECUTE', 'CALL', 'PROCEDURE',
-      'FUNCTION', 'TRIGGER', 'VIEW', 'INDEX', 'DATABASE', 'SCHEMA'
-    ];
-    if (forbiddenKeywords.some(k => upper.includes(k))) {
-      return res.status(400).json({ success: false, message: 'Dangerous SQL statements are not allowed' });
-    }
-    
-    // 3. UNION-based SQL injection engelleme
-    if (upper.includes('UNION')) {
-      return res.status(400).json({ success: false, message: 'UNION statements are not allowed' });
-    }
-    
-    // 4. Subquery ve nested query engelleme (SQL injection riski)
-    const openParenCount = (sql.match(/\(/g) || []).length;
-    const closeParenCount = (sql.match(/\)/g) || []).length;
-    if (openParenCount > 2 || closeParenCount > 2 || openParenCount !== closeParenCount) {
-      return res.status(400).json({ success: false, message: 'Complex queries with nested structures are not allowed' });
-    }
-    
-    // 5. Comment injection engelleme
-    if (sql.includes('--') || sql.includes('/*') || sql.includes('*/') || sql.includes('#')) {
-      return res.status(400).json({ success: false, message: 'SQL comments are not allowed' });
-    }
-    
-    // 6. Multiple statement engelleme
-    if (sql.includes(';') && sql.split(';').filter(s => s.trim().length > 0).length > 1) {
-      return res.status(400).json({ success: false, message: 'Multiple statements are not allowed' });
-    }
-    
-    // 7. Tehlikeli fonksiyonlar engelleme
-    const dangerousFunctions = [
-      'LOAD_FILE', 'INTO OUTFILE', 'INTO DUMPFILE', 'BENCHMARK', 'SLEEP',
-      'WAITFOR', 'DELAY', 'PG_SLEEP', 'GET_LOCK', 'RELEASE_LOCK'
-    ];
-    if (dangerousFunctions.some(f => upper.includes(f))) {
-      return res.status(400).json({ success: false, message: 'Dangerous SQL functions are not allowed' });
-    }
-    
-    // 8. Table name whitelist kontrolü - Sadece izin verilen tablolara erişim
-    const allowedTables = DatabaseSecurity.getAllowedTables();
-    const tableMatches = sql.match(/FROM\s+([`"]?)(\w+)\1/gi) || [];
-    const usedTables = tableMatches.map(m => m.replace(/FROM\s+[`"]?/gi, '').replace(/[`"]/g, '').toLowerCase());
-    
-    for (const table of usedTables) {
-      if (!allowedTables.includes(table)) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `Table "${table}" is not in allowed whitelist` 
-        });
-      }
-    }
-    
-    // 9. Query uzunluk limiti (DoS koruması)
-    if (sql.length > 1000) {
-      return res.status(400).json({ success: false, message: 'Query too long. Maximum 1000 characters allowed' });
-    }
-    
-    // 10. Prepared statement kullan - Parametreli sorgu zorunluluğu
-    // Eğer sorguda parametre yoksa, sadece basit SELECT'lere izin ver
-    const hasPlaceholders = sql.includes('?');
-    if (!hasPlaceholders && (sql.includes("'") || sql.includes('"') || sql.match(/\d+/g)?.length > 5)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Queries with user input must use prepared statements (?)' 
-      });
-    }
-    
-    // 11. DatabaseSecurity validation kullan
-    try {
-      // Eğer parametre varsa, parametre sayısını kontrol et
-      if (hasPlaceholders) {
-        const paramCount = (sql.match(/\?/g) || []).length;
-        const providedParams = Array.isArray(req.body.params) ? req.body.params : [];
-        if (paramCount !== providedParams.length) {
-          return res.status(400).json({ 
-            success: false, 
-            message: `Parameter count mismatch. Expected ${paramCount}, got ${providedParams.length}` 
-          });
-        }
-        DatabaseSecurity.validateQuery(sql, providedParams);
-      } else {
-        // Parametre yoksa, sadece basit SELECT'lere izin ver
-        DatabaseSecurity.validateQuery(sql, []);
-      }
-    } catch (validationError) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Query validation failed: ${validationError.message}` 
-      });
-    }
-    
-    // 12. Query'yi çalıştır - Prepared statement ile
-    const start = Date.now();
-    let rows, fields;
-    
-    if (hasPlaceholders && Array.isArray(req.body.params)) {
-      // Parametreli sorgu
-      [rows, fields] = await poolWrapper.execute(sql, req.body.params);
-    } else {
-      // Parametresiz sorgu (sadece basit SELECT'ler için)
-      [rows, fields] = await poolWrapper.query(sql);
-    }
-    
-    const executionTime = (Date.now() - start) / 1000;
-    
-    // 13. Sonuçları maskele (sensitive data)
-    const maskedRows = rows.map(row => {
-      return DatabaseSecurity.maskSensitiveData(row, ['password', 'email', 'phone', 'apiKey', 'token']);
-    });
-    
-    const columns = Array.isArray(fields) ? fields.map(f => f.name) : (rows[0] ? Object.keys(rows[0]) : []);
-    
-    // 14. Audit log
-    dbSecurity && dbSecurity.logDatabaseAccess(
-      req.user?.userId || 'admin',
-      'ADMIN_SQL_QUERY',
-      usedTables.join(','),
-      { 
-        ip: req.ip, 
-        userAgent: req.headers['user-agent'],
-        queryLength: sql.length,
-        executionTime,
-        rowCount: rows.length
-      }
-    );
-    
-    res.json({ 
-      success: true, 
-      data: { 
-        columns, 
-        rows: maskedRows, 
-        rowCount: maskedRows.length, 
-        executionTime 
-      } 
-    });
-  } catch (error) {
-    console.error('❌ SQL query error:', error);
-    
-    // Güvenlik: Hata mesajlarını maskele
-    const errorMessage = process.env.NODE_ENV === 'production' 
-      ? 'Query failed' 
-      : error.message;
-    
-    res.status(500).json({ 
-      success: false, 
-      message: errorMessage 
-    });
-  }
-});
 
 // Admin - panel config read/write (admin-panel/config.json)
 app.get('/api/admin/panel-config', authenticateAdmin, async (req, res) => {

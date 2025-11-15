@@ -225,7 +225,6 @@ const {
   createLoginLimiter,
   createAdminLimiter,
   createCriticalLimiter,
-  createSQLQueryLimiter,
   createWalletTransferLimiter,
   createPaymentLimiter,
   createGiftCardLimiter,
@@ -243,8 +242,7 @@ const limiter = createGeneralAPILimiter();
 app.use('/api/users/login', createLoginLimiter());
 app.use('/api/admin/login', createLoginLimiter());
 
-// 2. Kritik endpoint'ler (finansal, SQL query)
-app.use('/api/admin/sql/query', createSQLQueryLimiter());
+// 2. Kritik endpoint'ler (finansal)
 app.use('/api/wallet/transfer', createWalletTransferLimiter());
 app.use('/api/wallet/gift-card', createGiftCardLimiter());
 app.use('/api/payments/process', createPaymentLimiter());
