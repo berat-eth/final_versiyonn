@@ -296,7 +296,13 @@ export class UserController {
         return { success: true, message: 'Giriş başarılı', user };
       } else {
         console.log(`❌ Login failed: ${response.message}`);
-        return { success: false, message: response.message || 'Email veya şifre hatalı' };
+        // Sunucudan gelen hata mesajlarını Türkçeye çevir
+        let errorMessage = response.message || 'Email veya şifre hatalı';
+        if (errorMessage.toLowerCase().includes('invalid credentials') || 
+            errorMessage.toLowerCase().includes('invalid credential')) {
+          errorMessage = 'Email veya şifre hatalı';
+        }
+        return { success: false, message: errorMessage };
       }
     } catch (error) {
       console.error('❌ UserController - login error:', error);

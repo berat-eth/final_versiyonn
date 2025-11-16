@@ -502,29 +502,45 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       <SafeAreaView style={styles.modernContainer}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modernKeyboardView}
+          style={styles.modernKeyboardView}
+        >
+          <ScrollView 
+            contentContainerStyle={styles.modernScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <ScrollView 
-              contentContainerStyle={styles.modernScrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Logo and Header */}
-              <View style={styles.modernHeader}>
-                <View style={styles.modernLogoContainer}>
-                  <Icon name="account-circle" size={80} color="#1e3c72" />
-                </View>
-                <Text style={styles.modernTitle}>
-                  {isLogin ? 'Hoş Geldiniz' : 'Hesap Oluşturun'}
-              </Text>
-                <Text style={styles.modernSubtitle}>
-                  {isLogin ? 'Hesabınıza giriş yapın' : 'Huğlu Outdoor ailesine katılın'}
-                </Text>
+            {/* Logo and Header */}
+            <View style={styles.modernHeader}>
+              <View style={styles.modernLogoContainer}>
+                <LinearGradient
+                  colors={['#ffffff', '#f0f0f0']}
+                  style={styles.modernLogoGradient}
+                >
+                  <Icon name="account-circle" size={72} color="#667eea" />
+                </LinearGradient>
               </View>
+              <Text style={styles.modernTitle}>
+                {isLogin ? 'Hoş Geldiniz' : 'Hesap Oluşturun'}
+              </Text>
+              <Text style={styles.modernSubtitle}>
+                {isLogin ? 'Hesabınıza giriş yapın' : 'Huğlu Outdoor ailesine katılın'}
+              </Text>
+            </View>
 
               {/* Auth Form Card */}
               <View style={styles.modernFormCard}>
                 <View style={styles.modernForm}>
+                  {/* Welcome Message */}
+                  <View style={styles.modernWelcomeBadge}>
+                    <Icon 
+                      name={isLogin ? 'login' : 'person-add'} 
+                      size={18} 
+                      color="#667eea" 
+                    />
+                    <Text style={styles.modernWelcomeText}>
+                      {isLogin ? 'Giriş Yapın' : 'Yeni Hesap'}
+                    </Text>
+                  </View>
                   {/* Full Name Input - Only for Register */}
               {!isLogin && (
                     <View style={styles.modernInputContainer}>
@@ -623,8 +639,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
                       {/* Gender Selection */}
                       <View style={styles.modernInputContainer}>
-                        <Text style={{ color: '#374151', marginBottom: 8, fontWeight: '600' }}>Cinsiyet</Text>
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <Text style={styles.genderLabel}>Cinsiyet</Text>
+                        <View style={styles.genderContainer}>
                           <TouchableOpacity onPress={() => setGender('male')} style={[styles.choicePill, gender === 'male' && styles.choicePillActive]}>
                             <Text style={[styles.choicePillText, gender === 'male' && styles.choicePillTextActive]}>Erkek</Text>
                           </TouchableOpacity>
@@ -697,28 +713,74 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                           label="Telefon ile pazarlama iletişimlerini almak istiyorum"
                         />
                       </View>
+
+                      {/* Hesabınız var mı? Giriş yapın - Only for Register */}
+                      {!isLogin && (
+                        <View style={styles.haveAccountContainer}>
+                          <Text style={styles.haveAccountText}>Zaten hesabınız var mı?</Text>
+                          <TouchableOpacity
+                            style={styles.haveAccountButton}
+                            onPress={() => {
+                              setIsLogin(true);
+                              setEmail('');
+                              setPassword('');
+                              setName('');
+                              setPhone('');
+                              setAddress('');
+                              setShowPassword(false);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <LinearGradient
+                              colors={['#667eea', '#764ba2']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 0 }}
+                              style={styles.haveAccountButtonGradient}
+                            >
+                              <Icon name="login" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                              <Text style={styles.haveAccountButtonText}>Giriş Yapın</Text>
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                 </>
               )}
 
                   {/* Main Action Button */}
-              <TouchableOpacity
+                  <TouchableOpacity
                     style={styles.modernAuthButton}
-                onPress={isLogin ? handleLogin : handleRegister}
+                    onPress={isLogin ? handleLogin : handleRegister}
                     disabled={loading}
+                    activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={loading ? ['#9ca3af', '#6b7280'] : ['#1e3c72', '#2a5298']}
+                      colors={loading 
+                        ? ['#9ca3af', '#6b7280'] 
+                        : isLogin 
+                          ? ['#667eea', '#764ba2'] 
+                          : ['#f093fb', '#f5576c']
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
                       style={styles.modernAuthButtonGradient}
                     >
                       {loading ? (
                         <ActivityIndicator color="white" size="small" />
                       ) : (
-                        <Text style={styles.modernAuthButtonText}>
-                          {isLogin ? 'Giriş Yap' : 'Hesap Oluştur'}
-                </Text>
+                        <>
+                          <Icon 
+                            name={isLogin ? 'login' : 'person-add'} 
+                            size={20} 
+                            color="#ffffff" 
+                            style={{ marginRight: 8 }}
+                          />
+                          <Text style={styles.modernAuthButtonText}>
+                            {isLogin ? 'Giriş Yap' : 'Hesap Oluştur'}
+                          </Text>
+                        </>
                       )}
                     </LinearGradient>
-              </TouchableOpacity>
+                  </TouchableOpacity>
 
                   {/* Divider */}
                   <View style={styles.modernDivider}>
@@ -733,8 +795,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                       style={styles.modernSocialButton}
                       onPress={() => handleSocialLogin('google')}
                       disabled={socialLoading}
+                      activeOpacity={0.7}
                     >
-                      <Icon name="g-mobiledata" size={24} color="#DB4437" />
+                      <LinearGradient
+                        colors={['#ffffff', '#f8f9fa']}
+                        style={styles.modernSocialButtonGradient}
+                      >
+                        <Icon name="g-mobiledata" size={28} color="#DB4437" />
+                      </LinearGradient>
+                      <Text style={styles.modernSocialButtonText}>Google ile Giriş</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -1470,106 +1539,155 @@ const styles = StyleSheet.create({
   // Modern Auth Styles
   modernContainer: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
   },
   modernKeyboardView: {
     flex: 1,
   },
   modernScrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20,
+    padding: 16,
+    paddingTop: 24,
+    paddingBottom: 40,
   },
   modernHeader: {
     alignItems: 'center',
-    marginBottom: 30,
-  },
-  modernLogoContainer: {
     marginBottom: 20,
   },
+  modernLogoContainer: {
+    marginBottom: 16,
+  },
+  modernLogoGradient: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  modernWelcomeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#f0f4ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  modernWelcomeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#667eea',
+    marginLeft: 5,
+  },
   modernTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#1e3c72',
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: 'center',
   },
   modernSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
   },
   modernFormCard: {
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderRadius: 24,
     marginHorizontal: 0,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderWidth: 0,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 8,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
   modernForm: {
-    padding: 24,
+    padding: 20,
   },
   modernInputContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   modernInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 2,
     borderColor: '#e2e8f0',
     paddingHorizontal: 16,
-    height: 56,
+    height: 52,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   modernTextAreaWrapper: {
     height: 'auto',
-    minHeight: 80,
+    minHeight: 70,
     alignItems: 'flex-start',
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   modernInputIcon: {
     marginRight: 12,
   },
   modernInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: '#1f2937',
   },
   modernTextArea: {
-    minHeight: 60,
+    minHeight: 50,
     textAlignVertical: 'top',
   },
   modernEyeIcon: {
     padding: 4,
   },
   modernAuthButton: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: 20,
+    shadowColor: '#667eea',
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
   },
   modernAuthButtonGradient: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
   },
   modernAuthButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   choicePill: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 16,
     backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -1581,6 +1699,7 @@ const styles = StyleSheet.create({
   choicePillText: {
     color: '#374151',
     fontWeight: '600',
+    fontSize: 13,
   },
   choicePillTextActive: {
     color: 'white',
@@ -1588,7 +1707,7 @@ const styles = StyleSheet.create({
   modernDivider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   modernDividerLine: {
     flex: 1,
@@ -1598,31 +1717,45 @@ const styles = StyleSheet.create({
   modernDividerText: {
     marginHorizontal: 16,
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9ca3af',
+    fontWeight: '500',
   },
   modernSocialContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 16,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   modernSocialButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'white',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 3,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 3,
+    gap: 10,
+  },
+  modernSocialButtonGradient: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernSocialButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
   },
   modernSwitchContainer: {
     flexDirection: 'row',
@@ -1631,22 +1764,23 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   modernSwitchText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#6b7280',
   },
   modernSwitchLink: {
-    fontSize: 14,
-    color: '#1e3c72',
-    fontWeight: '600',
+    fontSize: 15,
+    color: '#667eea',
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   modernForgotPasswordContainer: {
     alignItems: 'flex-end',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   modernForgotPasswordText: {
     fontSize: 14,
-    color: '#1e3c72',
-    fontWeight: '500',
+    color: '#667eea',
+    fontWeight: '600',
   },
   
   // Modern Profile Styles
@@ -1877,31 +2011,76 @@ const styles = StyleSheet.create({
   
   // Agreements and Marketing Styles
   agreementsContainer: {
-    marginTop: 20,
-    padding: 16,
+    marginTop: 12,
+    padding: 14,
     backgroundColor: '#f8fafc',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
   agreementsTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   marketingTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#374151',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 12,
+    marginBottom: 6,
   },
   marketingSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
+    color: '#6b7280',
+    marginBottom: 10,
+    lineHeight: 14,
+  },
+  genderLabel: {
+    color: '#374151',
+    marginBottom: 6,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  genderContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  haveAccountContainer: {
+    marginTop: 16,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  haveAccountText: {
+    fontSize: 14,
     color: '#6b7280',
     marginBottom: 12,
-    lineHeight: 16,
+  },
+  haveAccountButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    width: '100%',
+    shadowColor: '#667eea',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  haveAccountButtonGradient: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  haveAccountButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
   },
   
   // Simple Styles

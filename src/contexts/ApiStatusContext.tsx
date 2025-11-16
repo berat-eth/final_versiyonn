@@ -16,7 +16,7 @@ interface ApiStatusProviderProps {
   children: ReactNode;
 }
 
-export const ApiStatusProvider: React.FC<ApiStatusProviderProps> = ({ children }) => {
+export const ApiStatusProvider = ({ children }: ApiStatusProviderProps) => {
   const [isApiAvailable, setIsApiAvailable] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -61,7 +61,7 @@ interface ApiErrorOverlayProps {
   onRetry: () => void;
 }
 
-const ApiErrorOverlay: React.FC<ApiErrorOverlayProps> = ({ error, onRetry }) => {
+const ApiErrorOverlay = ({ error, onRetry }: ApiErrorOverlayProps) => {
   const handleRetry = () => {
     onRetry();
   };
