@@ -98,6 +98,12 @@ export default function Dashboard() {
   const [trendyolPendingCount, setTrendyolPendingCount] = useState<number>(0)
   const [trendyolCompletedCount, setTrendyolCompletedCount] = useState<number>(0)
 
+  // Hepsiburada istatistikleri
+  const [hepsiburadaOrdersCount, setHepsiburadaOrdersCount] = useState<number>(0)
+  const [hepsiburadaTotalAmount, setHepsiburadaTotalAmount] = useState<number>(0)
+  const [hepsiburadaPendingCount, setHepsiburadaPendingCount] = useState<number>(0)
+  const [hepsiburadaCompletedCount, setHepsiburadaCompletedCount] = useState<number>(0)
+
   // Chart height'ı responsive yap
   useEffect(() => {
     const updateChartHeight = () => {
@@ -113,14 +119,15 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes, trendyolOrders] = await Promise.all([
+        const [productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes, trendyolOrders, hepsiburadaOrders] = await Promise.all([
           productService.getProducts(1, 50),
           api.get<any>('/admin/orders'),
           api.get<any>('/admin/categories'),
           api.get<any>('/admin/category-stats'),
           api.get<any>('/admin/custom-production-requests').catch(()=>({ success:true, data: [] })),
           api.get<any>('/admin/snort/logs').catch(()=>({ success:true, data: [] })),
-          api.get<any>('/admin/marketplace-orders', { provider: 'trendyol' }).catch(()=>({ success:true, data: [], total: 0, totalAmount: 0 }))
+          api.get<any>('/admin/marketplace-orders', { provider: 'trendyol' }).catch(()=>({ success:true, data: [], total: 0, totalAmount: 0 })),
+          api.get<any>('/admin/hepsiburada-orders').catch(()=>({ success:true, data: [], total: 0, totalAmount: 0 }))
         ])
         // Snort IDS status
         try {
@@ -437,6 +444,55 @@ export default function Dashboard() {
           setTrendyolCompletedCount(0)
         }
 
+        // Hepsiburada sipariş istatistikleri
+        try {
+          if ((hepsiburadaOrders as any)?.success && (hepsiburadaOrders as any).data) {
+            const orders = (hepsiburadaOrders as any).data as any[]
+            const responseWithTotal = hepsiburadaOrders as any
+            
+            // Toplam sipariş sayısı
+            if (responseWithTotal.total !== undefined) {
+              setHepsiburadaOrdersCount(responseWithTotal.total)
+            } else {
+              setHepsiburadaOrdersCount(orders.length)
+            }
+            
+            // Toplam tutar
+            if (responseWithTotal.totalAmount !== undefined) {
+              setHepsiburadaTotalAmount(responseWithTotal.totalAmount)
+            } else {
+              const calculatedTotal = orders.reduce((sum: number, order: any) => {
+                return sum + (parseFloat(String(order.totalAmount || 0)))
+              }, 0)
+              setHepsiburadaTotalAmount(calculatedTotal)
+            }
+            
+            // Durum bazlı sayılar
+            const lower = (s: any) => (typeof s === 'string' ? s.toLowerCase() : '')
+            const pending = orders.filter((o: any) => {
+              const status = lower(o.status)
+              return status === 'pending' || status === 'processing' || status === 'waiting'
+            })
+            const completed = orders.filter((o: any) => {
+              const status = lower(o.status)
+              return status === 'completed' || status === 'delivered' || status === 'shipped'
+            })
+            
+            setHepsiburadaPendingCount(pending.length)
+            setHepsiburadaCompletedCount(completed.length)
+          } else {
+            setHepsiburadaOrdersCount(0)
+            setHepsiburadaTotalAmount(0)
+            setHepsiburadaPendingCount(0)
+            setHepsiburadaCompletedCount(0)
+          }
+        } catch {
+          setHepsiburadaOrdersCount(0)
+          setHepsiburadaTotalAmount(0)
+          setHepsiburadaPendingCount(0)
+          setHepsiburadaCompletedCount(0)
+        }
+
       } catch {
         // sessiz geç
       }
@@ -746,6 +802,57 @@ export default function Dashboard() {
             <div>
               <p className="text-slate-600 dark:text-slate-300 text-sm">Tamamlanan</p>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400">{trendyolCompletedCount}</p>
+            </div>
+            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Hepsiburada İstatistikleri */}
+      <div className="flex items-center justify-between mt-6">
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Hepsiburada Marketplace</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Sipariş</p>
+              <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{hepsiburadaOrdersCount.toLocaleString('tr-TR')}</p>
+            </div>
+            <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+              <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Tutar</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">₺{hepsiburadaTotalAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Bekleyen</p>
+              <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{hepsiburadaPendingCount}</p>
+            </div>
+            <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center">
+              <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Tamamlanan</p>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400">{hepsiburadaCompletedCount}</p>
             </div>
             <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
