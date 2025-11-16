@@ -17,12 +17,20 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
 import { Spacing, Shadows } from '../theme/theme';
 import { ChatbotService } from '../services/ChatbotService';
 import { AnythingLLMService } from '../services/AnythingLLMService';
 import { UserController } from '../controllers/UserController';
+import { VoiceService } from '../services/VoiceService';
+import { VoiceCommandService } from '../services/VoiceCommandService';
+import { ChatProductCard } from './ChatProductCard';
+import { ChatOrderCard } from './ChatOrderCard';
+import { Product } from '../utils/types';
+import { Order } from '../utils/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiService from '../utils/api-service';
 
 interface ChatbotProps {
   navigation?: any;
@@ -35,9 +43,13 @@ export interface ChatMessage {
   text: string;
   isBot: boolean;
   timestamp: Date;
-  type?: 'text' | 'quick_reply' | 'product' | 'order' | 'image';
+  type?: 'text' | 'quick_reply' | 'product' | 'order' | 'image' | 'product_card' | 'order_card' | 'voice';
   data?: any;
   quickReplies?: QuickReply[];
+  imageUrl?: string;
+  voiceUrl?: string;
+  product?: Product;
+  order?: Order;
 }
 
 export interface QuickReply {
@@ -60,6 +72,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
   const [isOnline, setIsOnline] = useState(true);
   const [llmEnabled, setLlmEnabled] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+  const [recordingUri, setRecordingUri] = useState<string | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const animatedValue = useRef(new Animated.Value(0)).current;
@@ -372,6 +389,216 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     );
   };
 
+  // Görsel gönderme
+  const pickAndSendImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('İzin Gerekli', 'Görsel seçmek için galeri erişim izni gereklidir.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        await uploadAndSendImage(imageUri);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Hata', 'Görsel seçilirken bir hata oluştu.');
+    }
+  };
+
+  // Görsel yükleme ve gönderme
+  const uploadAndSendImage = async (imageUri: string) => {
+    try {
+      setIsTyping(true);
+
+      const formData = new FormData();
+      const filename = imageUri.split('/').pop() || `image-${Date.now()}.jpg`;
+      
+      formData.append('media', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: filename,
+      } as any);
+
+      const baseUrl = apiService.getCurrentApiUrl();
+      const response = await fetch(`${baseUrl}/reviews/upload`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.data && result.data.length > 0) {
+        const imageUrl = result.data[0].mediaUrl;
+        
+        const imageMessage: ChatMessage = {
+          id: `user-image-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: '📷 Görsel gönderildi',
+          isBot: false,
+          timestamp: new Date(),
+          type: 'image',
+          imageUrl,
+        };
+
+        addMessage(imageMessage);
+        setIsTyping(false);
+
+        // Bot yanıtı
+        setTimeout(() => {
+          const botResponse: ChatMessage = {
+            id: `bot-image-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: 'Görselinizi aldım! Size nasıl yardımcı olabilirim?',
+            isBot: true,
+            timestamp: new Date(),
+            type: 'quick_reply',
+            quickReplies: [
+              { id: '1', text: '📦 Ürün Sorgula', action: 'product_search' },
+              { id: '2', text: '🎧 Canlı Destek', action: 'live_support' },
+            ],
+          };
+          addMessage(botResponse);
+        }, 1000);
+      } else {
+        throw new Error(result.message || 'Görsel yüklenemedi');
+      }
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      setIsTyping(false);
+      Alert.alert('Hata', 'Görsel yüklenirken bir hata oluştu.');
+    }
+  };
+
+  // Sesli mesaj kaydetme
+  const startVoiceRecording = async () => {
+    try {
+      await VoiceService.startRecording();
+      setIsRecording(true);
+    } catch (error: any) {
+      console.error('Start recording error:', error);
+      Alert.alert('Hata', error.message || 'Ses kaydı başlatılamadı.');
+    }
+  };
+
+  // Sesli mesaj gönderme
+  const stopAndSendVoice = async () => {
+    try {
+      const uri = await VoiceService.stopRecording();
+      setIsRecording(false);
+
+      if (uri) {
+        setRecordingUri(uri);
+        
+        // Ses dosyasını yükle ve gönder
+        const formData = new FormData();
+        const filename = uri.split('/').pop() || `voice-${Date.now()}.m4a`;
+        
+        formData.append('media', {
+          uri,
+          type: 'audio/m4a',
+          name: filename,
+        } as any);
+
+        const baseUrl = apiService.getCurrentApiUrl();
+        const response = await fetch(`${baseUrl}/reviews/upload`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.length > 0) {
+          const voiceUrl = result.data[0].mediaUrl;
+          
+          const voiceMessage: ChatMessage = {
+            id: `user-voice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: '🎤 Sesli mesaj',
+            isBot: false,
+            timestamp: new Date(),
+            type: 'voice',
+            voiceUrl,
+          };
+
+          addMessage(voiceMessage);
+        }
+      }
+    } catch (error: any) {
+      console.error('Stop recording error:', error);
+      setIsRecording(false);
+      Alert.alert('Hata', 'Ses kaydı gönderilemedi.');
+    }
+  };
+
+  // Sesli mesaj iptal
+  const cancelVoiceRecording = async () => {
+    try {
+      await VoiceService.cancelRecording();
+      setIsRecording(false);
+      setRecordingUri(null);
+    } catch (error) {
+      console.error('Cancel recording error:', error);
+    }
+  };
+
+  // Sesli mesaj oynatma
+  const playVoiceMessage = async (voiceUrl: string) => {
+    try {
+      if (isPlayingVoice) {
+        await VoiceService.stopAudio();
+        setIsPlayingVoice(false);
+        return;
+      }
+
+      setIsPlayingVoice(true);
+      await VoiceService.playAudio(voiceUrl);
+      setIsPlayingVoice(false);
+    } catch (error) {
+      console.error('Play voice error:', error);
+      setIsPlayingVoice(false);
+      Alert.alert('Hata', 'Sesli mesaj oynatılamadı.');
+    }
+  };
+
+  // Mesaj formatlama (basit markdown ve link detection)
+  const formatMessageText = (text: string): React.ReactNode => {
+    // Link detection
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+
+    return (
+      <Text>
+        {parts.map((part, index) => {
+          if (urlRegex.test(part)) {
+            return (
+              <Text
+                key={index}
+                style={styles.linkText}
+                onPress={() => Linking.openURL(part)}
+              >
+                {part}
+              </Text>
+            );
+          }
+          return <Text key={index}>{part}</Text>;
+        })}
+      </Text>
+    );
+  };
+
   const sendMessage = async (text: string, type: string = 'text') => {
     if (!text.trim() && type === 'text') return;
 
@@ -405,7 +632,22 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       setTimeout(() => {
         setIsTyping(false);
         if (response && response.text) {
-          addMessage(response);
+          // Ürün veya sipariş kartı varsa data'yı ekle
+          if (response.type === 'product_card' && response.data?.product) {
+            const cardMessage: ChatMessage = {
+              ...response,
+              product: response.data.product,
+            };
+            addMessage(cardMessage);
+          } else if (response.type === 'order_card' && response.data?.order) {
+            const cardMessage: ChatMessage = {
+              ...response,
+              order: response.data.order,
+            };
+            addMessage(cardMessage);
+          } else {
+            addMessage(response);
+          }
         } else {
           // Fallback: Yanıt alınamadı
           const fallbackMessage: ChatMessage = {
@@ -581,6 +823,146 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     const isBot = message.isBot;
     const isSelected = selectedMessageId === message.id;
     
+    // Görsel mesaj
+    if (message.type === 'image' && message.imageUrl) {
+      return (
+        <TouchableOpacity
+          style={[
+            styles.messageContainer,
+            isBot ? styles.botMessageContainer : styles.userMessageContainer,
+          ]}
+          onLongPress={() => setSelectedMessageId(isSelected ? null : message.id)}
+          activeOpacity={0.7}
+          key={message.id}
+          onPress={() => {
+            setViewingImage(message.imageUrl || null);
+            setImageViewerVisible(true);
+          }}
+        >
+          {isBot && (
+            <View style={styles.botAvatar}>
+              <Icon name="smart-toy" size={20} color={Colors.primary} />
+            </View>
+          )}
+          <View style={[styles.messageBubble, isBot ? styles.botBubble : styles.userBubble]}>
+            <Image
+              source={{ uri: message.imageUrl }}
+              style={styles.messageImage}
+              resizeMode="cover"
+            />
+            {message.text && (
+              <Text style={[styles.messageText, isBot ? styles.botText : styles.userText]}>
+                {message.text}
+              </Text>
+            )}
+          </View>
+          {!isBot && (
+            <View style={styles.userAvatar}>
+              <Icon name="person" size={20} color={Colors.textOnPrimary} />
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    }
+
+    // Sesli mesaj
+    if (message.type === 'voice' && message.voiceUrl) {
+      return (
+        <TouchableOpacity
+          style={[
+            styles.messageContainer,
+            isBot ? styles.botMessageContainer : styles.userMessageContainer,
+          ]}
+          onLongPress={() => setSelectedMessageId(isSelected ? null : message.id)}
+          activeOpacity={0.7}
+          key={message.id}
+        >
+          {isBot && (
+            <View style={styles.botAvatar}>
+              <Icon name="smart-toy" size={20} color={Colors.primary} />
+            </View>
+          )}
+          <View style={[styles.messageBubble, isBot ? styles.botBubble : styles.userBubble]}>
+            <TouchableOpacity
+              style={styles.voiceMessageContainer}
+              onPress={() => playVoiceMessage(message.voiceUrl!)}
+            >
+              <Icon
+                name={isPlayingVoice ? 'pause' : 'play-arrow'}
+                size={24}
+                color={isBot ? Colors.primary : Colors.textOnPrimary}
+              />
+              <Text style={[styles.messageText, isBot ? styles.botText : styles.userText]}>
+                {message.text || '🎤 Sesli mesaj'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {!isBot && (
+            <View style={styles.userAvatar}>
+              <Icon name="person" size={20} color={Colors.textOnPrimary} />
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    }
+
+    // Ürün kartı
+    if (message.type === 'product_card' && message.product) {
+      return (
+        <View
+          style={[
+            styles.messageContainer,
+            styles.botMessageContainer,
+          ]}
+          key={message.id}
+        >
+          <View style={styles.botAvatar}>
+            <Icon name="smart-toy" size={20} color={Colors.primary} />
+          </View>
+          <View style={styles.cardContainer}>
+            <ChatProductCard
+              product={message.product}
+              onPress={(product) => {
+                if (navigation) {
+                  navigation.navigate('ProductDetail', { productId: product.id });
+                  toggleChatbot();
+                }
+              }}
+            />
+          </View>
+        </View>
+      );
+    }
+
+    // Sipariş kartı
+    if (message.type === 'order_card' && message.order) {
+      return (
+        <View
+          style={[
+            styles.messageContainer,
+            styles.botMessageContainer,
+          ]}
+          key={message.id}
+        >
+          <View style={styles.botAvatar}>
+            <Icon name="smart-toy" size={20} color={Colors.primary} />
+          </View>
+          <View style={styles.cardContainer}>
+            <ChatOrderCard
+              order={message.order}
+              onPress={(order) => {
+                if (navigation) {
+                  navigation.navigate('OrderDetail', { orderId: order.id });
+                  toggleChatbot();
+                }
+              }}
+            />
+          </View>
+        </View>
+      );
+    }
+    
+    // Normal metin mesajı
     return (
       <TouchableOpacity
         style={[
@@ -607,7 +989,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
             styles.messageText,
             isBot ? styles.botText : styles.userText
           ]}>
-            {message.text}
+            {formatMessageText(message.text)}
           </Text>
           
           {message.quickReplies && (
@@ -778,37 +1160,67 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
             style={styles.inputContainer}
           >
             <View style={styles.inputRow}>
-              <TouchableOpacity 
-                style={styles.attachButton}
-                onPress={() => Alert.alert('Yakında', 'Dosya ekleme özelliği yakında aktif olacak!')}
-              >
-                <Icon name="attach-file" size={20} color={Colors.textLight} />
-              </TouchableOpacity>
-              
-              <TextInput
-                style={styles.textInput}
-                placeholder="Mesajınızı yazın..."
-                placeholderTextColor={Colors.textLight}
-                value={inputText}
-                onChangeText={setInputText}
-                multiline
-                maxLength={500}
-              />
-              
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  inputText.trim() ? styles.sendButtonActive : styles.sendButtonInactive
-                ]}
-                onPress={() => sendMessage(inputText)}
-                disabled={!inputText.trim()}
-              >
-                <Icon 
-                  name="send" 
-                  size={20} 
-                  color={inputText.trim() ? Colors.textOnPrimary : Colors.textLight} 
-                />
-              </TouchableOpacity>
+              {!isRecording ? (
+                <>
+                  <TouchableOpacity 
+                    style={styles.attachButton}
+                    onPress={pickAndSendImage}
+                  >
+                    <Icon name="image" size={20} color={Colors.textLight} />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.attachButton}
+                    onPress={startVoiceRecording}
+                  >
+                    <Icon name="mic" size={20} color={Colors.textLight} />
+                  </TouchableOpacity>
+                  
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Mesajınızı yazın..."
+                    placeholderTextColor={Colors.textLight}
+                    value={inputText}
+                    onChangeText={setInputText}
+                    multiline
+                    maxLength={500}
+                  />
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.sendButton,
+                      inputText.trim() ? styles.sendButtonActive : styles.sendButtonInactive
+                    ]}
+                    onPress={() => sendMessage(inputText)}
+                    disabled={!inputText.trim()}
+                  >
+                    <Icon 
+                      name="send" 
+                      size={20} 
+                      color={inputText.trim() ? Colors.textOnPrimary : Colors.textLight} 
+                    />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.recordingContainer}>
+                  <View style={styles.recordingIndicator}>
+                    <View style={styles.recordingDot} />
+                    <Text style={styles.recordingText}>Kayıt yapılıyor...</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.stopButton}
+                    onPress={stopAndSendVoice}
+                  >
+                    <Icon name="stop" size={20} color={Colors.textOnPrimary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={cancelVoiceRecording}
+                  >
+                    <Icon name="close" size={20} color={Colors.error} />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </KeyboardAvoidingView>
         </>
@@ -821,6 +1233,30 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     <>
       {!isVisible && renderFloatingButton()}
       {isVisible && renderChatWindow()}
+      
+      {/* Image Viewer Modal */}
+      <Modal
+        visible={imageViewerVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setImageViewerVisible(false)}
+      >
+        <View style={styles.imageViewerContainer}>
+          <TouchableOpacity
+            style={styles.imageViewerClose}
+            onPress={() => setImageViewerVisible(false)}
+          >
+            <Icon name="close" size={30} color="#FFFFFF" />
+          </TouchableOpacity>
+          {viewingImage && (
+            <Image
+              source={{ uri: viewingImage }}
+              style={styles.imageViewerImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </>
   );
 };
@@ -1096,5 +1532,84 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.small,
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    marginBottom: Spacing.xs,
+  },
+  voiceMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  cardContainer: {
+    marginVertical: Spacing.xs,
+  },
+  linkText: {
+    color: Colors.primary,
+    textDecorationLine: 'underline',
+  },
+  imageViewerContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 1,
+    padding: Spacing.sm,
+  },
+  imageViewerImage: {
+    width: width * 0.9,
+    height: height * 0.7,
+  },
+  recordingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.sm,
+    backgroundColor: Colors.error + '20',
+    borderRadius: 20,
+    flex: 1,
+  },
+  recordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    flex: 1,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.error,
+  },
+  recordingText: {
+    fontSize: 14,
+    color: Colors.error,
+    fontWeight: '600',
+  },
+  stopButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: Spacing.sm,
+  },
+  cancelButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: Spacing.xs,
   },
 });

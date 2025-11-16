@@ -3,12 +3,16 @@ import { AnythingLLMService } from './AnythingLLMService';
 import { Linking } from 'react-native';
 import { apiService } from '../utils/api-service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Product } from '../utils/types';
+import { Order } from '../utils/types';
 
 export interface ChatbotResponse {
   text: string;
-  type?: 'text' | 'quick_reply' | 'product' | 'order' | 'image';
+  type?: 'text' | 'quick_reply' | 'product' | 'order' | 'image' | 'product_card' | 'order_card' | 'voice';
   quickReplies?: QuickReply[];
   data?: any;
+  product?: Product;
+  order?: Order;
 }
 
 export class ChatbotService {
@@ -219,6 +223,8 @@ export class ChatbotService {
           type: response.data.type || 'text',
           quickReplies: quickReplies || [],
           data: response.data.data,
+          product: response.data.product,
+          order: response.data.order,
         };
       } else {
         throw new Error(response?.message || 'Backend response failed');
@@ -262,6 +268,8 @@ export class ChatbotService {
       type: response.type || 'text',
       quickReplies: response.quickReplies,
       data: response.data,
+      product: response.product,
+      order: response.order,
     };
   }
 
@@ -312,6 +320,12 @@ export class ChatbotService {
 
       case 'product_search_query':
         return await this.handleProductSearchLocal(message);
+
+      case 'show_product_card':
+        return await this.handleProductCard(message);
+
+      case 'show_order_card':
+        return await this.handleOrderCard(message);
 
       case 'campaigns':
         return await this.handleCampaignsLocal();
@@ -550,6 +564,130 @@ Kullanıcı ödeme hakkında soru soruyor.`;
         { id: '4', text: '🔍 Ürün Ara', action: 'product_search' },
       ]
     };
+  }
+
+  // Ürün kartı göster
+  private static async handleProductCard(message: string): Promise<ChatbotResponse> {
+    try {
+      // Mesajdan ürün ID'sini çıkar
+      const productIdMatch = message.match(/ürün[:\s]*(\d+)/i) || message.match(/(\d+)/);
+      if (!productIdMatch) {
+        return {
+          text: 'Ürün ID\'si bulunamadı. Lütfen ürün numarasını belirtin.',
+          type: 'text',
+        };
+      }
+
+      const productId = parseInt(productIdMatch[1], 10);
+      const productResponse = await apiService.getProductById(productId);
+
+      if (productResponse.success && productResponse.data) {
+        return {
+          text: 'Ürün detayları:',
+          type: 'product_card',
+          data: { product: productResponse.data },
+        };
+      }
+
+      return {
+        text: 'Ürün bulunamadı.',
+        type: 'text',
+      };
+    } catch (error) {
+      console.error('Product card error:', error);
+      return {
+        text: 'Ürün bilgileri alınamadı.',
+        type: 'text',
+      };
+    }
+  }
+
+  // Sipariş kartı göster
+  private static async handleOrderCard(message: string): Promise<ChatbotResponse> {
+    try {
+      // Mesajdan sipariş ID'sini çıkar
+      const orderIdMatch = message.match(/sipariş[:\s]*(\d+)/i) || message.match(/(\d+)/);
+      if (!orderIdMatch) {
+        return {
+          text: 'Sipariş ID\'si bulunamadı. Lütfen sipariş numarasını belirtin.',
+          type: 'text',
+        };
+      }
+
+      const orderId = parseInt(orderIdMatch[1], 10);
+      const orderResponse = await apiService.getOrderById(orderId);
+
+      if (orderResponse.success && orderResponse.data) {
+        return {
+          text: 'Sipariş detayları:',
+          type: 'order_card',
+          data: { order: orderResponse.data },
+        };
+      }
+
+      return {
+        text: 'Sipariş bulunamadı.',
+        type: 'text',
+      };
+    } catch (error) {
+      console.error('Order card error:', error);
+      return {
+        text: 'Sipariş bilgileri alınamadı.',
+        type: 'text',
+      };
+    }
+  }
+
+  // Gelişmiş AI önerileri (kullanıcı context ile)
+  static async getAdvancedRecommendations(userId: number): Promise<ChatbotResponse> {
+    try {
+      // Kullanıcı geçmişini al
+      const userOrdersResponse = await apiService.getUserOrders(userId);
+      const orders = userOrdersResponse.success ? (userOrdersResponse.data || []) : [];
+
+      // Son siparişlerden kategori çıkar
+      const categories = new Set<string>();
+      orders.slice(0, 5).forEach((order: any) => {
+        if (order.items) {
+          order.items.forEach((item: any) => {
+            if (item.product?.category) {
+              categories.add(item.product.category);
+            }
+          });
+        }
+      });
+
+      // ML servisi entegrasyonu (gelecekte)
+      // Şimdilik basit öneriler
+      const categoryArray = Array.from(categories);
+      
+      if (categoryArray.length > 0) {
+        return {
+          text: `Size özel öneriler hazırladım! Son alışverişlerinize göre ${categoryArray.join(', ')} kategorilerinde ürünler önerebilirim.`,
+          type: 'quick_reply',
+          quickReplies: [
+            { id: '1', text: '⭐ Önerileri Gör', action: 'view_products', data: { categories: categoryArray } },
+            { id: '2', text: '🎁 Kampanyalar', action: 'view_campaigns' },
+            { id: '3', text: '🛒 Tüm Ürünler', action: 'view_products' },
+          ],
+        };
+      }
+
+      return {
+        text: 'Size özel öneriler için alışveriş yapmanız gerekiyor.',
+        type: 'quick_reply',
+        quickReplies: [
+          { id: '1', text: '🛒 Ürünlere Göz At', action: 'view_products' },
+          { id: '2', text: '🎁 Kampanyalar', action: 'view_campaigns' },
+        ],
+      };
+    } catch (error) {
+      console.error('Advanced recommendations error:', error);
+      return {
+        text: 'Öneriler hazırlanırken bir hata oluştu.',
+        type: 'text',
+      };
+    }
   }
 
   private static async handleSpecialAction(
@@ -819,6 +957,8 @@ Kullanıcı ödeme hakkında soru soruyor.`;
       type: response.type || 'text',
       quickReplies: response.quickReplies,
       data: response.data,
+      product: response.product,
+      order: response.order,
     };
   }
 

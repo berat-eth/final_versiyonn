@@ -30,6 +30,7 @@
     "expo-location": "~17.0.1",
     "expo-secure-store": "~13.0.2",
     "expo-sqlite": "~14.0.6",
+    "expo-speech": "~12.0.1",
     "expo-status-bar": "~1.12.1",
     "expo-three": "^2.2.1",
     "lottie-react-native": "6.7.0",
