@@ -256,7 +256,12 @@ export default function ProjectAjax() {
             
             if (response.ok) {
                 const data = await response.json()
-                setMessages(data.messages || [])
+                // Timestamp'leri Date objesine çevir
+                const messages = (data.messages || []).map((msg: any) => ({
+                    ...msg,
+                    timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp || Date.now())
+                }))
+                setMessages(messages)
             }
         } catch (error) {
             console.error('❌ Session mesajları yüklenemedi:', error)
@@ -1076,7 +1081,12 @@ export default function ProjectAjax() {
                                                 <div key={index} className="text-xs border border-gray-200 dark:border-slate-600 rounded overflow-hidden bg-white dark:bg-slate-800">
                                                     <div className="px-2 py-1 bg-gray-50 dark:bg-slate-700 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
                                                         <span className="text-gray-700 dark:text-slate-300">{msg.role === 'user' ? 'Kullanıcı' : 'AI'}</span>
-                                                        <span className="text-gray-500 dark:text-slate-400">{msg.timestamp.toLocaleTimeString('tr-TR')}</span>
+                                                        <span className="text-gray-500 dark:text-slate-400">
+                                                            {msg.timestamp instanceof Date 
+                                                                ? msg.timestamp.toLocaleTimeString('tr-TR')
+                                                                : new Date(msg.timestamp || Date.now()).toLocaleTimeString('tr-TR')
+                                                            }
+                                                        </span>
                                                     </div>
                                                     <div className="p-2 text-gray-700 dark:text-slate-300">
                                                         <div className="truncate">{msg.content.substring(0, 50)}...</div>
@@ -1311,7 +1321,10 @@ export default function ProjectAjax() {
                                         {message.role === 'user' ? 'You' : 'AI Assistant'}
                                     </span>
                                     <span className="text-xs text-gray-500 ml-2">
-                                        {message.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                        {message.timestamp instanceof Date 
+                                            ? message.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+                                            : new Date(message.timestamp || Date.now()).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+                                        }
                                     </span>
                                 </div>
                                 

@@ -748,7 +748,7 @@ class AnalyticsService {
         FROM user_sessions us
         LEFT JOIN users u ON us.userId = u.id
         WHERE (u.tenantId = ? OR us.userId IS NULL) AND us.startTime >= ? AND us.duration > 0
-      `, [tenantId]);
+      `, [tenantId, dateValue]);
       return Math.round(rows[0]?.avg || 0);
     } catch (error) {
       console.warn('⚠️ Error in getAvgSessionDuration:', error.message);
@@ -857,7 +857,7 @@ class AnalyticsService {
             WHERE (u2.tenantId = ? OR us2.userId IS NULL)
               AND us2.startTime < DATE_SUB(NOW(), INTERVAL 1 DAY)
           )
-      `, [tenantId, tenantId]);
+      `, [tenantId, dateValue, tenantId]);
       return rows[0]?.count || 0;
     } catch (error) {
       console.warn('⚠️ Error in getReturningUsers:', error.message);
