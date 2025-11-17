@@ -5022,15 +5022,104 @@ app.get('/api/admin/recommendations', authenticateAdmin, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     const offset = parseInt(req.query.offset) || 0;
+    const tenantId = req.tenant?.id || 1;
+    
     const [rows] = await poolWrapper.execute(
       `SELECT id, userId, recommendedProducts, generatedAt
        FROM recommendations
        WHERE tenantId = ?
        ORDER BY generatedAt DESC
        LIMIT ? OFFSET ?`,
-      [req.tenant?.id || 1, limit, offset]
+      [tenantId, limit, offset]
     );
-    res.json({ success: true, data: rows });
+
+    // Her öneri için score'ları hesapla
+    const enrichedRows = await Promise.all(rows.map(async (row) => {
+      try {
+        let productIds = [];
+        if (row.recommendedProducts) {
+          if (typeof row.recommendedProducts === 'string') {
+            productIds = JSON.parse(row.recommendedProducts);
+          } else if (Array.isArray(row.recommendedProducts)) {
+            productIds = row.recommendedProducts;
+          }
+        }
+
+        // Kullanıcı profilini al
+        const [profileRows] = await poolWrapper.execute(
+          `SELECT * FROM user_profiles WHERE userId = ? AND tenantId = ? LIMIT 1`,
+          [row.userId, tenantId]
+        );
+
+        let scores = [];
+        if (profileRows.length > 0) {
+          const profile = profileRows[0];
+          const interests = profile.interests ? (typeof profile.interests === 'string' ? JSON.parse(profile.interests) : profile.interests) : {};
+          const brandPrefs = profile.brandPreferences ? (typeof profile.brandPreferences === 'string' ? JSON.parse(profile.brandPreferences) : profile.brandPreferences) : {};
+
+          // Ürün bilgilerini al
+          if (productIds.length > 0 && productIds.length <= 100) {
+            // Güvenlik: Sadece integer ID'leri kabul et
+            const validProductIds = productIds
+              .map(id => parseInt(id))
+              .filter(id => !isNaN(id) && id > 0)
+              .slice(0, 100); // Maksimum 100 ürün
+            
+            if (validProductIds.length > 0) {
+              const placeholders = validProductIds.map(() => '?').join(',');
+              const [products] = await poolWrapper.execute(
+                `SELECT id, category, brand, price FROM products WHERE id IN (${placeholders}) AND tenantId = ?`,
+                [...validProductIds, tenantId]
+              );
+
+              const productMap = new Map(products.map(p => [p.id, p]));
+
+              // Her ürün için score hesapla (orijinal sırayı koru)
+              scores = productIds.map(productId => {
+                const validId = parseInt(productId);
+                if (isNaN(validId) || validId <= 0) return 0.5;
+                
+                const product = productMap.get(validId);
+                if (!product) return 0.5; // Ürün bulunamazsa varsayılan score
+
+                let score = 0;
+                if (interests[product.category]) score += interests[product.category] * 1.0;
+                if (brandPrefs[product.brand]) score += brandPrefs[product.brand] * 0.8;
+                if (profile.avgPriceMin != null && profile.avgPriceMax != null) {
+                  if (product.price >= Number(profile.avgPriceMin) && product.price <= Number(profile.avgPriceMax)) {
+                    score += 1.0;
+                  }
+                }
+
+                // Score'u 0-1 aralığına normalize et
+                return Math.min(1.0, Math.max(0.0, score / 3.0));
+              });
+            } else {
+              scores = productIds.map(() => 0.5);
+            }
+          }
+        } else {
+          // Profil yoksa varsayılan score'lar
+          scores = productIds.map(() => 0.7);
+        }
+
+        return {
+          ...row,
+          recommendedProducts: productIds,
+          scores: scores
+        };
+      } catch (error) {
+        console.error(`❌ Öneri zenginleştirme hatası (id: ${row.id}):`, error);
+        return {
+          ...row,
+          recommendedProducts: Array.isArray(row.recommendedProducts) ? row.recommendedProducts : 
+                              (typeof row.recommendedProducts === 'string' ? JSON.parse(row.recommendedProducts) : []),
+          scores: []
+        };
+      }
+    }));
+
+    res.json({ success: true, data: enrichedRows });
   } catch (error) {
     console.error('❌ Error getting recommendations:', error);
     res.status(500).json({ success: false, message: 'Error getting recommendations' });

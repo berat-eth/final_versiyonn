@@ -40,31 +40,38 @@ export default function Recommendations() {
               const userResponse = await api.get<any>(`/users/${rec.userId}`).catch(() => null)
               const userName = userResponse?.data?.name || userResponse?.data?.email || `Kullanıcı #${rec.userId}`
 
-              // Önerilen ürün ID'lerini parse et
+              // Önerilen ürün ID'lerini ve score'ları parse et
               let productIds: number[] = []
+              let scores: number[] = []
+              
               if (rec.recommendedProducts) {
-                if (typeof rec.recommendedProducts === 'string') {
-                  productIds = JSON.parse(rec.recommendedProducts)
-                } else if (Array.isArray(rec.recommendedProducts)) {
+                if (Array.isArray(rec.recommendedProducts)) {
                   productIds = rec.recommendedProducts
+                } else if (typeof rec.recommendedProducts === 'string') {
+                  productIds = JSON.parse(rec.recommendedProducts)
                 }
+              }
+
+              // Score'ları al
+              if (rec.scores && Array.isArray(rec.scores)) {
+                scores = rec.scores
               }
 
               // Ürün detaylarını al
               const products = await Promise.all(
-                productIds.slice(0, 10).map(async (productId: number) => {
+                productIds.slice(0, 10).map(async (productId: number, index: number) => {
                   try {
                     const productResponse = await api.get<any>(`/products/${productId}`).catch(() => null)
                     return {
                       productId,
                       name: productResponse?.data?.name || `Ürün #${productId}`,
-                      score: 0.85 // Backend'den score gelmiyorsa varsayılan değer
+                      score: scores[index] !== undefined ? scores[index] : 0.7 // Backend'den gelen score veya varsayılan
                     }
                   } catch {
                     return {
                       productId,
                       name: `Ürün #${productId}`,
-                      score: 0.85
+                      score: scores[index] !== undefined ? scores[index] : 0.7
                     }
                   }
                 })
