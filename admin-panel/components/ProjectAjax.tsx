@@ -108,6 +108,15 @@ export default function ProjectAjax() {
     const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null)
     const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null)
     
+    // Auto-speak setting (ses motoru ayarı)
+    const [autoSpeakEnabled, setAutoSpeakEnabled] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('ajax_auto_speak')
+            return saved === 'true'
+        }
+        return false
+    })
+    
     // Speech Recognition (Voice Input) States
     const [isListening, setIsListening] = useState(false)
     const [transcript, setTranscript] = useState('')
@@ -623,6 +632,14 @@ export default function ProjectAjax() {
                     }]
                     saveSessionMessages(currentSessionId, updatedMessages)
                 }
+                
+                // Otomatik seslendirme (ses motoru ayarı açıksa)
+                if (autoSpeakEnabled && content && content.trim()) {
+                    // Kısa bir gecikme sonra seslendir (animasyon tamamlansın)
+                    setTimeout(() => {
+                        speakMessage(content, tempMessageId)
+                    }, 300)
+                }
             }, content.length * 30 + 500)
         } catch (error) {
             console.error('❌ Ollama yanıtı alınamadı:', error)
@@ -647,6 +664,22 @@ export default function ProjectAjax() {
             }
             setMessages(prev => [...prev, errorMsg])
             setIsTyping(false)
+            
+            // Hata mesajlarını seslendirme (opsiyonel - şimdilik kapalı)
+            // if (autoSpeakEnabled) {
+            //     setTimeout(() => {
+            //         speakMessage(errorMsg.content, errorMsg.id)
+            //     }, 300)
+            // }
+        }
+    }
+
+    // Auto-speak ayarını toggle et
+    const toggleAutoSpeak = () => {
+        const newValue = !autoSpeakEnabled
+        setAutoSpeakEnabled(newValue)
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('ajax_auto_speak', String(newValue))
         }
     }
 
@@ -1156,6 +1189,22 @@ export default function ProjectAjax() {
                             >
                                 <Settings className="w-4 h-4 text-gray-400" />
                             </button>
+                            {/* Ses Motoru Hızlı Toggle */}
+                            <button
+                                onClick={toggleAutoSpeak}
+                                className={`p-2 transition-all ${
+                                    autoSpeakEnabled 
+                                        ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30' 
+                                        : 'bg-[#2d2f36]/50 text-gray-400 hover:bg-[#2d2f36]'
+                                }`}
+                                title={autoSpeakEnabled ? 'Otomatik seslendirme açık' : 'Otomatik seslendirme kapalı'}
+                            >
+                                {autoSpeakEnabled ? (
+                                    <Volume2 className="w-4 h-4" />
+                                ) : (
+                                    <VolumeX className="w-4 h-4" />
+                                )}
+                            </button>
                         </div>
                     </div>
                     </div>
@@ -1212,6 +1261,34 @@ export default function ProjectAjax() {
                                 className="ml-auto px-2 py-1 text-xs bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 rounded hover:bg-gray-300 dark:hover:bg-slate-500"
                             >
                                 Yenile
+                            </button>
+                        </div>
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-2">Ses Motoru Ayarları</label>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded border border-gray-200 dark:border-slate-600">
+                            <div className="flex items-center gap-3">
+                                <Volume2 className={`w-5 h-5 ${autoSpeakEnabled ? 'text-green-500' : 'text-gray-400'}`} />
+                                <div>
+                                    <div className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                                        Otomatik Seslendirme
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400">
+                                        Yeni AI yanıtları otomatik olarak seslendirilir
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={toggleAutoSpeak}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                    autoSpeakEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                        autoSpeakEnabled ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
+                                />
                             </button>
                         </div>
                     </div>
