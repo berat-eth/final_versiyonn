@@ -1775,26 +1775,73 @@ app.post('/api/ollama/generate', async (req, res) => {
       }
     };
 
-    console.log('🤖 Ollama Request:', { model: requestBody.model, temperature: requestBody.options.temperature });
+    console.log('🤖 Ollama Request:', { 
+      model: requestBody.model, 
+      temperature: requestBody.options.temperature,
+      maxTokens: requestBody.options.num_predict,
+      promptLength: prompt.length
+    });
 
     // Yerel Ollama API'sine doğrudan bağlan
+    // Timeout süresini artır (büyük modeller ve uzun yanıtlar için)
     const response = await axios.post(`${ollamaUrl}/api/generate`, requestBody, {
-      timeout: 60000, // 60 saniye timeout
+      timeout: 300000, // 5 dakika timeout (300 saniye)
       headers: {
         'Content-Type': 'application/json'
       }
     });
 
+    // Ollama yanıt formatını işle
+    let responseData = response.data;
+    
+    // Eğer response.data bir string ise (bazı Ollama versiyonları)
+    if (typeof responseData === 'string') {
+      try {
+        responseData = JSON.parse(responseData);
+      } catch (e) {
+        // Parse edilemezse, response olarak kullan
+        responseData = { response: responseData };
+      }
+    }
+
     res.json({
       success: true,
-      data: response.data,
+      data: responseData,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
     logError(error, 'OLLAMA_GENERATE');
-    const errorResponse = createSafeErrorResponse(error, 'Failed to generate response');
-    res.status(500).json({
+    
+    // Hata tipine göre özel mesajlar
+    let errorMessage = 'Failed to generate response';
+    let statusCode = 500;
+    
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      errorMessage = 'Ollama yanıt üretmek için çok uzun sürdü. Model yükleniyor olabilir veya istek çok karmaşık. Lütfen daha kısa bir istek deneyin veya modelin yüklendiğinden emin olun.';
+      statusCode = 504; // Gateway Timeout
+    } else if (error.code === 'ECONNREFUSED') {
+      errorMessage = 'Ollama servisi çalışmıyor. Lütfen Ollama servisini başlatın (localhost:11434)';
+      statusCode = 503; // Service Unavailable
+    } else if (error.response) {
+      const httpStatus = error.response.status;
+      if (httpStatus === 404) {
+        errorMessage = `Model bulunamadı: ${model || 'gemma2:1b'}. Lütfen model adını kontrol edin veya modeli yükleyin.`;
+        statusCode = 404;
+      } else if (httpStatus === 500) {
+        errorMessage = 'Ollama servisi iç hatası. Model yükleniyor olabilir veya yeterli kaynak yok.';
+        statusCode = 500;
+      } else {
+        errorMessage = `Ollama servisi hata verdi (${httpStatus})`;
+        statusCode = httpStatus;
+      }
+    } else if (error.code === 'ENOTFOUND') {
+      errorMessage = 'Ollama sunucusuna bağlanılamıyor (DNS hatası)';
+      statusCode = 503;
+    }
+    
+    const errorResponse = createSafeErrorResponse(error, errorMessage);
+    res.status(statusCode).json({
       ...errorResponse,
       timestamp: new Date().toISOString()
     });
