@@ -159,9 +159,7 @@ export class OllamaService {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f',
-              'Cache-Control': 'no-cache',
-              'Connection': 'keep-alive'
+              'X-API-Key': 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
             },
             body: JSON.stringify(requestBody),
             signal: AbortSignal.timeout(45000) // 45 saniye timeout

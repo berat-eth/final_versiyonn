@@ -1671,7 +1671,16 @@ app.post('/api/admin/maintenance/toggle', authenticateAdmin, async (req, res) =>
   }
 });
 
-// Ollama API endpoints
+// Ollama API endpoints - CORS için özel header'lar
+app.options('/api/ollama/*', cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200
+}));
+
 app.get('/api/ollama/health', async (req, res) => {
   try {
     // Uzak Ollama sunucusu URL'i - api.plaxsy.com üzerinden
