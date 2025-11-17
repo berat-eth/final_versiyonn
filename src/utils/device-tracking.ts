@@ -155,6 +155,9 @@ async function getApiHeaders(): Promise<Record<string, string>> {
 
 /**
  * Event gönder (hem logged-in hem anonymous)
+ * 
+ * ÖNEMLİ: Login yaptığında userId zorunlu olmalı
+ * sessionId her zaman zorunlu
  */
 export async function sendTrackingEvent(
   eventType: string,
@@ -165,18 +168,59 @@ export async function sendTrackingEvent(
   try {
     const deviceId = await getOrCreateDeviceId();
     
+    // sessionId zorunlu - yoksa oluştur veya mevcut session'ı al
+    let finalSessionId = sessionId;
+    if (!finalSessionId) {
+      try {
+        const storedSessionId = await AsyncStorage.getItem('current_session_id');
+        if (storedSessionId) {
+          finalSessionId = storedSessionId;
+        } else {
+          // Yeni session oluştur
+          finalSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await AsyncStorage.setItem('current_session_id', finalSessionId);
+        }
+      } catch (e) {
+        // AsyncStorage hatası durumunda geçici session oluştur
+        finalSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+    }
+    
+    // Geçerli eventType kontrolü
+    const validEventTypes = [
+      'screen_view', 'screen_exit', 'performance',
+      'button_click', 'product_view', 'add_to_cart', 
+      'purchase', 'search_query', 'error_event'
+    ];
+    
+    if (!validEventTypes.includes(eventType)) {
+      console.warn(`⚠️ Geçersiz eventType: ${eventType}. Geçerli tipler: ${validEventTypes.join(', ')}`);
+    }
+    
+    // eventData'yı zenginleştir
+    const enrichedEventData = {
+      ...eventData,
+      timestamp: new Date().toISOString(),
+      platform: Platform.OS,
+      platformVersion: Platform.Version?.toString(),
+      // eventType'a göre özel alanlar
+      ...(eventType === 'product_view' && eventData.productId ? { productId: eventData.productId } : {}),
+      ...(eventType === 'add_to_cart' && eventData.productId ? { productId: eventData.productId } : {}),
+      ...(eventType === 'purchase' && eventData.orderId ? { orderId: eventData.orderId, amount: eventData.amount } : {}),
+      ...(eventType === 'search_query' && eventData.query ? { searchQuery: eventData.query } : {}),
+      ...(eventType === 'button_click' && eventData.elementName ? { clickElement: eventData.elementName } : {}),
+      ...(eventType === 'error_event' && eventData.error ? { errorMessage: eventData.error } : {}),
+      ...(eventType === 'screen_exit' && eventData.timeOnScreen ? { timeOnScreen: eventData.timeOnScreen } : {}),
+      ...(eventType === 'performance' && eventData.responseTime ? { responseTime: eventData.responseTime } : {})
+    };
+    
     const payload = {
-      userId: userId || null,
+      userId: userId || null, // Login yaptığında zorunlu
       deviceId,
       eventType,
       screenName: eventData.screenName || null,
-      eventData: {
-        ...eventData,
-        timestamp: new Date().toISOString(),
-        platform: Platform.OS,
-        platformVersion: Platform.Version?.toString()
-      },
-      sessionId: sessionId || null
+      eventData: enrichedEventData,
+      sessionId: finalSessionId // Zorunlu
     };
 
     // Non-blocking fetch - main thread'i bloklamaz

@@ -2332,17 +2332,30 @@ async function createDatabaseSchema(pool) {
         CREATE TABLE IF NOT EXISTS user_behavior_events (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           userId INT NULL,
+          userName VARCHAR(255) NULL,
           deviceId VARCHAR(255) NOT NULL,
           eventType VARCHAR(100) NOT NULL,
           screenName VARCHAR(255),
           eventData JSON,
-          sessionId VARCHAR(255),
-          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          sessionId VARCHAR(255) NOT NULL,
+          timestamp DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
           ipAddress VARCHAR(45),
           userAgent VARCHAR(500),
           performanceMetrics JSON,
           characteristics JSON,
+          -- eventData'dan parse edilen kolonlar
+          timeOnScreen INT NULL COMMENT 'Ekranda geçirilen süre (saniye)',
+          action VARCHAR(100) NULL COMMENT 'Yapılan aksiyon',
+          responseTime INT NULL COMMENT 'Yanıt süresi (ms)',
+          productId INT NULL COMMENT 'Ürün ID (product_view, add_to_cart, purchase için)',
+          searchQuery VARCHAR(500) NULL COMMENT 'Arama sorgusu',
+          errorMessage TEXT NULL COMMENT 'Hata mesajı (error_event için)',
+          scrollDepth DECIMAL(5,2) NULL COMMENT 'Scroll derinliği (0-100)',
+          clickElement VARCHAR(255) NULL COMMENT 'Tıklanan element (button_click için)',
+          orderId INT NULL COMMENT 'Sipariş ID (purchase için)',
+          amount DECIMAL(10,2) NULL COMMENT 'Tutar (purchase için)',
           INDEX idx_userId (userId),
+          INDEX idx_userName (userName),
           INDEX idx_deviceId (deviceId),
           INDEX idx_eventType (eventType),
           INDEX idx_timestamp (timestamp),
@@ -2350,10 +2363,96 @@ async function createDatabaseSchema(pool) {
           INDEX idx_user_device (userId, deviceId),
           INDEX idx_event_timestamp (eventType, timestamp),
           INDEX idx_device_timestamp (deviceId, timestamp),
+          INDEX idx_productId (productId),
+          INDEX idx_orderId (orderId),
+          INDEX idx_user_session (userId, sessionId),
+          INDEX idx_device_session (deviceId, sessionId),
+          INDEX idx_screen_event (screenName, eventType),
           FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
       console.log('✅ user_behavior_events table ready');
+      
+      // Yeni kolonları ekle (eğer tablo zaten varsa)
+      try {
+        const [columns] = await pool.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'user_behavior_events'
+        `);
+        const existingColumns = columns.map((c) => c.COLUMN_NAME);
+        
+        const newColumns = [
+          { name: 'userName', sql: 'ADD COLUMN userName VARCHAR(255) NULL AFTER userId' },
+          { name: 'timeOnScreen', sql: 'ADD COLUMN timeOnScreen INT NULL COMMENT \'Ekranda geçirilen süre (saniye)\' AFTER characteristics' },
+          { name: 'action', sql: 'ADD COLUMN action VARCHAR(100) NULL COMMENT \'Yapılan aksiyon\' AFTER timeOnScreen' },
+          { name: 'responseTime', sql: 'ADD COLUMN responseTime INT NULL COMMENT \'Yanıt süresi (ms)\' AFTER action' },
+          { name: 'productId', sql: 'ADD COLUMN productId INT NULL COMMENT \'Ürün ID\' AFTER responseTime' },
+          { name: 'searchQuery', sql: 'ADD COLUMN searchQuery VARCHAR(500) NULL COMMENT \'Arama sorgusu\' AFTER productId' },
+          { name: 'errorMessage', sql: 'ADD COLUMN errorMessage TEXT NULL COMMENT \'Hata mesajı\' AFTER searchQuery' },
+          { name: 'scrollDepth', sql: 'ADD COLUMN scrollDepth DECIMAL(5,2) NULL COMMENT \'Scroll derinliği\' AFTER errorMessage' },
+          { name: 'clickElement', sql: 'ADD COLUMN clickElement VARCHAR(255) NULL COMMENT \'Tıklanan element\' AFTER scrollDepth' },
+          { name: 'orderId', sql: 'ADD COLUMN orderId INT NULL COMMENT \'Sipariş ID\' AFTER clickElement' },
+          { name: 'amount', sql: 'ADD COLUMN amount DECIMAL(10,2) NULL COMMENT \'Tutar\' AFTER orderId' }
+        ];
+        
+        for (const col of newColumns) {
+          if (!existingColumns.includes(col.name)) {
+            await pool.execute(`ALTER TABLE user_behavior_events ${col.sql}`);
+            console.log(`✅ Added ${col.name} column to user_behavior_events`);
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Error adding columns to user_behavior_events:', e.message);
+      }
+      
+      // Index'leri ekle
+      try {
+        const [indexes] = await pool.execute(`
+          SELECT INDEX_NAME 
+          FROM INFORMATION_SCHEMA.STATISTICS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'user_behavior_events'
+        `);
+        const existingIndexes = indexes.map((i) => i.INDEX_NAME);
+        
+        const newIndexes = [
+          { name: 'idx_userName', sql: 'ADD INDEX idx_userName (userName)' },
+          { name: 'idx_productId', sql: 'ADD INDEX idx_productId (productId)' },
+          { name: 'idx_orderId', sql: 'ADD INDEX idx_orderId (orderId)' },
+          { name: 'idx_user_session', sql: 'ADD INDEX idx_user_session (userId, sessionId)' },
+          { name: 'idx_device_session', sql: 'ADD INDEX idx_device_session (deviceId, sessionId)' },
+          { name: 'idx_screen_event', sql: 'ADD INDEX idx_screen_event (screenName, eventType)' }
+        ];
+        
+        for (const idx of newIndexes) {
+          if (!existingIndexes.includes(idx.name)) {
+            await pool.execute(`ALTER TABLE user_behavior_events ${idx.sql}`);
+            console.log(`✅ Added ${idx.name} index to user_behavior_events`);
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Error adding indexes to user_behavior_events:', e.message);
+      }
+      
+      // timestamp kolonunu DATETIME(3) yap (mikrosaniye hassasiyeti için)
+      try {
+        await pool.execute(`ALTER TABLE user_behavior_events 
+          MODIFY COLUMN timestamp DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3)`);
+      } catch (e) {
+        // Zaten doğru tip ise hata verme
+        console.warn('⚠️ Error modifying timestamp column:', e.message);
+      }
+      
+      // sessionId'yi NOT NULL yap
+      try {
+        await pool.execute(`ALTER TABLE user_behavior_events 
+          MODIFY COLUMN sessionId VARCHAR(255) NOT NULL`);
+      } catch (e) {
+        // Zaten NOT NULL ise hata verme
+        console.warn('⚠️ Error modifying sessionId column:', e.message);
+      }
 
       // Check and add new columns if they don't exist
       try {

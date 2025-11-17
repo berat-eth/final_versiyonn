@@ -148,32 +148,49 @@ const mlService = require('../services/ml-service');
 /**
  * Event tracking endpoint
  * POST /api/user-data/behavior/track
+ * 
+ * Önemli: Login yaptığında userId zorunlu olmalı
+ * sessionId her zaman zorunlu
  */
 router.post('/behavior/track', async (req, res) => {
   try {
     const { userId, deviceId, eventType, screenName, eventData, sessionId } = req.body;
 
-    if (!deviceId || !eventType) {
+    // Zorunlu alanlar: deviceId, eventType, sessionId
+    if (!deviceId || !eventType || !sessionId) {
       return res.status(400).json({
         success: false,
-        message: 'deviceId ve eventType gerekli'
+        message: 'deviceId, eventType ve sessionId zorunludur'
       });
     }
 
-    // Tenant ID'yi userId'den al veya default kullan
-    let tenantId = 1;
+    // Geçerli eventType kontrolü
+    const validEventTypes = [
+      'screen_view', 'screen_exit', 'performance',
+      'button_click', 'product_view', 'add_to_cart', 
+      'purchase', 'search_query', 'error_event'
+    ];
+    if (!validEventTypes.includes(eventType)) {
+      console.warn(`⚠️ Geçersiz eventType: ${eventType}`);
+    }
+
     const poolWrapper = getPoolWrapper();
+    let tenantId = 1;
+    let userName = null;
+
+    // userId varsa kullanıcı bilgilerini al
     if (userId) {
       try {
         const [users] = await poolWrapper.execute(
-          'SELECT tenantId FROM users WHERE id = ?',
+          'SELECT tenantId, name FROM users WHERE id = ?',
           [userId]
         );
         if (users.length > 0) {
           tenantId = users[0].tenantId;
+          userName = users[0].name;
         }
       } catch (e) {
-        // Hata durumunda default tenantId kullan
+        console.warn('⚠️ Error getting user info:', e.message);
       }
     }
 
@@ -181,35 +198,115 @@ router.post('/behavior/track', async (req, res) => {
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     const userAgent = req.headers['user-agent'] || '';
 
+    // eventData'yı parse et ve kolonlara böl
+    const parsedEventData = eventData || {};
+    const timeOnScreen = parsedEventData.timeOnScreen || null;
+    const action = parsedEventData.action || null;
+    const responseTime = parsedEventData.responseTime || parsedEventData.loadTime || null;
+    const productId = parsedEventData.productId || null;
+    const searchQuery = parsedEventData.searchQuery || parsedEventData.query || null;
+    const errorMessage = parsedEventData.errorMessage || parsedEventData.error || null;
+    const scrollDepth = parsedEventData.scrollDepth || null;
+    const clickElement = parsedEventData.clickElement || parsedEventData.elementName || null;
+    const orderId = parsedEventData.orderId || null;
+    const amount = parsedEventData.amount || parsedEventData.totalAmount || null;
+
+    // Timestamp'i ISO8601 formatına çevir (mikrosaniye hassasiyeti ile)
+    const timestamp = parsedEventData.timestamp 
+      ? new Date(parsedEventData.timestamp).toISOString().slice(0, 23).replace('T', ' ')
+      : new Date().toISOString().slice(0, 23).replace('T', ' ');
+
     // Event'i veritabanına kaydet
     const [result] = await poolWrapper.execute(`
       INSERT INTO user_behavior_events 
-      (userId, deviceId, eventType, screenName, eventData, sessionId, timestamp, ipAddress, userAgent)
-      VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+      (userId, userName, deviceId, eventType, screenName, eventData, sessionId, timestamp, ipAddress, userAgent,
+       timeOnScreen, action, responseTime, productId, searchQuery, errorMessage, scrollDepth, clickElement, orderId, amount)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       userId || null,
+      userName,
       deviceId,
       eventType,
       screenName || null,
-      JSON.stringify(eventData || {}),
-      sessionId || null,
+      JSON.stringify(parsedEventData),
+      sessionId,
+      timestamp,
       ipAddress,
-      userAgent
+      userAgent,
+      timeOnScreen,
+      action,
+      responseTime,
+      productId,
+      searchQuery,
+      errorMessage,
+      scrollDepth,
+      clickElement,
+      orderId,
+      amount
     ]);
 
     const eventId = result.insertId;
+
+    // screen_view → screen_exit ilişkisini kontrol et
+    if (eventType === 'screen_view') {
+      // Önceki screen_exit'i kontrol et (aynı screenName için)
+      try {
+        const [previousExit] = await poolWrapper.execute(`
+          SELECT id FROM user_behavior_events 
+          WHERE sessionId = ? AND screenName = ? AND eventType = 'screen_exit'
+          ORDER BY timestamp DESC LIMIT 1
+        `, [sessionId, screenName]);
+        
+        if (previousExit.length === 0 && eventId > 1) {
+          // Önceki screen_view için exit yoksa, otomatik exit oluştur
+          const [previousView] = await poolWrapper.execute(`
+            SELECT id, screenName, timestamp FROM user_behavior_events 
+            WHERE sessionId = ? AND eventType = 'screen_view' AND id < ?
+            ORDER BY timestamp DESC LIMIT 1
+          `, [sessionId, eventId]);
+          
+          if (previousView.length > 0) {
+            const prevScreen = previousView[0].screenName;
+            const prevTimestamp = new Date(previousView[0].timestamp);
+            const timeDiff = Math.floor((new Date(timestamp) - prevTimestamp) / 1000);
+            
+            if (timeDiff > 0 && prevScreen !== screenName) {
+              await poolWrapper.execute(`
+                INSERT INTO user_behavior_events 
+                (userId, userName, deviceId, eventType, screenName, eventData, sessionId, timestamp, ipAddress, userAgent, timeOnScreen)
+                VALUES (?, ?, ?, 'screen_exit', ?, ?, ?, ?, ?, ?, ?)
+              `, [
+                userId || null,
+                userName,
+                deviceId,
+                prevScreen,
+                JSON.stringify({ screenName: prevScreen, autoExit: true }),
+                sessionId,
+                timestamp,
+                ipAddress,
+                userAgent,
+                timeDiff
+              ]);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Error checking screen_exit relationship:', e.message);
+      }
+    }
 
     // Send to ML queue for processing
     try {
       await mlService.sendEventToML({
         id: eventId,
         userId: userId || null,
+        userName,
         deviceId,
         eventType,
         screenName: screenName || null,
-        eventData: eventData || {},
-        sessionId: sessionId || null,
-        timestamp: new Date().toISOString()
+        eventData: parsedEventData,
+        sessionId,
+        timestamp: new Date(timestamp).toISOString()
       });
     } catch (mlError) {
       // Don't fail the request if ML queue fails

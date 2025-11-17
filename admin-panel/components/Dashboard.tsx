@@ -493,12 +493,124 @@ export default function Dashboard() {
           setHepsiburadaCompletedCount(0)
         }
 
+        // Gerçek Zamanlı Aktivite - Gerçek verilerden oluştur
+        try {
+          const activities: any[] = []
+          const now = new Date()
+          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+
+          // Son siparişlerden aktiviteler oluştur
+          if ((adminOrders as any)?.success && (adminOrders as any).data) {
+            const recentOrders = ((adminOrders as any).data as any[])
+              .filter((o: any) => new Date(o.createdAt) >= fiveMinutesAgo)
+              .slice(0, 5)
+            
+            recentOrders.forEach((order: any) => {
+              activities.push({
+                id: `order-${order.id}`,
+                type: 'order',
+                user: order.userName || order.userEmail || 'Misafir',
+                action: 'Yeni sipariş verdi',
+                product: `${order.itemCount || 0} ürün`,
+                amount: Number(order.totalAmount) || 0,
+                time: formatTimeAgo(new Date(order.createdAt)),
+                color: 'blue',
+                icon: ShoppingCart
+              })
+            })
+          }
+
+          // Son yorumlardan aktiviteler oluştur
+          try {
+            const reviewsRes = await api.get<any>('/admin/reviews', { limit: 10, page: 1 }).catch(() => null)
+            if (reviewsRes?.success && reviewsRes.data) {
+              const recentReviews = (reviewsRes.data as any[])
+                .filter((r: any) => new Date(r.createdAt) >= fiveMinutesAgo)
+                .slice(0, 3)
+              
+              recentReviews.forEach((review: any) => {
+                activities.push({
+                  id: `review-${review.id}`,
+                  type: 'review',
+                  user: review.userName || review.userEmail || 'Misafir',
+                  action: 'Ürün yorumu yaptı',
+                  product: review.productName || 'Ürün',
+                  rating: review.rating || 0,
+                  time: formatTimeAgo(new Date(review.createdAt)),
+                  color: 'yellow',
+                  icon: Star
+                })
+              })
+            }
+          } catch {}
+
+          // Son kullanıcılardan aktiviteler oluştur
+          try {
+            const usersRes = await api.get<any>('/admin/users', { limit: 10, page: 1 }).catch(() => null)
+            if (usersRes?.success && usersRes.data) {
+              const newUsers = (usersRes.data as any[])
+                .filter((u: any) => new Date(u.createdAt) >= fiveMinutesAgo)
+                .slice(0, 2)
+              
+              newUsers.forEach((user: any) => {
+                activities.push({
+                  id: `user-${user.id}`,
+                  type: 'customer',
+                  user: user.name || user.email || 'Yeni Kullanıcı',
+                  action: 'Sisteme kayıt oldu',
+                  time: formatTimeAgo(new Date(user.createdAt)),
+                  color: 'green',
+                  icon: UserPlus
+                })
+              })
+            }
+          } catch {}
+
+          // Zaman sırasına göre sırala (en yeni önce)
+          activities.sort((a, b) => {
+            const timeA = getTimeFromAgo(a.time)
+            const timeB = getTimeFromAgo(b.time)
+            return timeB - timeA
+          })
+
+          setRealtimeActivities(activities.slice(0, 10))
+        } catch (error) {
+          console.error('❌ Error loading realtime activities:', error)
+          setRealtimeActivities([])
+        }
+
       } catch {
         // sessiz geç
       }
     }
     load()
   }, [])
+
+  // Yardımcı fonksiyonlar
+  const formatTimeAgo = (date: Date): string => {
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSecs = Math.floor(diffMs / 1000)
+    const diffMins = Math.floor(diffSecs / 60)
+    
+    if (diffSecs < 60) return 'Az önce'
+    if (diffMins < 60) return `${diffMins} dk önce`
+    const diffHours = Math.floor(diffMins / 60)
+    if (diffHours < 24) return `${diffHours} sa önce`
+    return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const getTimeFromAgo = (timeStr: string): number => {
+    if (timeStr === 'Az önce') return Date.now()
+    const match = timeStr.match(/(\d+)\s*(dk|sa)\s*önce/)
+    if (match) {
+      const value = parseInt(match[1])
+      const unit = match[2]
+      const ms = unit === 'dk' ? value * 60 * 1000 : value * 60 * 60 * 1000
+      return Date.now() - ms
+    }
+    return Date.now()
+  }
 
   const downloadReport = () => {
     // CSV formatında rapor oluştur
@@ -1532,38 +1644,53 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Aktivite İstatistikleri */}
+          {/* Aktivite İstatistikleri - Gerçek Veriler */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-6">
             <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
                 <ShoppingCart className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">+12</span>
+                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                  +{realtimeActivities.filter(a => a.type === 'order').length}
+                </span>
               </div>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">52</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">{totalOrders}</p>
               <p className="text-xs text-slate-600 dark:text-slate-300">Sipariş</p>
             </div>
             <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
                 <Users className="w-4 h-4 text-green-600 dark:text-green-400" />
-                <span className="text-xs text-green-600 dark:text-green-400 font-medium">+8</span>
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                  +{realtimeActivities.filter(a => a.type === 'customer').length}
+                </span>
               </div>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">145</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">{totalCustomers}</p>
               <p className="text-xs text-slate-600 dark:text-slate-300">Ziyaretçi</p>
             </div>
             <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
                 <Star className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">+5</span>
+                <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                  +{realtimeActivities.filter(a => a.type === 'review').length}
+                </span>
               </div>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">23</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                {realtimeActivities.filter(a => a.type === 'review').length}
+              </p>
               <p className="text-xs text-slate-600 dark:text-slate-300">Yorum</p>
             </div>
             <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
                 <DollarSign className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">+₺45K</span>
+                <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                  +₺{realtimeActivities
+                    .filter(a => a.type === 'order' && a.amount)
+                    .reduce((sum, a) => sum + (a.amount || 0), 0)
+                    .toLocaleString('tr-TR', { maximumFractionDigits: 0 })}
+                </span>
               </div>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">₺215K</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                ₺{totalRevenue.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}
+              </p>
               <p className="text-xs text-slate-600 dark:text-slate-300">Gelir</p>
             </div>
           </div>
@@ -1666,7 +1793,91 @@ export default function Dashboard() {
               </div>
             </div>
             <button
-              onClick={() => alert('🔄 Aktiviteler yenilendi!')}
+              onClick={async () => {
+                // Verileri yeniden yükle
+                const load = async () => {
+                  try {
+                    const [adminOrders, reviewsRes, usersRes] = await Promise.all([
+                      api.get<any>('/admin/orders'),
+                      api.get<any>('/admin/reviews', { limit: 10, page: 1 }).catch(() => null),
+                      api.get<any>('/admin/users', { limit: 10, page: 1 }).catch(() => null)
+                    ])
+                    
+                    const activities: any[] = []
+                    const now = new Date()
+                    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+
+                    if ((adminOrders as any)?.success && (adminOrders as any).data) {
+                      const recentOrders = ((adminOrders as any).data as any[])
+                        .filter((o: any) => new Date(o.createdAt) >= fiveMinutesAgo)
+                        .slice(0, 5)
+                      
+                      recentOrders.forEach((order: any) => {
+                        activities.push({
+                          id: `order-${order.id}`,
+                          type: 'order',
+                          user: order.userName || order.userEmail || 'Misafir',
+                          action: 'Yeni sipariş verdi',
+                          product: `${order.itemCount || 0} ürün`,
+                          amount: Number(order.totalAmount) || 0,
+                          time: formatTimeAgo(new Date(order.createdAt)),
+                          color: 'blue',
+                          icon: ShoppingCart
+                        })
+                      })
+                    }
+
+                    if (reviewsRes?.success && reviewsRes.data) {
+                      const recentReviews = (reviewsRes.data as any[])
+                        .filter((r: any) => new Date(r.createdAt) >= fiveMinutesAgo)
+                        .slice(0, 3)
+                      
+                      recentReviews.forEach((review: any) => {
+                        activities.push({
+                          id: `review-${review.id}`,
+                          type: 'review',
+                          user: review.userName || review.userEmail || 'Misafir',
+                          action: 'Ürün yorumu yaptı',
+                          product: review.productName || 'Ürün',
+                          rating: review.rating || 0,
+                          time: formatTimeAgo(new Date(review.createdAt)),
+                          color: 'yellow',
+                          icon: Star
+                        })
+                      })
+                    }
+
+                    if (usersRes?.success && usersRes.data) {
+                      const newUsers = (usersRes.data as any[])
+                        .filter((u: any) => new Date(u.createdAt) >= fiveMinutesAgo)
+                        .slice(0, 2)
+                      
+                      newUsers.forEach((user: any) => {
+                        activities.push({
+                          id: `user-${user.id}`,
+                          type: 'customer',
+                          user: user.name || user.email || 'Yeni Kullanıcı',
+                          action: 'Sisteme kayıt oldu',
+                          time: formatTimeAgo(new Date(user.createdAt)),
+                          color: 'green',
+                          icon: UserPlus
+                        })
+                      })
+                    }
+
+                    activities.sort((a, b) => {
+                      const timeA = getTimeFromAgo(a.time)
+                      const timeB = getTimeFromAgo(b.time)
+                      return timeB - timeA
+                    })
+
+                    setRealtimeActivities(activities.slice(0, 10))
+                  } catch (error) {
+                    console.error('❌ Error refreshing activities:', error)
+                  }
+                }
+                await load()
+              }}
               className="flex items-center space-x-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors group"
             >
               <RefreshCw className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-800 group-hover:rotate-180 transition-all duration-500" />
