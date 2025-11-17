@@ -10,7 +10,7 @@ import {
   Loader2, Sparkles, PieChart as PieChartIcon, LineChart, Award
 } from 'lucide-react'
 import { 
-  Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, 
+  Line, Bar, BarChart, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, Legend, AreaChart, Area, ComposedChart
 } from 'recharts'
 import { motion } from 'framer-motion'
@@ -396,7 +396,7 @@ function OverviewSection({ data, theme }: any) {
     },
     { 
       label: 'Bounce Rate', 
-      value: `${(data.bounceRate || 0).toFixed(1)}%`, 
+      value: `${Number(data.bounceRate || 0).toFixed(1)}%`, 
       icon: TrendingDown, 
       gradient: 'from-red-500 to-rose-500',
       change: '-3%'
@@ -452,11 +452,11 @@ function OverviewSection({ data, theme }: any) {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Günlük Artış</span>
-                <span className="font-bold text-green-600">+{((data.totalUsers || 0) * 0.12).toFixed(0)}</span>
+                <span className="font-bold text-green-600">+{Number((data.totalUsers || 0) * 0.12).toFixed(0)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Haftalık Artış</span>
-                <span className="font-bold text-blue-600">+{((data.totalUsers || 0) * 0.08).toFixed(0)}</span>
+                <span className="font-bold text-blue-600">+{Number((data.totalUsers || 0) * 0.08).toFixed(0)}</span>
               </div>
             </div>
           </motion.div>
@@ -474,13 +474,13 @@ function OverviewSection({ data, theme }: any) {
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Dönüşüm Oranı</span>
                 <span className="font-bold text-purple-600">
-                  {data.totalSessions > 0 ? ((data.totalEvents / data.totalSessions) * 100).toFixed(1) : 0}%
+                  {Number(data.totalSessions || 0) > 0 ? Number(((data.totalEvents || 0) / (data.totalSessions || 1)) * 100).toFixed(1) : 0}%
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Etkileşim Oranı</span>
                 <span className="font-bold text-orange-600">
-                  {data.totalUsers > 0 ? ((data.activeUsers / data.totalUsers) * 100).toFixed(1) : 0}%
+                  {Number(data.totalUsers || 0) > 0 ? Number(((data.activeUsers || 0) / (data.totalUsers || 1)) * 100).toFixed(1) : 0}%
                 </span>
               </div>
             </div>
@@ -548,11 +548,11 @@ function UsersSection({ data, theme }: any) {
             </div>
             <div className="flex justify-between items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
               <span className="text-slate-700 dark:text-slate-300">Retention Rate</span>
-              <span className="font-bold text-green-600">{(data.retentionRate || 0).toFixed(1)}%</span>
+              <span className="font-bold text-green-600">{Number(data.retentionRate || 0).toFixed(1)}%</span>
             </div>
             <div className="flex justify-between items-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
               <span className="text-slate-700 dark:text-slate-300">Churn Rate</span>
-              <span className="font-bold text-red-600">{(data.churnRate || 0).toFixed(1)}%</span>
+              <span className="font-bold text-red-600">{Number(data.churnRate || 0).toFixed(1)}%</span>
             </div>
           </div>
         </motion.div>
@@ -617,9 +617,9 @@ function BehaviorSection({ data, theme }: any) {
             <MousePointer className="w-8 h-8" />
             <span className="text-green-100 text-sm">Scroll Derinliği</span>
           </div>
-          <p className="text-4xl font-bold mb-2">{(data.scrollDepth?.avg || 0).toFixed(1)}%</p>
+          <p className="text-4xl font-bold mb-2">{Number(data.scrollDepth?.avg || 0).toFixed(1)}%</p>
           <p className="text-green-100 text-sm">
-            Maksimum: {(data.scrollDepth?.max || 0).toFixed(1)}%
+            Maksimum: {Number(data.scrollDepth?.max || 0).toFixed(1)}%
           </p>
         </motion.div>
       </div>
@@ -693,7 +693,7 @@ function FunnelSection({ data, theme }: any) {
                   <div className="text-right">
                     <span className="font-bold text-lg text-slate-900 dark:text-slate-100">{step.value.toLocaleString()}</span>
                     {index > 0 && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Dönüşüm: {conversionRate.toFixed(1)}%</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Dönüşüm: {Number(conversionRate).toFixed(1)}%</p>
                     )}
                   </div>
                 </div>
@@ -706,7 +706,7 @@ function FunnelSection({ data, theme }: any) {
                     style={{ backgroundColor: step.color }}
                   >
                     {widthPercent > 10 && (
-                      <span className="text-xs font-semibold text-white">{widthPercent.toFixed(0)}%</span>
+                      <span className="text-xs font-semibold text-white">{Number(widthPercent).toFixed(0)}%</span>
                     )}
                   </motion.div>
                 </div>
@@ -780,7 +780,7 @@ function PerformanceSection({ data, theme }: any) {
             </div>
             <div className="flex justify-between items-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
               <span className="text-slate-700 dark:text-slate-300">Hata Oranı</span>
-              <span className="font-bold text-red-600">{(data.errorRate || 0).toFixed(2)}%</span>
+              <span className="font-bold text-red-600">{Number(data.errorRate || 0).toFixed(2)}%</span>
             </div>
             <div className="flex justify-between items-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
               <span className="text-slate-700 dark:text-slate-300">Crash Sayısı</span>
