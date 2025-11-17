@@ -952,13 +952,6 @@ export default function ProjectAjax() {
                             >
                                 <Settings className="w-4 h-4 text-gray-400" />
                             </button>
-                            <button
-                                onClick={() => setShowPromptModal(!showPromptModal)}
-                                className={`p-2 rounded-r transition-all ${showPromptModal ? 'bg-[#2d2f36]' : 'bg-[#2d2f36]/50'}`}
-                                title="Prompt Görüntüle"
-                            >
-                                <Eye className="w-4 h-4 text-gray-400" />
-                            </button>
                         </div>
                     </div>
                     </div>
@@ -1219,82 +1212,6 @@ export default function ProjectAjax() {
                 </div>
             )}
 
-            {/* Prompt Modal - Sadeleştirilmiş */}
-            {showPromptModal && (
-                <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-3">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-80">
-                        {/* Left Panel - System Prompt */}
-                        <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
-                                    <FileText className="w-3.5 h-3.5" />
-                                    <span>Sistem Prompt</span>
-                                </h3>
-                                <div className="text-xs text-gray-500 dark:text-slate-400">
-                                    {currentPrompt.length} karakter
-                                </div>
-                            </div>
-                            
-                            <div className="border border-gray-200 dark:border-slate-700 rounded p-2 h-64 overflow-y-auto bg-gray-50 dark:bg-slate-700">
-                                <pre className="text-xs text-gray-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
-                                    {currentPrompt}
-                                </pre>
-                            </div>
-                        </div>
-
-                        {/* Right Panel - Enhanced Prompt */}
-                        <div className="border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
-                                    <Code className="w-3.5 h-3.5" />
-                                    <span>Geliştirilmiş Prompt</span>
-                                </h3>
-                                <div className="text-xs text-gray-500 dark:text-slate-400">
-                                    {enhancedPrompt.length} karakter
-                                </div>
-                            </div>
-                            
-                            <div className="border border-gray-200 dark:border-slate-700 rounded p-2 h-64 overflow-y-auto bg-gray-50 dark:bg-slate-700">
-                                <pre className="text-xs text-gray-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
-                                    {enhancedPrompt}
-                                </pre>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* API Data Section */}
-                    {apiData && (
-                        <div className="mt-3 border border-gray-200 dark:border-slate-700 rounded p-3 bg-white dark:bg-slate-800">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-medium flex items-center gap-1 text-gray-900 dark:text-slate-100">
-                                    <Database className="w-3.5 h-3.5" />
-                                    <span>API Verisi</span>
-                                </h3>
-                                <div className="text-xs text-gray-500 dark:text-slate-400">
-                                    {apiData.type}
-                                </div>
-                            </div>
-                            
-                            <div className="border border-gray-200 dark:border-slate-700 rounded p-2 max-h-32 overflow-y-auto bg-gray-50 dark:bg-slate-700">
-                                <pre className="text-xs text-gray-700 dark:text-slate-300 whitespace-pre-wrap font-mono">
-                                    {JSON.stringify(apiData.data, null, 2)}
-                                </pre>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Close Button */}
-                    <div className="mt-3 flex justify-end">
-                        <button
-                            onClick={() => setShowPromptModal(false)}
-                            className="px-3 py-1 bg-gray-600 dark:bg-slate-700 text-white dark:text-slate-100 rounded text-xs flex items-center gap-1 hover:bg-gray-700 dark:hover:bg-slate-600"
-                        >
-                            <Settings className="w-3 h-3" />
-                            <span>Kapat</span>
-                        </button>
-                    </div>
-                </div>
-            )}
 
             {/* Messages Area - Gemini Stili */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-0">

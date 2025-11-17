@@ -1674,10 +1674,11 @@ app.post('/api/admin/maintenance/toggle', authenticateAdmin, async (req, res) =>
 // Ollama API endpoints
 app.get('/api/ollama/health', async (req, res) => {
   try {
-    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    // Uzak Ollama sunucusu URL'i - api.plaxsy.com üzerinden
+    const ollamaUrl = process.env.OLLAMA_URL || 'https://api.plaxsy.com';
 
-    const response = await axios.get(`${ollamaUrl}/api/tags`, {
-      timeout: 5000,
+    const response = await axios.get(`${ollamaUrl}/api/ollama/health`, {
+      timeout: 10000,
       headers: {
         'Content-Type': 'application/json'
       }
@@ -1707,7 +1708,8 @@ app.get('/api/ollama/health', async (req, res) => {
 app.post('/api/ollama/generate', async (req, res) => {
   try {
     const { messages, model, temperature, maxTokens } = req.body;
-    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    // Uzak Ollama sunucusu URL'i
+    const ollamaUrl = process.env.OLLAMA_URL || 'https://api.plaxsy.com/ollama';
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({
@@ -1741,7 +1743,7 @@ app.post('/api/ollama/generate', async (req, res) => {
 
     console.log('🤖 Ollama Request:', { model: requestBody.model, temperature: requestBody.options.temperature });
 
-    const response = await axios.post(`${ollamaUrl}/api/generate`, requestBody, {
+    const response = await axios.post(`${ollamaUrl}/api/ollama/generate`, requestBody, {
       timeout: 60000, // 60 saniye timeout
       headers: {
         'Content-Type': 'application/json'
@@ -1767,7 +1769,8 @@ app.post('/api/ollama/generate', async (req, res) => {
 app.post('/api/ollama/pull', async (req, res) => {
   try {
     const { model } = req.body;
-    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    // Uzak Ollama sunucusu URL'i - api.plaxsy.com üzerinden
+    const ollamaUrl = process.env.OLLAMA_URL || 'https://api.plaxsy.com';
 
     if (!model) {
       return res.status(400).json({
@@ -1778,7 +1781,7 @@ app.post('/api/ollama/pull', async (req, res) => {
 
     console.log(`📥 Pulling model: ${model}`);
 
-    const response = await axios.post(`${ollamaUrl}/api/pull`, {
+    const response = await axios.post(`${ollamaUrl}/api/ollama/pull`, {
       name: model
     }, {
       timeout: 300000, // 5 dakika timeout
@@ -13307,7 +13310,7 @@ app.get('/api/admin/products', authenticateAdmin, async (req, res) => {
     
     // Optimize: Admin için gerekli column'lar
     const [rows] = await poolWrapper.execute(
-      `SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId 
+      `SELECT id, name, price, image, images, brand, category, description, stock, sku, lastUpdated, createdAt, tenantId 
        FROM products 
        WHERE tenantId = ?
        ORDER BY lastUpdated DESC
@@ -13333,7 +13336,7 @@ app.get('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
 
     // Optimize: Admin detail için gerekli column'lar
     const [rows] = await poolWrapper.execute(
-      'SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId FROM products WHERE id = ?',
+      'SELECT id, name, price, image, images, brand, category, description, stock, sku, lastUpdated, createdAt, tenantId FROM products WHERE id = ?',
       [productId]
     );
 
@@ -13383,7 +13386,7 @@ app.post('/api/admin/products', authenticateAdmin, async (req, res) => {
     `, [tenantId, name, description, parseFloat(price), parseFloat(taxRate || 0), !!priceIncludesTax, category, image, parseInt(stock || 0, 10), brand]);
 
     // Optimize: Sadece gerekli column'lar
-    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId FROM products WHERE id = ?', [result.insertId]);
+    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, brand, category, description, stock, sku, lastUpdated, createdAt, tenantId FROM products WHERE id = ?', [result.insertId]);
     res.json({ success: true, data: rows[0], message: 'Ürün oluşturuldu' });
   } catch (error) {
     console.error('❌ Error creating product:', error);
@@ -13410,7 +13413,7 @@ app.put('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
     params.push(productId);
     await poolWrapper.execute(`UPDATE products SET ${fields.join(', ')}, lastUpdated = NOW() WHERE id = ?`, params);
     // Optimize: Sadece gerekli column'lar
-    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, lastUpdated, createdAt, tenantId FROM products WHERE id = ?', [productId]);
+    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, lastUpdated, createdAt, tenantId FROM products WHERE id = ?', [productId]);
     res.json({ success: true, data: rows[0], message: 'Ürün güncellendi' });
   } catch (error) {
     console.error('❌ Error updating product:', error);
