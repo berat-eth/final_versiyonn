@@ -1,33 +1,124 @@
 'use client'
 
-import { useState } from 'react'
-import { Sparkles, Search, Filter, RefreshCw } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Sparkles, Search, Filter, RefreshCw, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { api } from '@/lib/api'
+
+interface RecommendationProduct {
+  productId: number
+  name?: string
+  score?: number
+}
+
+interface Recommendation {
+  id: number
+  userId: number
+  userName?: string
+  recommendedProducts: RecommendationProduct[]
+  generatedAt: string
+}
 
 export default function Recommendations() {
-  const [recommendations, setRecommendations] = useState([
-    { 
-      id: 1, 
-      userName: 'Ahmet Yılmaz', 
-      recommendedProducts: [
-        { name: 'iPhone 15 Pro', score: 0.95 },
-        { name: 'AirPods Pro', score: 0.88 },
-        { name: 'Apple Watch', score: 0.82 }
-      ],
-      generatedAt: '2024-01-15 14:30'
-    },
-    { 
-      id: 2, 
-      userName: 'Ayşe Demir', 
-      recommendedProducts: [
-        { name: 'Samsung Galaxy S24', score: 0.92 },
-        { name: 'Galaxy Buds', score: 0.85 },
-        { name: 'Galaxy Watch', score: 0.78 }
-      ],
-      generatedAt: '2024-01-15 15:45'
-    },
-  ])
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Önerileri yükle
+  const loadRecommendations = async () => {
+    try {
+      setLoading(true)
+      const response = await api.get<any>('/admin/recommendations', { limit: 100, offset: 0 })
+      
+      if (response.success && response.data) {
+        // Her öneri için kullanıcı adını ve ürün detaylarını al
+        const enrichedRecommendations = await Promise.all(
+          response.data.map(async (rec: any) => {
+            try {
+              // Kullanıcı bilgisini al
+              const userResponse = await api.get<any>(`/users/${rec.userId}`).catch(() => null)
+              const userName = userResponse?.data?.name || userResponse?.data?.email || `Kullanıcı #${rec.userId}`
+
+              // Önerilen ürün ID'lerini parse et
+              let productIds: number[] = []
+              if (rec.recommendedProducts) {
+                if (typeof rec.recommendedProducts === 'string') {
+                  productIds = JSON.parse(rec.recommendedProducts)
+                } else if (Array.isArray(rec.recommendedProducts)) {
+                  productIds = rec.recommendedProducts
+                }
+              }
+
+              // Ürün detaylarını al
+              const products = await Promise.all(
+                productIds.slice(0, 10).map(async (productId: number) => {
+                  try {
+                    const productResponse = await api.get<any>(`/products/${productId}`).catch(() => null)
+                    return {
+                      productId,
+                      name: productResponse?.data?.name || `Ürün #${productId}`,
+                      score: 0.85 // Backend'den score gelmiyorsa varsayılan değer
+                    }
+                  } catch {
+                    return {
+                      productId,
+                      name: `Ürün #${productId}`,
+                      score: 0.85
+                    }
+                  }
+                })
+              )
+
+              return {
+                id: rec.id,
+                userId: rec.userId,
+                userName,
+                recommendedProducts: products,
+                generatedAt: rec.generatedAt ? new Date(rec.generatedAt).toLocaleString('tr-TR') : 'Bilinmiyor'
+              }
+            } catch (error) {
+              console.error('❌ Öneri zenginleştirme hatası:', error)
+              return {
+                id: rec.id,
+                userId: rec.userId,
+                userName: `Kullanıcı #${rec.userId}`,
+                recommendedProducts: [],
+                generatedAt: rec.generatedAt ? new Date(rec.generatedAt).toLocaleString('tr-TR') : 'Bilinmiyor'
+              }
+            }
+          })
+        )
+
+        setRecommendations(enrichedRecommendations)
+      }
+    } catch (error) {
+      console.error('❌ Öneriler yüklenemedi:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Yenile
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await loadRecommendations()
+    setRefreshing(false)
+  }
+
+  useEffect(() => {
+    loadRecommendations()
+  }, [])
+
+  // Arama filtresi
+  const filteredRecommendations = recommendations.filter(rec => {
+    if (!searchTerm) return true
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      rec.userName?.toLowerCase().includes(searchLower) ||
+      rec.recommendedProducts.some(p => p.name?.toLowerCase().includes(searchLower))
+    )
+  })
 
   return (
     <div className="space-y-6">
@@ -36,9 +127,22 @@ export default function Recommendations() {
           <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Ürün Önerileri</h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1">AI destekli kişiselleştirilmiş ürün önerileri</p>
         </div>
-        <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-shadow flex items-center space-x-2">
-          <RefreshCw className="w-4 h-4" />
-          <span>Yeniden Oluştur</span>
+        <button 
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-shadow flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {refreshing ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Yükleniyor...</span>
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4" />
+              <span>Yenile</span>
+            </>
+          )}
         </button>
       </div>
 
@@ -60,8 +164,21 @@ export default function Recommendations() {
           </button>
         </div>
 
-        <div className="space-y-4">
-          {recommendations.map((rec, index) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <span className="ml-3 text-slate-600 dark:text-slate-400">Öneriler yükleniyor...</span>
+          </div>
+        ) : filteredRecommendations.length === 0 ? (
+          <div className="text-center py-12">
+            <Sparkles className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+            <p className="text-slate-600 dark:text-slate-400">
+              {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz öneri bulunmuyor'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredRecommendations.map((rec, index) => (
             <motion.div
               key={rec.id}
               initial={{ opacity: 0, y: 20 }}
@@ -88,19 +205,20 @@ export default function Recommendations() {
                       <div className="w-24 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
-                          style={{ width: `${product.score * 100}%` }}
+                          style={{ width: `${(product.score || 0.85) * 100}%` }}
                         />
                       </div>
                       <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
-                        {(product.score * 100).toFixed(0)}%
+                        {((product.score || 0.85) * 100).toFixed(0)}%
                       </span>
                     </div>
                   </div>
                 ))}
               </div>
             </motion.div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

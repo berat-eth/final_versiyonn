@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, Send, Users, TrendingUp, Eye, MousePointer, Trash2, Edit, Plus, Copy, Download, Filter, Search, Calendar, BarChart3, FileText, Image, Code, Sparkles, X } from 'lucide-react'
+import { Mail, Send, Users, TrendingUp, Eye, MousePointer, Trash2, Edit, Plus, Copy, Download, Filter, Search, Calendar, BarChart3, FileText, Image, Code, Sparkles, X, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { sanitizeHTML } from '@/lib/xss-sanitizer'
+import { OllamaService, OllamaMessage } from '@/lib/services/ollama-service'
 
 interface EmailTemplate {
   id: number
@@ -35,6 +36,8 @@ export default function Email() {
   const [templateSubject, setTemplateSubject] = useState('')
   const [templateCategory, setTemplateCategory] = useState('Genel')
   const [templateHtml, setTemplateHtml] = useState('<html>\n  <body>\n    <h1>Merhaba!</h1>\n    <p>E-posta içeriğinizi buraya yazın...</p>\n  </body>\n</html>')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
 
   // Mock şablon verileri kaldırıldı - Backend entegrasyonu için hazır
   const templates: EmailTemplate[] = []
@@ -482,6 +485,119 @@ export default function Email() {
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* AI Prompt Input */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">AI ile E-posta Oluştur</p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder="Örn: Yeni ürün lansmanı için profesyonel bir pazarlama e-postası oluştur..."
+                      className="flex-1 px-4 py-2.5 bg-white dark:bg-dark-card border border-purple-200 dark:border-purple-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100 text-sm"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          const button = document.querySelector('[title="AI ile E-posta Oluştur"]') as HTMLButtonElement
+                          if (button && !button.disabled) {
+                            button.click()
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!aiPrompt.trim()) {
+                          alert('Lütfen e-posta içeriği için bir açıklama girin')
+                          return
+                        }
+                        
+                        setIsGenerating(true)
+                        try {
+                          const systemPrompt = `E-posta pazarlama uzmanısın. Huglu Outdoor için profesyonel HTML e-postaları oluştur.
+
+KURALLAR:
+- Tüm CSS inline (style="...") kullan, <style> tag yok
+- Table-based layout kullan
+- Sadece HTML döndür, açıklama yok
+- Konu: "${templateSubject || 'Pazarlama'}"
+- Şablon: "${templateName || 'Yeni'}"`
+
+                          const userPrompt = `Aşağıdaki açıklamaya göre profesyonel bir pazarlama e-postası HTML kodu oluştur:\n\n${aiPrompt}`
+
+                          const messages: OllamaMessage[] = [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: userPrompt }
+                          ]
+
+                          const response = await OllamaService.sendMessage(messages, {
+                            temperature: 0.7,
+                            maxTokens: 3000
+                          })
+
+                          let htmlCode = ''
+                          if (response.message && response.message.content) {
+                            htmlCode = response.message.content
+                          } else if ((response as any).response) {
+                            htmlCode = (response as any).response
+                          } else if (typeof response === 'string') {
+                            htmlCode = response
+                          } else {
+                            htmlCode = JSON.stringify(response)
+                          }
+
+                          htmlCode = htmlCode
+                            .replace(/```html\n?/g, '')
+                            .replace(/```\n?/g, '')
+                            .replace(/```htm\n?/g, '')
+                            .trim()
+
+                          if (!htmlCode.includes('<html') && !htmlCode.includes('<!DOCTYPE')) {
+                            htmlCode = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif;">
+${htmlCode}
+</body>
+</html>`
+                          }
+
+                          setTemplateHtml(htmlCode)
+                          setAiPrompt('')
+                        } catch (error: any) {
+                          console.error('❌ Ollama hatası:', error)
+                          alert(`E-posta oluşturulurken hata oluştu: ${error.message || 'Bilinmeyen hata'}`)
+                        } finally {
+                          setIsGenerating(false)
+                        }
+                      }}
+                      disabled={isGenerating || !aiPrompt.trim()}
+                      className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm flex items-center space-x-2"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Oluşturuluyor...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          <span>Oluştur</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                    E-posta içeriğini açıklayın, AI profesyonel HTML kodu oluşturacak
+                  </p>
                 </div>
 
                 {/* Quick Insert Buttons */}
