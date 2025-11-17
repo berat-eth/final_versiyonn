@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ import { Product } from '../utils/types';
 import { Order } from '../utils/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../utils/api-service';
+import { ProductController } from '../controllers/ProductController';
 
 interface ChatbotProps {
   navigation?: any;
@@ -77,10 +78,15 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
   const [isRecording, setIsRecording] = useState(false);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
+  const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
+  const [productLoaded, setProductLoaded] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const animatedValue = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const recordingPulseAnim = useRef(new Animated.Value(1)).current;
   
   // Tab bar yüksekliği (70) + safe area bottom + margin
   const bottomOffset = 70 + Math.max(insets.bottom, 8) + 20;
@@ -101,12 +107,23 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     
     // Chatbot butonunu görünür yap
     console.log('✅ Chatbot component mounted');
+
+    // Component unmount olduğunda kayıt devam ediyorsa temizle
+    return () => {
+      if (VoiceService.getIsRecording()) {
+        VoiceService.cancelRecording().catch(() => {});
+      }
+    };
   }, []);
 
   const checkLLMStatus = async () => {
     try {
-      const config = await AnythingLLMService.getConfig();
-      setLlmEnabled(config?.enabled || false);
+      // Ollama veya AnythingLLM kontrolü
+      const [ollamaConfig, anythingLLMConfig] = await Promise.all([
+        import('../services/OllamaService').then(m => m.OllamaService.getConfig()),
+        AnythingLLMService.getConfig()
+      ]);
+      setLlmEnabled(ollamaConfig?.enabled || anythingLLMConfig?.enabled || false);
     } catch (error) {
       console.error('LLM status check error:', error);
       setLlmEnabled(false);
@@ -212,12 +229,73 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     return () => clearInterval(interval);
   };
 
+  // productId değiştiğinde productLoaded state'ini sıfırla
+  useEffect(() => {
+    if (productId && currentProduct?.id !== productId) {
+      setProductLoaded(false);
+      setCurrentProduct(null);
+    }
+  }, [productId, currentProduct?.id]);
+
   useEffect(() => {
     if (isVisible) {
       setUnreadCount(0);
       scrollToBottom();
     }
   }, [messages, isVisible]);
+
+  // Ürün bilgilerini yükle
+  const loadProductInfo = useCallback(async () => {
+    if (!productId || productLoaded) return;
+    
+    try {
+      setIsTyping(true);
+      const product = await ProductController.getProductById(productId);
+      
+      if (product) {
+        setCurrentProduct(product);
+        setProductLoaded(true);
+        
+        // Ürün kartını mesajların başına ekle
+        const productMessage: ChatMessage = {
+          id: `product-info-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: '📦 İlgili ürün bilgileri:',
+          isBot: true,
+          timestamp: new Date(),
+          type: 'product_card',
+          product: product,
+        };
+        
+        setMessages(prev => {
+          // Eğer aynı ürün mesajı zaten varsa ekleme
+          const hasProductMessage = prev.some(msg => 
+            msg.type === 'product_card' && msg.product?.id === product.id
+          );
+          
+          if (hasProductMessage) {
+            return prev;
+          }
+          
+          const newMessages = [productMessage, ...prev];
+          saveChatHistory(newMessages);
+          return newMessages;
+        });
+        
+        scrollToBottom();
+      }
+    } catch (error) {
+      console.error('❌ Ürün bilgisi yüklenemedi:', error);
+    } finally {
+      setIsTyping(false);
+    }
+  }, [productId, productLoaded]);
+
+  // Chatbot açıldığında productId varsa ürün bilgilerini yükle
+  useEffect(() => {
+    if (isVisible && productId && !productLoaded) {
+      loadProductInfo();
+    }
+  }, [isVisible, productId, productLoaded, loadProductInfo]);
 
   // Typing animasyon kontrolü
   useEffect(() => {
@@ -482,20 +560,94 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
 
   // Sesli mesaj kaydetme
   const startVoiceRecording = async () => {
+    // Zaten kayıt yapılıyorsa işlemi durdur
+    if (isRecording) {
+      console.log('⚠️ Zaten kayıt yapılıyor, işlem iptal edildi');
+      return;
+    }
+
+    // VoiceService'in durumunu kontrol et
+    if (VoiceService.getIsRecording()) {
+      console.log('⚠️ VoiceService zaten kayıt yapıyor, durduruluyor...');
+      try {
+        await VoiceService.stopRecording();
+      } catch (e) {
+        console.error('Stop recording error:', e);
+      }
+    }
+
     try {
       await VoiceService.startRecording();
       setIsRecording(true);
+      setRecordingStartTime(Date.now());
+      setRecordingDuration(0);
+      startRecordingPulseAnimation();
     } catch (error: any) {
       console.error('Start recording error:', error);
-      Alert.alert('Hata', error.message || 'Ses kaydı başlatılamadı.');
+      // Hata durumunda state'i temizle
+      setIsRecording(false);
+      setRecordingStartTime(null);
+      setRecordingDuration(0);
+      
+      // Kullanıcıya hata mesajı göster
+      if (error.message && error.message.includes('Already recording')) {
+        Alert.alert('Bilgi', 'Kayıt zaten devam ediyor.');
+      } else {
+        Alert.alert('Hata', error.message || 'Ses kaydı başlatılamadı.');
+      }
     }
   };
 
+  // Kayıt sırasında pulse animasyonu
+  const startRecordingPulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(recordingPulseAnim, {
+          toValue: 1.3,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(recordingPulseAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  // Kayıt süresini takip et
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (isRecording && recordingStartTime) {
+      interval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        setRecordingDuration(elapsed);
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isRecording, recordingStartTime]);
+
   // Sesli mesaj gönderme
   const stopAndSendVoice = async () => {
+    if (!isRecording) {
+      console.log('⚠️ Kayıt yapılmıyor, işlem iptal edildi');
+      return;
+    }
+
     try {
+      recordingPulseAnim.stopAnimation();
+      recordingPulseAnim.setValue(1);
+      setIsRecording(false); // Önce state'i güncelle
       const uri = await VoiceService.stopRecording();
-      setIsRecording(false);
+      setRecordingStartTime(null);
+      setRecordingDuration(0);
 
       if (uri) {
         setRecordingUri(uri);
@@ -545,13 +697,33 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
 
   // Sesli mesaj iptal
   const cancelVoiceRecording = async () => {
+    if (!isRecording) {
+      console.log('⚠️ Kayıt yapılmıyor, işlem iptal edildi');
+      return;
+    }
+
     try {
+      recordingPulseAnim.stopAnimation();
+      recordingPulseAnim.setValue(1);
+      setIsRecording(false); // Önce state'i güncelle
       await VoiceService.cancelRecording();
-      setIsRecording(false);
+      setRecordingStartTime(null);
+      setRecordingDuration(0);
       setRecordingUri(null);
     } catch (error) {
       console.error('Cancel recording error:', error);
+      // Hata durumunda da state'i temizle
+      setIsRecording(false);
+      setRecordingStartTime(null);
+      setRecordingDuration(0);
     }
+  };
+
+  // Kayıt süresini formatla (mm:ss)
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Sesli mesaj oynatma
@@ -632,17 +804,40 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       setTimeout(() => {
         setIsTyping(false);
         if (response && response.text) {
+          // Ürün arama sonuçları varsa önce metin mesajını göster, sonra ürün kartlarını
+          if (response.data?.products && Array.isArray(response.data.products) && response.data.products.length > 0) {
+            // Önce metin mesajını ekle
+            const textMessage: ChatMessage = {
+              ...response,
+              type: 'text',
+              data: undefined, // data'yı kaldır, sadece text göster
+            };
+            addMessage(textMessage);
+            
+            // Sonra her ürün için ayrı product_card mesajı ekle
+            response.data.products.forEach((product: Product) => {
+              const productMessage: ChatMessage = {
+                id: `product-${product.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                text: '',
+                isBot: true,
+                timestamp: new Date(),
+                type: 'product_card',
+                product: product,
+              };
+              addMessage(productMessage);
+            });
+          }
           // Ürün veya sipariş kartı varsa data'yı ekle
-          if (response.type === 'product_card' && response.data?.product) {
+          else if (response.type === 'product_card' && response.product) {
             const cardMessage: ChatMessage = {
               ...response,
-              product: response.data.product,
+              product: response.product,
             };
             addMessage(cardMessage);
-          } else if (response.type === 'order_card' && response.data?.order) {
+          } else if (response.type === 'order_card' && response.order) {
             const cardMessage: ChatMessage = {
               ...response,
-              order: response.data.order,
+              order: response.order,
             };
             addMessage(cardMessage);
           } else {
@@ -1160,67 +1355,49 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
             style={styles.inputContainer}
           >
             <View style={styles.inputRow}>
-              {!isRecording ? (
-                <>
-                  <TouchableOpacity 
-                    style={styles.attachButton}
-                    onPress={pickAndSendImage}
-                  >
-                    <Icon name="image" size={20} color={Colors.textLight} />
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.attachButton}
-                    onPress={startVoiceRecording}
-                  >
-                    <Icon name="mic" size={20} color={Colors.textLight} />
-                  </TouchableOpacity>
-                  
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Mesajınızı yazın..."
-                    placeholderTextColor={Colors.textLight}
-                    value={inputText}
-                    onChangeText={setInputText}
-                    multiline
-                    maxLength={500}
-                  />
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.sendButton,
-                      inputText.trim() ? styles.sendButtonActive : styles.sendButtonInactive
-                    ]}
-                    onPress={() => sendMessage(inputText)}
-                    disabled={!inputText.trim()}
-                  >
-                    <Icon 
-                      name="send" 
-                      size={20} 
-                      color={inputText.trim() ? Colors.textOnPrimary : Colors.textLight} 
-                    />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <View style={styles.recordingContainer}>
-                  <View style={styles.recordingIndicator}>
-                    <View style={styles.recordingDot} />
-                    <Text style={styles.recordingText}>Kayıt yapılıyor...</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.stopButton}
-                    onPress={stopAndSendVoice}
-                  >
-                    <Icon name="stop" size={20} color={Colors.textOnPrimary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={cancelVoiceRecording}
-                  >
-                    <Icon name="close" size={20} color={Colors.error} />
-                  </TouchableOpacity>
-                </View>
-              )}
+              <TouchableOpacity 
+                style={styles.attachButton}
+                onPress={pickAndSendImage}
+              >
+                <Icon name="image" size={20} color={Colors.textLight} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.attachButton}
+                onPress={startVoiceRecording}
+                disabled={isRecording}
+              >
+                <Icon 
+                  name="mic" 
+                  size={20} 
+                  color={isRecording ? Colors.textLight + '60' : Colors.textLight} 
+                />
+              </TouchableOpacity>
+              
+              <TextInput
+                style={styles.textInput}
+                placeholder="Mesajınızı yazın..."
+                placeholderTextColor={Colors.textLight}
+                value={inputText}
+                onChangeText={setInputText}
+                multiline
+                maxLength={500}
+              />
+              
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  inputText.trim() ? styles.sendButtonActive : styles.sendButtonInactive
+                ]}
+                onPress={() => sendMessage(inputText)}
+                disabled={!inputText.trim()}
+              >
+                <Icon 
+                  name="send" 
+                  size={20} 
+                  color={inputText.trim() ? Colors.textOnPrimary : Colors.textLight} 
+                />
+              </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
         </>
@@ -1255,6 +1432,110 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
               resizeMode="contain"
             />
           )}
+        </View>
+      </Modal>
+
+      {/* Voice Recording Modal */}
+      <Modal
+        visible={isRecording}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelVoiceRecording}
+      >
+        <View style={styles.recordingModalContainer}>
+          <View style={styles.recordingModalContent}>
+            {/* Header */}
+            <View style={styles.recordingModalHeader}>
+              <Text style={styles.recordingModalTitle}>Ses Kaydı</Text>
+              <TouchableOpacity
+                style={styles.recordingModalClose}
+                onPress={cancelVoiceRecording}
+              >
+                <Icon name="close" size={24} color={Colors.textLight} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Recording Content */}
+            <View style={styles.recordingModalBody}>
+              {/* Animated Microphone Icon */}
+              <Animated.View
+                style={[
+                  styles.recordingMicrophoneContainer,
+                  {
+                    transform: [{ scale: recordingPulseAnim }]
+                  }
+                ]}
+              >
+                <View style={styles.recordingMicrophoneCircle}>
+                  <Icon name="mic" size={48} color={Colors.textOnPrimary} />
+                </View>
+              </Animated.View>
+
+              {/* Duration */}
+              <Text style={styles.recordingDuration}>
+                {formatDuration(recordingDuration)}
+              </Text>
+
+              {/* Waveform Animation */}
+              <View style={styles.waveformContainer}>
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((index) => {
+                  // Her çubuk için farklı bir animasyon değeri oluştur
+                  const baseScale = 0.4;
+                  const maxScale = 1.0;
+                  const delay = index * 0.1;
+                  
+                  // Her çubuk için farklı scale değeri
+                  const scaleY = recordingPulseAnim.interpolate({
+                    inputRange: [1, 1.3],
+                    outputRange: [
+                      baseScale + (index % 3) * 0.15,
+                      maxScale - (index % 2) * 0.1
+                    ],
+                  });
+                  
+                  return (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.waveformBar,
+                        {
+                          transform: [{ scaleY }],
+                          opacity: recordingPulseAnim.interpolate({
+                            inputRange: [1, 1.3],
+                            outputRange: [0.5, 1],
+                          }),
+                        }
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+
+              {/* Instructions */}
+              <Text style={styles.recordingInstruction}>
+                Konuşun, kayıt otomatik olarak devam ediyor
+              </Text>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.recordingModalActions}>
+              <TouchableOpacity
+                style={styles.recordingCancelButton}
+                onPress={cancelVoiceRecording}
+              >
+                <Icon name="close" size={24} color={Colors.error} />
+                <Text style={styles.recordingCancelText}>İptal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.recordingSendButton}
+                onPress={stopAndSendVoice}
+              >
+                <Icon name="send" size={24} color={Colors.textOnPrimary} />
+                <Text style={styles.recordingSendText}>Gönder</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </>
@@ -1611,5 +1892,120 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: Spacing.xs,
+  },
+  // Recording Modal Styles
+  recordingModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  recordingModalContent: {
+    backgroundColor: Colors.background,
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 400,
+    padding: Spacing.lg,
+    ...Shadows.large,
+  },
+  recordingModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  recordingModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  recordingModalClose: {
+    padding: Spacing.xs,
+  },
+  recordingModalBody: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+  },
+  recordingMicrophoneContainer: {
+    marginBottom: Spacing.lg,
+  },
+  recordingMicrophoneCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.medium,
+  },
+  recordingDuration: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.lg,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  waveformContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 60,
+    gap: 6,
+    marginBottom: Spacing.lg,
+  },
+  waveformBar: {
+    width: 4,
+    height: 50,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+    alignSelf: 'flex-end',
+  },
+  recordingInstruction: {
+    fontSize: 14,
+    color: Colors.textLight,
+    textAlign: 'center',
+    marginTop: Spacing.md,
+  },
+  recordingModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    marginTop: Spacing.lg,
+  },
+  recordingCancelButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.error + '30',
+    gap: Spacing.sm,
+  },
+  recordingCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.error,
+  },
+  recordingSendButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    gap: Spacing.sm,
+    ...Shadows.small,
+  },
+  recordingSendText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textOnPrimary,
   },
 });

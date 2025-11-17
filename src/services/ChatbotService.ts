@@ -1,5 +1,6 @@
 import { ChatMessage, QuickReply } from '../components/Chatbot';
 import { AnythingLLMService } from './AnythingLLMService';
+import { OllamaService } from './OllamaService';
 import { Linking } from 'react-native';
 import { apiService } from '../utils/api-service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -353,7 +354,13 @@ export class ChatbotService {
 
   private static async tryAnythingLLMResponse(intent: string, message: string): Promise<ChatbotResponse | null> {
     try {
-      // AnythingLLM konfigürasyonunu kontrol et
+      // Önce Ollama'yı dene
+      const ollamaResponse = await this.tryOllamaResponse(intent, message);
+      if (ollamaResponse) {
+        return ollamaResponse;
+      }
+
+      // Ollama başarısız olursa AnythingLLM'i dene
       const config = await AnythingLLMService.getConfig();
       
       if (!config || !config.enabled) {
@@ -371,9 +378,9 @@ export class ChatbotService {
         return null;
       }
 
-      // Özel context bilgisi oluştur
-      const contextInfo = this.buildContextForLLM(intent, message);
-      const enhancedMessage = `${contextInfo}\n\nKullanıcı Mesajı: ${message}`;
+      // Kapsamlı sistem promptu oluştur
+      const systemPrompt = this.buildSystemPrompt(intent, message);
+      const enhancedMessage = `${systemPrompt}\n\nKullanıcı Mesajı: ${message}`;
 
       // AnythingLLM'den yanıt al (timeout ile)
       const llmText = await Promise.race([
@@ -410,77 +417,246 @@ export class ChatbotService {
         return null;
       }
     } catch (error: any) {
-      console.error('❌ AnythingLLM Response Error:', error?.message || error);
+      console.error('❌ LLM Response Error:', error?.message || error);
       return null; // Hata durumunda fallback kullan
     }
   }
 
-  private static buildContextForLLM(intent: string, message: string): string {
-    const baseContext = `Sen Huglu Mobil uygulamasının yardımcı chatbot'usun. Kullanıcılara av, kamp, balık tutma ve outdoor giyim ürünleri hakkında yardım ediyorsun.
+  // Ollama API ile yanıt dene
+  private static async tryOllamaResponse(intent: string, message: string): Promise<ChatbotResponse | null> {
+    try {
+      const config = await OllamaService.getConfig();
+      
+      if (!config || !config.enabled) {
+        return null; // Ollama aktif değil
+      }
 
-Temel Bilgiler:
-- Şirket: Huglu Mobil
-- Kategori: Av, Kamp, Balık, Outdoor Giyim
-- Kargo: 150 TL üzeri ücretsiz, altı 19.90 TL
-- İade: 14 gün içinde, orijinal ambalajında
-- Teslimat: 1-5 iş günü
-- Ödeme: Kredi kartı, banka kartı, havale/EFT
-- Taksit: 2, 3, 6, 9, 12 ay seçenekleri
+      // Basit greeting ve goodbye için Ollama kullanma
+      if (['greeting', 'goodbye'].includes(intent)) {
+        return null;
+      }
 
-Intent: ${intent}`;
+      // Mesaj çok kısa veya boşsa Ollama kullanma
+      if (!message || message.trim().length < 3) {
+        return null;
+      }
 
-    // Intent'e özel context ekle
-    switch (intent) {
-      case 'product_search':
-      case 'product_search_query':
-        return `${baseContext}
+      // Kapsamlı sistem promptu oluştur
+      const systemPrompt = this.buildSystemPrompt(intent, message);
+      
+      // Ollama mesaj formatı
+      const ollamaMessages = [
+        {
+          role: 'system' as const,
+          content: systemPrompt
+        },
+        {
+          role: 'user' as const,
+          content: message
+        }
+      ];
 
-Ürün kategorileri:
-- Av malzemeleri (tüfek, fişek, av giyim, av aksesuarları)
-- Kamp ekipmanları (çadır, uyku tulumu, kamp mobilyaları)
-- Balık tutma (olta, misina, yem, balık giyim)
-- Outdoor giyim (mont, pantolon, bot, çanta)
+      // Ollama'dan yanıt al (timeout ile)
+      const ollamaText = await Promise.race([
+        OllamaService.sendMessage(ollamaMessages),
+        new Promise<string>((_, reject) => 
+          setTimeout(() => reject(new Error('Ollama timeout')), 20000)
+        )
+      ]);
+      
+      // Yanıt kontrolü
+      if (ollamaText && 
+          typeof ollamaText === 'string' && 
+          ollamaText.length > 10 && 
+          ollamaText.length < 1000 &&
+          !ollamaText.toLowerCase().includes('ollama') &&
+          !ollamaText.toLowerCase().includes('error') &&
+          !ollamaText.toLowerCase().includes('bağlan')) {
+        
+        console.log('✅ Ollama successful response');
+        // Başarılı Ollama yanıtı
+        return {
+          text: ollamaText.trim(),
+          type: 'quick_reply',
+          quickReplies: [
+            { id: '1', text: '✅ Yardımcı Oldu', action: 'satisfied' },
+            { id: '2', text: '❓ Daha Fazla Bilgi', action: 'more_info' },
+            { id: '3', text: '🎧 Canlı Destek', action: 'live_support' },
+            { id: '4', text: '🏠 Ana Menü', action: 'greeting' },
+          ]
+        };
+      } else {
+        console.log('⚠️ Ollama response not suitable, trying fallback');
+        return null;
+      }
+    } catch (error: any) {
+      console.error('❌ Ollama Response Error:', error?.message || error);
+      return null; // Hata durumunda fallback kullan
+    }
+  }
 
-Kullanıcı ürün arıyor veya ürün hakkında soru soruyor.`;
+  // Kapsamlı sistem promptu oluştur
+  private static buildSystemPrompt(intent: string, message: string): string {
+    const basePrompt = `Sen Huğlu Outdoor'un profesyonel müşteri hizmetleri asistanısın. Görevin kullanıcılara av, kamp, balık tutma ve outdoor giyim ürünleri hakkında yardımcı olmak.
 
-      case 'order_tracking':
-        return `${baseContext}
+## ŞİRKET BİLGİLERİ
+- Şirket Adı: Huğlu Outdoor
+- Sektör: Av, Kamp, Balık Tutma, Outdoor Giyim
+- Marka: Huğlu Outdoor
+- Uzmanlık: Av malzemeleri, kamp ekipmanları, balık tutma aletleri, outdoor giyim
 
-Sipariş durumları:
+## ÜRÜN KATEGORİLERİ
+1. Av Malzemeleri:
+   - Tüfekler ve av silahları
+   - Fişek ve mühimmat
+   - Av giyim (mont, pantolon, bot, eldiven)
+   - Av aksesuarları (çanta, dürbün, pusula)
+   - Av köpekleri için ekipmanlar
+
+2. Kamp Ekipmanları:
+   - Çadırlar (2-8 kişilik)
+   - Uyku tulumları ve matlar
+   - Kamp mobilyaları (sandalye, masa)
+   - Kamp mutfak ekipmanları
+   - Aydınlatma ve ısıtma
+
+3. Balık Tutma:
+   - Olta takımları
+   - Misina ve iğneler
+   - Yemler ve balık çekicileri
+   - Balık giyim (yağmurluk, çizme)
+   - Balık tutma aksesuarları
+
+4. Outdoor Giyim:
+   - Montlar ve ceketler
+   - Pantolonlar ve şortlar
+   - Botlar ve ayakkabılar
+   - Çantalar (sırt çantası, bel çantası)
+   - Aksesuarlar (şapka, eldiven, atkı)
+
+## KARGO VE TESLİMAT
+- Ücretsiz Kargo: 150 TL ve üzeri siparişlerde
+- Kargo Ücreti: 150 TL altı siparişlerde 19.90 TL
+- Teslimat Süresi: 1-5 iş günü
+- Kargo Firmaları: Yurtiçi Kargo, MNG Kargo, Aras Kargo
+- Adres Değişikliği: Kargo çıkmadan önce yapılabilir
+
+## ÖDEME SEÇENEKLERİ
+- Kredi Kartı: Visa, Mastercard
+- Banka Kartı: Tüm bankalar
+- Havale/EFT: Banka hesabına transfer
+- Kapıda Ödeme: Nakit veya kartla
+- Taksit Seçenekleri: 2, 3, 6, 9, 12 ay
+
+## İADE VE DEĞİŞİM
+- İade Süresi: 14 gün (ürün alındıktan sonra)
+- Koşullar: Orijinal ambalajında, etiketli, kullanılmamış
+- İade Ücreti: Ücretsiz (150 TL üzeri), 19.90 TL (altı)
+- Değişim: Aynı ürün farklı beden/renk için mümkün
+
+## SİPARİŞ DURUMLARI
 - Beklemede: Sipariş alındı, onay bekleniyor
 - Onaylandı: Sipariş onaylandı, hazırlanıyor
 - Hazırlanıyor: Ürünler paketleniyor
 - Kargoda: Kargo şirketine teslim edildi
 - Teslim Edildi: Müşteriye ulaştı
+- İptal Edildi: Sipariş iptal edildi
 
-Kullanıcı sipariş takibi yapıyor.`;
+## İLETİŞİM BİLGİLERİ
+- Telefon: 0530 312 58 13
+- WhatsApp: +90 530 312 58 13
+- E-posta: info@hugluoutdoor.com
+- Çalışma Saatleri: Hafta içi 09:00-18:00
+
+## YANIT KURALLARI
+1. Her zaman nazik, profesyonel ve yardımsever ol
+2. Türkçe yanıt ver, samimi ama resmi dil kullan
+3. Ürün önerilerinde kullanıcının ihtiyacını anla
+4. Sipariş sorularında detaylı bilgi ver
+5. Bilmediğin konularda canlı desteğe yönlendir
+6. Kısa ve öz yanıtlar ver (maksimum 3-4 cümle)
+7. Emoji kullanımını dengeli tut (her cümlede değil)
+8. Ürün fiyatları ve stok durumu hakkında kesin bilgi verme, "Ürünler sayfasından kontrol edebilirsiniz" de
+
+## MEVCUT INTENT
+Intent: ${intent}
+Kullanıcı Mesajı: "${message}"`;
+
+    // Intent'e özel ek bilgiler
+    let intentSpecificInfo = '';
+    
+    switch (intent) {
+      case 'product_search':
+      case 'product_search_query':
+        intentSpecificInfo = `
+## ÖNEMLİ: ÜRÜN ARAMA
+Kullanıcı ürün arıyor veya ürün hakkında soru soruyor.
+- Ürün önerilerinde kullanıcının ihtiyacını anlamaya çalış
+- Kategorilere göre yönlendirme yap
+- Fiyat ve stok bilgisi için "Ürünler sayfasından kontrol edebilirsiniz" de
+- Benzer ürünler önerebilirsin`;
+        break;
+
+      case 'order_tracking':
+        intentSpecificInfo = `
+## ÖNEMLİ: SİPARİŞ TAKİBİ
+Kullanıcı sipariş takibi yapıyor.
+- Sipariş numarası varsa kontrol et
+- Sipariş durumunu açıkla
+- Kargo bilgisi varsa paylaş
+- Sorun varsa canlı desteğe yönlendir`;
+        break;
 
       case 'support':
-        return `${baseContext}
-
-Destek kanalları:
-- Telefon: 0212 xxx xxxx
-- WhatsApp: +90 5xx xxx xxxx
-- E-posta: destek@huglu.com
-- Canlı destek: Uygulama içi chat
-
-Kullanıcı destek arıyor.`;
+        intentSpecificInfo = `
+## ÖNEMLİ: DESTEK
+Kullanıcı destek arıyor.
+- Sorununu anlamaya çalış
+- Çözüm öner
+- Gerekirse canlı desteğe yönlendir
+- İletişim bilgilerini paylaş`;
+        break;
 
       case 'payment':
-        return `${baseContext}
+        intentSpecificInfo = `
+## ÖNEMLİ: ÖDEME
+Kullanıcı ödeme hakkında soru soruyor.
+- Ödeme yöntemlerini açıkla
+- Taksit seçeneklerini belirt
+- Güvenlik bilgisi ver
+- Sorun varsa destek ekibine yönlendir`;
+        break;
 
-Ödeme seçenekleri:
-- Kredi kartı (Visa, Mastercard)
-- Banka kartı
-- Havale/EFT
-- Kapıda ödeme (nakit veya kartla)
-- Taksit seçenekleri mevcut
+      case 'return':
+        intentSpecificInfo = `
+## ÖNEMLİ: İADE/DEĞİŞİM
+Kullanıcı iade veya değişim istiyor.
+- İade koşullarını açıkla
+- Süreç hakkında bilgi ver
+- Gerekli belgeleri söyle
+- İade formu için yönlendir`;
+        break;
 
-Kullanıcı ödeme hakkında soru soruyor.`;
+      case 'shipping':
+        intentSpecificInfo = `
+## ÖNEMLİ: KARGO/TESLİMAT
+Kullanıcı kargo veya teslimat hakkında soru soruyor.
+- Kargo ücretlerini açıkla
+- Teslimat süresini belirt
+- Kargo firmalarını söyle
+- Adres değişikliği hakkında bilgi ver`;
+        break;
 
       default:
-        return baseContext;
+        intentSpecificInfo = '';
     }
+
+    return basePrompt + intentSpecificInfo;
+  }
+
+  // Eski buildContextForLLM fonksiyonu (geriye dönük uyumluluk için)
+  private static buildContextForLLM(intent: string, message: string): string {
+    return this.buildSystemPrompt(intent, message);
   }
 
   private static handleFAQQuery(message: string): ChatbotResponse {
@@ -527,17 +703,78 @@ Kullanıcı ödeme hakkında soru soruyor.`;
   }
 
   private static async handleProductSearchLocal(query: string): Promise<ChatbotResponse> {
-    return {
-      text: `🔍 "${query}" için ürün arıyorum...\n\n⚠️ Ürün arama için lütfen "Ürünler" sayfasına gidin veya kategorilere göz atın.`,
-      type: 'quick_reply',
-      quickReplies: [
-        { id: '1', text: '🛒 Ürünlere Git', action: 'view_products', data: { query } },
-        { id: '2', text: '🏕️ Kamp Malzemeleri', action: 'search_category_kamp' },
-        { id: '3', text: '🎯 Avcılık', action: 'search_category_avcilik' },
-        { id: '4', text: '🎣 Balıkçılık', action: 'search_category_balik' },
-        { id: '5', text: '👕 Giyim', action: 'search_category_giyim' },
-      ]
-    };
+    try {
+      // Arama sorgusunu temizle
+      const searchQuery = query.trim();
+      
+      if (!searchQuery || searchQuery.length < 2) {
+        return {
+          text: '🔍 Lütfen en az 2 karakter girin.',
+          type: 'quick_reply',
+          quickReplies: [
+            { id: '1', text: '🏕️ Kamp Malzemeleri', action: 'search_category_kamp' },
+            { id: '2', text: '🎯 Avcılık', action: 'search_category_avcilik' },
+            { id: '3', text: '🎣 Balıkçılık', action: 'search_category_balik' },
+            { id: '4', text: '👕 Giyim', action: 'search_category_giyim' },
+          ]
+        };
+      }
+
+      // ProductController ile ürün ara
+      const { ProductController } = await import('../controllers/ProductController');
+      const products = await ProductController.searchProducts(searchQuery);
+
+      if (!products || products.length === 0) {
+        return {
+          text: `🔍 "${searchQuery}" için ürün bulunamadı.\n\nBaşka bir arama terimi deneyebilir veya kategorilere göz atabilirsiniz.`,
+          type: 'quick_reply',
+          quickReplies: [
+            { id: '1', text: '🛒 Tüm Ürünler', action: 'view_products' },
+            { id: '2', text: '🏕️ Kamp Malzemeleri', action: 'search_category_kamp' },
+            { id: '3', text: '🎯 Avcılık', action: 'search_category_avcilik' },
+            { id: '4', text: '🎣 Balıkçılık', action: 'search_category_balik' },
+            { id: '5', text: '👕 Giyim', action: 'search_category_giyim' },
+          ]
+        };
+      }
+
+      // İlk 3 ürünü göster
+      const topProducts = products.slice(0, 3);
+      const productCards = topProducts.map((product, index) => ({
+        id: `product-${product.id}`,
+        text: `📦 ${product.name}\n💰 ${ProductController.formatPrice(product.price)}${product.stock > 0 ? ' ✅ Stokta' : ' ❌ Stokta Yok'}`,
+        isBot: true,
+        timestamp: new Date(),
+        type: 'product_card' as const,
+        product: product,
+      }));
+
+      // Eğer 3'ten fazla ürün varsa bilgi ver
+      const moreProductsText = products.length > 3 
+        ? `\n\n💡 Toplam ${products.length} ürün bulundu. Tüm sonuçları görmek için "Ürünler" sayfasına gidebilirsiniz.`
+        : '';
+
+      return {
+        text: `🔍 "${searchQuery}" için ${products.length} ürün bulundu:${moreProductsText}`,
+        type: 'text',
+        // İlk ürünü direkt göster, diğerlerini ayrı mesajlar olarak ekleyeceğiz
+        data: {
+          products: topProducts,
+          totalCount: products.length,
+          query: searchQuery
+        }
+      };
+    } catch (error: any) {
+      console.error('Product search error:', error);
+      return {
+        text: `❌ Ürün arama sırasında bir hata oluştu. Lütfen tekrar deneyin.`,
+        type: 'quick_reply',
+        quickReplies: [
+          { id: '1', text: '🛒 Ürünlere Git', action: 'view_products' },
+          { id: '2', text: '🔄 Tekrar Dene', action: 'product_search' },
+        ]
+      };
+    }
   }
 
   private static async handleCampaignsLocal(): Promise<ChatbotResponse> {

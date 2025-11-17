@@ -5,7 +5,6 @@ import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, 
 import { OllamaService, OllamaConfig, OllamaMessage } from '@/lib/services/ollama-service'
 import { productService, orderService } from '@/lib/services'
 import { api } from '@/lib/api'
-import { aiProvidersService } from '@/lib/services/ai-providers'
 
 interface Message {
     id: string
@@ -67,8 +66,8 @@ export default function ProjectAjax() {
     ])
     const [input, setInput] = useState('')
     const [isTyping, setIsTyping] = useState(false)
-    const [aiProvider, setAiProvider] = useState<'openai'|'anthropic'|'google'|'ollama'>('google')
-    const [aiModel, setAiModel] = useState('gemini-1.5-flash')
+    const [aiProvider, setAiProvider] = useState<'ollama'>('ollama')
+    const [aiModel, setAiModel] = useState('gemma3:4b')
     const [availableModels, setAvailableModels] = useState<string[]>([])
     const [streamingContent, setStreamingContent] = useState('')
     const [isStreaming, setIsStreaming] = useState(false)
@@ -139,23 +138,9 @@ export default function ProjectAjax() {
         loadOllamaConfig()
         checkOllamaStatus()
         loadSessions()
-        // Ayarlar'daki AI config'i yükle
-        ;(async ()=>{
-            try {
-                const cfg = await aiProvidersService.getConfig()
-                const p = (cfg.provider as any) || 'ollama'
-                setAiProvider(p)
-                setAiModel(cfg.model || (p === 'anthropic' ? 'claude-3-5-sonnet' : p === 'google' ? 'gemini-1.5-flash' : 'gpt-4o-mini'))
-                try {
-                    if (p !== 'ollama') {
-                        const res = await aiProvidersService.listModels(p as any)
-                        setAvailableModels(res.models || [])
-                    } else {
-                        setAvailableModels([])
-                    }
-                } catch { setAvailableModels([]) }
-            } catch {}
-        })()
+        // Ollama varsayılan olarak kullanılacak
+        setAiProvider('ollama')
+        setAiModel('gemma3:4b')
     }, [])
 
     // Session değiştiğinde mesajları yükle
@@ -343,82 +328,8 @@ export default function ProjectAjax() {
         }
 
         try {
-            // Sağlayıcıya göre yönlendir
-            if (aiProvider === 'ollama') {
-                await sendToOllama(currentInput, aiModel)
-            } else {
-                // Sağlayıcı üzerinden generate
-                // Gemini için özel format
-                let payload;
-                if (aiProvider === 'google') {
-                    payload = {
-                        provider: aiProvider,
-                        model: aiModel,
-                        messages: [
-                            { role: 'user', content: `${systemPrompt}\n\nKullanıcı: ${currentInput}` }
-                        ],
-                        options: {
-                            temperature: 0.7,
-                            maxOutputTokens: 1500,
-                            topP: 0.8,
-                            topK: 40
-                        }
-                    };
-                } else {
-                    payload = {
-                        provider: aiProvider,
-                        model: aiModel,
-                        messages: [
-                            { role: 'system', content: systemPrompt },
-                            ...messages.slice(-2).map(m => ({ role: m.role, content: m.content })),
-                            { role: 'user', content: currentInput }
-                        ]
-                    };
-                }
-                // API URL'i doğru endpoint'e yönlendir
-                const apiUrl = aiProvider === 'google' 
-                    ? 'https://api.zerodaysoftware.tr/api/ai/generate-gemini' 
-                    : 'https://api.plaxsy.com/api/ai/generate'
-                const resp = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': aiProvider === 'google' 
-                            ? 'huglu_gemini_api_key_3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f' 
-                            : 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                })
-                if (!resp.ok) {
-                    const err = await resp.json().catch(()=>({ message: 'AI servisi hatası' }))
-                    throw new Error(err?.message || `HTTP ${resp.status}`)
-                }
-                const data = await resp.json()
-                // Gemini API'den gelen yanıtı doğru şekilde işle
-                let content
-                if (aiProvider === 'google') {
-                    content = data?.data?.content || data?.data?.text || '⚠️ Gemini API yanıt vermedi.'
-                } else {
-                    content = data?.data?.text || '⚠️ AI sağlayıcısından boş yanıt alındı.'
-                }
-
-                // Streaming animasyonu başlat
-                setIsStreaming(true)
-                setStreamingContent('')
-                const tempMessageId = (Date.now() + 1).toString()
-                const tempMessage: Message = { id: tempMessageId, role: 'assistant', content: '', timestamp: new Date() }
-                setMessages(prev => [...prev, tempMessage])
-                setIsTyping(false)
-                simulateTyping(content, (partialContent) => {
-                    setStreamingContent(partialContent)
-                    setMessages(prev => prev.map(msg => msg.id === tempMessageId ? { ...msg, content: partialContent } : msg))
-                })
-                setTimeout(() => {
-                    setIsStreaming(false)
-                    setStreamingContent('')
-                }, content.length * 30 + 500)
-            }
+            // Sadece Ollama kullanılıyor
+            await sendToOllama(currentInput, aiModel)
         } catch (error) {
             console.error('❌ Mesaj gönderilemedi:', error)
             
@@ -1012,40 +923,7 @@ export default function ProjectAjax() {
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="hidden md:flex items-center gap-2 bg-[#2d2f36] rounded-full px-3 py-1.5">
-                            <select
-                                value={aiProvider}
-                                onChange={async (e)=>{
-                                    const p = e.target.value as any
-                                    setAiProvider(p)
-                                    if (p !== 'ollama') {
-                                        try {
-                                            const res = await aiProvidersService.listModels(p)
-                                            const models = res.models || []
-                                            setAvailableModels(models)
-                                            if (models.length) setAiModel(models[0])
-                                        } catch { setAvailableModels([]) }
-                                    } else {
-                                        setAvailableModels([])
-                                    }
-                                }}
-                                className="bg-transparent text-gray-300 text-xs outline-none cursor-pointer"
-                            >
-                                <option value="google">Gemini</option>
-                                <option value="openai">GPT</option>
-                                <option value="anthropic">Claude</option>
-                                <option value="ollama">Ollama</option>
-                            </select>
-                            {aiProvider !== 'ollama' && (
-                                <select
-                                    value={aiModel}
-                                    onChange={(e)=> setAiModel(e.target.value)}
-                                    className="bg-transparent text-gray-300 text-xs outline-none cursor-pointer"
-                                >
-                                    {(availableModels.length ? availableModels : (aiProvider === 'openai' ? ['gpt-4o-mini','gpt-4o'] : aiProvider === 'anthropic' ? ['claude-3-5-sonnet'] : ['gemini-1.5-flash','gemini-1.5-pro','gemini-pro'])).map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                            )}
+                            <span className="text-gray-300 text-xs">Ollama</span>
                         </div>
                         <div className="flex">
                             <button
@@ -1086,64 +964,8 @@ export default function ProjectAjax() {
             <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-3">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Sağlayıcı</label>
-                        <select
-                            value={aiProvider}
-                            onChange={async (e)=>{
-                                const p = e.target.value as any
-                                setAiProvider(p)
-                                try {
-                                    if (p !== 'ollama') {
-                                        const res = await aiProvidersService.listModels(p)
-                                        const models = res.models || []
-                                        setAvailableModels(models)
-                                        if (models.length) setAiModel(models[0])
-                                    } else {
-                                        setAvailableModels([])
-                                    }
-                                } catch { setAvailableModels([]) }
-                            }}
-                            className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100"
-                        >
-                            <option value="ollama">Ollama</option>
-                            <option value="openai">ChatGPT</option>
-                            <option value="anthropic">Claude</option>
-                            <option value="google">Gemini</option>
-                        </select>
-                    </div>
-                    <div>
                         <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Model</label>
-                        {aiProvider === 'ollama' ? (
-                            <input value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-400" placeholder="ollama model (örn: gemma3:4b)" />
-                        ) : (
-                            <select value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100">
-                                {(availableModels.length ? availableModels : (aiProvider === 'openai' ? ['gpt-4o-mini','gpt-4o'] : aiProvider === 'anthropic' ? ['claude-3-5-sonnet'] : ['gemini-1.5-flash'])).map(m => (
-                                    <option key={m} value={m}>{m}</option>
-                                ))}
-                            </select>
-                        )}
-                    </div>
-                    <div>
-                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">API Anahtarı</label>
-                        <div className="flex gap-2">
-                            <input type="password" value={aiApiKeyLocal} onChange={(e)=> setAiApiKeyLocal(e.target.value)} className="flex-1 px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-400" placeholder="••••••••" />
-                            <button
-                                disabled={aiSaving}
-                                onClick={async ()=>{
-                                    setAiSaving(true); setAiTestMessage(null)
-                                    try {
-                                        await aiProvidersService.saveConfig({ enabled: true, provider: aiProvider as any, model: aiModel, apiKey: aiApiKeyLocal })
-                                        setAiTestMessage('Kaydedildi')
-                                    } catch (e:any) {
-                                        setAiTestMessage(e?.message || 'Hata')
-                                    } finally { setAiSaving(false) }
-                                }}
-                                className="px-3 py-2 bg-blue-600 text-white rounded text-xs"
-                            >
-                                {aiSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Kaydet'}
-                            </button>
-                        </div>
-                        {aiTestMessage && <div className="text-xs mt-1 text-blue-600 dark:text-blue-400">{aiTestMessage}</div>}
+                        <input value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-400" placeholder="ollama model (örn: gemma3:4b)" />
                     </div>
                 </div>
             </div>

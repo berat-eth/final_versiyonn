@@ -1123,7 +1123,7 @@ export default function Settings() {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <h3 className="text-xl font-bold text-slate-800 mb-1">AI İçgörüleri</h3>
-                                        <p className="text-slate-500 text-sm">ChatGPT ve Claude ile içgörü üretimini yapılandırın</p>
+                                        <p className="text-slate-500 text-sm">AI içgörüleri özelliği kaldırıldı. Sadece Ollama ve AnythingLLM desteklenmektedir.</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -1137,128 +1137,11 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-4 p-4 border border-slate-200 rounded-xl">
-                                        <label className="block text-sm font-medium text-slate-700">Sağlayıcı</label>
-                                        <select
-                                            value={aiConfig.provider}
-                                            onChange={async (e)=>{
-                                                const provider = e.target.value as AIProvider
-                                                const defaultModel = provider === 'openai' ? 'gpt-4o-mini' : (provider === 'anthropic' ? 'claude-3-5-sonnet' : 'gemini-1.5-flash')
-                                                setAiConfig({ ...aiConfig, provider, model: defaultModel })
-                                                try {
-                                                    const res = await aiProvidersService.listModels(provider, aiApiKey || undefined)
-                                                    setAvailableModels(res.models || [])
-                                                } catch { setAvailableModels([]) }
-                                            }}
-                                            className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
-                                        >
-                                            <option value="openai">ChatGPT (OpenAI)</option>
-                                            <option value="anthropic">Claude (Anthropic)</option>
-                                            <option value="google">Gemini (Google)</option>
-                                        </select>
-
-                                        <label className="block text-sm font-medium text-slate-700">Model</label>
-                                        <select
-                                            value={aiConfig.model}
-                                            onChange={(e)=> setAiConfig({ ...aiConfig, model: e.target.value })}
-                                            className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
-                                        >
-                                            {(availableModels.length ? availableModels : (
-                                                aiConfig.provider === 'openai' ? ['gpt-4o-mini','gpt-4o','gpt-4.1'] :
-                                                aiConfig.provider === 'anthropic' ? ['claude-3-5-sonnet','claude-3-haiku'] :
-                                                ['gemini-1.5-flash','gemini-1.5-pro']
-                                            )).map(m => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
-                                        </select>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700">Sıcaklık</label>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    max={2}
-                                                    step={0.1}
-                                                    value={aiConfig.temperature}
-                                                    onChange={(e)=> setAiConfig({ ...aiConfig, temperature: Number(e.target.value) })}
-                                                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700">Maks. Token</label>
-                                                <input
-                                                    type="number"
-                                                    min={256}
-                                                    max={32768}
-                                                    step={256}
-                                                    value={aiConfig.maxTokens}
-                                                    onChange={(e)=> setAiConfig({ ...aiConfig, maxTokens: Number(e.target.value) })}
-                                                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4 p-4 border border-slate-200 rounded-xl">
-                                        <label className="block text-sm font-medium text-slate-700">API Anahtarı</label>
-                                        <input
-                                            type="password"
-                                            placeholder="•••••••••••••••"
-                                            value={aiApiKey}
-                                            onChange={(e)=> setAiApiKey(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
-                                        />
-
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                disabled={aiLoading}
-                                                onClick={async ()=>{
-                                                    setAiLoading(true)
-                                                    setAiTestMessage(null)
-                                                    try {
-                                                        const res = await aiProvidersService.testProvider({ provider: aiConfig.provider, apiKey: aiApiKey, model: aiConfig.model })
-                                                        setAiTestMessage(res.success ? 'Bağlantı başarılı' : (res.message || 'Test başarısız'))
-                                                    } catch (e:any) {
-                                                        setAiTestMessage(e?.message || 'Test başarısız')
-                                                    } finally {
-                                                        setAiLoading(false)
-                                                    }
-                                                }}
-                                                className="flex items-center gap-2 px-4 py-3 bg-slate-800 text-white rounded-xl hover:bg-slate-900 disabled:opacity-70"
-                                            >
-                                                <TestTube2 className="w-4 h-4" />
-                                                Sağlayıcıyı Test Et
-                                            </button>
-                                            <button
-                                                disabled={aiLoading}
-                                                onClick={async ()=>{
-                                                    setAiLoading(true)
-                                                    setAiTestMessage(null)
-                                                    try {
-                                                        await aiProvidersService.saveConfig({ ...aiConfig, apiKey: aiApiKey || undefined })
-                                                        setAiTestMessage('Ayarlar kaydedildi')
-                                                    } catch (e:any) {
-                                                        setAiTestMessage(e?.message || 'Kayıt başarısız')
-                                                    } finally {
-                                                        setAiLoading(false)
-                                                    }
-                                                }}
-                                                className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-70"
-                                            >
-                                                Kaydet
-                                            </button>
-                                        </div>
-
-                                        {aiTestMessage && (
-                                            <div className="text-sm text-slate-600">{aiTestMessage}</div>
-                                        )}
-
-                                        <div className="text-xs text-slate-500">
-                                            API anahtarınız tarayıcıda saklanmaz. Güvenli şekilde uzak sunucuya iletilen test isteği ile doğrulanır.
-                                        </div>
-                                    </div>
+                                <div className="p-4 border border-slate-200 rounded-xl bg-slate-50 dark:bg-slate-900">
+                                    <p className="text-slate-600 dark:text-slate-400 text-sm">
+                                        ChatGPT, Claude ve Gemini entegrasyonları kaldırıldı. Sadece Ollama ve AnythingLLM desteklenmektedir.
+                                    </p>
+                                </div>
                                 </div>
                             </motion.div>
                         )}

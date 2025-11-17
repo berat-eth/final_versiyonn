@@ -18586,37 +18586,104 @@ async function startServer() {
   // Ürün arama fonksiyonu
   async function handleProductSearch(query, tenantId) {
     try {
-      const [rows] = await poolWrapper.execute(
-        `SELECT * FROM products 
-       WHERE (name LIKE ? OR description LIKE ?) 
-       AND tenantId = ? 
-       AND isActive = 1 
-       ORDER BY name 
-       LIMIT 5`,
-        [`%${query}%`, `%${query}%`, tenantId]
-      );
-
-      if (rows.length > 0) {
-        const productList = rows.map(p =>
-          `• ${p.name}\n  💰 ₺${Number(p.price || 0).toFixed(2)}\n  📦 Stok: ${p.stock > 0 ? 'Var' : 'Yok'}`
-        ).join('\n\n');
-
+      const searchQuery = String(query || '').trim();
+      if (!searchQuery || searchQuery.length < 2) {
         return {
           id: `bot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          text: `🔍 "${query}" için ${rows.length} ürün buldum:\n\n${productList}`,
+          text: '🔍 Lütfen en az 2 karakter girin.',
           isBot: true,
           timestamp: new Date(),
           type: 'quick_reply',
           quickReplies: [
-            { id: '1', text: '👀 Tümünü Gör', action: 'view_products', data: { query } },
-            { id: '2', text: '🔍 Yeni Arama', action: 'product_search' },
-            { id: '3', text: '🛒 Kategoriler', action: 'view_categories' }
+            { id: '1', text: '🔍 Yeni Arama', action: 'product_search' },
+            { id: '2', text: '🛒 Kategoriler', action: 'view_categories' }
+          ]
+        };
+      }
+
+      // Ürün arama sorgusu
+      let rows;
+      try {
+        // Önce FULLTEXT araması dene
+        const booleanQuery = searchQuery
+          .split(/\s+/)
+          .filter(Boolean)
+          .map(w => `${w}*`)
+          .join(' ');
+        
+        [rows] = await poolWrapper.execute(
+          `SELECT id, name, price, image, stock, brand, category, description
+           FROM products 
+           WHERE tenantId = ? 
+           AND MATCH(name, description, brand, category) AGAINST(? IN BOOLEAN MODE)
+           ORDER BY 
+             CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
+             name
+           LIMIT 10`,
+          [tenantId, booleanQuery, `${searchQuery}%`]
+        );
+      } catch (fulltextError) {
+        // FULLTEXT yoksa LIKE ile ara
+        [rows] = await poolWrapper.execute(
+          `SELECT id, name, price, image, stock, brand, category, description
+           FROM products 
+           WHERE tenantId = ? 
+           AND (name LIKE ? OR description LIKE ? OR brand LIKE ? OR category LIKE ?)
+           ORDER BY 
+             CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
+             name
+           LIMIT 10`,
+          [
+            tenantId,
+            `%${searchQuery}%`,
+            `%${searchQuery}%`,
+            `%${searchQuery}%`,
+            `%${searchQuery}%`,
+            `${searchQuery}%`
+          ]
+        );
+      }
+
+      if (rows.length > 0) {
+        // İlk 3 ürünü product_card formatında hazırla
+        const topProducts = rows.slice(0, 3).map(p => ({
+          id: p.id,
+          name: p.name,
+          price: Number(p.price || 0),
+          image: p.image,
+          stock: p.stock || 0,
+          brand: p.brand,
+          category: p.category,
+          description: p.description
+        }));
+
+        const moreProductsText = rows.length > 3 
+          ? `\n\n💡 Toplam ${rows.length} ürün bulundu. Tüm sonuçları görmek için "Ürünler" sayfasına gidebilirsiniz.`
+          : '';
+
+        return {
+          id: `bot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: `🔍 "${searchQuery}" için ${rows.length} ürün bulundu:${moreProductsText}`,
+          isBot: true,
+          timestamp: new Date(),
+          type: 'text',
+          data: {
+            products: topProducts,
+            totalCount: rows.length,
+            query: searchQuery
+          },
+          quickReplies: rows.length > 3 ? [
+            { id: '1', text: '👀 Tümünü Gör', action: 'view_products', data: { query: searchQuery } },
+            { id: '2', text: '🔍 Yeni Arama', action: 'product_search' }
+          ] : [
+            { id: '1', text: '🔍 Yeni Arama', action: 'product_search' },
+            { id: '2', text: '🛒 Kategoriler', action: 'view_categories' }
           ]
         };
       } else {
         return {
           id: `bot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          text: `😔 "${query}" için ürün bulunamadı. Farklı anahtar kelimeler deneyebilirsiniz.`,
+          text: `😔 "${searchQuery}" için ürün bulunamadı. Farklı anahtar kelimeler deneyebilirsiniz.`,
           isBot: true,
           timestamp: new Date(),
           type: 'quick_reply',
@@ -18628,6 +18695,7 @@ async function startServer() {
         };
       }
     } catch (error) {
+      console.error('Product search error:', error);
       return {
         id: `bot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         text: '❌ Ürün aramasında bir hata oluştu. Lütfen tekrar deneyin.',
