@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, Database, Table, Search, Play, Download, Eye, Settings, BarChart3, Activity, Brain, TestTube2, Volume2, VolumeX, Mic, MicOff } from 'lucide-react'
+import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, Database, Table, Search, Play, Download, Eye, Settings, BarChart3, Activity, Brain, TestTube2, Volume2, VolumeX, Mic, MicOff, Trash2 } from 'lucide-react'
 import { OllamaService, OllamaConfig, OllamaMessage } from '@/lib/services/ollama-service'
 import { productService, orderService } from '@/lib/services'
 import { api } from '@/lib/api'
@@ -884,6 +884,25 @@ export default function ProjectAjax() {
         alert('📋 Mesaj kopyalandı!')
     }
 
+    // Mesaj silme fonksiyonu
+    const deleteMessage = (messageId: string) => {
+        if (!confirm('Bu mesajı silmek istediğinize emin misiniz?')) {
+            return
+        }
+
+        // Mesajı state'ten kaldır
+        setMessages(prev => {
+            const filtered = prev.filter(msg => msg.id !== messageId)
+            
+            // Oturum mesajlarını güncelle
+            if (currentSessionId) {
+                saveSessionMessages(currentSessionId, filtered)
+            }
+            
+            return filtered
+        })
+    }
+
     // Text-to-Speech fonksiyonu
     const speakMessage = (content: string, messageId: string) => {
         // Eğer zaten konuşuyorsa durdur
@@ -965,8 +984,53 @@ export default function ProjectAjax() {
         }
     }
 
+    // Mikrofon izni kontrolü ve isteme
+    const checkMicrophonePermission = async (): Promise<boolean> => {
+        try {
+            // navigator.permissions API kontrolü
+            if (navigator.permissions) {
+                try {
+                    const result = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+                    if (result.state === 'granted') {
+                        return true
+                    } else if (result.state === 'denied') {
+                        alert('Mikrofon izni reddedilmiş. Lütfen tarayıcı ayarlarından izin verin:\n\nChrome: Ayarlar > Gizlilik ve Güvenlik > Site Ayarları > Mikrofon\n\nFirefox: Ayarlar > Gizlilik ve Güvenlik > İzinler > Mikrofon')
+                        return false
+                    }
+                } catch (e) {
+                    // permissions API desteklenmiyor, getUserMedia ile kontrol et
+                    console.log('Permissions API desteklenmiyor, getUserMedia ile kontrol ediliyor...')
+                }
+            }
+
+            // getUserMedia ile mikrofon erişimini test et
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+                // İzin verildi, stream'i kapat
+                stream.getTracks().forEach(track => track.stop())
+                return true
+            } catch (error: any) {
+                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    alert('Mikrofon izni verilmedi. Lütfen tarayıcı ayarlarından mikrofon iznini etkinleştirin:\n\nChrome: Adres çubuğundaki kilit ikonuna tıklayın > Mikrofon > İzin Ver\n\nFirefox: Adres çubuğundaki kilit ikonuna tıklayın > Mikrofon > İzin Ver')
+                    return false
+                } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                    alert('Mikrofon bulunamadı. Lütfen mikrofonunuzun bağlı olduğundan emin olun.')
+                    return false
+                } else {
+                    console.error('Mikrofon izni kontrolü hatası:', error)
+                    // Hata olsa bile devam et, Speech Recognition kendi iznini kontrol edecek
+                    return true
+                }
+            }
+        } catch (error) {
+            console.error('Mikrofon izni kontrolü genel hatası:', error)
+            // Hata olsa bile devam et
+            return true
+        }
+    }
+
     // Speech Recognition (Voice Input) fonksiyonu
-    const startVoiceInput = () => {
+    const startVoiceInput = async () => {
         // Web Speech Recognition API kontrolü
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         
@@ -975,10 +1039,18 @@ export default function ProjectAjax() {
             return
         }
 
+        // Mikrofon izni kontrolü
+        const hasPermission = await checkMicrophonePermission()
+        if (!hasPermission) {
+            setIsListening(false)
+            return
+        }
+
         try {
             // Önceki recognition'ı durdur
             if (recognitionRef.current) {
                 recognitionRef.current.stop()
+                recognitionRef.current = null
             }
 
             // Yeni recognition oluştur
@@ -1019,22 +1091,41 @@ export default function ProjectAjax() {
                 }
             }
 
-            recognition.onerror = (event: any) => {
+            recognition.onerror = async (event: any) => {
                 console.error('❌ Speech recognition hatası:', event.error)
                 setIsListening(false)
                 
                 let errorMessage = 'Sesli girdi hatası oluştu'
+                let showAlert = true
+                
                 if (event.error === 'no-speech') {
                     errorMessage = 'Konuşma algılanamadı. Lütfen tekrar deneyin.'
                 } else if (event.error === 'audio-capture') {
-                    errorMessage = 'Mikrofon erişimi sağlanamadı. Lütfen mikrofon iznini kontrol edin.'
+                    errorMessage = 'Mikrofon erişimi sağlanamadı. Lütfen mikrofon iznini kontrol edin ve tekrar deneyin.'
+                    // İzin tekrar kontrol et
+                    const hasPermission = await checkMicrophonePermission()
+                    if (!hasPermission) {
+                        return
+                    }
                 } else if (event.error === 'not-allowed') {
-                    errorMessage = 'Mikrofon izni verilmedi. Lütfen tarayıcı ayarlarından izin verin.'
+                    errorMessage = 'Mikrofon izni verilmedi.\n\nLütfen:\n1. Tarayıcı ayarlarından mikrofon iznini etkinleştirin\n2. Sayfayı yenileyin\n3. Tekrar deneyin'
+                    // İzin tekrar kontrol et
+                    const hasPermission = await checkMicrophonePermission()
+                    if (!hasPermission) {
+                        return
+                    }
                 } else if (event.error === 'network') {
                     errorMessage = 'Ağ hatası oluştu. İnternet bağlantınızı kontrol edin.'
+                } else if (event.error === 'aborted') {
+                    // Kullanıcı tarafından durduruldu, alert gösterme
+                    showAlert = false
+                } else {
+                    errorMessage = `Sesli girdi hatası: ${event.error}`
                 }
                 
-                alert(errorMessage)
+                if (showAlert) {
+                    alert(errorMessage)
+                }
             }
 
             recognition.onend = () => {
@@ -1157,7 +1248,7 @@ export default function ProjectAjax() {
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-base font-medium">AI Assistant</h2>
+                                <h2 className="text-base font-medium">Ajax</h2>
                                 <span className="text-xs text-gray-400">10:40 AM</span>
                             </div>
                             <p className="text-xs text-gray-400">Yapay Zeka İş Asistanı</p>
@@ -1400,7 +1491,7 @@ export default function ProjectAjax() {
                                             {messages.slice(-3).map((msg, index) => (
                                                 <div key={index} className="text-xs border border-gray-200 dark:border-slate-600 rounded overflow-hidden bg-white dark:bg-slate-800">
                                                     <div className="px-2 py-1 bg-gray-50 dark:bg-slate-700 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
-                                                        <span className="text-gray-700 dark:text-slate-300">{msg.role === 'user' ? 'Kullanıcı' : 'AI'}</span>
+                                                        <span className="text-gray-700 dark:text-slate-300">{msg.role === 'user' ? 'Admin' : 'Ajax'}</span>
                                                         <span className="text-gray-500 dark:text-slate-400">
                                                             {msg.timestamp instanceof Date 
                                                                 ? msg.timestamp.toLocaleTimeString('tr-TR')
@@ -1562,7 +1653,7 @@ export default function ProjectAjax() {
                             <div className="flex-1">
                                 <div className="flex items-center mb-1">
                                     <span className="text-sm font-medium text-gray-300">
-                                        {message.role === 'user' ? 'You' : 'AI Assistant'}
+                                        {message.role === 'user' ? 'Admin' : 'Ajax'}
                                     </span>
                                     <span className="text-xs text-gray-500 ml-2">
                                         {message.timestamp instanceof Date 
@@ -1613,29 +1704,40 @@ export default function ProjectAjax() {
                                     })()}
                                 </div>
 
-                                {/* Message Actions - Only for assistant messages without code blocks */}
-                                {message.role === 'assistant' && !extractCodeBlock(message.content) && (
-                                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                                        <button
-                                            onClick={() => copyMessage(message.content)}
-                                            className="hover:text-blue-400 transition-colors"
-                                            title="Kopyala"
-                                        >
-                                            <Copy className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            onClick={() => speakMessage(message.content, message.id)}
-                                            className={`hover:text-green-400 transition-colors ${speakingMessageId === message.id ? 'text-green-400' : ''}`}
-                                            title={isSpeaking && speakingMessageId === message.id ? 'Durdur' : 'Seslendir'}
-                                        >
-                                            {isSpeaking && speakingMessageId === message.id ? (
-                                                <VolumeX className="w-3.5 h-3.5 animate-pulse" />
-                                            ) : (
-                                                <Volume2 className="w-3.5 h-3.5" />
-                                            )}
-                                        </button>
-                                    </div>
-                                )}
+                                {/* Message Actions */}
+                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                    {/* Copy ve Speak butonları - sadece assistant mesajları için (code block yoksa) */}
+                                    {message.role === 'assistant' && !extractCodeBlock(message.content) && (
+                                        <>
+                                            <button
+                                                onClick={() => copyMessage(message.content)}
+                                                className="hover:text-blue-400 transition-colors"
+                                                title="Kopyala"
+                                            >
+                                                <Copy className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => speakMessage(message.content, message.id)}
+                                                className={`hover:text-green-400 transition-colors ${speakingMessageId === message.id ? 'text-green-400' : ''}`}
+                                                title={isSpeaking && speakingMessageId === message.id ? 'Durdur' : 'Seslendir'}
+                                            >
+                                                {isSpeaking && speakingMessageId === message.id ? (
+                                                    <VolumeX className="w-3.5 h-3.5 animate-pulse" />
+                                                ) : (
+                                                    <Volume2 className="w-3.5 h-3.5" />
+                                                )}
+                                            </button>
+                                        </>
+                                    )}
+                                    {/* Silme butonu - tüm mesajlar için */}
+                                    <button
+                                        onClick={() => deleteMessage(message.id)}
+                                        className="hover:text-red-400 transition-colors ml-auto"
+                                        title="Mesajı sil"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
