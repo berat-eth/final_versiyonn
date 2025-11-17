@@ -1142,7 +1142,6 @@ export default function Settings() {
                                         ChatGPT, Claude ve Gemini entegrasyonları kaldırıldı. Sadece Ollama ve AnythingLLM desteklenmektedir.
                                     </p>
                                 </div>
-                                </div>
                             </motion.div>
                         )}
 
