@@ -1683,23 +1683,27 @@ app.options('/api/ollama/*', cors({
 
 app.get('/api/ollama/health', async (req, res) => {
   try {
-    // Uzak Ollama sunucusu URL'i - api.plaxsy.com üzerinden
-    const ollamaUrl = process.env.OLLAMA_URL || 'https://api.plaxsy.com';
+    // api.plaxsy.com üzerinden Ollama health endpoint'ini çağır
+    const apiUrl = 'https://api.plaxsy.com';
+    const apiKey = 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
 
-    const response = await axios.get(`${ollamaUrl}/api/ollama/health`, {
+    // api.plaxsy.com üzerinden health endpoint'ini çağır
+    const response = await axios.get(`${apiUrl}/api/ollama/health`, {
       timeout: 10000,
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey
       }
     });
 
-    const models = response.data.models?.map(model => model.name) || [];
+    // Modelleri çıkar
+    const models = response.data.models || [];
 
     res.json({
       success: true,
-      status: 'online',
+      status: response.data.status || 'online',
       models,
-      url: ollamaUrl,
+      url: apiUrl,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -1709,6 +1713,7 @@ app.get('/api/ollama/health', async (req, res) => {
     res.json({
       ...errorResponse,
       status: 'offline',
+      models: [],
       timestamp: new Date().toISOString()
     });
   }
@@ -1752,10 +1757,12 @@ app.post('/api/ollama/generate', async (req, res) => {
 
     console.log('🤖 Ollama Request:', { model: requestBody.model, temperature: requestBody.options.temperature });
 
+    const apiKey = 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
     const response = await axios.post(`${ollamaUrl}/api/ollama/generate`, requestBody, {
       timeout: 60000, // 60 saniye timeout
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey
       }
     });
 
@@ -1790,12 +1797,14 @@ app.post('/api/ollama/pull', async (req, res) => {
 
     console.log(`📥 Pulling model: ${model}`);
 
+    const apiKey = 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
     const response = await axios.post(`${ollamaUrl}/api/ollama/pull`, {
       name: model
     }, {
       timeout: 300000, // 5 dakika timeout
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey
       }
     });
 

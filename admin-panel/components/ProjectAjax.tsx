@@ -115,6 +115,7 @@ export default function ProjectAjax() {
     // Alternatif modeller
     const alternativeModels = ['gemma3:4b', 'gemma3:1b', 'llama3.2:3b', 'llama3.2:1b']
     const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking')
+    const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
     // System Prompt
     const [systemPrompt, setSystemPrompt] = useState(`Sen Ajax AI'sın. Berat Şimşek geliştirdi. E-ticaret uzmanısın. Kısa yanıtlar ver. Huglu Outdoor firması için çalışıyorsun.`)
@@ -164,6 +165,13 @@ export default function ProjectAjax() {
         try {
             const health = await OllamaService.checkHealth()
             setOllamaStatus(health.status)
+            if (health.models && health.models.length > 0) {
+                setOllamaModels(health.models)
+                // Eğer mevcut model listede yoksa, ilk modeli seç
+                if (!health.models.includes(aiModel)) {
+                    setAiModel(health.models[0])
+                }
+            }
         } catch (error) {
             console.error('❌ Ollama status kontrol edilemedi:', error)
             setOllamaStatus('offline')
@@ -960,10 +968,56 @@ export default function ProjectAjax() {
         {/* AI Settings Inline Panel - Sadeleştirilmiş */}
         {showAiSettings && (
             <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 p-3">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Model</label>
-                        <input value={aiModel} onChange={(e)=> setAiModel(e.target.value)} className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-400" placeholder="ollama model (örn: gemma3:4b)" />
+                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">
+                            Model {ollamaStatus === 'online' && ollamaModels.length > 0 && `(${ollamaModels.length} model yüklü)`}
+                        </label>
+                        {ollamaStatus === 'online' && ollamaModels.length > 0 ? (
+                            <select 
+                                value={aiModel} 
+                                onChange={(e)=> setAiModel(e.target.value)}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100"
+                            >
+                                {ollamaModels.map((model) => (
+                                    <option key={model} value={model}>{model}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input 
+                                value={aiModel} 
+                                onChange={(e)=> setAiModel(e.target.value)} 
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-400" 
+                                placeholder="ollama model (örn: gemma3:4b)" 
+                            />
+                        )}
+                        {ollamaStatus === 'checking' && (
+                            <p className="text-xs text-gray-400 mt-1">Modeller yükleniyor...</p>
+                        )}
+                        {ollamaStatus === 'offline' && (
+                            <p className="text-xs text-red-400 mt-1">Ollama servisi çevrimdışı</p>
+                        )}
+                    </div>
+                    <div>
+                        <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Durum</label>
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${
+                                ollamaStatus === 'online' ? 'bg-green-500' : 
+                                ollamaStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 
+                                'bg-red-500'
+                            }`}></div>
+                            <span className="text-xs text-gray-600 dark:text-slate-300">
+                                {ollamaStatus === 'online' ? 'Çevrimiçi' : 
+                                 ollamaStatus === 'checking' ? 'Kontrol ediliyor...' : 
+                                 'Çevrimdışı'}
+                            </span>
+                            <button
+                                onClick={checkOllamaStatus}
+                                className="ml-auto px-2 py-1 text-xs bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 rounded hover:bg-gray-300 dark:hover:bg-slate-500"
+                            >
+                                Yenile
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
