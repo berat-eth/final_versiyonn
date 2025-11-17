@@ -16,7 +16,7 @@ export interface OllamaMessage {
 export class OllamaService {
   private static readonly CONFIG_KEY = 'ollama_config';
   private static readonly DEFAULT_CONFIG: OllamaConfig = {
-    enabled: false,
+    enabled: true,
     model: 'gemma2:1b',
     temperature: 0.7,
     maxTokens: 2000,

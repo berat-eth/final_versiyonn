@@ -150,10 +150,11 @@ export class OllamaService {
 
       // Retry mekanizması ile uzak sunucu üzerinden dene
       let lastError: Error | null = null;
+      const MAX_RETRIES = 5;
       
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          console.log(`🔄 Ollama deneme ${attempt}/3...`);
+          console.log(`🔄 Ollama deneme ${attempt}/${MAX_RETRIES}...`);
           
           const response = await fetch('https://api.plaxsy.com/api/ollama/generate', {
             method: 'POST',
@@ -179,7 +180,7 @@ export class OllamaService {
             }
           } else {
             const errorText = await response.text();
-            console.error(`❌ Ollama sunucusu hata (${attempt}/3):`, response.status, errorText);
+            console.error(`❌ Ollama sunucusu hata (${attempt}/${MAX_RETRIES}):`, response.status, errorText);
             
             // Hata tipine göre farklı mesajlar
             let errorMessage = `HTTP ${response.status}: ${errorText}`;
@@ -190,14 +191,16 @@ export class OllamaService {
               errorMessage = `Sunucu hatası: ${errorText}`;
             } else if (response.status === 400) {
               errorMessage = `Geçersiz istek: ${errorText}`;
+            } else if (response.status === 429) {
+              errorMessage = `Rate limit aşıldı. Lütfen birkaç saniye sonra tekrar deneyin.`;
             }
             
             lastError = new Error(errorMessage);
             
-            // 429 (Rate Limit) hatası için daha uzun bekle
+            // 429 (Rate Limit) hatası için exponential backoff
             if (response.status === 429) {
-              const waitTime = attempt * 2000; // 2s, 4s, 6s
-              console.log(`⏳ Rate limit nedeniyle ${waitTime}ms bekleniyor...`);
+              const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s, 16s, 32s
+              console.log(`⏳ Rate limit nedeniyle ${waitTime}ms (${waitTime/1000}s) bekleniyor...`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
             } else if (response.status === 404) {
               // 404 hatası için retry yapma
@@ -205,12 +208,12 @@ export class OllamaService {
             }
           }
         } catch (error) {
-          console.error(`❌ Ollama deneme ${attempt}/3 başarısız:`, error);
+          console.error(`❌ Ollama deneme ${attempt}/${MAX_RETRIES} başarısız:`, error);
           lastError = error instanceof Error ? error : new Error('Bilinmeyen hata');
           
           // Son deneme değilse kısa bekle
-          if (attempt < 3) {
-            const waitTime = attempt * 1000; // 1s, 2s
+          if (attempt < MAX_RETRIES) {
+            const waitTime = attempt * 1000; // 1s, 2s, 3s, 4s
             console.log(`⏳ ${waitTime}ms bekleniyor...`);
             await new Promise(resolve => setTimeout(resolve, waitTime));
           }
@@ -218,7 +221,7 @@ export class OllamaService {
       }
       
       // Tüm denemeler başarısız
-      throw lastError || new Error('Ollama sunucusu 3 deneme sonrası erişilemiyor');
+      throw lastError || new Error(`Ollama sunucusu ${MAX_RETRIES} deneme sonrası erişilemiyor`);
       
     } catch (error) {
       console.error('❌ Ollama sendMessage error:', error);

@@ -112,8 +112,6 @@ export default function ProjectAjax() {
         maxTokens: 2000
     })
     
-    // Alternatif modeller
-    const alternativeModels = ['gemma3:4b', 'gemma3:1b', 'llama3.2:3b', 'llama3.2:1b']
     const [ollamaStatus, setOllamaStatus] = useState<'online' | 'offline' | 'checking'>('checking')
     const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -551,43 +549,12 @@ export default function ProjectAjax() {
             console.log('🔍 Gönderilen model adı:', modelName)
             console.log('🔍 Ollama mesajları:', ollamaMessages)
             
-            // Ollama'ya gönder - Model fallback ile
-            let response;
-            let usedModel = modelName;
-            
-            try {
-                response = await OllamaService.sendMessage(ollamaMessages, {
+            // Ollama'ya gönder
+            const response = await OllamaService.sendMessage(ollamaMessages, {
                 model: modelName,
-                    temperature: 0.8,
-                    maxTokens: 1500
-                })
-            } catch (error) {
-                // İlk model başarısız olursa alternatif modelleri dene
-                console.log('🔄 Ana model başarısız, alternatif modeller deneniyor...')
-                
-                for (const altModel of alternativeModels) {
-                    if (altModel !== modelName) {
-                        try {
-                            console.log(`🔄 ${altModel} modeli deneniyor...`)
-                            response = await OllamaService.sendMessage(ollamaMessages, {
-                                model: altModel,
-                                temperature: 0.8,
-                                maxTokens: 1500
-                            })
-                            usedModel = altModel;
-                            console.log(`✅ ${altModel} modeli başarılı!`)
-                            break;
-                        } catch (altError) {
-                            console.log(`❌ ${altModel} modeli de başarısız:`, altError)
-                            continue;
-                        }
-                    }
-                }
-                
-                if (!response) {
-                    throw error; // Tüm modeller başarısız olursa orijinal hatayı fırlat
-                }
-            }
+                temperature: 0.8,
+                maxTokens: 1500
+            })
 
             // Yanıt yapısını kontrol et ve uygun şekilde parse et
             let content = '';
