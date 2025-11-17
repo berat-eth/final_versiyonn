@@ -1687,9 +1687,9 @@ app.get('/api/ollama/health', async (req, res) => {
     const apiUrl = 'https://api.plaxsy.com';
     const apiKey = 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
 
-    // api.plaxsy.com üzerinden health endpoint'ini çağır
+    // api.plaxsy.com üzerinden health endpoint'ini çağır - timeout artırıldı
     const response = await axios.get(`${apiUrl}/api/ollama/health`, {
-      timeout: 10000,
+      timeout: 30000, // 30 saniye timeout
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': apiKey
@@ -1709,7 +1709,14 @@ app.get('/api/ollama/health', async (req, res) => {
   } catch (error) {
     // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
     logError(error, 'OLLAMA_HEALTH_CHECK');
-    const errorResponse = createSafeErrorResponse(error, 'Ollama service unavailable');
+    
+    // Timeout hatası için özel mesaj
+    const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+    const errorMessage = isTimeout 
+      ? 'Ollama servisi yanıt vermiyor (timeout)'
+      : 'Ollama service unavailable';
+    
+    const errorResponse = createSafeErrorResponse(error, errorMessage);
     res.json({
       ...errorResponse,
       status: 'offline',
