@@ -1708,8 +1708,8 @@ app.get('/api/ollama/health', async (req, res) => {
 app.post('/api/ollama/generate', async (req, res) => {
   try {
     const { messages, model, temperature, maxTokens } = req.body;
-    // Uzak Ollama sunucusu URL'i
-    const ollamaUrl = process.env.OLLAMA_URL || 'https://api.plaxsy.com/ollama';
+    // Uzak Ollama sunucusu URL'i - api.plaxsy.com üzerinden
+    const ollamaUrl = process.env.OLLAMA_URL || 'https://api.plaxsy.com';
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({
