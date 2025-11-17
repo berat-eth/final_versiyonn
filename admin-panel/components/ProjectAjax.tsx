@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, Database, Table, Search, Play, Download, Eye, Settings, BarChart3, Activity, Brain, TestTube2 } from 'lucide-react'
+import { Send, Copy, User, Bot, Loader2, TrendingUp, FileText, Code, Lightbulb, Database, Table, Search, Play, Download, Eye, Settings, BarChart3, Activity, Brain, TestTube2, Volume2, VolumeX, Mic, MicOff } from 'lucide-react'
 import { OllamaService, OllamaConfig, OllamaMessage } from '@/lib/services/ollama-service'
 import { productService, orderService } from '@/lib/services'
 import { api } from '@/lib/api'
@@ -102,6 +102,16 @@ export default function ProjectAjax() {
 
     // Dark Mode State
     const [darkMode, setDarkMode] = useState<boolean>(true)
+    
+    // Text-to-Speech States
+    const [isSpeaking, setIsSpeaking] = useState(false)
+    const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null)
+    const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null)
+    
+    // Speech Recognition (Voice Input) States
+    const [isListening, setIsListening] = useState(false)
+    const [transcript, setTranscript] = useState('')
+    const recognitionRef = useRef<any>(null)
     
     // Ollama Config
     const [ollamaConfig, setOllamaConfig] = useState<OllamaConfig>({
@@ -841,6 +851,225 @@ export default function ProjectAjax() {
         alert('📋 Mesaj kopyalandı!')
     }
 
+    // Text-to-Speech fonksiyonu
+    const speakMessage = (content: string, messageId: string) => {
+        // Eğer zaten konuşuyorsa durdur
+        if (isSpeaking && speechSynthesisRef.current) {
+            window.speechSynthesis.cancel()
+            setIsSpeaking(false)
+            setSpeakingMessageId(null)
+            speechSynthesisRef.current = null
+            return
+        }
+
+        // Code block'ları ve özel karakterleri temizle
+        const cleanContent = content
+            .replace(/```[\s\S]*?```/g, '') // Code block'ları kaldır
+            .replace(/`[^`]+`/g, '') // Inline code'ları kaldır
+            .replace(/[#*_~]/g, '') // Markdown karakterlerini kaldır
+            .replace(/\n{3,}/g, '\n\n') // Çoklu satır sonlarını azalt
+            .trim()
+
+        if (!cleanContent) {
+            alert('Seslendirilecek içerik bulunamadı')
+            return
+        }
+
+        // Web Speech API kontrolü
+        if (!('speechSynthesis' in window)) {
+            alert('Tarayıcınız text-to-speech özelliğini desteklemiyor')
+            return
+        }
+
+        try {
+            // Önceki konuşmayı durdur
+            window.speechSynthesis.cancel()
+
+            // Yeni utterance oluştur
+            const utterance = new SpeechSynthesisUtterance(cleanContent)
+            utterance.lang = 'tr-TR' // Türkçe
+            utterance.rate = 1.0 // Konuşma hızı (0.1 - 10)
+            utterance.pitch = 1.0 // Ses tonu (0 - 2)
+            utterance.volume = 1.0 // Ses seviyesi (0 - 1)
+
+            // Türkçe ses seç (varsa)
+            const voices = window.speechSynthesis.getVoices()
+            const turkishVoice = voices.find(voice => 
+                voice.lang.startsWith('tr') || 
+                voice.name.toLowerCase().includes('turkish') ||
+                voice.name.toLowerCase().includes('türkçe')
+            )
+            if (turkishVoice) {
+                utterance.voice = turkishVoice
+            }
+
+            // Event handler'lar
+            utterance.onstart = () => {
+                setIsSpeaking(true)
+                setSpeakingMessageId(messageId)
+                speechSynthesisRef.current = utterance
+            }
+
+            utterance.onend = () => {
+                setIsSpeaking(false)
+                setSpeakingMessageId(null)
+                speechSynthesisRef.current = null
+            }
+
+            utterance.onerror = (error) => {
+                console.error('❌ Speech synthesis hatası:', error)
+                setIsSpeaking(false)
+                setSpeakingMessageId(null)
+                speechSynthesisRef.current = null
+                alert('Seslendirme sırasında bir hata oluştu')
+            }
+
+            // Konuşmayı başlat
+            window.speechSynthesis.speak(utterance)
+        } catch (error) {
+            console.error('❌ Speech synthesis başlatma hatası:', error)
+            alert('Seslendirme başlatılamadı')
+        }
+    }
+
+    // Speech Recognition (Voice Input) fonksiyonu
+    const startVoiceInput = () => {
+        // Web Speech Recognition API kontrolü
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        
+        if (!SpeechRecognition) {
+            alert('Tarayıcınız sesli girdi özelliğini desteklemiyor. Chrome veya Edge kullanmanız önerilir.')
+            return
+        }
+
+        try {
+            // Önceki recognition'ı durdur
+            if (recognitionRef.current) {
+                recognitionRef.current.stop()
+            }
+
+            // Yeni recognition oluştur
+            const recognition = new SpeechRecognition()
+            recognition.lang = 'tr-TR' // Türkçe
+            recognition.continuous = false // Tek seferlik
+            recognition.interimResults = true // Geçici sonuçları göster
+            recognition.maxAlternatives = 1
+
+            // Event handler'lar
+            recognition.onstart = () => {
+                setIsListening(true)
+                setTranscript('')
+                console.log('🎤 Sesli girdi başlatıldı')
+            }
+
+            recognition.onresult = (event: any) => {
+                let interimTranscript = ''
+                let finalTranscript = ''
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + ' '
+                    } else {
+                        interimTranscript += transcript
+                    }
+                }
+
+                // Geçici ve final sonuçları birleştir
+                const fullTranscript = finalTranscript + interimTranscript
+                setTranscript(fullTranscript)
+                
+                // Input alanına yaz
+                if (inputRef.current) {
+                    inputRef.current.value = fullTranscript
+                    setInput(fullTranscript)
+                }
+            }
+
+            recognition.onerror = (event: any) => {
+                console.error('❌ Speech recognition hatası:', event.error)
+                setIsListening(false)
+                
+                let errorMessage = 'Sesli girdi hatası oluştu'
+                if (event.error === 'no-speech') {
+                    errorMessage = 'Konuşma algılanamadı. Lütfen tekrar deneyin.'
+                } else if (event.error === 'audio-capture') {
+                    errorMessage = 'Mikrofon erişimi sağlanamadı. Lütfen mikrofon iznini kontrol edin.'
+                } else if (event.error === 'not-allowed') {
+                    errorMessage = 'Mikrofon izni verilmedi. Lütfen tarayıcı ayarlarından izin verin.'
+                } else if (event.error === 'network') {
+                    errorMessage = 'Ağ hatası oluştu. İnternet bağlantınızı kontrol edin.'
+                }
+                
+                alert(errorMessage)
+            }
+
+            recognition.onend = () => {
+                setIsListening(false)
+                console.log('🎤 Sesli girdi durduruldu')
+                
+                // Eğer input'ta metin varsa, otomatik gönder
+                setTimeout(() => {
+                    if (inputRef.current && inputRef.current.value.trim()) {
+                        const finalText = inputRef.current.value.trim()
+                        if (finalText && finalText.length > 0) {
+                            // Kısa bir gecikme sonra gönder (kullanıcı düzenleyebilsin)
+                            setTimeout(() => {
+                                if (inputRef.current && inputRef.current.value.trim()) {
+                                    handleSend()
+                                }
+                            }, 500)
+                        }
+                    }
+                }, 100)
+            }
+
+            // Recognition'ı başlat
+            recognition.start()
+            recognitionRef.current = recognition
+        } catch (error) {
+            console.error('❌ Speech recognition başlatma hatası:', error)
+            alert('Sesli girdi başlatılamadı')
+            setIsListening(false)
+        }
+    }
+
+    const stopVoiceInput = () => {
+        if (recognitionRef.current) {
+            recognitionRef.current.stop()
+            recognitionRef.current = null
+        }
+        setIsListening(false)
+        setTranscript('')
+    }
+
+    // Component unmount olduğunda konuşmayı ve recognition'ı durdur
+    useEffect(() => {
+        return () => {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop()
+            }
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel()
+            }
+        }
+    }, [])
+
+    // Ses listesi yüklendiğinde (Chrome için)
+    useEffect(() => {
+        const loadVoices = () => {
+            const voices = window.speechSynthesis.getVoices()
+            if (voices.length > 0) {
+                console.log('✅ Sesler yüklendi:', voices.map(v => v.name))
+            }
+        }
+
+        if (window.speechSynthesis) {
+            loadVoices()
+            window.speechSynthesis.onvoiceschanged = loadVoices
+        }
+    }, [])
+
     // CSV export function removed
 
     // Streaming animasyonu için yazıyormuş gibi efekt
@@ -1317,6 +1546,17 @@ export default function ProjectAjax() {
                                         >
                                             <Copy className="w-3.5 h-3.5" />
                                         </button>
+                                        <button
+                                            onClick={() => speakMessage(message.content, message.id)}
+                                            className={`hover:text-green-400 transition-colors ${speakingMessageId === message.id ? 'text-green-400' : ''}`}
+                                            title={isSpeaking && speakingMessageId === message.id ? 'Durdur' : 'Seslendir'}
+                                        >
+                                            {isSpeaking && speakingMessageId === message.id ? (
+                                                <VolumeX className="w-3.5 h-3.5 animate-pulse" />
+                                            ) : (
+                                                <Volume2 className="w-3.5 h-3.5" />
+                                            )}
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -1386,6 +1626,13 @@ export default function ProjectAjax() {
             <div className="bg-[#1a1c21] border-t border-gray-700 p-3">
                 <div className="flex items-center gap-3 mx-auto max-w-4xl">
                     <div className="flex-1 relative">
+                        {/* Sesli girdi durumu göstergesi */}
+                        {isListening && (
+                            <div className="absolute top-2 left-2 flex items-center gap-2 text-red-500 text-xs z-10">
+                                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                <span>Dinleniyor...</span>
+                            </div>
+                        )}
                         <textarea
                             ref={inputRef}
                             value={input}
@@ -1402,6 +1649,22 @@ export default function ProjectAjax() {
                                     {input.length}
                                 </div>
                             )}
+                            {/* Mikrofon Butonu */}
+                            <button
+                                onClick={() => isListening ? stopVoiceInput() : startVoiceInput()}
+                                className={`p-2 rounded-full transition-colors ${
+                                    isListening 
+                                        ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse' 
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                }`}
+                                title={isListening ? 'Sesli girdiyi durdur' : 'Sesli girdi başlat'}
+                            >
+                                {isListening ? (
+                                    <MicOff className="w-4 h-4" />
+                                ) : (
+                                    <Mic className="w-4 h-4" />
+                                )}
+                            </button>
                             <button
                                 onClick={handleSend}
                                 disabled={!input.trim() || isTyping}
