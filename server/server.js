@@ -1683,38 +1683,51 @@ app.options('/api/ollama/*', cors({
 
 app.get('/api/ollama/health', async (req, res) => {
   try {
-    // api.plaxsy.com üzerinden Ollama health endpoint'ini çağır
-    const apiUrl = 'https://api.plaxsy.com';
-    const apiKey = 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
+    // Yerel Ollama servisi URL'i
+    const ollamaUrl = process.env.OLLAMA_DIRECT_URL || process.env.OLLAMA_URL || 'http://localhost:11434';
 
-    // api.plaxsy.com üzerinden health endpoint'ini çağır - timeout artırıldı
-    const response = await axios.get(`${apiUrl}/api/ollama/health`, {
+    // Ollama'nın tags endpoint'ine doğrudan bağlan (modelleri almak için)
+    const response = await axios.get(`${ollamaUrl}/api/tags`, {
       timeout: 30000, // 30 saniye timeout
       headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
+        'Content-Type': 'application/json'
       }
     });
 
     // Modelleri çıkar
-    const models = response.data.models || [];
+    const models = response.data.models?.map(model => model.name) || [];
 
     res.json({
       success: true,
-      status: response.data.status || 'online',
+      status: 'online',
       models,
-      url: apiUrl,
+      url: ollamaUrl,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
     logError(error, 'OLLAMA_HEALTH_CHECK');
     
-    // Timeout hatası için özel mesaj
-    const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
-    const errorMessage = isTimeout 
-      ? 'Ollama servisi yanıt vermiyor (timeout)'
-      : 'Ollama service unavailable';
+    // Hata tipine göre özel mesajlar
+    let errorMessage = 'Ollama service unavailable';
+    
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      errorMessage = 'Ollama servisi yanıt vermiyor (timeout)';
+    } else if (error.response) {
+      // HTTP hata yanıtı varsa
+      const statusCode = error.response.status;
+      if (statusCode === 500) {
+        errorMessage = 'Ollama servisi hatası (500)';
+      } else if (statusCode === 404) {
+        errorMessage = 'Ollama endpoint bulunamadı (404)';
+      } else {
+        errorMessage = `Ollama servisi hata verdi (${statusCode})`;
+      }
+    } else if (error.code === 'ECONNREFUSED') {
+      errorMessage = 'Ollama servisi çalışmıyor. Lütfen Ollama servisini başlatın (localhost:11434)';
+    } else if (error.code === 'ENOTFOUND') {
+      errorMessage = 'Ollama sunucusuna bağlanılamıyor (DNS hatası)';
+    }
     
     const errorResponse = createSafeErrorResponse(error, errorMessage);
     res.json({
@@ -1729,8 +1742,8 @@ app.get('/api/ollama/health', async (req, res) => {
 app.post('/api/ollama/generate', async (req, res) => {
   try {
     const { messages, model, temperature, maxTokens } = req.body;
-    // Uzak Ollama sunucusu URL'i - api.plaxsy.com üzerinden
-    const ollamaUrl = process.env.OLLAMA_URL || 'https://api.plaxsy.com';
+    // Yerel Ollama servisi URL'i
+    const ollamaUrl = process.env.OLLAMA_DIRECT_URL || process.env.OLLAMA_URL || 'http://localhost:11434';
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({
@@ -1764,12 +1777,11 @@ app.post('/api/ollama/generate', async (req, res) => {
 
     console.log('🤖 Ollama Request:', { model: requestBody.model, temperature: requestBody.options.temperature });
 
-    const apiKey = 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
-    const response = await axios.post(`${ollamaUrl}/api/ollama/generate`, requestBody, {
+    // Yerel Ollama API'sine doğrudan bağlan
+    const response = await axios.post(`${ollamaUrl}/api/generate`, requestBody, {
       timeout: 60000, // 60 saniye timeout
       headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
+        'Content-Type': 'application/json'
       }
     });
 
@@ -1792,8 +1804,8 @@ app.post('/api/ollama/generate', async (req, res) => {
 app.post('/api/ollama/pull', async (req, res) => {
   try {
     const { model } = req.body;
-    // Uzak Ollama sunucusu URL'i - api.plaxsy.com üzerinden
-    const ollamaUrl = process.env.OLLAMA_URL || 'https://api.plaxsy.com';
+    // Yerel Ollama servisi URL'i
+    const ollamaUrl = process.env.OLLAMA_DIRECT_URL || process.env.OLLAMA_URL || 'http://localhost:11434';
 
     if (!model) {
       return res.status(400).json({
@@ -1804,14 +1816,13 @@ app.post('/api/ollama/pull', async (req, res) => {
 
     console.log(`📥 Pulling model: ${model}`);
 
-    const apiKey = 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
-    const response = await axios.post(`${ollamaUrl}/api/ollama/pull`, {
+    // Yerel Ollama API'sine doğrudan bağlan
+    const response = await axios.post(`${ollamaUrl}/api/pull`, {
       name: model
     }, {
       timeout: 300000, // 5 dakika timeout
       headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
+        'Content-Type': 'application/json'
       }
     });
 
