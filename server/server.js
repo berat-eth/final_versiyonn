@@ -8921,6 +8921,16 @@ app.post('/api/admin/ticimax-orders/import', authenticateAdmin, multer({ storage
     let skippedCount = 0;
     const errors = [];
 
+    // Türkçe sayı formatını parse et (5439,2 -> 5439.2)
+    const parseTurkishNumber = (value) => {
+      if (!value || !String(value).trim()) return 0;
+      const str = String(value).trim();
+      // Virgülü noktaya çevir ve parse et
+      const normalized = str.replace(',', '.');
+      const parsed = parseFloat(normalized);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
     // Excel satırlarını parse et ve siparişlere dönüştür
     const orderMap = new Map();
     
@@ -8945,16 +8955,6 @@ app.post('/api/admin/ticimax-orders/import', authenticateAdmin, multer({ storage
               }
             }
           }
-
-          // Türkçe sayı formatını parse et (5439,2 -> 5439.2)
-          const parseTurkishNumber = (value) => {
-            if (!value || !String(value).trim()) return 0;
-            const str = String(value).trim();
-            // Virgülü noktaya çevir ve parse et
-            const normalized = str.replace(',', '.');
-            const parsed = parseFloat(normalized);
-            return isNaN(parsed) ? 0 : parsed;
-          };
 
           const order = {
             externalOrderId: orderId,
@@ -8996,9 +8996,10 @@ app.post('/api/admin/ticimax-orders/import', authenticateAdmin, multer({ storage
         };
         
         order.items.push(item);
-        // Eğer "Toplam Ödeme Tutar" zaten set edildiyse, item'lardan hesaplama
+        // Eğer "Toplam Ödeme Tutar" zaten set edildiyse (0'dan büyükse), item'lardan hesaplama
         // Aksi halde item fiyatlarını topla
-        if (!order.totalAmount || order.totalAmount === 0) {
+        const hasTotalPayment = row['Toplam Ödeme Tutar'] && parseTurkishNumber(row['Toplam Ödeme Tutar']) > 0;
+        if (!hasTotalPayment) {
           order.totalAmount += (item.price * item.quantity);
         }
       } catch (rowError) {
