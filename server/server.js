@@ -9317,6 +9317,21 @@ app.delete('/api/admin/ticimax-orders/:id', authenticateAdmin, async (req, res) 
   }
 });
 
+// Multer error handler - endpoint'lerden önce tanımlanmalı
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('❌ Multer error:', err);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: 'Dosya boyutu çok büyük (maksimum 50MB)' });
+    }
+    return res.status(400).json({ success: false, message: 'Dosya yükleme hatası: ' + err.message });
+  } else if (err) {
+    console.error('❌ File upload error:', err);
+    return res.status(400).json({ success: false, message: err.message || 'Dosya yükleme hatası' });
+  }
+  next();
+};
+
 // Ticimax kargo fişi PDF'e QR kod ekleme fonksiyonu
 async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
   try {
@@ -9597,21 +9612,6 @@ app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: 'Error fetching invoices' });
   }
 });
-
-// Multer hata yakalama middleware'i
-const handleMulterError = (err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    console.error('❌ Multer error:', err);
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ success: false, message: 'Dosya boyutu çok büyük (maksimum 10MB)' });
-    }
-    return res.status(400).json({ success: false, message: 'Dosya yükleme hatası: ' + err.message });
-  } else if (err) {
-    console.error('❌ File upload error:', err);
-    return res.status(400).json({ success: false, message: err.message || 'Dosya yükleme hatası' });
-  }
-  next();
-};
 
 app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'), handleMulterError, async (req, res) => {
   try {
