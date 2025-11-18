@@ -9361,7 +9361,7 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     
     // Sol alt köşe konumu (A5 uyumlu)
     const qrX = 20; // Soldan 20 points içeride
-    const qrY = 220; // Alttan 220 points yukarıda (170 points daha yukarı kaldırıldı)
+    const qrY = 180; // Alttan 180 points yukarıda (40 points aşağı indirildi)
     
     // QR kod'u PDF'e ekle (sol alt köşe)
     firstPage.drawImage(qrImage, {
