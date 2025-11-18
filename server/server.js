@@ -8946,10 +8946,20 @@ app.post('/api/admin/ticimax-orders/import', authenticateAdmin, multer({ storage
             }
           }
 
+          // Türkçe sayı formatını parse et (5439,2 -> 5439.2)
+          const parseTurkishNumber = (value) => {
+            if (!value || !String(value).trim()) return 0;
+            const str = String(value).trim();
+            // Virgülü noktaya çevir ve parse et
+            const normalized = str.replace(',', '.');
+            const parsed = parseFloat(normalized);
+            return isNaN(parsed) ? 0 : parsed;
+          };
+
           const order = {
             externalOrderId: orderId,
             orderNumber: orderNumber,
-            customerName: row['Müşteri Adı'] || row['Alıcı'] || row['Müşteri'] || '',
+            customerName: row['Üye Adı'] || row['Müşteri Adı'] || row['Alıcı'] || row['Müşteri'] || '',
             customerEmail: row['E-posta'] || row['Email'] || row['Mail'] || '',
             customerPhone: row['Telefon'] || row['Tel'] || row['Cep Telefonu'] || '',
             shippingAddress: row['Adres'] || row['Teslimat Adresi'] || row['Adres Bilgisi'] || '',
@@ -8962,7 +8972,7 @@ app.post('/api/admin/ticimax-orders/import', authenticateAdmin, multer({ storage
             barcode: row['Barkod'] || '',
             orderDate: parsedDate.toISOString(),
             status: row['Durum'] || 'pending',
-            totalAmount: parseFloat(row['Toplam'] || row['Tutar'] || row['Fiyat'] || '0') || 0,
+            totalAmount: parseTurkishNumber(row['Toplam Ödeme Tutar'] || row['Toplam'] || row['Tutar'] || row['Fiyat'] || '0'),
             currency: row['Para Birimi'] || 'TRY',
             items: [],
             rawData: row

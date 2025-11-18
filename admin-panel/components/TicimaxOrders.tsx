@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { 
   ShoppingCart, Search, Loader2, X, User, Mail, Phone, 
-  Calendar, DollarSign, Package, MapPin, Upload, CheckCircle, Trash2, FileSpreadsheet
+  Calendar, DollarSign, Package, MapPin, Upload, CheckCircle, Trash2, FileSpreadsheet, Eye, Truck, Code, FileJson
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
@@ -26,6 +26,7 @@ interface TicimaxOrder {
   barcode?: string
   orderDate?: string
   createdAt: string
+  orderData?: any // JSON data from Excel import
   items?: Array<{
     id: number
     productName: string
@@ -49,6 +50,9 @@ export default function TicimaxOrders() {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
+  const [showOrderDetailModal, setShowOrderDetailModal] = useState(false)
+  const [showJsonModal, setShowJsonModal] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState<TicimaxOrder | null>(null)
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -110,8 +114,8 @@ export default function TicimaxOrders() {
       const formData = new FormData()
       formData.append('file', file)
       
-      // API base URL'i al
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api'
+      // API base URL'i al - api utility'sinden aynı değerleri kullan
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
       const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
       const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
       const token = sessionStorage.getItem('authToken') || ''
@@ -122,9 +126,21 @@ export default function TicimaxOrders() {
           'X-API-Key': API_KEY,
           'Authorization': `Bearer ${token}`,
           'X-Admin-Key': ADMIN_KEY
+          // Content-Type header'ını ekleme - FormData için browser otomatik ekler
         },
         body: formData
       })
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch {
+          // JSON parse hatası, status text kullan
+        }
+        throw new Error(errorMessage)
+      }
       
       const result = await response.json()
       
@@ -200,6 +216,11 @@ export default function TicimaxOrders() {
       cancelled: 'İptal',
     }
     return labels[status] || status
+  }
+
+  const handleOrderClick = (order: TicimaxOrder) => {
+    setSelectedOrder(order)
+    setShowOrderDetailModal(true)
   }
 
   const filteredOrders = orders.filter(order => {
@@ -372,7 +393,7 @@ export default function TicimaxOrders() {
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => handleOrderClick(order)}>
                     <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-200">
                       {order.orderNumber || order.externalOrderId}
                     </td>
@@ -395,18 +416,28 @@ export default function TicimaxOrders() {
                     <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
                       {new Date(order.createdAt).toLocaleDateString('tr-TR')}
                     </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleDeleteOrder(order.id, order.orderNumber || order.externalOrderId)}
-                        disabled={deletingOrderId === order.id}
-                        className="text-red-600 hover:text-red-700 disabled:opacity-50"
-                      >
-                        {deletingOrderId === order.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </button>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleOrderClick(order)}
+                          className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          title="Detayları Görüntüle"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteOrder(order.id, order.orderNumber || order.externalOrderId)}
+                          disabled={deletingOrderId === order.id}
+                          className="text-red-600 hover:text-red-700 disabled:opacity-50"
+                          title="Siparişi Sil"
+                        >
+                          {deletingOrderId === order.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -469,6 +500,305 @@ export default function TicimaxOrders() {
                       'Dosya Seç'
                     )}
                   </label>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Sipariş Detay Modal */}
+      <AnimatePresence>
+        {showOrderDetailModal && selectedOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowOrderDetailModal(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-dark-border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
+                      Sipariş Detayı
+                    </h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                      📦 Ticimax - {selectedOrder.orderNumber || selectedOrder.externalOrderId}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setShowJsonModal(true)
+                      }}
+                      className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                      title="JSON Verisini Görüntüle"
+                    >
+                      <FileJson className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowOrderDetailModal(false)
+                        setSelectedOrder(null)
+                      }}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Sipariş Bilgileri */}
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Sipariş Bilgileri</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-slate-600 dark:text-slate-400">Sipariş Numarası</label>
+                      <p className="text-slate-900 dark:text-slate-200 font-medium">{selectedOrder.orderNumber || selectedOrder.externalOrderId}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-600 dark:text-slate-400">Durum</label>
+                      <p className="text-slate-900 dark:text-slate-200 font-medium">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedOrder.status)}`}>
+                          {getStatusLabel(selectedOrder.status)}
+                        </span>
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-600 dark:text-slate-400">Toplam Tutar</label>
+                      <p className="text-slate-900 dark:text-slate-200 font-medium text-lg">
+                        {selectedOrder.totalAmount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-600 dark:text-slate-400">Sipariş Tarihi</label>
+                      <p className="text-slate-900 dark:text-slate-200 font-medium">
+                        {selectedOrder.orderDate 
+                          ? new Date(selectedOrder.orderDate).toLocaleString('tr-TR')
+                          : new Date(selectedOrder.createdAt).toLocaleString('tr-TR')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Müşteri Bilgileri */}
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Müşteri Bilgileri</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedOrder.customerName && (
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-slate-400" />
+                        <div>
+                          <label className="text-sm text-slate-600 dark:text-slate-400">Ad Soyad</label>
+                          <p className="text-slate-900 dark:text-slate-200 font-medium">{selectedOrder.customerName}</p>
+                        </div>
+                      </div>
+                    )}
+                    {selectedOrder.customerEmail && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-slate-400" />
+                        <div>
+                          <label className="text-sm text-slate-600 dark:text-slate-400">E-posta</label>
+                          <p className="text-slate-900 dark:text-slate-200 font-medium">{selectedOrder.customerEmail}</p>
+                        </div>
+                      </div>
+                    )}
+                    {selectedOrder.customerPhone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-slate-400" />
+                        <div>
+                          <label className="text-sm text-slate-600 dark:text-slate-400">Telefon</label>
+                          <p className="text-slate-900 dark:text-slate-200 font-medium">{selectedOrder.customerPhone}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Adres Bilgileri */}
+                {(selectedOrder.shippingAddress || selectedOrder.fullAddress || selectedOrder.city || selectedOrder.district) && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Teslimat Adresi</h3>
+                    <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-dark-border">
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-slate-400 mt-1" />
+                        <div className="flex-1">
+                          <p className="text-slate-900 dark:text-slate-200">
+                            {selectedOrder.fullAddress || selectedOrder.shippingAddress || '-'}
+                          </p>
+                          {(selectedOrder.city || selectedOrder.district) && (
+                            <p className="text-slate-600 dark:text-slate-400 mt-1">
+                              {selectedOrder.district && `${selectedOrder.district}, `}{selectedOrder.city}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Kargo Bilgileri */}
+                {(selectedOrder.cargoProviderName || selectedOrder.cargoTrackingNumber || selectedOrder.barcode) && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Kargo Bilgileri</h3>
+                    <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-dark-border space-y-3">
+                      {selectedOrder.cargoProviderName && (
+                        <div className="flex items-center gap-2">
+                          <Truck className="w-4 h-4 text-slate-400" />
+                          <div>
+                            <label className="text-sm text-slate-600 dark:text-slate-400">Kargo Firması</label>
+                            <p className="text-slate-900 dark:text-slate-200 font-medium">{selectedOrder.cargoProviderName}</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedOrder.cargoTrackingNumber && (
+                        <div>
+                          <label className="text-sm text-slate-600 dark:text-slate-400">Takip Numarası</label>
+                          <p className="text-slate-900 dark:text-slate-200 font-medium">{selectedOrder.cargoTrackingNumber}</p>
+                        </div>
+                      )}
+                      {selectedOrder.barcode && (
+                        <div>
+                          <label className="text-sm text-slate-600 dark:text-slate-400">Barkod</label>
+                          <p className="text-slate-900 dark:text-slate-200 font-medium font-mono">{selectedOrder.barcode}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sipariş Öğeleri */}
+                {selectedOrder.items && selectedOrder.items.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">
+                      Sipariş Öğeleri ({selectedOrder.items.length})
+                    </h3>
+                    <div className="space-y-3">
+                      {selectedOrder.items.map((item, idx) => (
+                        <div
+                          key={item.id || `item-${selectedOrder.id}-${idx}`}
+                          className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-dark-border"
+                        >
+                          <Package className="w-8 h-8 text-blue-500 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-900 dark:text-slate-200">{item.productName}</p>
+                            {item.productSku && (
+                              <p className="text-sm text-slate-600 dark:text-slate-400">SKU: {item.productSku}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-slate-600 dark:text-slate-400">Adet: {item.quantity}</p>
+                            <p className="font-semibold text-slate-900 dark:text-slate-200">
+                              {item.price.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
+                            </p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                              Toplam: {(item.price * item.quantity).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tarih Bilgileri */}
+                <div className="border-t border-slate-200 dark:border-dark-border pt-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <label className="text-slate-600 dark:text-slate-400">Oluşturulma Tarihi</label>
+                      <p className="text-slate-900 dark:text-slate-200 font-medium">
+                        {new Date(selectedOrder.createdAt).toLocaleString('tr-TR')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* JSON Data Modal */}
+      <AnimatePresence>
+        {showJsonModal && selectedOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowJsonModal(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-dark-border flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <Code className="w-6 h-6" />
+                      JSON Verisi
+                    </h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                      Sipariş: {selectedOrder.orderNumber || selectedOrder.externalOrderId}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowJsonModal(false)
+                    }}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="bg-slate-900 dark:bg-slate-950 rounded-lg p-4 overflow-x-auto">
+                  <pre className="text-sm text-slate-100 font-mono whitespace-pre-wrap break-words">
+                    {(() => {
+                      try {
+                        // orderData varsa onu kullan, yoksa tüm sipariş verisini JSON olarak göster
+                        const jsonData = (selectedOrder as any).orderData 
+                          ? (typeof (selectedOrder as any).orderData === 'string' 
+                              ? JSON.parse((selectedOrder as any).orderData)
+                              : (selectedOrder as any).orderData)
+                          : selectedOrder
+                        
+                        return JSON.stringify(jsonData, null, 2)
+                      } catch (error) {
+                        return `JSON parse hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`
+                      }
+                    })()}
+                  </pre>
+                </div>
+                
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const jsonData = (selectedOrder as any).orderData 
+                          ? (typeof (selectedOrder as any).orderData === 'string' 
+                              ? JSON.parse((selectedOrder as any).orderData)
+                              : (selectedOrder as any).orderData)
+                          : selectedOrder
+                        
+                        if (jsonData) {
+                          const jsonString = JSON.stringify(jsonData, null, 2)
+                          await navigator.clipboard.writeText(jsonString)
+                          alert('JSON verisi panoya kopyalandı!')
+                        }
+                      } catch (error) {
+                        alert('Kopyalama hatası: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'))
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    <FileJson className="w-4 h-4" />
+                    Kopyala
+                  </button>
                 </div>
               </div>
             </motion.div>
