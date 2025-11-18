@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { 
   ShoppingCart, Search, Loader2, X, User, Mail, Phone, 
-  Calendar, DollarSign, Package, MapPin, Upload, CheckCircle, Trash2, FileSpreadsheet, Eye, Truck, Code, FileJson
+  Calendar, DollarSign, Package, MapPin, Upload, CheckCircle, Trash2, FileSpreadsheet, Eye, Truck, Code, FileJson, Printer, Download, FileUp, AlertCircle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
@@ -52,6 +52,13 @@ export default function TicimaxOrders() {
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
   const [showOrderDetailModal, setShowOrderDetailModal] = useState(false)
   const [showJsonModal, setShowJsonModal] = useState(false)
+  const [showCargoSlipModal, setShowCargoSlipModal] = useState(false)
+  const [cargoSlipUrl, setCargoSlipUrl] = useState<string | null>(null)
+  const [generatingCargoSlip, setGeneratingCargoSlip] = useState(false)
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
+  const [bulkUploadFiles, setBulkUploadFiles] = useState<File[]>([])
+  const [uploadingBulk, setUploadingBulk] = useState(false)
+  const [bulkUploadResult, setBulkUploadResult] = useState<any>(null)
   const [selectedOrder, setSelectedOrder] = useState<TicimaxOrder | null>(null)
 
   useEffect(() => {
@@ -223,6 +230,143 @@ export default function TicimaxOrders() {
     setShowOrderDetailModal(true)
   }
 
+  const handleGenerateCargoSlip = async () => {
+    if (!selectedOrder) return
+    
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+    const token = sessionStorage.getItem('authToken') || ''
+    
+    try {
+      setGeneratingCargoSlip(true)
+      setError(null)
+      
+      const response = await fetch(`${API_BASE_URL}/admin/generate-cargo-slip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY,
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Key': ADMIN_KEY
+        },
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+          invoiceUrl: '', // Ticimax için fatura URL'i opsiyonel
+          cargoTrackingNumber: selectedOrder.cargoTrackingNumber || '',
+          cargoProviderName: selectedOrder.cargoProviderName || '',
+          barcode: selectedOrder.barcode || '',
+          customerName: selectedOrder.customerName || '',
+          customerEmail: selectedOrder.customerEmail || '',
+          customerPhone: selectedOrder.customerPhone || '',
+          customerAddress: selectedOrder.fullAddress || selectedOrder.shippingAddress || '',
+          city: selectedOrder.city || '',
+          district: selectedOrder.district || '',
+          provider: 'ticimax', // Ticimax siparişi olduğunu belirt
+          items: (selectedOrder.items || []).map(item => ({
+            productName: item.productName || '',
+            productSku: item.productSku || ''
+          }))
+        })
+      })
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch {
+          // JSON parse hatası
+        }
+        throw new Error(errorMessage)
+      }
+      
+      // PDF blob'unu al ve modal'da göster
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      setCargoSlipUrl(url)
+      setShowCargoSlipModal(true)
+    } catch (err: any) {
+      setError('Kargo fişi oluşturulamadı: ' + (err.message || 'Bilinmeyen hata'))
+    } finally {
+      setGeneratingCargoSlip(false)
+    }
+  }
+
+  const handleDownloadCargoSlip = () => {
+    if (!cargoSlipUrl || !selectedOrder) return
+    
+    const a = document.createElement('a')
+    a.href = cargoSlipUrl
+    a.download = `kargo-fisi-ticimax-${selectedOrder.orderNumber || selectedOrder.externalOrderId}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(cargoSlipUrl)
+    document.body.removeChild(a)
+  }
+
+  const handleBulkUploadFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const pdfFiles = files.filter(file => file.type === 'application/pdf')
+    setBulkUploadFiles(pdfFiles)
+  }
+
+  const handleBulkUpload = async () => {
+    if (bulkUploadFiles.length === 0) {
+      alert('Lütfen en az bir PDF dosyası seçin')
+      return
+    }
+
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+    const token = sessionStorage.getItem('authToken') || ''
+
+    try {
+      setUploadingBulk(true)
+      setError(null)
+      setBulkUploadResult(null)
+
+      const formData = new FormData()
+      bulkUploadFiles.forEach(file => {
+        formData.append('cargoSlips', file)
+      })
+
+      const response = await fetch(`${API_BASE_URL}/admin/ticimax-orders/bulk-upload-cargo-slips`, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': API_KEY,
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Key': ADMIN_KEY
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch {
+          // JSON parse hatası
+        }
+        throw new Error(errorMessage)
+      }
+
+      const result = await response.json()
+      setBulkUploadResult(result.data)
+      
+      // Başarılı yüklemelerden sonra siparişleri yeniden yükle
+      if (result.data.processed > 0) {
+        loadOrders()
+      }
+    } catch (err: any) {
+      setError('Toplu yükleme hatası: ' + (err.message || 'Bilinmeyen hata'))
+    } finally {
+      setUploadingBulk(false)
+    }
+  }
+
   const filteredOrders = orders.filter(order => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
@@ -254,13 +398,22 @@ export default function TicimaxOrders() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-        >
-          <Upload className="w-4 h-4" />
-          Excel Yükle
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBulkUploadModal(true)}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+          >
+            <FileUp className="w-4 h-4" />
+            Kargo Fişi Yükle
+          </button>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            Excel Yükle
+          </button>
+        </div>
       </div>
 
       {/* İstatistikler */}
@@ -529,6 +682,18 @@ export default function TicimaxOrders() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleGenerateCargoSlip}
+                      disabled={generatingCargoSlip}
+                      className="p-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
+                      title="Kargo Fişi Oluştur"
+                    >
+                      {generatingCargoSlip ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Printer className="w-5 h-5" />
+                      )}
+                    </button>
                     <button
                       onClick={() => {
                         setShowJsonModal(true)
@@ -800,6 +965,246 @@ export default function TicimaxOrders() {
                     Kopyala
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Kargo Fişi PDF Modal */}
+      <AnimatePresence>
+        {showCargoSlipModal && cargoSlipUrl && selectedOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => {
+            setShowCargoSlipModal(false)
+            if (cargoSlipUrl) {
+              window.URL.revokeObjectURL(cargoSlipUrl)
+              setCargoSlipUrl(null)
+            }
+          }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col"
+            >
+              <div className="p-4 border-b border-slate-200 dark:border-dark-border flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">
+                      Kargo Fişi
+                    </h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                      Sipariş: {selectedOrder.orderNumber || selectedOrder.externalOrderId}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleDownloadCargoSlip}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      İndir
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCargoSlipModal(false)
+                        if (cargoSlipUrl) {
+                          window.URL.revokeObjectURL(cargoSlipUrl)
+                          setCargoSlipUrl(null)
+                        }
+                      }}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900">
+                <iframe
+                  src={cargoSlipUrl}
+                  className="w-full h-full border-0"
+                  title="Kargo Fişi PDF"
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toplu Kargo Fişi Yükleme Modal */}
+      <AnimatePresence>
+        {showBulkUploadModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => {
+            setShowBulkUploadModal(false)
+            setBulkUploadFiles([])
+            setBulkUploadResult(null)
+          }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-dark-border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
+                      Toplu Kargo Fişi Yükleme
+                    </h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                      PDF dosyalarını seçin. Dosya adları sipariş numaralarıyla eşleşmelidir.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowBulkUploadModal(false)
+                      setBulkUploadFiles([])
+                      setBulkUploadResult(null)
+                    }}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {!bulkUploadResult ? (
+                  <>
+                    <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center hover:border-purple-500 transition-colors">
+                      <FileUp className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf"
+                          onChange={handleBulkUploadFiles}
+                          className="hidden"
+                          disabled={uploadingBulk}
+                        />
+                        <span className="text-slate-600 dark:text-slate-400">
+                          PDF dosyalarını seçmek için tıklayın veya sürükleyip bırakın
+                        </span>
+                      </label>
+                      <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+                        Maksimum 10 dosya, her biri 50MB'a kadar
+                      </p>
+                    </div>
+
+                    {bulkUploadFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-slate-800 dark:text-slate-200">
+                          Seçilen Dosyalar ({bulkUploadFiles.length})
+                        </h3>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {bulkUploadFiles.map((file, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg"
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileSpreadsheet className="w-4 h-4 text-purple-600" />
+                                <span className="text-sm text-slate-700 dark:text-slate-300">
+                                  {file.name}
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                  ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setBulkUploadFiles(bulkUploadFiles.filter((_, i) => i !== idx))
+                                }}
+                                className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-4">
+                      <button
+                        onClick={() => {
+                          setShowBulkUploadModal(false)
+                          setBulkUploadFiles([])
+                        }}
+                        className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                        disabled={uploadingBulk}
+                      >
+                        İptal
+                      </button>
+                      <button
+                        onClick={handleBulkUpload}
+                        disabled={bulkUploadFiles.length === 0 || uploadingBulk}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {uploadingBulk ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Yükleniyor...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />
+                            Yükle
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    <div className={`p-4 rounded-lg ${bulkUploadResult.processed > 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {bulkUploadResult.processed > 0 ? (
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-red-600" />
+                        )}
+                        <h3 className="font-semibold text-slate-800 dark:text-slate-200">
+                          Yükleme Tamamlandı
+                        </h3>
+                      </div>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {bulkUploadResult.processed} dosya başarıyla yüklendi
+                        {bulkUploadResult.failed > 0 && `, ${bulkUploadResult.failed} dosya başarısız`}
+                      </p>
+                    </div>
+
+                    {bulkUploadResult.errors && bulkUploadResult.errors.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-red-600 dark:text-red-400">Hatalar:</h4>
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {bulkUploadResult.errors.map((err: any, idx: number) => (
+                            <div key={idx} className="p-2 bg-red-50 dark:bg-red-900/20 rounded text-sm">
+                              <span className="font-medium">{err.fileName}:</span> {err.error}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-4">
+                      <button
+                        onClick={() => {
+                          setShowBulkUploadModal(false)
+                          setBulkUploadFiles([])
+                          setBulkUploadResult(null)
+                        }}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                      >
+                        Tamam
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

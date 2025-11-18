@@ -706,6 +706,20 @@ if (!fs.existsSync(invoicesDir)) {
   console.log('✅ Invoices uploads directory already exists:', invoicesDir);
 }
 
+// Ticimax kargo fişi PDF'leri için uploads klasörünü oluştur
+const ticimaxCargoSlipsDir = path.join(__dirname, 'uploads', 'ticimax-cargo-slips');
+if (!fs.existsSync(ticimaxCargoSlipsDir)) {
+  try {
+    fs.mkdirSync(ticimaxCargoSlipsDir, { recursive: true });
+    console.log('✅ Ticimax cargo slips directory created:', ticimaxCargoSlipsDir);
+  } catch (error) {
+    console.error('❌ Error creating ticimax cargo slips directory:', error);
+    throw error;
+  }
+} else {
+  console.log('✅ Ticimax cargo slips directory already exists:', ticimaxCargoSlipsDir);
+}
+
 // Dizin yazma izinlerini kontrol et
 try {
   fs.accessSync(invoicesDir, fs.constants.W_OK);
@@ -887,6 +901,46 @@ const invoiceUpload = multer({
     files: 1 // Tek dosya
   },
   fileFilter: invoiceFileFilter
+});
+
+// Ticimax kargo fişi PDF yükleme için multer yapılandırması
+const ticimaxCargoSlipStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      if (!fs.existsSync(ticimaxCargoSlipsDir)) {
+        fs.mkdirSync(ticimaxCargoSlipsDir, { recursive: true });
+      }
+      fs.accessSync(ticimaxCargoSlipsDir, fs.constants.W_OK);
+      cb(null, ticimaxCargoSlipsDir);
+    } catch (error) {
+      console.error('❌ Error accessing ticimax cargo slips directory:', error);
+      cb(error, null);
+    }
+  },
+  filename: (req, file, cb) => {
+    const sanitized = sanitizeFileName(file.originalname);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(sanitized);
+    const baseName = path.basename(sanitized, ext);
+    cb(null, `cargo-slip-${baseName}-${uniqueSuffix}${ext}`);
+  }
+});
+
+const ticimaxCargoSlipFileFilter = (req, file, cb) => {
+  if (file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(new Error('Sadece PDF dosyaları yüklenebilir'), false);
+  }
+};
+
+const ticimaxCargoSlipUpload = multer({
+  storage: ticimaxCargoSlipStorage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB maksimum
+    files: 10 // Toplu yükleme için 10 dosya
+  },
+  fileFilter: ticimaxCargoSlipFileFilter
 });
 
 // Statik dosya servisi (yüklenen dosyaları erişilebilir yap)
@@ -9263,6 +9317,254 @@ app.delete('/api/admin/ticimax-orders/:id', authenticateAdmin, async (req, res) 
   }
 });
 
+// Ticimax kargo fişi PDF'e QR kod ekleme fonksiyonu
+async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
+  try {
+    const { PDFDocument } = require('pdf-lib');
+    const QRCode = require('qrcode');
+    
+    // PDF'i yükle
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const pages = pdfDoc.getPages();
+    const firstPage = pages[0];
+    const { width, height } = firstPage.getSize();
+    
+    // QR kod oluştur
+    const qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl, {
+      width: 200,
+      margin: 2,
+      errorCorrectionLevel: 'H'
+    });
+    
+    // Base64'ten image'e çevir
+    const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+    const qrImage = await pdfDoc.embedPng(qrImageBytes);
+    
+    // QR kod boyutları (sağ üst köşeye yerleştir)
+    const qrSize = 80;
+    const qrX = width - qrSize - 20;
+    const qrY = height - qrSize - 20;
+    
+    // QR kod'u PDF'e ekle
+    firstPage.drawImage(qrImage, {
+      x: qrX,
+      y: qrY,
+      width: qrSize,
+      height: qrSize
+    });
+    
+    // PDF'i byte array olarak döndür
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
+  } catch (error) {
+    console.error('❌ Error adding QR code to PDF:', error);
+    throw error;
+  }
+}
+
+// Admin - Ticimax kargo fişi PDF yükleme (tek dosya)
+app.post('/api/admin/ticimax-orders/:orderId/upload-cargo-slip', authenticateAdmin, ticimaxCargoSlipUpload.single('cargoSlip'), handleMulterError, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const orderId = parseInt(req.params.orderId);
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Kargo fişi PDF dosyası gereklidir'
+      });
+    }
+    
+    // Siparişi kontrol et
+    const [orders] = await poolWrapper.execute(
+      'SELECT id, externalOrderId, orderNumber FROM ticimax_orders WHERE id = ? AND tenantId = ?',
+      [orderId, tenantId]
+    );
+    
+    if (orders.length === 0) {
+      // Yüklenen dosyayı sil
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(404).json({
+        success: false,
+        message: 'Sipariş bulunamadı'
+      });
+    }
+    
+    const order = orders[0];
+    
+    // Fatura linki oluştur (share token ile)
+    const crypto = require('crypto');
+    const shareToken = crypto.randomBytes(32).toString('hex');
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const invoiceUrl = `${baseUrl}/api/invoices/share/${shareToken}/download`;
+    
+    // PDF'e QR kod ekle
+    const pdfBuffer = fs.readFileSync(req.file.path);
+    const pdfWithQR = await addQRCodeToPDF(pdfBuffer, invoiceUrl);
+    
+    // Güncellenmiş PDF'i kaydet
+    const finalPath = req.file.path.replace('.pdf', '-with-qr.pdf');
+    fs.writeFileSync(finalPath, pdfWithQR);
+    
+    // Eski PDF'i sil (opsiyonel)
+    // fs.unlinkSync(req.file.path);
+    
+    res.json({
+      success: true,
+      data: {
+        orderId: order.id,
+        orderNumber: order.orderNumber || order.externalOrderId,
+        cargoSlipPath: finalPath,
+        invoiceUrl: invoiceUrl,
+        shareToken: shareToken
+      },
+      message: 'Kargo fişi başarıyla yüklendi ve QR kod eklendi'
+    });
+  } catch (error) {
+    console.error('❌ Error uploading ticimax cargo slip:', error);
+    // Hata durumunda yüklenen dosyayı sil
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (deleteError) {
+        console.error('❌ Error deleting uploaded file:', deleteError);
+      }
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Kargo fişi yükleme hatası'
+    });
+  }
+});
+
+// Admin - Ticimax kargo fişi PDF toplu yükleme
+app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin, ticimaxCargoSlipUpload.array('cargoSlips', 10), handleMulterError, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { orderMapping } = req.body; // { "orderNumber1": "file1.pdf", "orderNumber2": "file2.pdf" }
+    
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'En az bir kargo fişi PDF dosyası gereklidir'
+      });
+    }
+    
+    let parsedMapping = {};
+    if (orderMapping) {
+      try {
+        parsedMapping = typeof orderMapping === 'string' ? JSON.parse(orderMapping) : orderMapping;
+      } catch (e) {
+        console.warn('⚠️ Order mapping parse hatası:', e);
+      }
+    }
+    
+    const results = [];
+    const errors = [];
+    const crypto = require('crypto');
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
+    for (const file of req.files) {
+      try {
+        // Dosya adından sipariş numarasını çıkar (örnek: "SIP-12345.pdf" -> "SIP-12345")
+        const fileName = file.originalname.replace(/\.pdf$/i, '');
+        let orderNumber = parsedMapping[file.originalname] || parsedMapping[fileName] || fileName;
+        
+        // Siparişi bul
+        const [orders] = await poolWrapper.execute(
+          'SELECT id, externalOrderId, orderNumber FROM ticimax_orders WHERE (orderNumber = ? OR externalOrderId = ?) AND tenantId = ?',
+          [orderNumber, orderNumber, tenantId]
+        );
+        
+        if (orders.length === 0) {
+          errors.push({
+            fileName: file.originalname,
+            error: `Sipariş bulunamadı: ${orderNumber}`
+          });
+          // Dosyayı sil
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+          continue;
+        }
+        
+        const order = orders[0];
+        
+        // Fatura linki oluştur
+        const shareToken = crypto.randomBytes(32).toString('hex');
+        const invoiceUrl = `${baseUrl}/api/invoices/share/${shareToken}/download`;
+        
+        // PDF'e QR kod ekle
+        const pdfBuffer = fs.readFileSync(file.path);
+        const pdfWithQR = await addQRCodeToPDF(pdfBuffer, invoiceUrl);
+        
+        // Güncellenmiş PDF'i kaydet
+        const finalPath = file.path.replace('.pdf', '-with-qr.pdf');
+        fs.writeFileSync(finalPath, pdfWithQR);
+        
+        // Eski PDF'i sil
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        
+        results.push({
+          orderId: order.id,
+          orderNumber: order.orderNumber || order.externalOrderId,
+          fileName: file.originalname,
+          cargoSlipPath: finalPath,
+          invoiceUrl: invoiceUrl,
+          shareToken: shareToken
+        });
+      } catch (fileError) {
+        console.error(`❌ Error processing file ${file.originalname}:`, fileError);
+        errors.push({
+          fileName: file.originalname,
+          error: fileError.message || 'Dosya işleme hatası'
+        });
+        // Dosyayı sil
+        if (fs.existsSync(file.path)) {
+          try {
+            fs.unlinkSync(file.path);
+          } catch (deleteError) {
+            console.error('❌ Error deleting file:', deleteError);
+          }
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        processed: results.length,
+        failed: errors.length,
+        results: results,
+        errors: errors.length > 0 ? errors : undefined
+      },
+      message: `${results.length} kargo fişi başarıyla yüklendi${errors.length > 0 ? `, ${errors.length} dosya başarısız` : ''}`
+    });
+  } catch (error) {
+    console.error('❌ Error bulk uploading ticimax cargo slips:', error);
+    // Hata durumunda tüm dosyaları sil
+    if (req.files) {
+      for (const file of req.files) {
+        if (fs.existsSync(file.path)) {
+          try {
+            fs.unlinkSync(file.path);
+          } catch (deleteError) {
+            console.error('❌ Error deleting file:', deleteError);
+          }
+        }
+      }
+    }
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Toplu kargo fişi yükleme hatası'
+    });
+  }
+});
+
 app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
@@ -10627,6 +10929,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
        .fillColor('#64748b');
     if (provider === 'hepsiburada') {
       addUTF8Text('Bu Sipariş Hepsiburada\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
+    } else if (provider === 'ticimax') {
+      addUTF8Text('Bu Sipariş Ticimax\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
     } else {
       addUTF8Text('Bu Sipariş Trendyol.com\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
     }
