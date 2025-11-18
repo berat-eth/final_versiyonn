@@ -8996,7 +8996,11 @@ app.post('/api/admin/ticimax-orders/import', authenticateAdmin, multer({ storage
         };
         
         order.items.push(item);
-        order.totalAmount += (item.price * item.quantity);
+        // Eğer "Toplam Ödeme Tutar" zaten set edildiyse, item'lardan hesaplama
+        // Aksi halde item fiyatlarını topla
+        if (!order.totalAmount || order.totalAmount === 0) {
+          order.totalAmount += (item.price * item.quantity);
+        }
       } catch (rowError) {
         console.error(`❌ Error parsing row:`, rowError);
         errors.push(`Satır parse hatası: ${rowError.message}`);
