@@ -153,6 +153,12 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
       ]
     },
     {
+      title: 'Ticimax',
+      items: [
+        { id: 'ticimax-orders', label: 'Ticimax Siparişleri', icon: ShoppingCart },
+      ]
+    },
+    {
       title: 'Sistem',
       items: [
         { id: 'server-stats', label: 'Sunucu İstatistikleri', icon: Activity },

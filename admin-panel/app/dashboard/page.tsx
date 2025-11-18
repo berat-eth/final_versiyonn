@@ -64,6 +64,7 @@ import TrendyolOrders from '@/components/TrendyolOrders'
 import TrendyolAuth from '@/components/TrendyolAuth'
 import TrendyolProducts from '@/components/TrendyolProducts'
 import HepsiburadaOrders from '@/components/HepsiburadaOrders'
+import TicimaxOrders from '@/components/TicimaxOrders'
 
 
 export default function DashboardPage() {
@@ -288,6 +289,7 @@ export default function DashboardPage() {
           {activeTab === 'trendyol-orders' && <TrendyolOrders />}
           {activeTab === 'trendyol-products' && <TrendyolProducts />}
           {activeTab === 'hepsiburada-orders' && <HepsiburadaOrders />}
+          {activeTab === 'ticimax-orders' && <TicimaxOrders />}
           {activeTab === 'invoices' && <Invoices />}
         </main>
       </div>

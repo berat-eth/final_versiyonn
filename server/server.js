@@ -8892,6 +8892,362 @@ app.delete('/api/admin/hepsiburada-orders/:id', authenticateAdmin, async (req, r
   }
 });
 
+// Admin - Ticimax siparişlerini Excel'den import et
+app.post('/api/admin/ticimax-orders/import', authenticateAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel dosyası gereklidir'
+      });
+    }
+
+    const XLSX = require('xlsx');
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet, { raw: false });
+
+    if (!data || data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel dosyasında veri bulunamadı'
+      });
+    }
+
+    let importedCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+
+    // Excel satırlarını parse et ve siparişlere dönüştür
+    const orderMap = new Map();
+    
+    for (const row of data) {
+      try {
+        // Excel kolonlarını Ticimax formatına göre map et
+        // Kolon isimlerini dinamik olarak kontrol et
+        const orderNumber = row['Sipariş No'] || row['Sipariş Numarası'] || row['SiparişNo'] || '';
+        const orderId = orderNumber || `TICIMAX-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        if (!orderMap.has(orderId)) {
+          // Yeni sipariş oluştur
+          const orderDate = row['Sipariş Tarihi'] || row['Tarih'] || '';
+          let parsedDate = new Date();
+          if (orderDate) {
+            // Tarih formatını parse et
+            if (typeof orderDate === 'string') {
+              const dateStr = orderDate.split(' ')[0];
+              const [day, month, year] = dateStr.split(/[-\/\.]/);
+              if (day && month && year) {
+                parsedDate = new Date(`${year}-${month}-${day}`);
+              }
+            }
+          }
+
+          const order = {
+            externalOrderId: orderId,
+            orderNumber: orderNumber,
+            customerName: row['Müşteri Adı'] || row['Alıcı'] || row['Müşteri'] || '',
+            customerEmail: row['E-posta'] || row['Email'] || row['Mail'] || '',
+            customerPhone: row['Telefon'] || row['Tel'] || row['Cep Telefonu'] || '',
+            shippingAddress: row['Adres'] || row['Teslimat Adresi'] || row['Adres Bilgisi'] || '',
+            city: row['Şehir'] || row['İl'] || '',
+            district: row['İlçe'] || row['Semt'] || '',
+            fullAddress: row['Adres'] || row['Tam Adres'] || '',
+            invoiceAddress: row['Fatura Adresi'] || '',
+            cargoProviderName: row['Kargo'] || row['Kargo Firması'] || '',
+            cargoTrackingNumber: row['Takip No'] || row['Kargo Takip No'] || '',
+            barcode: row['Barkod'] || '',
+            orderDate: parsedDate.toISOString(),
+            status: row['Durum'] || 'pending',
+            totalAmount: parseFloat(row['Toplam'] || row['Tutar'] || row['Fiyat'] || '0') || 0,
+            currency: row['Para Birimi'] || 'TRY',
+            items: [],
+            rawData: row
+          };
+          
+          orderMap.set(orderId, order);
+        }
+
+        // Sipariş öğesini ekle
+        const order = orderMap.get(orderId);
+        const item = {
+          productName: row['Ürün Adı'] || row['Ürün'] || '',
+          productSku: row['Stok Kodu'] || row['SKU'] || '',
+          productCode: row['Ürün Kodu'] || '',
+          quantity: parseInt(row['Adet'] || row['Miktar'] || '1', 10) || 1,
+          price: parseFloat(row['Fiyat'] || row['Tutar'] || '0') || 0,
+          unitPrice: parseFloat(row['Birim Fiyat'] || row['Fiyat'] || '0') || 0,
+          taxRate: parseFloat(row['KDV'] || row['KDV Oranı'] || '0') || 0,
+          category: row['Kategori'] || '',
+          itemData: row
+        };
+        
+        order.items.push(item);
+        order.totalAmount += (item.price * item.quantity);
+      } catch (rowError) {
+        console.error(`❌ Error parsing row:`, rowError);
+        errors.push(`Satır parse hatası: ${rowError.message}`);
+      }
+    }
+
+    // Siparişleri veritabanına kaydet
+    for (const [orderId, orderData] of orderMap) {
+      try {
+        const {
+          externalOrderId,
+          orderNumber,
+          customerName,
+          customerEmail,
+          customerPhone,
+          shippingAddress,
+          city,
+          district,
+          fullAddress,
+          invoiceAddress,
+          cargoProviderName,
+          cargoTrackingNumber,
+          barcode,
+          orderDate,
+          deliveryDate,
+          deliveryType,
+          packageStatus,
+          status = 'pending',
+          totalAmount = 0,
+          currency = 'TRY',
+          customerType,
+          items = [],
+          rawData
+        } = orderData;
+
+        // Mevcut siparişi kontrol et
+        const [existing] = await poolWrapper.execute(
+          'SELECT id FROM ticimax_orders WHERE tenantId = ? AND externalOrderId = ?',
+          [tenantId, externalOrderId]
+        );
+
+        let ticimaxOrderId;
+        const orderDataJson = { ...rawData, items: items.map(i => i.itemData) };
+
+        if (existing.length > 0) {
+          // Güncelle
+          ticimaxOrderId = existing[0].id;
+          await poolWrapper.execute(
+            `UPDATE ticimax_orders 
+             SET orderNumber = ?, totalAmount = ?, status = ?, shippingAddress = ?, 
+                 city = ?, district = ?, fullAddress = ?, invoiceAddress = ?, 
+                 customerName = ?, customerEmail = ?, customerPhone = ?, 
+                 cargoProviderName = ?, cargoTrackingNumber = ?, barcode = ?, 
+                 orderDate = ?, deliveryDate = ?, deliveryType = ?, packageStatus = ?, 
+                 currency = ?, customerType = ?, orderData = ?
+             WHERE id = ? AND tenantId = ?`,
+            [
+              orderNumber || null,
+              totalAmount,
+              status,
+              shippingAddress || '',
+              city || null,
+              district || null,
+              fullAddress || '',
+              invoiceAddress || null,
+              customerName || null,
+              customerEmail || null,
+              customerPhone || null,
+              cargoProviderName || null,
+              cargoTrackingNumber || null,
+              barcode || null,
+              orderDate ? new Date(orderDate) : null,
+              deliveryDate || null,
+              deliveryType || null,
+              packageStatus || null,
+              currency,
+              customerType || null,
+              JSON.stringify(orderDataJson),
+              ticimaxOrderId,
+              tenantId
+            ]
+          );
+        } else {
+          // Yeni sipariş ekle
+          const [orderResult] = await poolWrapper.execute(
+            `INSERT INTO ticimax_orders 
+             (tenantId, externalOrderId, orderNumber, totalAmount, status, shippingAddress, 
+              city, district, fullAddress, invoiceAddress, customerName, customerEmail, 
+              customerPhone, cargoProviderName, cargoTrackingNumber, barcode, orderDate, 
+              deliveryDate, deliveryType, packageStatus, currency, customerType, orderData)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              tenantId,
+              externalOrderId,
+              orderNumber || null,
+              totalAmount,
+              status,
+              shippingAddress || '',
+              city || null,
+              district || null,
+              fullAddress || '',
+              invoiceAddress || null,
+              customerName || null,
+              customerEmail || null,
+              customerPhone || null,
+              cargoProviderName || null,
+              cargoTrackingNumber || null,
+              barcode || null,
+              orderDate ? new Date(orderDate) : null,
+              deliveryDate || null,
+              deliveryType || null,
+              packageStatus || null,
+              currency,
+              customerType || null,
+              JSON.stringify(orderDataJson)
+            ]
+          );
+          ticimaxOrderId = orderResult.insertId;
+          importedCount++;
+        }
+
+        // Mevcut sipariş öğelerini sil
+        await poolWrapper.execute(
+          'DELETE FROM ticimax_order_items WHERE ticimaxOrderId = ? AND tenantId = ?',
+          [ticimaxOrderId, tenantId]
+        );
+
+        // Sipariş öğelerini ekle
+        for (const item of items) {
+          await poolWrapper.execute(
+            `INSERT INTO ticimax_order_items 
+             (tenantId, ticimaxOrderId, itemNumber, productName, productSku, productCode, 
+              quantity, price, unitPrice, taxRate, category, itemData)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              tenantId,
+              ticimaxOrderId,
+              item.itemNumber || null,
+              item.productName || '',
+              item.productSku || null,
+              item.productCode || null,
+              item.quantity || 1,
+              item.price || 0,
+              item.unitPrice || null,
+              item.taxRate || null,
+              item.category || null,
+              JSON.stringify(item.itemData || {})
+            ]
+          );
+        }
+      } catch (orderError) {
+        console.error(`❌ Error importing order ${orderData.externalOrderId || 'UNKNOWN'}:`, orderError);
+        const errorMsg = `Sipariş ${orderData.externalOrderId || 'UNKNOWN'}: ${orderError.message || 'Bilinmeyen hata'}`;
+        errors.push(errorMsg);
+        skippedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        imported: importedCount,
+        skipped: skippedCount,
+        total: orderMap.size,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error importing ticimax orders:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Sipariş import hatası'
+    });
+  }
+});
+
+// Admin - Ticimax siparişlerini listele
+app.get('/api/admin/ticimax-orders', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { status, page = 1, limit = 50, startDate, endDate } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let whereClauses = ['tenantId = ?'];
+    let params = [tenantId];
+
+    if (status) {
+      whereClauses.push('status = ?');
+      params.push(status);
+    }
+
+    if (startDate) {
+      whereClauses.push('DATE(createdAt) >= ?');
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClauses.push('DATE(createdAt) <= ?');
+      params.push(endDate);
+    }
+
+    const whereSql = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+    // Toplam sipariş sayısını al
+    const [countResult] = await poolWrapper.execute(
+      `SELECT COUNT(*) as total FROM ticimax_orders ${whereSql}`,
+      params
+    );
+    const total = countResult[0]?.total || 0;
+
+    // Toplam tutarı hesapla
+    const [totalAmountResult] = await poolWrapper.execute(
+      `SELECT COALESCE(SUM(totalAmount), 0) as totalAmount FROM ticimax_orders ${whereSql}`,
+      params
+    );
+    const totalAmount = parseFloat(totalAmountResult[0]?.totalAmount || 0);
+
+    const [orders] = await poolWrapper.execute(
+      `SELECT * FROM ticimax_orders ${whereSql} ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+      [...params, parseInt(limit), offset]
+    );
+
+    // Her sipariş için öğeleri çek
+    for (const order of orders) {
+      try {
+        const [items] = await poolWrapper.execute(
+          'SELECT * FROM ticimax_order_items WHERE ticimaxOrderId = ? AND tenantId = ?',
+          [order.id, tenantId]
+        );
+        order.items = items || [];
+      } catch (itemError) {
+        console.error(`❌ Error loading items for order ${order.id}:`, itemError);
+        order.items = [];
+      }
+    }
+
+    res.json({ success: true, data: orders, total, totalAmount });
+  } catch (error) {
+    console.error('❌ Error getting ticimax orders:', error);
+    res.status(500).json({ success: false, message: 'Error getting ticimax orders' });
+  }
+});
+
+// Admin - Ticimax siparişini sil
+app.delete('/api/admin/ticimax-orders/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const id = parseInt(req.params.id);
+
+    await poolWrapper.execute(
+      'DELETE FROM ticimax_orders WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    );
+
+    res.json({ success: true, message: 'Sipariş başarıyla silindi' });
+  } catch (error) {
+    console.error('❌ Error deleting ticimax order:', error);
+    res.status(500).json({ success: false, message: 'Sipariş silinirken hata oluştu' });
+  }
+});
+
 app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;

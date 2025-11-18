@@ -846,6 +846,70 @@ async function createDatabaseSchema(pool) {
   `);
       console.log('✅ Hepsiburada order items table ready');
 
+      // Ticimax Orders table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS ticimax_orders (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      externalOrderId VARCHAR(255) NOT NULL,
+      orderNumber VARCHAR(100),
+      totalAmount DECIMAL(10,2) NOT NULL,
+      status VARCHAR(50) DEFAULT 'pending',
+      shippingAddress TEXT NOT NULL,
+      city VARCHAR(100),
+      district VARCHAR(100),
+      fullAddress TEXT,
+      invoiceAddress TEXT,
+      customerName VARCHAR(255),
+      customerEmail VARCHAR(255),
+      customerPhone VARCHAR(50),
+      cargoProviderName VARCHAR(100),
+      cargoTrackingNumber VARCHAR(100),
+      barcode VARCHAR(100),
+      orderDate DATETIME,
+      deliveryDate VARCHAR(100),
+      deliveryType VARCHAR(100),
+      packageStatus VARCHAR(100),
+      currency VARCHAR(10) DEFAULT 'TRY',
+      customerType VARCHAR(50),
+      orderData JSON,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_ticimax_order (tenantId, externalOrderId),
+      INDEX idx_tenant_ticimax (tenantId),
+      INDEX idx_external_order_id (externalOrderId),
+      INDEX idx_status (status),
+      INDEX idx_created_at (createdAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Ticimax orders table ready');
+
+      // Ticimax Order Items table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS ticimax_order_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      ticimaxOrderId INT NOT NULL,
+      itemNumber VARCHAR(50),
+      productName VARCHAR(500) NOT NULL,
+      productSku VARCHAR(255),
+      productCode VARCHAR(255),
+      quantity INT NOT NULL DEFAULT 1,
+      price DECIMAL(10,2) NOT NULL,
+      unitPrice DECIMAL(10,2),
+      taxRate DECIMAL(5,2),
+      category VARCHAR(255),
+      itemData JSON,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (ticimaxOrderId) REFERENCES ticimax_orders(id) ON DELETE CASCADE,
+      INDEX idx_tenant_ticimax_items (tenantId),
+      INDEX idx_ticimax_order (ticimaxOrderId)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ Ticimax order items table ready');
+
       // Trendyol Products table
       await pool.execute(`
     CREATE TABLE IF NOT EXISTS trendyol_products (
