@@ -9412,33 +9412,17 @@ app.post('/api/admin/ticimax-orders/:orderId/upload-cargo-slip', authenticateAdm
     
     const order = orders[0];
     
-    // Fatura linki oluştur (share token ile)
-    const crypto = require('crypto');
-    const shareToken = crypto.randomBytes(32).toString('hex');
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const invoiceUrl = `${baseUrl}/api/invoices/share/${shareToken}/download`;
-    
-    // PDF'e QR kod ekle
-    const pdfBuffer = fs.readFileSync(req.file.path);
-    const pdfWithQR = await addQRCodeToPDF(pdfBuffer, invoiceUrl);
-    
-    // Güncellenmiş PDF'i kaydet
-    const finalPath = req.file.path.replace('.pdf', '-with-qr.pdf');
-    fs.writeFileSync(finalPath, pdfWithQR);
-    
-    // Eski PDF'i sil (opsiyonel)
-    // fs.unlinkSync(req.file.path);
+    // PDF'i olduğu gibi kaydet (QR kod eklenmeden)
+    const finalPath = req.file.path;
     
     res.json({
       success: true,
       data: {
         orderId: order.id,
         orderNumber: order.orderNumber || order.externalOrderId,
-        cargoSlipPath: finalPath,
-        invoiceUrl: invoiceUrl,
-        shareToken: shareToken
+        cargoSlipPath: finalPath
       },
-      message: 'Kargo fişi başarıyla yüklendi ve QR kod eklendi'
+      message: 'Kargo fişi başarıyla yüklendi'
     });
   } catch (error) {
     console.error('❌ Error uploading ticimax cargo slip:', error);
@@ -9474,28 +9458,12 @@ app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin,
     
     for (const file of req.files) {
       try {
-        // Fatura linki oluştur (her PDF için benzersiz)
-        const shareToken = crypto.randomBytes(32).toString('hex');
-        const invoiceUrl = `${baseUrl}/api/invoices/share/${shareToken}/download`;
-        
-        // PDF'e QR kod ekle
-        const pdfBuffer = fs.readFileSync(file.path);
-        const pdfWithQR = await addQRCodeToPDF(pdfBuffer, invoiceUrl);
-        
-        // Güncellenmiş PDF'i kaydet
-        const finalPath = file.path.replace('.pdf', '-with-qr.pdf');
-        fs.writeFileSync(finalPath, pdfWithQR);
-        
-        // Eski PDF'i sil
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
+        // PDF'i olduğu gibi kaydet (QR kod eklenmeden)
+        const finalPath = file.path;
         
         results.push({
           fileName: file.originalname,
-          cargoSlipPath: finalPath,
-          invoiceUrl: invoiceUrl,
-          shareToken: shareToken
+          cargoSlipPath: finalPath
         });
       } catch (fileError) {
         console.error(`❌ Error processing file ${file.originalname}:`, fileError);
@@ -9522,7 +9490,7 @@ app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin,
         results: results,
         errors: errors.length > 0 ? errors : undefined
       },
-      message: `${results.length} kargo fişi başarıyla yüklendi ve QR kod eklendi${errors.length > 0 ? `, ${errors.length} dosya başarısız` : ''}`
+      message: `${results.length} kargo fişi başarıyla yüklendi${errors.length > 0 ? `, ${errors.length} dosya başarısız` : ''}`
     });
   } catch (error) {
     console.error('❌ Error bulk uploading ticimax cargo slips:', error);
@@ -9670,6 +9638,35 @@ app.get('/api/admin/ticimax-orders/cargo-slips/:fileName', authenticateAdmin, as
     res.status(500).json({
       success: false,
       message: error.message || 'Kargo fişi indirilemedi'
+    });
+  }
+});
+
+// Admin - Ticimax kargo fişi silme
+app.delete('/api/admin/ticimax-orders/cargo-slips/:fileName', authenticateAdmin, async (req, res) => {
+  try {
+    const fileName = req.params.fileName;
+    const filePath = path.join(ticimaxCargoSlipsDir, fileName);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Kargo fişi bulunamadı'
+      });
+    }
+    
+    // Dosyayı sil
+    fs.unlinkSync(filePath);
+    
+    res.json({
+      success: true,
+      message: 'Kargo fişi başarıyla silindi'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting cargo slip:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Kargo fişi silinirken hata oluştu'
     });
   }
 });

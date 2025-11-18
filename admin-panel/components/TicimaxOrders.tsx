@@ -70,6 +70,7 @@ export default function TicimaxOrders() {
   const [selectedCargoSlipUrl, setSelectedCargoSlipUrl] = useState<string | null>(null)
   const [loadingCargoSlip, setLoadingCargoSlip] = useState(false)
   const [addingQRCode, setAddingQRCode] = useState(false)
+  const [deletingCargoSlip, setDeletingCargoSlip] = useState<string | null>(null)
   const [selectedOrder, setSelectedOrder] = useState<TicimaxOrder | null>(null)
 
   useEffect(() => {
@@ -418,6 +419,60 @@ export default function TicimaxOrders() {
       alert('Kargo fişi yüklenirken hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
     } finally {
       setLoadingCargoSlip(false)
+    }
+  }
+
+  const handleDeleteCargoSlip = async (fileName: string) => {
+    if (!confirm('Bu kargo fişini silmek istediğinizden emin misiniz?')) {
+      return
+    }
+    
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+    const token = sessionStorage.getItem('authToken') || ''
+    
+    try {
+      setDeletingCargoSlip(fileName)
+      
+      const response = await fetch(`${API_BASE_URL}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(fileName)}`, {
+        method: 'DELETE',
+        headers: {
+          'X-API-Key': API_KEY,
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Key': ADMIN_KEY
+        }
+      })
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch {
+          // JSON parse hatası
+        }
+        throw new Error(errorMessage)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        alert('Kargo fişi başarıyla silindi')
+        // Kargo fişlerini yeniden yükle
+        await loadCargoSlips()
+        // Eğer silinen kargo fişi seçiliyse, seçimi temizle
+        if (selectedCargoSlip === fileName) {
+          setSelectedCargoSlip(null)
+        }
+      } else {
+        throw new Error(result.message || 'Kargo fişi silinemedi')
+      }
+    } catch (error: any) {
+      console.error('Kargo fişi silme hatası:', error)
+      alert('Kargo fişi silinirken hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
+    } finally {
+      setDeletingCargoSlip(null)
     }
   }
 
@@ -1690,6 +1745,18 @@ export default function TicimaxOrders() {
                               <Download className="w-4 h-4" />
                               İndir
                             </a>
+                            <button
+                              onClick={() => handleDeleteCargoSlip(slip.fileName)}
+                              disabled={deletingCargoSlip === slip.fileName}
+                              className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                            >
+                              {deletingCargoSlip === slip.fileName ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                              Sil
+                            </button>
                           </div>
                         </div>
                       </div>
