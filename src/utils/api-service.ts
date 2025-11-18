@@ -134,7 +134,8 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': 'Huglu-Mobile-App/1.0'
+          'User-Agent': 'Huglu-Mobile-App/1.0 ReactNative',
+          'X-Client-Type': 'mobile'
         },
         signal: controller.signal
       });
@@ -372,7 +373,8 @@ class ApiService {
 
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-        'User-Agent': 'Huglu-Mobile-App/1.0',
+        'User-Agent': 'Huglu-Mobile-App/1.0 ReactNative',
+        'X-Client-Type': 'mobile',
         'Accept': 'application/json',
         // ✅ FIX: React Native Brotli (br) desteklemiyor, sadece gzip/deflate kullan
         'Accept-Encoding': 'gzip, deflate', // Brotli kaldırıldı - React Native uyumluluğu için

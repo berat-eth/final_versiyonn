@@ -53,32 +53,57 @@ function isSafeErrorCode(code) {
 }
 
 /**
+ * Şifre ve hassas verileri filtrele (loglama için)
+ */
+function sanitizeLogData(data) {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+  
+  const sensitiveFields = ['password', 'currentPassword', 'newPassword', 'confirmPassword', 'oldPassword', 'apiKey', 'apiSecret', 'secret', 'token', 'accessToken', 'refreshToken'];
+  const sanitized = Array.isArray(data) ? [...data] : { ...data };
+  
+  for (const key in sanitized) {
+    if (sensitiveFields.some(field => key.toLowerCase().includes(field.toLowerCase()))) {
+      sanitized[key] = '***REDACTED***';
+    } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+      sanitized[key] = sanitizeLogData(sanitized[key]);
+    }
+  }
+  
+  return sanitized;
+}
+
+/**
  * Error'u logla (stack trace ile)
  * GÜVENLİK: Production'da bile loglara yazılır ama client'a gönderilmez
  * Stack trace sadece development'ta console'a yazılır
+ * Şifre ve hassas veriler otomatik olarak filtrelenir
  */
-function logError(error, context = '') {
+function logError(error, context = '', req = null) {
   const timestamp = new Date().toISOString();
   const contextStr = context ? `[${context}] ` : '';
   const isDevelopment = process.env.NODE_ENV === 'development';
   
-  // GÜVENLİK: Production'da stack trace console'a yazılmaz (log dosyasına yazılabilir)
+  // Error objesini sanitize et
+  const errorData = {
+    message: error.message,
+    code: error.code,
+    name: error.name
+  };
+  
   if (isDevelopment) {
-    console.error(`❌ ${contextStr}Error at ${timestamp}:`, {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      name: error.name
-    });
-  } else {
-    // Production'da sadece temel bilgiler
-    console.error(`❌ ${contextStr}Error at ${timestamp}:`, {
-      message: error.message,
-      code: error.code,
-      name: error.name
-      // Stack trace production'da console'a yazılmaz - sadece log dosyasına yazılabilir
-    });
+    errorData.stack = error.stack;
   }
+  
+  // Eğer req varsa ve req.body içeriyorsa, şifreleri filtrele
+  if (req && req.body) {
+    const sanitizedBody = sanitizeLogData(req.body);
+    errorData.requestBody = sanitizedBody;
+  }
+  
+  // GÜVENLİK: Production'da stack trace console'a yazılmaz (log dosyasına yazılabilir)
+  console.error(`❌ ${contextStr}Error at ${timestamp}:`, errorData);
   
   // TODO: Error monitoring servisi entegrasyonu (Sentry, etc.)
   // if (process.env.SENTRY_DSN) {
@@ -118,7 +143,7 @@ function handleValidationError(error, defaultMessage = 'Validation error') {
  * Tüm unhandled error'ları yakalar
  */
 function errorMiddleware(error, req, res, next) {
-  logError(error, req.path);
+  logError(error, req.path, req);
   
   const response = createSafeErrorResponse(
     error,
@@ -134,6 +159,7 @@ module.exports = {
   handleDatabaseError,
   handleValidationError,
   errorMiddleware,
-  isSafeErrorCode
+  isSafeErrorCode,
+  sanitizeLogData
 };
 

@@ -45,6 +45,28 @@ const axios = require('axios');
 // Security utilities
 const SALT_ROUNDS = 12;
 
+/**
+ * Şifre ve hassas verileri filtrele (loglama için)
+ */
+function sanitizeLogData(data) {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+  
+  const sensitiveFields = ['password', 'currentPassword', 'newPassword', 'confirmPassword', 'oldPassword', 'apiKey', 'apiSecret', 'secret', 'token', 'accessToken', 'refreshToken'];
+  const sanitized = Array.isArray(data) ? [...data] : { ...data };
+  
+  for (const key in sanitized) {
+    if (sensitiveFields.some(field => key.toLowerCase().includes(field.toLowerCase()))) {
+      sanitized[key] = '***REDACTED***';
+    } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+      sanitized[key] = sanitizeLogData(sanitized[key]);
+    }
+  }
+  
+  return sanitized;
+}
+
 // Password hashing
 async function hashPassword(password) {
   try {
@@ -550,7 +572,8 @@ if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.body) {
       console.log(`\n🔍 [${new Date().toISOString()}] ${req.method} ${req.path}`);
-      console.log('📤 Request Body:', JSON.stringify(req.body, null, 2));
+      const sanitizedBody = sanitizeLogData(req.body);
+      console.log('📤 Request Body:', JSON.stringify(sanitizedBody, null, 2));
     }
     next();
   });
@@ -572,8 +595,11 @@ const {
   getClientIP
 } = require('./utils/rate-limiting');
 
-// Genel API limiter - Yüksek trafik için 1000+ istek/15 dakika
+// Genel API limiter - Yüksek trafik için 1500+ istek/15 dakika
 const authLimiter = createGeneralAPILimiter();
+
+// Mobil uygulama limiter - Mobil için 2000+ istek/15 dakika
+const mobileLimiter = createMobileAPILimiter();
 
 // Login limiter - Environment variable'dan yapılandırılabilir
 const loginLimiter = createLoginLimiter();
@@ -612,7 +638,13 @@ app.use('/api/admin/wallets/transfer', adminWalletTransferLimiter);
 app.use('/api/orders', criticalLimiter);
 
 // 4. Genel endpoint'ler (users, products)
-// NOT: /api/cart için relaxedCartLimiter daha sonra uygulanıyor (satır 12089), burada authLimiter kaldırıldı
+// Mobil uygulama için özel limiter (daha esnek)
+app.use('/api/users', mobileLimiter);
+app.use('/api/products', mobileLimiter);
+app.use('/api/cart', mobileLimiter);
+app.use('/api/chatbot', mobileLimiter);
+app.use('/api/reviews', mobileLimiter);
+// Web için genel limiter (fallback)
 app.use('/api/users', authLimiter);
 app.use('/api/products', authLimiter);
 
@@ -633,7 +665,8 @@ app.use((req, res, next) => {
     if (req.method !== 'GET') {
       console.log(`\n🔍 [${new Date().toISOString()}] ${req.method} ${req.path}`);
       if (req.body && Object.keys(req.body).length > 0) {
-        console.log('📤 Request Body:', JSON.stringify(req.body, null, 2));
+        const sanitizedBody = sanitizeLogData(req.body);
+        console.log('📤 Request Body:', JSON.stringify(sanitizedBody, null, 2));
       }
     }
     originalSend.call(this, data);
@@ -3477,7 +3510,8 @@ app.post('/api/admin/login', async (req, res) => {
     } catch (_) { }
     return res.status(401).json({ success: false, message: 'Geçersiz kullanıcı bilgileri' });
   } catch (e) {
-    console.error('❌ Admin login error:', e);
+    // GÜVENLİK: Şifreler otomatik olarak filtrelenir
+    logError(e, 'ADMIN_LOGIN', req);
     res.status(500).json({ success: false, message: 'Login sırasında hata' });
   }
 });
@@ -7761,7 +7795,8 @@ app.post('/api/admin/integrations/:id/sync-orders', authenticateAdmin, async (re
     console.log('🔄 Sync Orders Endpoint Çağrıldı');
     console.log('  Integration ID:', req.params.id);
     console.log('  Tenant ID:', req.tenant?.id || 1);
-    console.log('  Request Body:', JSON.stringify(req.body, null, 2));
+    const sanitizedBody = sanitizeLogData(req.body);
+    console.log('  Request Body:', JSON.stringify(sanitizedBody, null, 2));
     
     const tenantId = req.tenant?.id || 1;
     const id = parseInt(req.params.id);
@@ -8918,7 +8953,8 @@ app.post('/api/admin/invoices', authenticateAdmin, invoiceUpload.single('file'),
       mimetype: req.file.mimetype,
       path: req.file.path
     } : 'NO FILE');
-    console.log('📄 Request body:', req.body);
+    const sanitizedBody = sanitizeLogData(req.body);
+    console.log('📄 Request body:', sanitizedBody);
     console.log('📄 Invoices directory:', invoicesDir);
     console.log('📄 Directory exists:', fs.existsSync(invoicesDir));
     
@@ -9075,7 +9111,8 @@ app.put('/api/admin/invoices/:id', authenticateAdmin, invoiceUpload.single('file
       mimetype: req.file.mimetype,
       path: req.file.path
     } : 'NO FILE');
-    console.log('📄 Request body:', req.body);
+    const sanitizedBody = sanitizeLogData(req.body);
+    console.log('📄 Request body:', sanitizedBody);
     const id = parseInt(req.params.id);
     const {
       invoiceNumber,
@@ -12246,16 +12283,9 @@ app.post('/api/users', async (req, res) => {
       message: 'User created successfully'
     });
   } catch (error) {
-    console.error('❌ Error creating user:', error);
-    console.error('❌ Error details:', {
-      message: error.message,
-      code: error.code,
-      sqlState: error.sqlState,
-      sqlMessage: error.sqlMessage,
-      stack: error.stack
-    });
     // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
-    logError(error, 'CREATE_USER');
+    // Şifreler otomatik olarak filtrelenir
+    logError(error, 'CREATE_USER', req);
     const errorResponse = createSafeErrorResponse(error, 'Error creating user');
     res.status(500).json(errorResponse);
   }
@@ -12427,7 +12457,8 @@ app.post('/api/users/login', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('❌ Error during login:', error);
+    // GÜVENLİK: Şifreler otomatik olarak filtrelenir
+    logError(error, 'USER_LOGIN', req);
     res.status(500).json({ success: false, message: 'Error during login' });
   }
 });

@@ -161,12 +161,13 @@ const createCriticalLimiter = () => rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const ip = getClientIP(req);
-    const userAgent = req.headers['user-agent'] || '';
-    const clientType = req.headers['x-client-type'] || '';
-    const isMobile = userAgent.includes('ReactNative') || 
-                     userAgent.includes('Mobile') || 
-                     clientType === 'mobile' ||
-                     userAgent.includes('Expo');
+    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+    const clientType = (req.headers['x-client-type'] || '').toLowerCase();
+    const isMobile = userAgent.includes('reactnative') || 
+                     userAgent.includes('mobile') || 
+                     userAgent.includes('huglu-mobile') ||
+                     userAgent.includes('expo') ||
+                     clientType === 'mobile';
     // Mobil için 2x limit
     return isMobile ? `mobile:${ip}` : `web:${ip}`;
   },
@@ -185,12 +186,13 @@ const createMobileAPILimiter = () => rateLimit({
   keyGenerator: (req) => {
     const ip = getClientIP(req);
     // User-Agent veya X-Client-Type header'ına göre mobil tespiti
-    const userAgent = req.headers['user-agent'] || '';
-    const clientType = req.headers['x-client-type'] || '';
-    const isMobile = userAgent.includes('ReactNative') || 
-                     userAgent.includes('Mobile') || 
-                     clientType === 'mobile' ||
-                     userAgent.includes('Expo');
+    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+    const clientType = (req.headers['x-client-type'] || '').toLowerCase();
+    const isMobile = userAgent.includes('reactnative') || 
+                     userAgent.includes('mobile') || 
+                     userAgent.includes('huglu-mobile') ||
+                     userAgent.includes('expo') ||
+                     clientType === 'mobile';
     return isMobile ? `mobile:${ip}` : `web:${ip}`;
   },
   message: 'Too many requests from mobile app, please try again later',
