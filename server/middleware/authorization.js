@@ -115,6 +115,24 @@ function requireUserOwnership(resourceType, userIdSource = 'body') {
         userId = getUserIdFromRequest(req);
       }
 
+      // Cart için özel durum: userId yoksa, cart item'dan al
+      if (!userId && resourceType === 'cart') {
+        const resourceId = req.params?.cartItemId || req.params?.id;
+        if (resourceId) {
+          try {
+            const [cartRows] = await poolWrapper.execute(
+              'SELECT userId FROM cart WHERE id = ? AND tenantId = ?',
+              [resourceId, req.tenant.id]
+            );
+            if (cartRows.length > 0) {
+              userId = cartRows[0].userId;
+            }
+          } catch (error) {
+            console.error('❌ Error getting userId from cart item:', error);
+          }
+        }
+      }
+
       if (!userId) {
         return res.status(400).json({
           success: false,
@@ -123,7 +141,7 @@ function requireUserOwnership(resourceType, userIdSource = 'body') {
       }
 
       // Resource ID'yi al
-      const resourceId = req.params?.id || req.params?.resourceId || req.body?.id;
+      const resourceId = req.params?.cartItemId || req.params?.id || req.params?.resourceId || req.body?.id;
 
       // Eğer resource ID varsa, ownership kontrolü yap
       if (resourceId) {

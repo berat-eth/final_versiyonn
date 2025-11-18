@@ -16110,7 +16110,7 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/cart/:cartItemId', requireUserOwnership('cart', 'params'), async (req, res) => {
+  app.delete('/api/cart/:cartItemId', requireUserOwnership('cart', 'query'), async (req, res) => {
     try {
       const { cartItemId } = req.params;
       const tenantId = req.tenant?.id || 1;

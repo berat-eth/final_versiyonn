@@ -1057,8 +1057,13 @@ class ApiService {
     return result;
   }
 
-  async removeFromCart(id: number): Promise<ApiResponse<boolean>> {
-    const result = await this.request<boolean>(`/cart/${id}`, 'DELETE');
+  async removeFromCart(id: number, userId?: number): Promise<ApiResponse<boolean>> {
+    // userId varsa query string'e ekle
+    let endpoint = `/cart/${id}`;
+    if (userId) {
+      endpoint += `?userId=${userId}`;
+    }
+    const result = await this.request<boolean>(endpoint, 'DELETE');
     // Başarılı silme sonrası ilgili cache'leri temizle
     if (result.success) {
       // Tüm sepet cache'lerini temizle (userId bilinmediği için)

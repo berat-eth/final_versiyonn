@@ -1,5 +1,6 @@
 import { CartModel } from '../models/Cart';
 import { ProductController } from './ProductController';
+import { UserController } from './UserController';
 import { CartItem, ProductVariationOption } from '../utils/types';
 import { apiService } from '../utils/api-service';
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from '../utils/database';
@@ -113,7 +114,9 @@ export class CartController {
     message: string;
   }> {
     try {
-      const response = await apiService.removeFromCart(cartItemId);
+      // userId'yi al ve API çağrısına ekle
+      const userId = await UserController.getCurrentUserId();
+      const response = await apiService.removeFromCart(cartItemId, userId);
       
       if (response.success) {
         // ⚡ OPTIMIZASYON: Logging'i asenkron yap
