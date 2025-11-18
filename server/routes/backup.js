@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { poolWrapper } = require('../orm/sequelize');
+const { getPoolWrapper } = require('../database-schema');
 const { authenticateAdmin } = require('../middleware/auth');
 const InputValidation = require('../security/input-validation');
+
+// poolWrapper'ı al
+const poolWrapper = getPoolWrapper();
 
 const inputValidator = new InputValidation();
 
