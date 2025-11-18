@@ -46,7 +46,7 @@ interface OrderScreenProps {
 
 export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) => {
   const { cartItems, subtotal, shipping, total } = route.params;
-  const { updateCart } = useAppContext();
+  const { updateCart, dispatch } = useAppContext();
   const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -350,6 +350,9 @@ export const OrderScreen: React.FC<OrderScreenProps> = ({ navigation, route }) =
 
         // Clear cart after successful order (and payment if credit card)
         await CartController.clearCart(userId);
+        // Context'i temizle (CLEAR_CART action ile)
+        dispatch({ type: 'CLEAR_CART' });
+        // Ayrıca updateCart ile de güncelle (backward compatibility)
         updateCart({
           items: [],
           total: 0,

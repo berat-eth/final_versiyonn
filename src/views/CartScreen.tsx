@@ -71,6 +71,19 @@ export const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     return unsubscribe;
   }, [navigation]);
 
+  // Context'teki cart state'ini dinle ve local state'i güncelle
+  // Sipariş başarılı olduğunda context temizlendiğinde sepet sayfasını da temizle
+  useEffect(() => {
+    if (state.cart) {
+      // Context'teki cart boşsa local state'i de temizle
+      if (state.cart.items.length === 0 && state.cart.itemCount === 0) {
+        setCartItems([]);
+        setAppliedDiscount(null);
+        setDiscountCode('');
+      }
+    }
+  }, [state.cart.items.length, state.cart.itemCount]);
+
   const loadFlashDeals = useCallback(async () => {
     try {
       const deals = await FlashDealService.getActiveFlashDeals();
