@@ -9341,24 +9341,14 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     // PDF'i yükle
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const pages = pdfDoc.getPages();
+    
+    // Sadece ilk sayfayı kullan, diğer sayfaları kaldır
+    while (pages.length > 1) {
+      pdfDoc.removePage(pages.length - 1);
+    }
+    
     const firstPage = pages[0];
     const { width, height } = firstPage.getSize();
-    
-    // Mevcut üst kısımdaki QR kodunu kaldırmak için beyaz bir kutu çiz
-    // Genellikle QR kodlar sağ üst köşede olur (yaklaşık konum)
-    const existingQRSize = 100; // Biraz daha büyük alan kapatmak için
-    const existingQRX = width - existingQRSize - 20; // Sağdan 20px içeride
-    const existingQRY = height - existingQRSize - 20; // Üstten 20px aşağıda
-    
-    // Beyaz kutu çizerek mevcut QR kodunu kapat
-    firstPage.drawRectangle({
-      x: existingQRX - 10,
-      y: existingQRY - 10,
-      width: existingQRSize + 20,
-      height: existingQRSize + 20,
-      color: rgb(1, 1, 1), // Beyaz renk
-      borderColor: rgb(1, 1, 1),
-    });
     
     // QR kod oluştur
     const qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl, {
@@ -9375,7 +9365,7 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     // A5 boyutları: 148 x 210 mm (yaklaşık 420 x 595 points)
     const qrSize = 80;
     const qrX = width - qrSize - 20; // Sağdan 20px içeride
-    const qrY = 200; // Alttan 200px yukarıda
+    const qrY = 180; // Alttan 180px yukarıda
     
     // QR kod'u PDF'e ekle
     firstPage.drawImage(qrImage, {
