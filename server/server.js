@@ -560,6 +560,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Limitler environment variable'lardan yapılandırılabilir
 const {
   createGeneralAPILimiter,
+  createMobileAPILimiter,
   createLoginLimiter,
   createAdminLimiter,
   createCriticalLimiter,
@@ -18184,7 +18185,7 @@ async function startServer() {
   // Chatbot mesaj işleme endpoint'i
   app.post('/api/chatbot/message', async (req, res) => {
     try {
-      const { message, actionType = 'text', userId, productId } = req.body;
+      const { message, actionType = 'text', userId, productId, voiceUrl } = req.body;
 
       if (!message || !message.trim()) {
         return res.status(400).json({
@@ -18196,7 +18197,7 @@ async function startServer() {
       // Tenant kontrolü
       const tenantId = req.tenant?.id || 1;
 
-      console.log('🤖 Chatbot mesaj alındı:', { message, actionType, userId, productId, tenantId });
+      console.log('🤖 Chatbot mesaj alındı:', { message, actionType, userId, productId, voiceUrl, tenantId });
 
       // Intent tespiti
       const intent = detectChatbotIntent(message.toLowerCase());
@@ -18243,11 +18244,12 @@ async function startServer() {
         };
       }
 
-      // Analitik verilerini kaydet (ürün bilgileri ile)
+      // Analitik verilerini kaydet (ürün bilgileri ve ses URL'i ile)
       try {
+        // voiceUrl kolonu varsa ekle, yoksa NULL
         await poolWrapper.execute(
-          `INSERT INTO chatbot_analytics (tenantId, userId, message, intent, productId, productName, productPrice, productImage, timestamp) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          `INSERT INTO chatbot_analytics (tenantId, userId, message, intent, productId, productName, productPrice, productImage, voiceUrl, timestamp) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
           [
             tenantId,
             userId || null,
@@ -18256,9 +18258,30 @@ async function startServer() {
             productInfo?.id || null,
             productInfo?.name || null,
             productInfo?.price || null,
-            productInfo?.image || null
+            productInfo?.image || null,
+            voiceUrl || null
           ]
-        );
+        ).catch(async (err) => {
+          // voiceUrl kolonu yoksa, kolon olmadan tekrar dene
+          if (err.message?.includes('voiceUrl') || err.code === 'ER_BAD_FIELD_ERROR') {
+            await poolWrapper.execute(
+              `INSERT INTO chatbot_analytics (tenantId, userId, message, intent, productId, productName, productPrice, productImage, timestamp) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+              [
+                tenantId,
+                userId || null,
+                message.substring(0, 100),
+                intent,
+                productInfo?.id || null,
+                productInfo?.name || null,
+                productInfo?.price || null,
+                productInfo?.image || null
+              ]
+            );
+          } else {
+            throw err;
+          }
+        });
       } catch (analyticsError) {
         console.warn('⚠️ Chatbot analytics kaydedilemedi:', analyticsError.message);
       }
@@ -18340,6 +18363,7 @@ async function startServer() {
           ca.productName,
           ca.productPrice,
           ca.productImage,
+          ca.voiceUrl,
           ca.timestamp,
           p.name as productFullName,
           p.price as productFullPrice,

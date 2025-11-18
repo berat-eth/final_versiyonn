@@ -172,7 +172,7 @@ export class ChatbotService {
     'stok': 'Ürün sayfasında stok durumu gösterilir. Stokta olmayan ürünler için "Stok gelince haber ver" seçeneğini kullanın.'
   };
 
-  static async processMessage(message: string, actionType: string = 'text', productId?: number, userId?: number): Promise<ChatMessage> {
+  static async processMessage(message: string, actionType: string = 'text', productId?: number, userId?: number, voiceUrl?: string): Promise<ChatMessage> {
     const timestamp = new Date();
     // GÜVENLİK: Kriptografik olarak güvenli message ID
     let messageId: string;
@@ -194,7 +194,8 @@ export class ChatbotService {
           message,
           actionType,
           userId: activeUserId || null,
-          productId: productId || undefined
+          productId: productId || undefined,
+          voiceUrl: voiceUrl || undefined
         });
       } catch (apiError: any) {
         console.error('❌ Chatbot API error:', apiError);

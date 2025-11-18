@@ -678,13 +678,53 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
           name: filename,
         } as any);
 
+        // Authentication header'larını al
+        const { getApiKey, getTenantId } = await import('../services/AuthKeyStore');
+        const { DEFAULT_TENANT_API_KEY, DEFAULT_TENANT_ID, SINGLE_TENANT } = await import('../utils/api-config');
+        
+        let apiKeyToUse: string | null = null;
+        let tenantIdToUse: string | null = null;
+        
+        if (SINGLE_TENANT) {
+          apiKeyToUse = DEFAULT_TENANT_API_KEY || null;
+          tenantIdToUse = DEFAULT_TENANT_ID || null;
+        }
+        
+        // Depodan okunan değerleri tercih et
+        try {
+          const [storedKey, storedTenant] = await Promise.all([
+            getApiKey(),
+            getTenantId()
+          ]);
+          if (storedKey) apiKeyToUse = storedKey;
+          if (storedTenant) tenantIdToUse = storedTenant;
+        } catch {}
+        
+        // Runtime'da set edilen API anahtarı öncelikli
+        const runtimeApiKey = apiService.getApiKey();
+        if (runtimeApiKey) {
+          apiKeyToUse = runtimeApiKey;
+        }
+        
+        // Header'ları oluştur
+        const headers: Record<string, string> = {};
+        
+        // FormData için Content-Type'ı fetch otomatik ayarlar, manuel eklemeyin
+        if (tenantIdToUse) {
+          headers['X-Tenant-Id'] = tenantIdToUse;
+          headers['x-tenant-id'] = tenantIdToUse;
+        }
+        
+        if (apiKeyToUse) {
+          headers['X-API-Key'] = apiKeyToUse;
+          headers['Authorization'] = `Bearer ${apiKeyToUse}`;
+        }
+        
         const baseUrl = apiService.getCurrentApiUrl();
         const response = await fetch(`${baseUrl}/reviews/upload`, {
           method: 'POST',
           body: formData,
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          headers,
         });
 
         const result = await response.json();
@@ -703,10 +743,10 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
 
           addMessage(voiceMessage);
           
-          // Chatbot'a sesli mesaj gönder
+          // Chatbot'a sesli mesaj gönder (ses URL'i ile)
           setIsTyping(true);
           try {
-            await sendMessage('🎤 Sesli mesaj gönderdim', 'voice');
+            await sendMessage('🎤 Sesli mesaj gönderdim', 'voice', voiceUrl);
           } catch (error) {
             console.error('Voice message send error:', error);
           } finally {
@@ -799,7 +839,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     );
   };
 
-  const sendMessage = async (text: string, type: string = 'text') => {
+  const sendMessage = async (text: string, type: string = 'text', voiceUrl?: string) => {
     if (!text.trim() && type === 'text') return;
 
     const userMessage: ChatMessage = {
@@ -808,6 +848,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       isBot: false,
       timestamp: new Date(),
       type: type as any,
+      voiceUrl: voiceUrl,
     };
 
     addMessage(userMessage);
@@ -818,8 +859,8 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       // Kullanıcı ID'sini al
       const userId = await UserController.getCurrentUserId();
       
-      // AI ile mesaj işleme (productId ve userId ile)
-      const response = await ChatbotService.processMessage(text, type, productId, userId);
+      // AI ile mesaj işleme (productId, userId ve voiceUrl ile)
+      const response = await ChatbotService.processMessage(text, type, productId, userId, voiceUrl);
       
       // Intent tespiti (analitik için)
       const intent = detectIntent(text.toLowerCase());

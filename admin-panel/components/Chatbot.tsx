@@ -11,6 +11,7 @@ interface Message {
   time: string
   read: boolean
   timestamp?: number // Sıralama için timestamp
+  voiceUrl?: string // Ses mesajı URL'i
 }
 
 interface Conversation {
@@ -103,10 +104,11 @@ export default function Chatbot() {
             conv.messages.push({
               id: msg.id || timestamp,
               sender: isAdminMessage ? 'agent' as const : 'customer' as const,
-              text: msg.message,
+              text: msg.voiceUrl ? '🎤 Sesli mesaj' : msg.message,
               time: new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
               read: true,
-              timestamp: timestamp
+              timestamp: timestamp,
+              voiceUrl: msg.voiceUrl || undefined
             })
             // En son mesajı güncelle
             if (new Date(msg.timestamp) > new Date(conv.time || 0)) {
@@ -395,15 +397,16 @@ export default function Chatbot() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  // selectedConversation'ı useEffect'ten önce tanımla
+  const selectedConversation = conversations.find(c => c.id === selectedChat)
+  const totalUnread = conversations.reduce((sum, conv) => sum + conv.unread, 0)
+
   // Seçili konuşma veya mesajlar değiştiğinde scroll yap
   useEffect(() => {
     if (selectedChat) {
       setTimeout(() => scrollToBottom(), 100)
     }
   }, [selectedChat, selectedConversation?.messages])
-
-  const selectedConversation = conversations.find(c => c.id === selectedChat)
-  const totalUnread = conversations.reduce((sum, conv) => sum + conv.unread, 0)
 
   const filteredConversations = conversations.filter(conv =>
     conv.customer.toLowerCase().includes(searchQuery.toLowerCase())
@@ -689,6 +692,16 @@ export default function Chatbot() {
                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'
                         }`}>
                         <p className="text-sm">{message.text}</p>
+                        {message.voiceUrl && (
+                          <div className="mt-2">
+                            <audio controls className="w-full max-w-xs">
+                              <source src={message.voiceUrl} type="audio/m4a" />
+                              <source src={message.voiceUrl} type="audio/mpeg" />
+                              <source src={message.voiceUrl} type="audio/wav" />
+                              Tarayıcınız ses oynatmayı desteklemiyor.
+                            </audio>
+                          </div>
+                        )}
                       </div>
                       <div className={`flex items-center space-x-1 mt-1 text-xs text-slate-400 dark:text-slate-500 ${message.sender === 'agent' ? 'justify-end' : 'justify-start'
                         }`}>

@@ -152,13 +152,49 @@ const createAdminLimiter = () => rateLimit({
 /**
  * Kritik endpoint'ler için rate limiter
  * OPTİMİZASYON: Yüksek trafik için limit artırıldı
+ * Mobil uygulamalar için daha esnek
  */
 const createCriticalLimiter = () => rateLimit({
   windowMs: 60 * 1000, // 1 dakika
-  max: parseInt(process.env.RATE_LIMIT_CRITICAL || '30', 10), // 10'dan 30'a çıkarıldı
+  max: parseInt(process.env.RATE_LIMIT_CRITICAL || '60', 10), // 30'dan 60'a çıkarıldı (mobil için)
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = getClientIP(req);
+    const userAgent = req.headers['user-agent'] || '';
+    const clientType = req.headers['x-client-type'] || '';
+    const isMobile = userAgent.includes('ReactNative') || 
+                     userAgent.includes('Mobile') || 
+                     clientType === 'mobile' ||
+                     userAgent.includes('Expo');
+    // Mobil için 2x limit
+    return isMobile ? `mobile:${ip}` : `web:${ip}`;
+  },
   message: 'Rate limit exceeded for this endpoint'
+});
+
+/**
+ * Mobil uygulama için özel rate limiter
+ * Mobil uygulamalar için daha esnek limitler
+ */
+const createMobileAPILimiter = () => rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dakika
+  max: parseInt(process.env.MOBILE_RATE_LIMIT || '2000', 10), // Mobil için 2000 istek/15 dakika
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = getClientIP(req);
+    // User-Agent veya X-Client-Type header'ına göre mobil tespiti
+    const userAgent = req.headers['user-agent'] || '';
+    const clientType = req.headers['x-client-type'] || '';
+    const isMobile = userAgent.includes('ReactNative') || 
+                     userAgent.includes('Mobile') || 
+                     clientType === 'mobile' ||
+                     userAgent.includes('Expo');
+    return isMobile ? `mobile:${ip}` : `web:${ip}`;
+  },
+  message: 'Too many requests from mobile app, please try again later',
+  skip: (req) => isPrivateIP(req.ip)
 });
 
 /**
@@ -167,7 +203,7 @@ const createCriticalLimiter = () => rateLimit({
  */
 const createGeneralAPILimiter = () => rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
-  max: parseInt(process.env.API_RATE_LIMIT || '1000', 10), // 400'den 1000'e çıkarıldı
+  max: parseInt(process.env.API_RATE_LIMIT || '1500', 10), // 1000'den 1500'e çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again later'
@@ -183,6 +219,7 @@ module.exports = {
   createAdminLimiter,
   createCriticalLimiter,
   createGeneralAPILimiter,
+  createMobileAPILimiter,
   isPrivateIP,
   getClientIP
 };
