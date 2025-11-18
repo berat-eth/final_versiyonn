@@ -9335,7 +9335,7 @@ const handleMulterError = (err, req, res, next) => {
 // Ticimax kargo fişi PDF'e QR kod ekleme fonksiyonu
 async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
   try {
-    const { PDFDocument } = require('pdf-lib');
+    const { PDFDocument, rgb } = require('pdf-lib');
     const QRCode = require('qrcode');
     
     // PDF'i yükle
@@ -9343,6 +9343,22 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const pages = pdfDoc.getPages();
     const firstPage = pages[0];
     const { width, height } = firstPage.getSize();
+    
+    // Mevcut üst kısımdaki QR kodunu kaldırmak için beyaz bir kutu çiz
+    // Genellikle QR kodlar sağ üst köşede olur (yaklaşık konum)
+    const existingQRSize = 100; // Biraz daha büyük alan kapatmak için
+    const existingQRX = width - existingQRSize - 20; // Sağdan 20px içeride
+    const existingQRY = height - existingQRSize - 20; // Üstten 20px aşağıda
+    
+    // Beyaz kutu çizerek mevcut QR kodunu kapat
+    firstPage.drawRectangle({
+      x: existingQRX - 10,
+      y: existingQRY - 10,
+      width: existingQRSize + 20,
+      height: existingQRSize + 20,
+      color: rgb(1, 1, 1), // Beyaz renk
+      borderColor: rgb(1, 1, 1),
+    });
     
     // QR kod oluştur
     const qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl, {
@@ -9355,10 +9371,11 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
     const qrImage = await pdfDoc.embedPng(qrImageBytes);
     
-    // QR kod boyutları (sayfanın alt kısmına, sağ tarafa yerleştir)
+    // QR kod boyutları (A5 uyumlu - sayfanın alt kısmına, sağ tarafa yerleştir)
+    // A5 boyutları: 148 x 210 mm (yaklaşık 420 x 595 points)
     const qrSize = 80;
     const qrX = width - qrSize - 20; // Sağdan 20px içeride
-    const qrY = 20; // Alttan 20px yukarıda
+    const qrY = 80; // Alttan 80px yukarıda (60px + 20px margin)
     
     // QR kod'u PDF'e ekle
     firstPage.drawImage(qrImage, {
@@ -9366,6 +9383,14 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
       y: qrY,
       width: qrSize,
       height: qrSize
+    });
+    
+    // QR kodun altına "E-Fatura Bilgisi" metnini ekle
+    firstPage.drawText('E-Fatura Bilgisi', {
+      x: qrX + (qrSize / 2) - 35, // QR kodun ortasına hizalı (metin genişliği yaklaşık 70px)
+      y: qrY - 15, // QR kodun 15px altına
+      size: 8,
+      color: rgb(0, 0, 0), // Siyah renk
     });
     
     // PDF'i byte array olarak döndür
