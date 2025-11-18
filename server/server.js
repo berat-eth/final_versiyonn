@@ -9375,7 +9375,7 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     // A5 boyutları: 148 x 210 mm (yaklaşık 420 x 595 points)
     const qrSize = 80;
     const qrX = width - qrSize - 20; // Sağdan 20px içeride
-    const qrY = 80; // Alttan 80px yukarıda (60px + 20px margin)
+    const qrY = 200; // Alttan 200px yukarıda
     
     // QR kod'u PDF'e ekle
     firstPage.drawImage(qrImage, {
