@@ -9542,6 +9542,76 @@ app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin,
   }
 });
 
+// Admin - Ticimax kargo fişlerini listele
+app.get('/api/admin/ticimax-orders/cargo-slips', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    
+    // Kargo fişi klasöründeki dosyaları listele
+    if (!fs.existsSync(ticimaxCargoSlipsDir)) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    const files = fs.readdirSync(ticimaxCargoSlipsDir);
+    const cargoSlips = [];
+    
+    for (const file of files) {
+      if (file.endsWith('.pdf')) {
+        const filePath = path.join(ticimaxCargoSlipsDir, file);
+        const stats = fs.statSync(filePath);
+        
+        // Dosya adından sipariş bilgisi çıkarmaya çalış (opsiyonel)
+        const fileName = file.replace(/^cargo-slip-/, '').replace(/-with-qr\.pdf$/, '.pdf').replace(/\.pdf$/, '');
+        
+        cargoSlips.push({
+          fileName: file,
+          originalName: fileName,
+          filePath: `/uploads/ticimax-cargo-slips/${file}`,
+          size: stats.size,
+          createdAt: stats.birthtime,
+          modifiedAt: stats.mtime
+        });
+      }
+    }
+    
+    // Tarihe göre sırala (en yeni önce)
+    cargoSlips.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    res.json({ success: true, data: cargoSlips });
+  } catch (error) {
+    console.error('❌ Error listing ticimax cargo slips:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Kargo fişleri listelenirken hata oluştu'
+    });
+  }
+});
+
+// Admin - Ticimax kargo fişi indirme
+app.get('/api/admin/ticimax-orders/cargo-slips/:fileName', authenticateAdmin, async (req, res) => {
+  try {
+    const fileName = req.params.fileName;
+    const filePath = path.join(ticimaxCargoSlipsDir, fileName);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Kargo fişi bulunamadı'
+      });
+    }
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('❌ Error downloading cargo slip:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Kargo fişi indirilemedi'
+    });
+  }
+});
+
 app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
