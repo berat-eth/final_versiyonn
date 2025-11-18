@@ -79,17 +79,6 @@ export const SupportScreen: React.FC<SupportScreenProps> = ({ navigation }) => {
       action: () => {
         Linking.openURL('mailto:info@hugluoutdoor.com');
       }
-    },
-    {
-      id: 'live-chat',
-      title: 'Canlı Destek',
-      description: 'Anında yardım alın',
-      icon: 'support-agent',
-      available: true,
-      workingHours: '7/24 Aktif',
-      action: () => {
-        navigation.navigate('LiveSupport');
-      }
     }
   ];
 

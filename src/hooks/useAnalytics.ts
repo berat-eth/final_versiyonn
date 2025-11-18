@@ -109,57 +109,6 @@ export function useAnalytics(options: UseAnalyticsOptions) {
   }, [screenName, user?.id, trackClicks]);
 
   /**
-   * Ürün görüntüleme eventi kaydet
-   */
-  const trackProductView = useCallback((productId: number, productName?: string) => {
-    sendTrackingEvent('product_view', {
-      screenName: 'ProductDetailScreen',
-      productId,
-      productName,
-      timestamp: new Date().toISOString()
-    }, user?.id || null, sessionIdRef.current || null);
-  }, [user?.id]);
-
-  /**
-   * Sepete ekleme eventi kaydet
-   */
-  const trackAddToCart = useCallback((productId: number, quantity: number = 1, price?: number) => {
-    sendTrackingEvent('add_to_cart', {
-      screenName,
-      productId,
-      quantity,
-      price,
-      timestamp: new Date().toISOString()
-    }, user?.id || null, sessionIdRef.current || null);
-  }, [screenName, user?.id]);
-
-  /**
-   * Satın alma eventi kaydet
-   */
-  const trackPurchase = useCallback((orderId: number, amount: number, items: any[] = []) => {
-    sendTrackingEvent('purchase', {
-      screenName: 'CheckoutScreen',
-      orderId,
-      amount,
-      items,
-      timestamp: new Date().toISOString()
-    }, user?.id || null, sessionIdRef.current || null);
-  }, [user?.id]);
-
-  /**
-   * Arama sorgusu eventi kaydet
-   */
-  const trackSearch = useCallback((query: string, resultsCount?: number) => {
-    sendTrackingEvent('search_query', {
-      screenName: 'SearchScreen',
-      query,
-      searchQuery: query,
-      resultsCount,
-      timestamp: new Date().toISOString()
-    }, user?.id || null, sessionIdRef.current || null);
-  }, [user?.id]);
-
-  /**
    * Hata eventi kaydet
    */
   const trackError = useCallback((error: string, errorType?: string, metadata?: any) => {

@@ -110,6 +110,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         )}
       </View>
 
+      {/* Minimum karakter uyarısı */}
+      {isFocused && value && value.trim().length > 0 && value.trim().length < 2 && (
+        <View style={styles.warningContainer}>
+          <Text style={styles.warningText}>En az 2 karakter girmelisiniz</Text>
+        </View>
+      )}
+
       {showDropdown && (
         <View style={styles.dropdown}>
           <View style={styles.dropdownHeaderRow}>
@@ -229,5 +236,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: '#999999',
     fontSize: 13,
+  },
+  warningContainer: {
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#FFF3CD',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFC107',
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#856404',
+    fontWeight: '500',
   },
 });

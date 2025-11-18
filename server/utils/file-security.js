@@ -114,6 +114,10 @@ function getMimeTypeFromExtension(filename) {
     'mp4': 'video/mp4',
     'mov': 'video/quicktime',
     'avi': 'video/x-msvideo',
+    'm4a': 'audio/m4a',
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'aac': 'audio/aac',
   };
   return mimeMap[ext] || null;
 }
@@ -172,7 +176,8 @@ function validateFileUpload(file, filePath = null) {
   // 2. MIME type kontrolü
   const allowedMimes = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-    'video/mp4', 'video/quicktime', 'video/x-msvideo'
+    'video/mp4', 'video/quicktime', 'video/x-msvideo',
+    'audio/m4a', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/aac'
   ];
 
   if (!allowedMimes.includes(file.mimetype)) {
@@ -181,7 +186,7 @@ function validateFileUpload(file, filePath = null) {
 
   // 3. Dosya uzantısı kontrolü
   const ext = file.originalname.toLowerCase().split('.').pop();
-  const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov', 'avi'];
+  const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov', 'avi', 'm4a', 'mp3', 'wav', 'aac'];
   if (!allowedExts.includes(ext)) {
     errors.push(`Geçersiz dosya uzantısı: ${ext}`);
   }
@@ -189,7 +194,12 @@ function validateFileUpload(file, filePath = null) {
   // 4. MIME type ve uzantı uyumu kontrolü
   const mimeFromExt = getMimeTypeFromExtension(file.originalname);
   if (mimeFromExt && mimeFromExt !== file.mimetype) {
-    errors.push(`Dosya uzantısı ve MIME type uyuşmuyor: ${ext} != ${file.mimetype}`);
+    // M4A için esnek kontrol (bazı sistemler audio/x-m4a kullanır)
+    if (ext === 'm4a' && (file.mimetype === 'audio/m4a' || file.mimetype === 'audio/x-m4a')) {
+      // Geçerli, hata ekleme
+    } else {
+      errors.push(`Dosya uzantısı ve MIME type uyuşmuyor: ${ext} != ${file.mimetype}`);
+    }
   }
 
   // 5. Dosya boyutu kontrolü (10MB maksimum)

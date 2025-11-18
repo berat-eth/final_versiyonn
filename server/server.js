@@ -702,22 +702,23 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // GÜVENLİK: Görsel ve video formatları - Sınırlı whitelist
+  // GÜVENLİK: Görsel, video ve ses formatları - Sınırlı whitelist
   const allowedMimes = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-    'video/mp4', 'video/quicktime', 'video/x-msvideo'
+    'video/mp4', 'video/quicktime', 'video/x-msvideo',
+    'audio/m4a', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/aac'
   ];
   
   // MIME type kontrolü
   if (!allowedMimes.includes(file.mimetype)) {
-    return cb(new Error('Geçersiz dosya formatı. Sadece görsel (JPEG, PNG, WebP) ve video (MP4, MOV, AVI) yüklenebilir.'));
+    return cb(new Error('Geçersiz dosya formatı. Sadece görsel (JPEG, PNG, WebP), video (MP4, MOV, AVI) ve ses (M4A, MP3, WAV, AAC) yüklenebilir.'));
   }
   
   // Dosya uzantısı kontrolü
   const ext = file.originalname.toLowerCase().split('.').pop();
-  const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov', 'avi'];
+  const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov', 'avi', 'm4a', 'mp3', 'wav', 'aac'];
   if (!allowedExts.includes(ext)) {
-    return cb(new Error('Geçersiz dosya uzantısı. Sadece görsel (JPEG, PNG, WebP) ve video (MP4, MOV, AVI) yüklenebilir.'));
+    return cb(new Error('Geçersiz dosya uzantısı. Sadece görsel (JPEG, PNG, WebP), video (MP4, MOV, AVI) ve ses (M4A, MP3, WAV, AAC) yüklenebilir.'));
   }
   
   // MIME type ve uzantı uyumu kontrolü
@@ -728,10 +729,19 @@ const fileFilter = (req, file, cb) => {
     'webp': 'image/webp',
     'mp4': 'video/mp4',
     'mov': 'video/quicktime',
-    'avi': 'video/x-msvideo'
+    'avi': 'video/x-msvideo',
+    'm4a': 'audio/m4a',
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'aac': 'audio/aac'
   };
   
   if (mimeFromExt[ext] && mimeFromExt[ext] !== file.mimetype) {
+    // M4A için esnek kontrol (bazı sistemler audio/x-m4a kullanır)
+    if (ext === 'm4a' && (file.mimetype === 'audio/m4a' || file.mimetype === 'audio/x-m4a')) {
+      cb(null, true);
+      return;
+    }
     return cb(new Error('Dosya uzantısı ve MIME type uyuşmuyor.'));
   }
   
@@ -14414,7 +14424,7 @@ app.get('/api/products/search', async (req, res) => {
         : [booleanQuery, booleanQuery, `%${search}%`, limit, offset];
 
       const [ftRows] = await poolWrapper.execute(
-        `SELECT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated,
+        `SELECT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated, p.stock, p.description, p.sku, p.externalId,
                 MATCH(p.name, p.description, p.brand, p.sku, p.externalId) AGAINST (? IN BOOLEAN MODE) AS score
          FROM products p
          LEFT JOIN product_variations v ON v.productId = p.id
@@ -14450,7 +14460,7 @@ app.get('/api/products/search', async (req, res) => {
           offset,
         ];
       const [likeRows] = await poolWrapper.execute(
-        `SELECT DISTINCT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated
+        `SELECT DISTINCT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated, p.stock, p.description, p.sku, p.externalId
          FROM products p
          LEFT JOIN product_variations v ON v.productId = p.id
          LEFT JOIN product_variation_options o ON o.variationId = v.id
@@ -15280,8 +15290,18 @@ app.post('/api/reviews/upload', upload.array('media', 5), async (req, res) => {
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       const mediaUrl = `${baseUrl}/uploads/reviews/${file.filename}`;
       
+      // Media type belirleme
+      let mediaType = 'unknown';
+      if (file.mimetype.startsWith('image/')) {
+        mediaType = 'image';
+      } else if (file.mimetype.startsWith('video/')) {
+        mediaType = 'video';
+      } else if (file.mimetype.startsWith('audio/')) {
+        mediaType = 'audio';
+      }
+      
       validatedFiles.push({
-        mediaType: file.mimetype.startsWith('image/') ? 'image' : 'video',
+        mediaType: mediaType,
         mediaUrl: mediaUrl,
         fileSize: file.size,
         mimeType: file.mimetype,

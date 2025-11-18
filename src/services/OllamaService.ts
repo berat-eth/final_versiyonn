@@ -81,27 +81,38 @@ export class OllamaService {
 
       if (response.success && response.data) {
         // Ollama response format'ını kontrol et
-        if (typeof response.data.response === 'string') {
-          return response.data.response;
+        const data = response.data;
+        
+        // Farklı response formatlarını destekle
+        if (typeof data.response === 'string') {
+          return data.response;
         }
-        if (typeof response.data === 'string') {
-          return response.data;
+        if (typeof data === 'string') {
+          return data;
         }
-        if (response.data.text) {
-          return response.data.text;
+        if (data.text) {
+          return data.text;
+        }
+        if (data.message?.content) {
+          return data.message.content;
+        }
+        if (data.content) {
+          return data.content;
         }
         // Fallback: JSON stringify
-        return JSON.stringify(response.data);
+        return JSON.stringify(data);
       }
 
-      throw new Error('Invalid Ollama response');
+      // Daha açıklayıcı hata mesajı
+      const errorMsg = response.message || response.error || 'Invalid Ollama response';
+      throw new Error(`Ollama API hatası: ${errorMsg}`);
     } catch (error: any) {
       console.error('❌ Ollama send message error:', error);
       throw error;
     }
   }
 
-  // Ollama durumunu kontrol et
+  // Ollama durumunu kontrol et (hafif health check)
   static async checkStatus(): Promise<boolean> {
     try {
       const config = await this.getConfig();
@@ -109,13 +120,29 @@ export class OllamaService {
         return false;
       }
 
-      // Basit bir test mesajı gönder
-      const testResponse = await this.sendMessage(
-        [{ role: 'user', content: 'test' }],
-        { maxTokens: 10 }
+      // Hafif health check: sadece API'nin erişilebilir olduğunu kontrol et
+      // Gerçek mesaj göndermek yerine, sadece endpoint'in çalıştığını doğrula
+      // Timeout kontrolü için Promise.race kullan (10 saniye)
+      const responsePromise = apiService.post('/ollama/generate', {
+        messages: [{ role: 'user', content: 'test' }],
+        model: config.model || this.DEFAULT_CONFIG.model,
+        maxTokens: 5, // Çok kısa yanıt
+        temperature: 0.1
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Status check timeout')), 10000)
       );
-      return !!testResponse;
-    } catch (error) {
+
+      const response = await Promise.race([responsePromise, timeoutPromise]);
+
+      return response.success === true;
+    } catch (error: any) {
+      // Timeout veya network hatalarını sessizce geç
+      if (error?.message?.includes('timeout') || error?.message?.includes('TIMEOUT_ERROR')) {
+        console.log('⚠️ Ollama status check timeout (service may be slow)');
+        return false; // Timeout durumunda false döndür
+      }
       console.error('❌ Ollama status check error:', error);
       return false;
     }

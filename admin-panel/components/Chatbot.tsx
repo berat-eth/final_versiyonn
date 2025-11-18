@@ -10,6 +10,7 @@ interface Message {
   text: string
   time: string
   read: boolean
+  timestamp?: number // Sıralama için timestamp
 }
 
 interface Conversation {
@@ -42,6 +43,7 @@ export default function Chatbot() {
   // Mock veriler kaldırıldı - Backend entegrasyonu için hazır
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(false)
+  const previousMessageCountsRef = useRef<Map<number, number>>(new Map())
   
   // Backend'den konuşmaları yükle
   useEffect(() => {
@@ -84,7 +86,7 @@ export default function Chatbot() {
               unread: 0,
               status: isLiveSupport ? 'online' as const : 'offline' as const,
               messages: [],
-              productId: msg.productId || msg.productFullName ? msg.productId : undefined,
+              productId: msg.productId ?? undefined,
               productName: msg.productName || msg.productFullName,
               productPrice: msg.productPrice || msg.productFullPrice,
               productImage: msg.productImage || msg.productFullImage,
@@ -97,12 +99,14 @@ export default function Chatbot() {
           
           const conv = conversationMap.get(userId)!
           if (msg.message && msg.timestamp) {
+            const timestamp = new Date(msg.timestamp).getTime()
             conv.messages.push({
-              id: msg.id || Date.now(),
+              id: msg.id || timestamp,
               sender: isAdminMessage ? 'agent' as const : 'customer' as const,
               text: msg.message,
               time: new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-              read: true
+              read: true,
+              timestamp: timestamp
             })
             // En son mesajı güncelle
             if (new Date(msg.timestamp) > new Date(conv.time || 0)) {
@@ -116,7 +120,63 @@ export default function Chatbot() {
           }
         })
         
-        setConversations(Array.from(conversationMap.values()))
+        // Mesajları timestamp'e göre sırala (her konuşma için)
+        conversationMap.forEach((conv) => {
+          conv.messages.sort((a, b) => {
+            // Timestamp varsa onu kullan, yoksa ID'yi kullan
+            const aTime = a.timestamp || a.id
+            const bTime = b.timestamp || b.id
+            return aTime - bTime
+          })
+        })
+        
+        const newConversations = Array.from(conversationMap.values())
+        
+        // Mevcut konuşmalarla birleştir (duplicate'leri önle)
+        setConversations(prev => {
+          const updatedConvs = newConversations.map(newConv => {
+            const existingConv = prev.find(c => c.id === newConv.id)
+            if (existingConv) {
+              // Mevcut mesajları koru, sadece yeni mesajları ekle
+              const existingMessageIds = new Set(existingConv.messages.map(m => m.id))
+              const newMessages = newConv.messages.filter(m => !existingMessageIds.has(m.id))
+              
+              // Yeni mesaj kontrolü - bildirim sesi çal
+              if (newMessages.length > 0 && soundEnabled) {
+                const hasNewCustomerMessage = newMessages.some(m => m.sender === 'customer')
+                if (hasNewCustomerMessage && (selectedChat !== newConv.id || !selectedChat)) {
+                  playNotificationSound()
+                }
+              }
+              
+              // Yeni mesajları ekle ve sırala
+              const allMessages = [...existingConv.messages, ...newMessages]
+              allMessages.sort((a, b) => {
+                const aTime = a.timestamp || a.id
+                const bTime = b.timestamp || b.id
+                return aTime - bTime
+              })
+              
+              // Mesaj sayısını güncelle
+              previousMessageCountsRef.current.set(newConv.id, allMessages.length)
+              
+              return {
+                ...newConv,
+                messages: allMessages
+              }
+            }
+            
+            // Yeni konuşma
+            previousMessageCountsRef.current.set(newConv.id, newConv.messages.length)
+            return newConv
+          })
+          
+          // Yeni konuşmaları da ekle
+          const newConvIds = new Set(updatedConvs.map(c => c.id))
+          const additionalConvs = prev.filter(c => !newConvIds.has(c.id))
+          
+          return [...updatedConvs, ...additionalConvs]
+        })
       } else {
         setConversations([])
       }
@@ -128,14 +188,14 @@ export default function Chatbot() {
     }
   }
 
-  // Otomatik yenileme - Her 30 saniyede bir backend'den yeni mesajları kontrol et
+  // Otomatik yenileme - Her 10 saniyede bir backend'den yeni mesajları kontrol et
   useEffect(() => {
     const interval = setInterval(() => {
       loadConversations()
-    }, 30000) // 30 saniye
+    }, 10000) // 10 saniye (daha hızlı güncelleme)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [soundEnabled, selectedChat])
 
   // Bildirim sesi çalma fonksiyonu - Uzun ve melodik zil sesi
   const playNotificationSound = () => {
@@ -185,12 +245,15 @@ export default function Chatbot() {
     const messageToSend = messageText.trim()
     setMessageText('') // Hemen input'u temizle
 
+    const tempMessageId = Date.now() // Geçici ID
+    const currentTimestamp = Date.now()
     const newMessage: Message = {
-      id: conv.messages.length + 1,
+      id: tempMessageId,
       sender: 'agent',
       text: messageToSend,
       time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-      read: true
+      read: true,
+      timestamp: currentTimestamp
     }
 
     // UI'da hemen göster
@@ -198,7 +261,14 @@ export default function Chatbot() {
       const newConvs = [...prev]
       const convIndex = newConvs.findIndex(c => c.id === selectedChat)
       if (convIndex !== -1 && newConvs[convIndex] && newConvs[convIndex].messages) {
+        // Mesajı sona ekle (timestamp sırasına göre)
         newConvs[convIndex].messages.push(newMessage)
+        // Timestamp'e göre sırala
+        newConvs[convIndex].messages.sort((a, b) => {
+          const aTime = a.timestamp || a.id
+          const bTime = b.timestamp || b.id
+          return aTime - bTime
+        })
         newConvs[convIndex].lastMessage = messageToSend
         newConvs[convIndex].time = 'Şimdi'
         newConvs[convIndex].unread = 0
@@ -217,12 +287,12 @@ export default function Chatbot() {
       
       if (!response || !(response as any).success) {
         console.error('Mesaj gönderme başarısız:', response)
-        // Hata durumunda mesajı geri al (opsiyonel)
+        // Hata durumunda mesajı geri al
         setConversations(prev => {
           const newConvs = [...prev]
           const convIndex = newConvs.findIndex(c => c.id === selectedChat)
           if (convIndex !== -1 && newConvs[convIndex] && newConvs[convIndex].messages) {
-            newConvs[convIndex].messages = newConvs[convIndex].messages.filter(m => m.id !== newMessage.id)
+            newConvs[convIndex].messages = newConvs[convIndex].messages.filter(m => m.id !== tempMessageId)
             if (newConvs[convIndex].messages.length > 0) {
               const lastMsg = newConvs[convIndex].messages[newConvs[convIndex].messages.length - 1]
               newConvs[convIndex].lastMessage = lastMsg.text
@@ -230,6 +300,68 @@ export default function Chatbot() {
           }
           return newConvs
         })
+      } else {
+        // Başarılı gönderim sonrası konuşmaları yenile ve geçici mesajı gerçek mesajla değiştir
+        setTimeout(async () => {
+          try {
+            const { api } = await import('@/lib/api')
+            const response = await api.get<any>('/admin/chatbot/conversations')
+            const data = response as any
+            
+            if (data && data.success && Array.isArray(data.data)) {
+              // Seçili konuşmanın yeni mesajlarını bul
+              const selectedUserId = conv.userId
+              const adminMessages = data.data.filter((msg: any) => 
+                msg.userId === selectedUserId && 
+                msg.intent === 'admin_message' &&
+                msg.message === messageToSend
+              )
+              
+              if (adminMessages.length > 0) {
+                // En yeni admin mesajını al
+                const latestAdminMessage = adminMessages.sort((a: any, b: any) => 
+                  new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                )[0]
+                
+                // Geçici mesajı gerçek mesajla değiştir
+                setConversations(prev => {
+                  const newConvs = [...prev]
+                  const convIndex = newConvs.findIndex(c => c.id === selectedChat)
+                  if (convIndex !== -1 && newConvs[convIndex] && newConvs[convIndex].messages) {
+                    // Geçici mesajı bul ve değiştir
+                    const tempMsgIndex = newConvs[convIndex].messages.findIndex(m => m.id === tempMessageId)
+                    if (tempMsgIndex !== -1) {
+                      const messageTimestamp = new Date(latestAdminMessage.timestamp).getTime()
+                      newConvs[convIndex].messages[tempMsgIndex] = {
+                        id: latestAdminMessage.id,
+                        sender: 'agent' as const,
+                        text: latestAdminMessage.message,
+                        time: new Date(latestAdminMessage.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+                        read: true,
+                        timestamp: messageTimestamp
+                      }
+                      // Tekrar sırala
+                      newConvs[convIndex].messages.sort((a, b) => {
+                        const aTime = a.timestamp || a.id
+                        const bTime = b.timestamp || b.id
+                        return aTime - bTime
+                      })
+                    }
+                  }
+                  return newConvs
+                })
+              } else {
+                // Mesaj bulunamadıysa normal yenileme yap
+                loadConversations()
+              }
+            } else {
+              loadConversations()
+            }
+          } catch (error) {
+            console.error('Mesaj güncelleme hatası:', error)
+            loadConversations()
+          }
+        }, 1500)
       }
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error)
@@ -263,9 +395,12 @@ export default function Chatbot() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  // Seçili konuşma veya mesajlar değiştiğinde scroll yap
   useEffect(() => {
-    scrollToBottom()
-  }, [selectedChat, conversations])
+    if (selectedChat) {
+      setTimeout(() => scrollToBottom(), 100)
+    }
+  }, [selectedChat, selectedConversation?.messages])
 
   const selectedConversation = conversations.find(c => c.id === selectedChat)
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unread, 0)
@@ -539,7 +674,8 @@ export default function Chatbot() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 dark:bg-slate-900">
-                {selectedConversation.messages && selectedConversation.messages.map((message, index) => (
+                {selectedConversation.messages && selectedConversation.messages.length > 0 ? (
+                  selectedConversation.messages.map((message, index) => (
                   <motion.div
                     key={message.id}
                     initial={{ opacity: 0, y: 10 }}
@@ -563,7 +699,12 @@ export default function Chatbot() {
                       </div>
                     </div>
                   </motion.div>
-                ))}
+                  ))
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-slate-400 dark:text-slate-500">Henüz mesaj yok</p>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
 

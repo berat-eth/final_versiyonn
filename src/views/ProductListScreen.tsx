@@ -69,6 +69,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(route.params?.category || null);
   const [categories, setCategories] = useState<string[]>([]);
@@ -150,13 +151,32 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
   }, [route.params?.category, route.params?.showFlashDeals]);
 
-  // Filtre ve sıralama değiştiğinde uygula
+  // Arama veya filtreleme değiştiğinde API'den tüm ürünleri çek (debounce ile)
   useEffect(() => {
-    if (products.length > 0) {
-      applyFiltersAndSort();
+    const hasSearch = searchQuery && searchQuery.trim().length >= 2; // Minimum 2 karakter
+    const hasFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
+    
+    // Arama sorgusu 2 karakterden azsa, sonuçları temizle
+    if (searchQuery && searchQuery.trim().length > 0 && searchQuery.trim().length < 2) {
+      setFilteredProducts([]);
+      setTotalProducts(0);
+      return;
     }
+    
+    // Debounce timer
+    const timeoutId = setTimeout(() => {
+      if (hasSearch || hasFilters) {
+        // Arama veya filtreleme varsa API'den tüm sonuçları çek
+        loadFilteredData();
+      } else if (products.length > 0) {
+        // Arama/filtreleme yoksa sadece sıralama uygula
+        applyFiltersAndSort();
+      }
+    }, 300); // 300ms debounce
+    
+    return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [products, searchQuery, sortBy, filters]);
+  }, [searchQuery, sortBy, filters]);
 
   const loadData = async (page: number = 1) => {
     try {
@@ -337,24 +357,109 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   };
 
 
+  // API'den filtrelenmiş verileri yükle
+  const loadFilteredData = useCallback(async () => {
+    try {
+      // Arama yapılıyorsa arama loading state'ini kullan
+      if (searchQuery && searchQuery.trim().length >= 2) {
+        setIsSearching(true);
+      } else {
+        setLoading(true);
+      }
+      
+      let allFilteredProducts: Product[] = [];
+      
+      // Arama varsa API'den arama yap (minimum 2 karakter kontrolü)
+      if (searchQuery && searchQuery.trim().length >= 2) {
+        const searchResults = await ProductController.searchProducts(searchQuery.trim());
+        allFilteredProducts = searchResults;
+      } else {
+        // Arama yoksa API'den filtreleme yap
+        const filterOptions: any = {
+          minPrice: filters.minPrice > 0 ? filters.minPrice : undefined,
+          maxPrice: filters.maxPrice < 10000 ? filters.maxPrice : undefined,
+          brands: filters.brands.length > 0 ? filters.brands : undefined,
+          inStock: filters.inStock ? true : undefined,
+        };
+        
+        // Boş olmayan filtreleri gönder
+        const cleanFilters = Object.fromEntries(
+          Object.entries(filterOptions).filter(([_, v]) => v !== undefined)
+        );
+        
+        if (Object.keys(cleanFilters).length > 0) {
+          // API'den filtreleme yap
+          allFilteredProducts = await ProductController.filterProducts(cleanFilters);
+        } else {
+          // Filtre yoksa tüm ürünleri çek (sayfalama olmadan, limit büyük)
+          const allProductsResult = await ProductController.getAllProducts(1, 10000);
+          allFilteredProducts = allProductsResult.products || [];
+        }
+      }
+      
+      // Client-side filtreleri de uygula (API'de eksik olabilir)
+      let filtered = allFilteredProducts;
+      
+      // Price filter (ek güvenlik için)
+      filtered = filtered.filter(
+        (product) => product.price >= filters.minPrice && product.price <= filters.maxPrice
+      );
+
+      // Brand filter (ek güvenlik için)
+      if (filters.brands.length > 0) {
+        filtered = filtered.filter((product) => filters.brands.includes(product.brand));
+      }
+
+      // Stock filter (ek güvenlik için)
+      if (filters.inStock) {
+        filtered = filtered.filter((product) => product.stock > 0);
+      }
+
+      // Sorting
+      switch (sortBy) {
+        case 'price-asc':
+          filtered.sort((a, b) => a.price - b.price);
+          break;
+        case 'price-desc':
+          filtered.sort((a, b) => b.price - a.price);
+          break;
+        case 'rating':
+          filtered.sort((a, b) => b.rating - a.rating);
+          break;
+        case 'name':
+          filtered.sort((a, b) => a.name.localeCompare(b.name));
+          break;
+        case 'default':
+        default:
+          // Varsayılan sıralama - değişiklik yok
+          break;
+      }
+
+      setFilteredProducts(filtered);
+      setTotalProducts(filtered.length);
+      setHasMore(false); // Filtrelenmiş sonuçlarda sayfalama yok
+      setCurrentPageNum(1);
+    } catch (error: any) {
+      console.error('Error loading filtered data:', error);
+      setFilteredProducts([]);
+      setTotalProducts(0);
+      // Kullanıcıya hata mesajı göster
+      Alert.alert(
+        'Arama Hatası',
+        error?.message || 'Arama yapılırken bir hata oluştu. Lütfen tekrar deneyin.',
+        [{ text: 'Tamam' }]
+      );
+    } finally {
+      setIsSearching(false);
+      setLoading(false);
+    }
+  }, [searchQuery, filters, sortBy]);
+
+  // Sadece sıralama için (arama/filtreleme yoksa)
   const applyFiltersAndSort = useCallback(() => {
     let filtered = [...products];
 
-    // Search filter
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((product) => {
-        const inName = product.name?.toLowerCase().includes(q);
-        const inBrand = product.brand?.toLowerCase().includes(q);
-        const inExternalId = product.externalId?.toLowerCase().includes(q);
-        const inVariationsSku = Array.isArray(product.variations)
-          ? product.variations.some(v => Array.isArray(v.options) && v.options.some(opt => (opt.sku || '').toLowerCase().includes(q)))
-          : false;
-        return inName || inBrand || inExternalId || inVariationsSku;
-      });
-    }
-
-    // Price filter
+    // Price filter (sadece mevcut sayfadaki ürünler için)
     filtered = filtered.filter(
       (product) => product.price >= filters.minPrice && product.price <= filters.maxPrice
     );
@@ -390,7 +495,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
 
     setFilteredProducts(filtered);
-  }, [products, searchQuery, filters, sortBy]);
+  }, [products, filters, sortBy]);
 
   const handleProductPress = (product: Product, event?: any) => {
     // Track heatmap click (product card)
@@ -481,10 +586,20 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   };
 
   const handleSearchSubmit = () => {
-    // Filtreler otomatik tetikleniyor
+    // Arama veya filtreleme varsa API'den tüm sonuçları çek
+    const hasSearch = searchQuery && searchQuery.trim().length > 0;
+    const hasFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
+    
+    if (hasSearch || hasFilters) {
+      loadFilteredData();
+    } else {
+      // Arama/filtreleme yoksa normal sayfalama moduna dön
+      setCurrentPageNum(1);
+      loadData(1);
+    }
   };
 
-  const hasActiveFilters = filters.brands.length > 0 || filters.inStock;
+  const hasActiveFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
 
   const handleCategorySelect = (category: string | null) => {
     setSelectedCategory(category);
@@ -600,6 +715,11 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             brands: [],
             inStock: false,
           });
+          setSortBy('default');
+          // Normal sayfalama moduna dön
+          setCurrentPageNum(1);
+          setHasMore(true);
+          loadData(1);
         }}
         variant="outline"
         size="medium"
@@ -700,6 +820,15 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
           />
         );
       })()}
+      
+      {/* Arama loading göstergesi */}
+      {isSearching && (
+        <View style={styles.searchingContainer}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={styles.searchingText}>Aranıyor...</Text>
+        </View>
+      )}
+      
       <FlatList
         ref={listRef}
         data={showFlashDeals ? getFlashDealProducts() : filteredProducts}
@@ -1102,5 +1231,21 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     color: Colors.primary,
     fontWeight: '600',
+  },
+  searchingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    borderRadius: 8,
+  },
+  searchingText: {
+    marginLeft: Spacing.sm,
+    fontSize: 14,
+    color: Colors.textMuted,
+    fontWeight: '500',
   },
 });

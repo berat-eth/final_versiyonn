@@ -8,6 +8,7 @@ let currentApiUrl = getApiBaseUrl();
 // ✅ OPTIMIZASYON: Cache durations - optimize edilmiş cache stratejisi
 const CACHE_DURATION = 15 * 60 * 1000; // 15 dakika - genel cache (10 → 15)
 const PRODUCT_CACHE_DURATION = 30 * 60 * 1000; // 30 dakika - ürünler için (20 → 30)
+const SEARCH_CACHE_DURATION = 2 * 60 * 1000; // 2 dakika - arama sonuçları için
 const CATEGORY_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 saat - kategoriler için (1 → 2 saat)
 const STATIC_CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 saat - statik içerik (2 → 4 saat)
 const CART_CACHE_DURATION = 3 * 60 * 1000; // 3 dakika - sepet için (2 → 3 dakika)
@@ -349,7 +350,10 @@ class ApiService {
       
       // ✅ OPTIMIZASYON: Endpoint'e göre dinamik timeout belirleme
       let dynamicTimeout = TIMEOUT_MS;
-      if (endpoint.includes('/cart')) {
+      if (endpoint.includes('/ollama/generate')) {
+        // Ollama istekleri: çok uzun sürebilir (model yükleme, büyük yanıtlar)
+        dynamicTimeout = 120000; // 2 dakika (120 saniye)
+      } else if (endpoint.includes('/cart')) {
         // Sepet işlemleri: hızlı olmalı (kullanıcı etkileşimi)
         dynamicTimeout = 5000;
       } else if (endpoint.includes('/products/search') || endpoint.includes('/products/filter')) {
@@ -620,7 +624,9 @@ class ApiService {
         let ttl = CACHE_DURATION;
         
         // Endpoint'e göre cache süresi belirle
-        if (endpoint.includes('/products') && !endpoint.includes('/search')) {
+        if (endpoint.includes('/products/search')) {
+          ttl = SEARCH_CACHE_DURATION;
+        } else if (endpoint.includes('/products') && !endpoint.includes('/search')) {
           ttl = PRODUCT_CACHE_DURATION;
         } else if (endpoint.includes('/categories') || endpoint.includes('/brands')) {
           ttl = CATEGORY_CACHE_DURATION;
@@ -903,7 +909,32 @@ class ApiService {
   }
 
   async searchProducts(query: string): Promise<ApiResponse<any[]>> {
-    return this.request(`/products/search?q=${encodeURIComponent(query)}`);
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || trimmedQuery.length < 2) {
+      return { success: true, data: [] };
+    }
+    
+    const endpoint = `/products/search?q=${encodeURIComponent(trimmedQuery)}`;
+    const cacheKey = this.getCacheKey(endpoint);
+    
+    // Arama sonuçlarını cache'le (kısa süreli - 2 dakika)
+    const cached = await this.getFromCache<ApiResponse<any[]>>(cacheKey);
+    if (cached && cached.success && Array.isArray(cached.data)) {
+      // Cache'den döndür
+      return cached;
+    }
+    
+    // API'den çek
+    const result = await this.request<any[]>(endpoint);
+    
+    // Başarılı sonuçları cache'le (2 dakika)
+    if (result.success && Array.isArray(result.data)) {
+      try {
+        await CacheService.set(cacheKey, result, SEARCH_CACHE_DURATION);
+      } catch {}
+    }
+    
+    return result;
   }
 
   async filterProducts(filters: any): Promise<ApiResponse<any[]>> {

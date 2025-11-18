@@ -260,7 +260,16 @@ export class ProductController {
         return [];
       }
       
-      const trimmedQuery = query.trim();
+      const trimmedQuery = query.trim().toLowerCase();
+      const cacheKey = `cache:search:${trimmedQuery}`;
+      
+      // Cache kontrolü (1-2 dakika TTL)
+      const cachedResults = await CacheService.get<Product[]>(cacheKey);
+      if (cachedResults !== null && Array.isArray(cachedResults)) {
+        // console.log(`✅ Cache hit for search query: "${trimmedQuery}"`);
+        return cachedResults;
+      }
+      
       // console.log(`🔍 Searching products with query: "${trimmedQuery}"`);
       
       // Try API first
@@ -283,9 +292,14 @@ export class ProductController {
                 : false;
               return inExternalId || inVariationsSku;
             });
+            // SKU sonuçlarını cache'le
+            CacheService.set(cacheKey, skuFiltered, CacheTTL.SHORT).catch(() => {});
             return skuFiltered;
           }
         }
+        
+        // API sonuçlarını cache'le (1-2 dakika)
+        CacheService.set(cacheKey, products, CacheTTL.SHORT).catch(() => {});
         return products;
       }
       
@@ -307,8 +321,13 @@ export class ProductController {
             : false;
           return inExternalId || inVariationsSku;
         });
+        // SKU sonuçlarını cache'le
+        CacheService.set(cacheKey, skuFiltered, CacheTTL.SHORT).catch(() => {});
         return skuFiltered;
       }
+      
+      // XML sonuçlarını cache'le
+      CacheService.set(cacheKey, products, CacheTTL.SHORT).catch(() => {});
       return products;
     } catch (error) {
       console.error(`❌ ProductController - searchProducts error for query "${query}":`, error);

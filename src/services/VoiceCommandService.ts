@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import { VoiceService } from './VoiceService';
 import { ChatbotService } from './ChatbotService';
 
@@ -124,11 +125,9 @@ export class VoiceCommandService {
           break;
 
         case 'live_support':
-          if (navigation) {
-            navigation.navigate('LiveSupport');
-            return { success: true, message: 'Canlı desteğe bağlanıyorsunuz...' };
-          }
-          break;
+          // WhatsApp'a yönlendir
+          Linking.openURL('https://wa.me/905303125813?text=Merhaba, yardıma ihtiyacım var.');
+          return { success: true, message: 'WhatsApp\'a yönlendiriliyorsunuz...' };
 
         case 'navigate_home':
           if (navigation) {

@@ -428,7 +428,20 @@ export class ChatbotService {
       const config = await OllamaService.getConfig();
       
       if (!config || !config.enabled) {
+        console.log('🔧 Ollama disabled or config missing');
         return null; // Ollama aktif değil
+      }
+
+      // Ollama durumunu kontrol et
+      try {
+        const isAvailable = await OllamaService.checkStatus();
+        if (!isAvailable) {
+          console.log('⚠️ Ollama service not available');
+          return null;
+        }
+      } catch (statusError) {
+        console.log('⚠️ Ollama status check failed:', statusError);
+        return null;
       }
 
       // Basit greeting ve goodbye için Ollama kullanma
@@ -456,24 +469,28 @@ export class ChatbotService {
         }
       ];
 
-      // Ollama'dan yanıt al (timeout ile)
+      console.log('🤖 Ollama request sending...', { intent, messageLength: message.length });
+
+      // Ollama'dan yanıt al (timeout ile - API servisinde zaten 120 saniye timeout var)
+      // Burada ek bir güvenlik timeout'u ekliyoruz (90 saniye)
       const ollamaText = await Promise.race([
         OllamaService.sendMessage(ollamaMessages),
         new Promise<string>((_, reject) => 
-          setTimeout(() => reject(new Error('Ollama timeout')), 20000)
+          setTimeout(() => reject(new Error('Ollama timeout - yanıt çok uzun sürdü')), 90000)
         )
       ]);
       
       // Yanıt kontrolü
       if (ollamaText && 
           typeof ollamaText === 'string' && 
-          ollamaText.length > 10 && 
-          ollamaText.length < 1000 &&
+          ollamaText.trim().length > 10 && 
+          ollamaText.trim().length < 2000 &&
           !ollamaText.toLowerCase().includes('ollama') &&
           !ollamaText.toLowerCase().includes('error') &&
-          !ollamaText.toLowerCase().includes('bağlan')) {
+          !ollamaText.toLowerCase().includes('bağlan') &&
+          !ollamaText.toLowerCase().includes('connection')) {
         
-        console.log('✅ Ollama successful response');
+        console.log('✅ Ollama successful response', { length: ollamaText.length });
         // Başarılı Ollama yanıtı
         return {
           text: ollamaText.trim(),
@@ -486,11 +503,20 @@ export class ChatbotService {
           ]
         };
       } else {
-        console.log('⚠️ Ollama response not suitable, trying fallback');
+        console.log('⚠️ Ollama response not suitable, trying fallback', { 
+          hasText: !!ollamaText,
+          length: ollamaText?.length,
+          type: typeof ollamaText
+        });
         return null;
       }
     } catch (error: any) {
-      console.error('❌ Ollama Response Error:', error?.message || error);
+      // Timeout veya network hatalarını sessizce geç, diğer hataları logla
+      if (error?.message?.includes('timeout') || error?.message?.includes('network')) {
+        console.log('⚠️ Ollama timeout or network error, using fallback');
+      } else {
+        console.error('❌ Ollama Response Error:', error?.message || error);
+      }
       return null; // Hata durumunda fallback kullan
     }
   }

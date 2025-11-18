@@ -120,10 +120,26 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     try {
       // Ollama veya AnythingLLM kontrolü
       const [ollamaConfig, anythingLLMConfig] = await Promise.all([
-        import('../services/OllamaService').then(m => m.OllamaService.getConfig()),
-        AnythingLLMService.getConfig()
+        import('../services/OllamaService').then(m => m.OllamaService.getConfig()).catch(() => null),
+        AnythingLLMService.getConfig().catch(() => null)
       ]);
-      setLlmEnabled(ollamaConfig?.enabled || anythingLLMConfig?.enabled || false);
+      
+      const ollamaEnabled = ollamaConfig?.enabled === true;
+      const anythingLLMEnabled = anythingLLMConfig?.enabled === true;
+      
+      // Ollama aktifse durumunu kontrol et
+      if (ollamaEnabled) {
+        try {
+          const ollamaStatus = await import('../services/OllamaService').then(m => 
+            m.OllamaService.checkStatus().catch(() => false)
+          );
+          setLlmEnabled(ollamaStatus || anythingLLMEnabled);
+        } catch {
+          setLlmEnabled(anythingLLMEnabled);
+        }
+      } else {
+        setLlmEnabled(anythingLLMEnabled);
+      }
     } catch (error) {
       console.error('LLM status check error:', error);
       setLlmEnabled(false);
@@ -686,6 +702,18 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
           };
 
           addMessage(voiceMessage);
+          
+          // Chatbot'a sesli mesaj gönder
+          setIsTyping(true);
+          try {
+            await sendMessage('🎤 Sesli mesaj gönderdim', 'voice');
+          } catch (error) {
+            console.error('Voice message send error:', error);
+          } finally {
+            setIsTyping(false);
+          }
+        } else {
+          throw new Error(result.message || 'Ses dosyası yüklenemedi');
         }
       }
     } catch (error: any) {
@@ -929,15 +957,16 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       return;
     }
 
-    // Canlı destek action'ı - LiveSupportScreen'e yönlendir
+    // Canlı destek action'ı - WhatsApp'a yönlendir
     if (quickReply.action === 'live_support') {
       if (navigation) {
-        navigation.navigate('LiveSupport');
+        // WhatsApp'a yönlendir
+        Linking.openURL('https://wa.me/905303125813?text=Merhaba, yardıma ihtiyacım var.');
         // Chatbot'u kapat
         toggleChatbot();
       } else {
-        // Navigation yoksa mesaj gönder
-        await sendMessage('Canlı destek istiyorum', 'live_support');
+        // Navigation yoksa WhatsApp'a yönlendir
+        Linking.openURL('https://wa.me/905303125813?text=Merhaba, yardıma ihtiyacım var.');
       }
       return;
     }
