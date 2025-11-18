@@ -9332,63 +9332,38 @@ const handleMulterError = (err, req, res, next) => {
   next();
 };
 
-// Ticimax kargo fişi PDF'e QR kod ekleme fonksiyonu
-// PDF'i bozmadan, sadece sağ alt köşeye QR kod ekler
+// Ticimax kargo fişi PDF'e QR kod ekleme fonksiyonu (sol alt köşe, A5 uyumlu)
 async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
   try {
     const { PDFDocument, rgb } = require('pdf-lib');
     const QRCode = require('qrcode');
     
-    // PDF'i yükle - preserveTransparency ile orijinal yapıyı koru
-    const pdfDoc = await PDFDocument.load(pdfBuffer, {
-      ignoreEncryption: false,
-      capNumbers: false,
-      updateMetadata: false
-    });
-    
-    // İlk sayfayı al (tüm sayfalar korunur, hiçbir sayfa silinmez)
-    const firstPage = pdfDoc.getPage(0);
+    // PDF'i yükle
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const pages = pdfDoc.getPages();
+    const firstPage = pages[0];
     const { width, height } = firstPage.getSize();
     
-    // En üstteki QR kod ve beyaz kareyi kaldırmak için sağ üst köşe bölgesini kapat
-    // Sadece QR kod bölgesini hedefle, tüm üst kısmı kapatma
-    const topQRSize = 120;
-    const topQRX = width - topQRSize - 15; // Sağdan 15px içeride
-    const topQRY = height - topQRSize - 15; // Üstten 15px aşağıda
+    // A5 boyutları: 148 x 210 mm (yaklaşık 420 x 595 points)
+    // QR kod boyutu A5 için uygun: 60-70 points (yaklaşık 21-25mm)
+    const qrSize = 70; // A5 için uygun boyut
     
-    // Üst kısımdaki QR kod ve beyaz kareyi kapat
-    firstPage.drawRectangle({
-      x: topQRX - 10,
-      y: topQRY - 10,
-      width: topQRSize + 20,
-      height: topQRSize + 20,
-      color: rgb(1, 1, 1), // Beyaz renk
-      borderColor: rgb(1, 1, 1),
-    });
-    
-    // QR kod oluştur - DHL barkod fişlerine uyumlu boyut
+    // QR kod oluştur
     const qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl, {
-      width: 300, // Yüksek çözünürlük için
+      width: 300, // Yüksek çözünürlük
       margin: 2,
-      errorCorrectionLevel: 'H',
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
+      errorCorrectionLevel: 'H'
     });
     
-    // Base64'ten PNG image'e çevir
+    // Base64'ten image'e çevir
     const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
     const qrImage = await pdfDoc.embedPng(qrImageBytes);
     
-    // QR kod boyutları - DHL barkod fişlerine uyumlu: 95x95 px
-    const qrSize = 95;
+    // Sol alt köşe konumu (A5 uyumlu)
+    const qrX = 20; // Soldan 20 points içeride
+    const qrY = 20; // Alttan 20 points yukarıda
     
-    // Konumlandırma - Sağdan 28px içeride, alttan 40px yukarıda
-    const qrX = width - qrSize - 28; // Sağdan 28px içeride
-    const qrY = 40; // Alttan 40px yukarıda
-    
-    // QR kod'u PDF'e ekle - mevcut içeriği bozmadan
+    // QR kod'u PDF'e ekle (sol alt köşe)
     firstPage.drawImage(qrImage, {
       x: qrX,
       y: qrY,
@@ -9396,25 +9371,8 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
       height: qrSize
     });
     
-    // QR kodun altına "E-Fatura QR" metnini ekle (8pt siyah, merkeze hizalı)
-    const text = 'E-Fatura QR';
-    const textSize = 8;
-    // Metin genişliğini yaklaşık hesapla (8pt font için)
-    const estimatedTextWidth = text.length * 4.5; // Yaklaşık karakter genişliği
-    
-    firstPage.drawText(text, {
-      x: qrX + (qrSize / 2) - (estimatedTextWidth / 2), // QR kodun tam ortasına hizalı
-      y: qrY - 18, // QR kodun 18px altına
-      size: textSize,
-      color: rgb(0, 0, 0), // Siyah renk
-    });
-    
-    // PDF'i byte array olarak döndür - orijinal yapı korunur
-    const pdfBytes = await pdfDoc.save({
-      useObjectStreams: false, // Uyumluluk için
-      addDefaultPage: false
-    });
-    
+    // PDF'i byte array olarak döndür
+    const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
   } catch (error) {
     console.error('❌ Error adding QR code to PDF:', error);
@@ -9612,7 +9570,7 @@ app.post('/api/admin/ticimax-orders/cargo-slips/:fileName/add-qr', authenticateA
     // PDF'i oku
     const pdfBuffer = fs.readFileSync(filePath);
     
-    // QR kod ekle
+    // QR kod ekle (sol alt köşe, A5 uyumlu)
     const pdfWithQR = await addQRCodeToPDF(pdfBuffer, invoiceUrl.trim());
     
     // Güncellenmiş PDF'i kaydet (aynı dosya üzerine yaz)

@@ -54,6 +54,7 @@ export default function TicimaxOrders() {
   const [showJsonModal, setShowJsonModal] = useState(false)
   const [showCargoSlipModal, setShowCargoSlipModal] = useState(false)
   const [cargoSlipUrl, setCargoSlipUrl] = useState<string | null>(null)
+  const [generatingCargoSlip, setGeneratingCargoSlip] = useState(false)
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
   const [bulkUploadFiles, setBulkUploadFiles] = useState<File[]>([])
   const [uploadingBulk, setUploadingBulk] = useState(false)
@@ -816,26 +817,38 @@ export default function TicimaxOrders() {
                       📦 Ticimax - {selectedOrder.orderNumber || selectedOrder.externalOrderId}
                     </p>
                   </div>
-                   <div className="flex items-center gap-2">
-                     <button
-                       onClick={() => {
-                         setShowJsonModal(true)
-                       }}
-                       className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                       title="JSON Verisini Görüntüle"
-                     >
-                       <FileJson className="w-5 h-5" />
-                     </button>
-                     <button
-                       onClick={() => {
-                         setShowOrderDetailModal(false)
-                         setSelectedOrder(null)
-                       }}
-                       className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                     >
-                       <X className="w-5 h-5" />
-                     </button>
-                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleGenerateCargoSlip}
+                      disabled={generatingCargoSlip}
+                      className="p-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50"
+                      title="Kargo Fişi Oluştur"
+                    >
+                      {generatingCargoSlip ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Printer className="w-5 h-5" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowJsonModal(true)
+                      }}
+                      className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                      title="JSON Verisini Görüntüle"
+                    >
+                      <FileJson className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowOrderDetailModal(false)
+                        setSelectedOrder(null)
+                      }}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -871,35 +884,35 @@ export default function TicimaxOrders() {
                             </option>
                           ))}
                         </select>
-                         {selectedCargoSlip && (
-                           <div className="flex items-center gap-2 mt-2 flex-wrap">
-                             <button
-                               onClick={async () => {
-                                 const slip = cargoSlips.find(s => s.fileName === selectedCargoSlip)
-                                 if (slip) {
-                                   await handleViewCargoSlip(slip.fileName)
-                                 }
-                               }}
-                               disabled={loadingCargoSlip}
-                               className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
-                             >
-                               {loadingCargoSlip ? (
-                                 <Loader2 className="w-4 h-4 animate-spin" />
-                               ) : (
-                                 <Eye className="w-4 h-4" />
-                               )}
-                               Görüntüle
-                             </button>
-                             <a
-                               href={`${process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(selectedCargoSlip)}`}
-                               download
-                               className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm"
-                             >
-                               <Download className="w-4 h-4" />
-                               İndir
-                             </a>
-                           </div>
-                         )}
+                        {selectedCargoSlip && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <button
+                              onClick={async () => {
+                                const slip = cargoSlips.find(s => s.fileName === selectedCargoSlip)
+                                if (slip) {
+                                  await handleViewCargoSlip(slip.fileName)
+                                }
+                              }}
+                              disabled={loadingCargoSlip}
+                              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+                            >
+                              {loadingCargoSlip ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                              Görüntüle
+                            </button>
+                            <a
+                              href={`${process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(selectedCargoSlip)}`}
+                              download
+                              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm"
+                            >
+                              <Download className="w-4 h-4" />
+                              İndir
+                            </a>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -973,41 +986,15 @@ export default function TicimaxOrders() {
                             </option>
                           ))}
                         </select>
-                         {selectedInvoiceId && !invoiceLink && (
-                           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                             Seçili fatura kargo fişindeki QR kodda kullanılacak
-                           </p>
-                         )}
-                       </div>
-                     )}
-                     
-                     {/* QR Kod Ekle Butonu */}
-                     {selectedCargoSlip && (invoiceLink || selectedInvoiceId) && (
-                       <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                         <button
-                           onClick={handleAddQRCodeToCargoSlip}
-                           disabled={addingQRCode}
-                           className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                         >
-                           {addingQRCode ? (
-                             <>
-                               <Loader2 className="w-4 h-4 animate-spin" />
-                               QR Kod Ekleniyor...
-                             </>
-                           ) : (
-                             <>
-                               <Printer className="w-4 h-4" />
-                               Kargo Fişine QR Kod Ekle
-                             </>
-                           )}
-                         </button>
-                         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
-                           Seçili kargo fişine fatura linki QR kodu eklenecek
-                         </p>
-                       </div>
-                     )}
-                   </div>
-                 </div>
+                        {selectedInvoiceId && !invoiceLink && (
+                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                            Seçili fatura kargo fişindeki QR kodda kullanılacak
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 {/* Sipariş Bilgileri */}
                 <div>
