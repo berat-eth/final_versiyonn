@@ -1750,6 +1750,9 @@ app.get('/api/ollama/health', async (req, res) => {
 });
 
 app.post('/api/ollama/generate', async (req, res) => {
+  // Model değişkenini try bloğunun dışında tanımla (catch bloğunda erişilebilir olması için)
+  const requestedModel = req.body?.model || 'gemma3:4b';
+  
   try {
     const { messages, model, temperature, maxTokens } = req.body;
     // Yerel Ollama servisi URL'i
@@ -1776,7 +1779,7 @@ app.post('/api/ollama/generate', async (req, res) => {
     prompt += 'Assistant: ';
 
     const requestBody = {
-      model: model || 'gemma2:1b',
+      model: model || 'gemma3:4b',
       prompt,
       stream: false,
       options: {
@@ -1836,7 +1839,7 @@ app.post('/api/ollama/generate', async (req, res) => {
     } else if (error.response) {
       const httpStatus = error.response.status;
       if (httpStatus === 404) {
-        errorMessage = `Model bulunamadı: ${model || 'gemma2:1b'}. Lütfen model adını kontrol edin veya modeli yükleyin.`;
+        errorMessage = `Model bulunamadı: ${requestedModel}. Lütfen model adını kontrol edin veya modeli yükleyin.`;
         statusCode = 404;
       } else if (httpStatus === 500) {
         errorMessage = 'Ollama servisi iç hatası. Model yükleniyor olabilir veya yeterli kaynak yok.';
