@@ -9355,10 +9355,10 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
     const qrImage = await pdfDoc.embedPng(qrImageBytes);
     
-    // QR kod boyutları (sağ üst köşeye yerleştir)
+    // QR kod boyutları (sayfanın alt kısmına, sağ tarafa yerleştir)
     const qrSize = 80;
-    const qrX = width - qrSize - 20;
-    const qrY = height - qrSize - 20;
+    const qrX = width - qrSize - 20; // Sağdan 20px içeride
+    const qrY = 20; // Alttan 20px yukarıda
     
     // QR kod'u PDF'e ekle
     firstPage.drawImage(qrImage, {
