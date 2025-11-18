@@ -9454,26 +9454,14 @@ app.post('/api/admin/ticimax-orders/:orderId/upload-cargo-slip', authenticateAdm
   }
 });
 
-// Admin - Ticimax kargo fişi PDF toplu yükleme
+// Admin - Ticimax kargo fişi PDF toplu yükleme (eşleştirme olmadan, sadece QR kod ekleme)
 app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin, ticimaxCargoSlipUpload.array('cargoSlips', 10), handleMulterError, async (req, res) => {
   try {
-    const tenantId = req.tenant?.id || 1;
-    const { orderMapping } = req.body; // { "orderNumber1": "file1.pdf", "orderNumber2": "file2.pdf" }
-    
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'En az bir kargo fişi PDF dosyası gereklidir'
       });
-    }
-    
-    let parsedMapping = {};
-    if (orderMapping) {
-      try {
-        parsedMapping = typeof orderMapping === 'string' ? JSON.parse(orderMapping) : orderMapping;
-      } catch (e) {
-        console.warn('⚠️ Order mapping parse hatası:', e);
-      }
     }
     
     const results = [];
@@ -9483,31 +9471,7 @@ app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin,
     
     for (const file of req.files) {
       try {
-        // Dosya adından sipariş numarasını çıkar (örnek: "SIP-12345.pdf" -> "SIP-12345")
-        const fileName = file.originalname.replace(/\.pdf$/i, '');
-        let orderNumber = parsedMapping[file.originalname] || parsedMapping[fileName] || fileName;
-        
-        // Siparişi bul
-        const [orders] = await poolWrapper.execute(
-          'SELECT id, externalOrderId, orderNumber FROM ticimax_orders WHERE (orderNumber = ? OR externalOrderId = ?) AND tenantId = ?',
-          [orderNumber, orderNumber, tenantId]
-        );
-        
-        if (orders.length === 0) {
-          errors.push({
-            fileName: file.originalname,
-            error: `Sipariş bulunamadı: ${orderNumber}`
-          });
-          // Dosyayı sil
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
-          }
-          continue;
-        }
-        
-        const order = orders[0];
-        
-        // Fatura linki oluştur
+        // Fatura linki oluştur (her PDF için benzersiz)
         const shareToken = crypto.randomBytes(32).toString('hex');
         const invoiceUrl = `${baseUrl}/api/invoices/share/${shareToken}/download`;
         
@@ -9525,8 +9489,6 @@ app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin,
         }
         
         results.push({
-          orderId: order.id,
-          orderNumber: order.orderNumber || order.externalOrderId,
           fileName: file.originalname,
           cargoSlipPath: finalPath,
           invoiceUrl: invoiceUrl,
@@ -9557,7 +9519,7 @@ app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin,
         results: results,
         errors: errors.length > 0 ? errors : undefined
       },
-      message: `${results.length} kargo fişi başarıyla yüklendi${errors.length > 0 ? `, ${errors.length} dosya başarısız` : ''}`
+      message: `${results.length} kargo fişi başarıyla yüklendi ve QR kod eklendi${errors.length > 0 ? `, ${errors.length} dosya başarısız` : ''}`
     });
   } catch (error) {
     console.error('❌ Error bulk uploading ticimax cargo slips:', error);
