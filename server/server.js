@@ -9600,8 +9600,19 @@ app.get('/api/admin/ticimax-orders/cargo-slips/:fileName', authenticateAdmin, as
       });
     }
     
+    // CORS header'larını set et
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     res.sendFile(filePath);
   } catch (error) {
     console.error('❌ Error downloading cargo slip:', error);

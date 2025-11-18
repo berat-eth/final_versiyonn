@@ -68,7 +68,8 @@ export default function TicimaxOrders() {
   const [cargoSlips, setCargoSlips] = useState<any[]>([])
   const [cargoSlipsLoading, setCargoSlipsLoading] = useState(false)
   const [selectedCargoSlip, setSelectedCargoSlip] = useState<string | null>(null)
-  const [showSelectedCargoSlipModal, setShowSelectedCargoSlipModal] = useState(false)
+  const [selectedCargoSlipUrl, setSelectedCargoSlipUrl] = useState<string | null>(null)
+  const [loadingCargoSlip, setLoadingCargoSlip] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<TicimaxOrder | null>(null)
 
   useEffect(() => {
@@ -387,10 +388,38 @@ export default function TicimaxOrders() {
     }
   }
 
-  const handleViewCargoSlip = (fileName: string) => {
+  const handleViewCargoSlip = async (fileName: string) => {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
-    const url = `${API_BASE_URL}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(fileName)}`
-    window.open(url, '_blank')
+    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+    const token = sessionStorage.getItem('authToken') || ''
+    
+    try {
+      setLoadingCargoSlip(true)
+      const url = `${API_BASE_URL}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(fileName)}`
+      
+      const response = await fetch(url, {
+        headers: {
+          'X-API-Key': API_KEY,
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Key': ADMIN_KEY
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error('PDF yüklenemedi')
+      }
+      
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      setSelectedCargoSlipUrl(objectUrl)
+      setShowCargoSlipModal(true)
+    } catch (error: any) {
+      console.error('Kargo fişi yükleme hatası:', error)
+      alert('Kargo fişi yüklenirken hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
+    } finally {
+      setLoadingCargoSlip(false)
+    }
   }
 
   const handleDownloadCargoSlip = () => {
@@ -858,15 +887,20 @@ export default function TicimaxOrders() {
                         {selectedCargoSlip && (
                           <div className="flex items-center gap-2 mt-2">
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 const slip = cargoSlips.find(s => s.fileName === selectedCargoSlip)
                                 if (slip) {
-                                  handleViewCargoSlip(slip.fileName)
+                                  await handleViewCargoSlip(slip.fileName)
                                 }
                               }}
-                              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+                              disabled={loadingCargoSlip}
+                              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
                             >
-                              <Eye className="w-4 h-4" />
+                              {loadingCargoSlip ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
                               Görüntüle
                             </button>
                             <a
@@ -1218,12 +1252,16 @@ export default function TicimaxOrders() {
 
       {/* Kargo Fişi PDF Modal */}
       <AnimatePresence>
-        {showCargoSlipModal && cargoSlipUrl && selectedOrder && (
+        {showCargoSlipModal && (cargoSlipUrl || selectedCargoSlipUrl) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => {
             setShowCargoSlipModal(false)
             if (cargoSlipUrl) {
               window.URL.revokeObjectURL(cargoSlipUrl)
               setCargoSlipUrl(null)
+            }
+            if (selectedCargoSlipUrl) {
+              window.URL.revokeObjectURL(selectedCargoSlipUrl)
+              setSelectedCargoSlipUrl(null)
             }
           }}>
             <motion.div
@@ -1240,12 +1278,24 @@ export default function TicimaxOrders() {
                       Kargo Fişi
                     </h2>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                      Sipariş: {selectedOrder.orderNumber || selectedOrder.externalOrderId}
+                      {selectedOrder ? `Sipariş: ${selectedOrder.orderNumber || selectedOrder.externalOrderId}` : 'Kargo Fişi'}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={handleDownloadCargoSlip}
+                      onClick={() => {
+                        const url = cargoSlipUrl || selectedCargoSlipUrl
+                        if (url) {
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = selectedOrder 
+                            ? `kargo-fisi-ticimax-${selectedOrder.orderNumber || selectedOrder.externalOrderId}.pdf`
+                            : `kargo-fisi-${selectedCargoSlip || 'ticimax'}.pdf`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                        }
+                      }}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
                       <Download className="w-4 h-4" />
@@ -1258,6 +1308,10 @@ export default function TicimaxOrders() {
                           window.URL.revokeObjectURL(cargoSlipUrl)
                           setCargoSlipUrl(null)
                         }
+                        if (selectedCargoSlipUrl) {
+                          window.URL.revokeObjectURL(selectedCargoSlipUrl)
+                          setSelectedCargoSlipUrl(null)
+                        }
                       }}
                       className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                     >
@@ -1269,7 +1323,7 @@ export default function TicimaxOrders() {
 
               <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900">
                 <iframe
-                  src={cargoSlipUrl}
+                  src={cargoSlipUrl || selectedCargoSlipUrl || ''}
                   className="w-full h-full border-0"
                   title="Kargo Fişi PDF"
                 />
