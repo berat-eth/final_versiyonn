@@ -9343,11 +9343,13 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const pages = pdfDoc.getPages();
     
     // Sadece ilk sayfayı kullan, diğer sayfaları kaldır
-    while (pages.length > 1) {
-      pdfDoc.removePage(pages.length - 1);
+    // Sayfa sayısını önce al, sonra geriye doğru sil (index hatası önlemek için)
+    const pageCount = pdfDoc.getPageCount();
+    for (let i = pageCount - 1; i > 0; i--) {
+      pdfDoc.removePage(i);
     }
     
-    const firstPage = pages[0];
+    const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
     
     // QR kod oluştur
