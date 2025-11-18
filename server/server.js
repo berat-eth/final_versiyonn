@@ -9542,6 +9542,54 @@ app.post('/api/admin/ticimax-orders/bulk-upload-cargo-slips', authenticateAdmin,
   }
 });
 
+// Admin - Ticimax mevcut kargo fişine QR kod ekle
+app.post('/api/admin/ticimax-orders/cargo-slips/:fileName/add-qr', authenticateAdmin, async (req, res) => {
+  try {
+    const fileName = req.params.fileName;
+    const { invoiceUrl } = req.body;
+    
+    if (!invoiceUrl || !invoiceUrl.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fatura linki gereklidir'
+      });
+    }
+    
+    const filePath = path.join(ticimaxCargoSlipsDir, fileName);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Kargo fişi bulunamadı'
+      });
+    }
+    
+    // PDF'i oku
+    const pdfBuffer = fs.readFileSync(filePath);
+    
+    // QR kod ekle
+    const pdfWithQR = await addQRCodeToPDF(pdfBuffer, invoiceUrl.trim());
+    
+    // Güncellenmiş PDF'i kaydet (aynı dosya üzerine yaz)
+    fs.writeFileSync(filePath, pdfWithQR);
+    
+    res.json({
+      success: true,
+      data: {
+        fileName: fileName,
+        invoiceUrl: invoiceUrl.trim()
+      },
+      message: 'QR kod başarıyla eklendi'
+    });
+  } catch (error) {
+    console.error('❌ Error adding QR code to cargo slip:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'QR kod eklenirken hata oluştu'
+    });
+  }
+});
+
 // Admin - Ticimax kargo fişlerini listele
 app.get('/api/admin/ticimax-orders/cargo-slips', authenticateAdmin, async (req, res) => {
   try {
