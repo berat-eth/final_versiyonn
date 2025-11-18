@@ -9350,6 +9350,22 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
     
+    // En üstteki QR kod ve beyaz kareyi kaldırmak için sağ üst köşe bölgesini kapat
+    // Sadece QR kod bölgesini hedefle, tüm üst kısmı kapatma
+    const topQRSize = 120;
+    const topQRX = width - topQRSize - 15; // Sağdan 15px içeride
+    const topQRY = height - topQRSize - 15; // Üstten 15px aşağıda
+    
+    // Üst kısımdaki QR kod ve beyaz kareyi kapat
+    firstPage.drawRectangle({
+      x: topQRX - 10,
+      y: topQRY - 10,
+      width: topQRSize + 20,
+      height: topQRSize + 20,
+      color: rgb(1, 1, 1), // Beyaz renk
+      borderColor: rgb(1, 1, 1),
+    });
+    
     // QR kod oluştur - DHL barkod fişlerine uyumlu boyut
     const qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl, {
       width: 300, // Yüksek çözünürlük için
