@@ -9352,6 +9352,21 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
     
+    // Üstteki mevcut QR kodunu kapatmak için beyaz dikdörtgen ekle
+    const existingQRSize = 120;
+    const existingQRX = width - existingQRSize - 20; // Sağdan 20px içeride
+    const existingQRY = height - existingQRSize - 20; // Üstten 20px aşağıda
+    
+    // Beyaz kutu çizerek mevcut QR kodunu kapat
+    firstPage.drawRectangle({
+      x: existingQRX - 10,
+      y: existingQRY - 10,
+      width: existingQRSize + 20,
+      height: existingQRSize + 20,
+      color: rgb(1, 1, 1), // Beyaz renk
+      borderColor: rgb(1, 1, 1),
+    });
+    
     // QR kod oluştur
     const qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl, {
       width: 200,
@@ -9377,9 +9392,10 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
       height: qrSize
     });
     
-    // QR kodun altına "E-Fatura Bilgisi" metnini ekle
+    // QR kodun altına "E-Fatura Bilgisi" metnini ekle (merkeze hizalı)
+    const textWidth = 70; // Yaklaşık metin genişliği
     firstPage.drawText('E-Fatura Bilgisi', {
-      x: qrX + (qrSize / 2) - 35, // QR kodun ortasına hizalı (metin genişliği yaklaşık 70px)
+      x: qrX + (qrSize / 2) - (textWidth / 2), // QR kodun tam ortasına hizalı
       y: qrY - 15, // QR kodun 15px altına
       size: 8,
       color: rgb(0, 0, 0), // Siyah renk
