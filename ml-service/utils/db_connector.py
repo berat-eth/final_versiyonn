@@ -126,18 +126,24 @@ class DBConnector:
     
     async def execute_many(self, query: str, params_list: List[tuple]) -> int:
         """Execute many queries"""
+        conn = self._get_connection()
         try:
             loop = asyncio.get_event_loop()
             def _execute_many():
-                with self.pool.cursor() as cursor:
-                    affected = cursor.executemany(query, params_list)
-                    self.pool.commit()
-                    return affected
+                try:
+                    with conn.cursor() as cursor:
+                        affected = cursor.executemany(query, params_list)
+                        conn.commit()
+                        return affected
+                except Exception as e:
+                    conn.rollback()
+                    raise
             return await loop.run_in_executor(None, _execute_many)
         except Exception as e:
-            self.pool.rollback()
             logger.error(f"Database executemany error: {e}")
             raise
+        finally:
+            self._return_connection(conn)
     
     async def insert_predictions(self, predictions: List[Dict[str, Any]]):
         """Insert predictions batch"""

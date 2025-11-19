@@ -104,6 +104,12 @@ export default function Dashboard() {
   const [hepsiburadaPendingCount, setHepsiburadaPendingCount] = useState<number>(0)
   const [hepsiburadaCompletedCount, setHepsiburadaCompletedCount] = useState<number>(0)
 
+  // Ticimax istatistikleri
+  const [ticimaxOrdersCount, setTicimaxOrdersCount] = useState<number>(0)
+  const [ticimaxTotalAmount, setTicimaxTotalAmount] = useState<number>(0)
+  const [ticimaxPendingCount, setTicimaxPendingCount] = useState<number>(0)
+  const [ticimaxCompletedCount, setTicimaxCompletedCount] = useState<number>(0)
+
   // Chart height'ı responsive yap
   useEffect(() => {
     const updateChartHeight = () => {
@@ -119,7 +125,7 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes, trendyolOrders, hepsiburadaOrders] = await Promise.all([
+        const [productsRes, adminOrders, adminCategories, categoryStats, customRequests, snortRes, trendyolOrders, hepsiburadaOrders, ticimaxOrders] = await Promise.all([
           productService.getProducts(1, 50),
           api.get<any>('/admin/orders'),
           api.get<any>('/admin/categories'),
@@ -127,7 +133,8 @@ export default function Dashboard() {
           api.get<any>('/admin/custom-production-requests').catch(()=>({ success:true, data: [] })),
           api.get<any>('/admin/snort/logs').catch(()=>({ success:true, data: [] })),
           api.get<any>('/admin/marketplace-orders', { provider: 'trendyol' }).catch(()=>({ success:true, data: [], total: 0, totalAmount: 0 })),
-          api.get<any>('/admin/hepsiburada-orders').catch(()=>({ success:true, data: [], total: 0, totalAmount: 0 }))
+          api.get<any>('/admin/hepsiburada-orders').catch(()=>({ success:true, data: [], total: 0, totalAmount: 0 })),
+          api.get<any>('/admin/ticimax-orders').catch(()=>({ success:true, data: [], total: 0, totalAmount: 0 }))
         ])
         // Snort IDS status
         try {
@@ -236,18 +243,107 @@ export default function Dashboard() {
           setPendingPaymentCount(pending.length)
           setPendingAmount(pending.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0))
 
-          // Sales trend (son 7 gün)
-          const byDay = new Map<string, { satis: number; siparis: number }>()
-          orders.forEach((o) => {
+          // Sales trend - timeRange'a göre hesapla
+          const now = new Date()
+          let startDate = new Date()
+          let groupBy: 'day' | 'week' | 'month' = 'day'
+          
+          switch (timeRange) {
+            case '1day':
+              startDate = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000)
+              groupBy = 'day'
+              break
+            case '3days':
+              startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
+              groupBy = 'day'
+              break
+            case '5days':
+              startDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000)
+              groupBy = 'day'
+              break
+            case '7days':
+              startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+              groupBy = 'day'
+              break
+            case '30days':
+              startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+              groupBy = 'day'
+              break
+            case '3months':
+              startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+              groupBy = 'week'
+              break
+            case 'year':
+              startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+              groupBy = 'month'
+              break
+            default:
+              startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+              groupBy = 'day'
+          }
+
+          const filteredOrders = orders.filter((o: any) => {
+            const orderDate = new Date(o.createdAt)
+            return orderDate >= startDate
+          })
+
+          const byPeriod = new Map<string, { satis: number; siparis: number }>()
+          
+          filteredOrders.forEach((o: any) => {
             const d = new Date(o.createdAt)
-            const key = formatDDMMYYYY(d)
-            const prev = byDay.get(key) || { satis: 0, siparis: 0 }
+            let key = ''
+            
+            if (groupBy === 'day') {
+              key = formatDDMMYYYY(d)
+            } else if (groupBy === 'week') {
+              const weekStart = new Date(d)
+              weekStart.setDate(d.getDate() - d.getDay())
+              key = `Hafta ${formatDDMMYYYY(weekStart)}`
+            } else if (groupBy === 'month') {
+              const monthNames = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+              key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`
+            }
+            
+            const prev = byPeriod.get(key) || { satis: 0, siparis: 0 }
             prev.satis += Number(o.totalAmount) || 0
             prev.siparis += 1
-            byDay.set(key, prev)
+            byPeriod.set(key, prev)
           })
-          const days = Array.from(byDay.entries()).sort((a,b)=>a[0]<b[0]? -1:1).slice(-7)
-          setSalesData(days.map(([name, v]) => ({ name, satis: Math.round(v.satis), siparis: v.siparis, musteri: 0 })))
+          
+          // Eksik günleri/haftaları/ayları doldur
+          const result: Array<{ name: string; satis: number; siparis: number; musteri: number }> = []
+          
+          if (groupBy === 'day') {
+            const currentDate = new Date(startDate)
+            while (currentDate <= now) {
+              const key = formatDDMMYYYY(currentDate)
+              const data = byPeriod.get(key) || { satis: 0, siparis: 0 }
+              result.push({ name: key, satis: Math.round(data.satis), siparis: data.siparis, musteri: 0 })
+              currentDate.setDate(currentDate.getDate() + 1)
+            }
+          } else if (groupBy === 'week') {
+            const currentDate = new Date(startDate)
+            currentDate.setDate(currentDate.getDate() - currentDate.getDay())
+            while (currentDate <= now) {
+              const weekStart = new Date(currentDate)
+              const key = `Hafta ${formatDDMMYYYY(weekStart)}`
+              const data = byPeriod.get(key) || { satis: 0, siparis: 0 }
+              result.push({ name: key, satis: Math.round(data.satis), siparis: data.siparis, musteri: 0 })
+              currentDate.setDate(currentDate.getDate() + 7)
+            }
+          } else if (groupBy === 'month') {
+            const currentDate = new Date(startDate)
+            currentDate.setDate(1)
+            const monthNames = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+            while (currentDate <= now) {
+              const key = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+              const data = byPeriod.get(key) || { satis: 0, siparis: 0 }
+              result.push({ name: key, satis: Math.round(data.satis), siparis: data.siparis, musteri: 0 })
+              currentDate.setMonth(currentDate.getMonth() + 1)
+            }
+          }
+          
+          setSalesData(result)
 
           // Recent orders (son 10)
           setRecentOrders(
@@ -493,6 +589,55 @@ export default function Dashboard() {
           setHepsiburadaCompletedCount(0)
         }
 
+        // Ticimax sipariş istatistikleri
+        try {
+          if ((ticimaxOrders as any)?.success && (ticimaxOrders as any).data) {
+            const orders = (ticimaxOrders as any).data as any[]
+            const responseWithTotal = ticimaxOrders as any
+            
+            // Toplam sipariş sayısı
+            if (responseWithTotal.total !== undefined) {
+              setTicimaxOrdersCount(responseWithTotal.total)
+            } else {
+              setTicimaxOrdersCount(orders.length)
+            }
+            
+            // Toplam tutar
+            if (responseWithTotal.totalAmount !== undefined) {
+              setTicimaxTotalAmount(responseWithTotal.totalAmount)
+            } else {
+              const calculatedTotal = orders.reduce((sum: number, order: any) => {
+                return sum + (parseFloat(String(order.totalAmount || 0)))
+              }, 0)
+              setTicimaxTotalAmount(calculatedTotal)
+            }
+            
+            // Durum bazlı sayılar
+            const lower = (s: any) => (typeof s === 'string' ? s.toLowerCase() : '')
+            const pending = orders.filter((o: any) => {
+              const status = lower(o.status)
+              return status === 'pending' || status === 'processing' || status === 'waiting'
+            })
+            const completed = orders.filter((o: any) => {
+              const status = lower(o.status)
+              return status === 'completed' || status === 'delivered' || status === 'shipped'
+            })
+            
+            setTicimaxPendingCount(pending.length)
+            setTicimaxCompletedCount(completed.length)
+          } else {
+            setTicimaxOrdersCount(0)
+            setTicimaxTotalAmount(0)
+            setTicimaxPendingCount(0)
+            setTicimaxCompletedCount(0)
+          }
+        } catch {
+          setTicimaxOrdersCount(0)
+          setTicimaxTotalAmount(0)
+          setTicimaxPendingCount(0)
+          setTicimaxCompletedCount(0)
+        }
+
         // Gerçek Zamanlı Aktivite - Gerçek verilerden oluştur
         try {
           const activities: any[] = []
@@ -584,7 +729,7 @@ export default function Dashboard() {
       }
     }
     load()
-  }, [])
+  }, [timeRange])
 
   // Yardımcı fonksiyonlar
   const formatTimeAgo = (date: Date): string => {
@@ -973,6 +1118,57 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
+      {/* Ticimax İstatistikleri */}
+      <div className="flex items-center justify-between mt-6">
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Ticimax Siparişleri</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Sipariş</p>
+              <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{ticimaxOrdersCount.toLocaleString('tr-TR')}</p>
+            </div>
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+              <ShoppingCart className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Toplam Tutar</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">₺{ticimaxTotalAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Bekleyen</p>
+              <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{ticimaxPendingCount}</p>
+            </div>
+            <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center">
+              <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-slate-600 dark:text-slate-300 text-sm">Tamamlanan</p>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400">{ticimaxCompletedCount}</p>
+            </div>
+            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
       {/* Özel Toptan Üretim Özet Kartları (B2B) */}
       <div className="flex items-center justify-between mt-6">
         <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">B2B • Özel Toptan Üretim</h3>
@@ -1070,30 +1266,45 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
             <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Satış Trendi</h3>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setActiveChart('sales')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'sales' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-300"
               >
-                Satış
-              </button>
-              <button
-                onClick={() => setActiveChart('orders')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'orders' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-              >
-                Sipariş
-              </button>
-              <button
-                onClick={() => setActiveChart('customers')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'customers' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-              >
-                Müşteri
-              </button>
+                <option value="1day">Günlük (Son 1 Gün)</option>
+                <option value="3days">Günlük (Son 3 Gün)</option>
+                <option value="5days">Günlük (Son 5 Gün)</option>
+                <option value="7days">Günlük (Son 7 Gün)</option>
+                <option value="30days">Günlük (Son 30 Gün)</option>
+                <option value="3months">Haftalık (Son 3 Ay)</option>
+                <option value="year">Aylık (Bu Yıl)</option>
+              </select>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setActiveChart('sales')}
+                  className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'sales' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                >
+                  Satış
+                </button>
+                <button
+                  onClick={() => setActiveChart('orders')}
+                  className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'orders' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                >
+                  Sipariş
+                </button>
+                <button
+                  onClick={() => setActiveChart('customers')}
+                  className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors ${activeChart === 'customers' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                >
+                  Müşteri
+                </button>
+              </div>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
@@ -1583,41 +1794,147 @@ export default function Dashboard() {
 
       {/* Müşteri Davranışı ve Gerçek Zamanlı Aktivite */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Müşteri Davranışı</h3>
-            <Users className="w-5 h-5 text-slate-400 dark:text-slate-500" />
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            {customerBehavior && customerBehavior.length > 0 ? (
-            <RadarChart data={customerBehavior}>
-              <PolarGrid stroke={theme === 'dark' ? '#334155' : '#e2e8f0'} />
-              <PolarAngleAxis dataKey="metric" stroke={theme === 'dark' ? '#94a3b8' : '#64748b'} />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} stroke={theme === 'dark' ? '#94a3b8' : '#64748b'} />
-              <Radar name="Puan" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
-              <Tooltip />
-            </RadarChart>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Veri yok</div>
-            )}
-          </ResponsiveContainer>
-          <div className="mt-4 space-y-2">
-            {customerBehavior.map((item) => (
-              <div key={item.metric} className="flex items-center justify-between">
-                <span className="text-sm text-slate-600 dark:text-slate-300">{item.metric}</span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
-                      style={{ width: `${item.value}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 w-8">{item.value}</span>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-white via-purple-50/30 to-blue-50/30 dark:from-slate-800 dark:via-purple-900/20 dark:to-blue-900/20 rounded-2xl shadow-lg border border-purple-100/50 dark:border-purple-800/30 p-6 relative overflow-hidden"
+        >
+          {/* Dekoratif arka plan elemanları */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-200/20 to-blue-200/20 dark:from-purple-800/10 dark:to-blue-800/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-blue-200/20 to-purple-200/20 dark:from-blue-800/10 dark:to-purple-800/10 rounded-full blur-2xl -ml-12 -mb-12"></div>
+          
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Müşteri Davranışı</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Analiz ve İstatistikler</p>
                 </div>
               </div>
-            ))}
+            </div>
+            
+            <ResponsiveContainer width="100%" height={280}>
+              {customerBehavior && customerBehavior.length > 0 ? (
+                <RadarChart data={customerBehavior}>
+                  <defs>
+                    <linearGradient id="radarGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    </linearGradient>
+                  </defs>
+                  <PolarGrid 
+                    stroke={theme === 'dark' ? '#475569' : '#cbd5e1'} 
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                  />
+                  <PolarAngleAxis 
+                    dataKey="metric" 
+                    stroke={theme === 'dark' ? '#cbd5e1' : '#64748b'}
+                    fontSize={11}
+                    fontWeight={500}
+                    tick={{ fill: theme === 'dark' ? '#cbd5e1' : '#64748b' }}
+                  />
+                  <PolarRadiusAxis 
+                    angle={90} 
+                    domain={[0, 100]} 
+                    stroke={theme === 'dark' ? '#64748b' : '#94a3b8'}
+                    tick={false}
+                    axisLine={false}
+                  />
+                  <Radar 
+                    name="Puan" 
+                    dataKey="value" 
+                    stroke="#8b5cf6" 
+                    strokeWidth={2.5}
+                    fill="url(#radarGradient)" 
+                    fillOpacity={0.7}
+                    dot={{ fill: '#8b5cf6', r: 4, strokeWidth: 2, stroke: '#fff' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: theme === 'dark' ? '#1e293b' : 'white',
+                      border: 'none',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                      padding: '12px',
+                    }}
+                    labelStyle={{
+                      color: theme === 'dark' ? '#cbd5e1' : '#1e293b',
+                      fontWeight: 600,
+                      marginBottom: '4px',
+                    }}
+                    itemStyle={{
+                      color: theme === 'dark' ? '#cbd5e1' : '#1e293b',
+                    }}
+                    formatter={(value: number) => [`${value}%`, 'Puan']}
+                  />
+                </RadarChart>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">
+                  <div className="text-center">
+                    <Users className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
+                    <p>Veri yok</p>
+                  </div>
+                </div>
+              )}
+            </ResponsiveContainer>
+            
+            <div className="mt-6 space-y-3 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
+              {customerBehavior.map((item, index) => {
+                const getIcon = () => {
+                  if (item.metric.includes('Görüntüleme')) return Eye
+                  if (item.metric.includes('Sepete')) return ShoppingCart
+                  if (item.metric.includes('Satın')) return CheckCircle
+                  if (item.metric.includes('Etkileşim')) return Activity
+                  return Target
+                }
+                const Icon = getIcon()
+                const getColor = () => {
+                  if (item.value >= 80) return 'from-emerald-500 to-green-500'
+                  if (item.value >= 60) return 'from-blue-500 to-cyan-500'
+                  if (item.value >= 40) return 'from-yellow-500 to-orange-500'
+                  return 'from-red-500 to-pink-500'
+                }
+                return (
+                  <motion.div 
+                    key={item.metric}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="group"
+                  >
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 hover:shadow-md transition-all duration-300 hover:border-purple-300 dark:hover:border-purple-700">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getColor()} flex items-center justify-center flex-shrink-0 shadow-md`}>
+                          <Icon className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{item.metric}</p>
+                          <div className="mt-1.5 w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${item.value}%` }}
+                              transition={{ duration: 0.8, delay: index * 0.1, ease: "easeOut" }}
+                              className={`h-full bg-gradient-to-r ${getColor()} rounded-full shadow-sm`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="ml-3 flex-shrink-0">
+                        <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/10 to-blue-500/10 dark:from-purple-500/20 dark:to-blue-500/20 border border-purple-200/50 dark:border-purple-700/50">
+                          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.value}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        </motion.div>
 
         <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-between mb-6">

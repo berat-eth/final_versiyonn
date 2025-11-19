@@ -103,6 +103,11 @@ class RealtimeProcessor:
     async def _process_events_loop(self):
         """Main event processing loop"""
         logger.info(f"🔄 Event processing loop started, listening on queue: {config.REDIS_QUEUE_NAME}")
+        logger.info(f"   Models status - Purchase: {self.purchase_model is not None and self.purchase_model.is_trained if self.purchase_model else False}")
+        logger.info(f"   Models status - Anomaly: {self.anomaly_model is not None and self.anomaly_model.is_trained if self.anomaly_model else False}")
+        logger.info(f"   Models status - Recommendation: {self.recommendation_model is not None and self.recommendation_model.is_trained if self.recommendation_model else False}")
+        logger.info(f"   Models status - Segmentation: {self.segmentation_model is not None and self.segmentation_model.is_trained if self.segmentation_model else False}")
+        
         while self.running:
             try:
                 # Get event from Redis queue
@@ -110,24 +115,27 @@ class RealtimeProcessor:
                 
                 if result:
                     queue_name, event_json = result
-                    event = json.loads(event_json)
-                    logger.info(f"📥 Received event: {event.get('eventType')} from user {event.get('userId')}")
-                    
-                    # Add to buffer
-                    self.event_buffer.append(event)
-                    
-                    # Process immediately if buffer reaches threshold, or process single event for real-time
-                    if len(self.event_buffer) >= config.EVENT_BATCH_SIZE:
-                        logger.info(f"📦 Processing batch of {len(self.event_buffer)} events")
-                        await self._process_batch(self.event_buffer)
-                        self.event_buffer = []
-                    # For real-time processing, also process single events after a short delay
-                    elif len(self.event_buffer) == 1:
-                        # Process single event immediately for real-time response
-                        await asyncio.sleep(0.1)  # Small delay to allow more events to accumulate
-                        if len(self.event_buffer) > 0:
+                    try:
+                        event = json.loads(event_json)
+                        logger.info(f"📥 Received event: {event.get('eventType')} from user {event.get('userId')}")
+                        
+                        # Add to buffer
+                        self.event_buffer.append(event)
+                        
+                        # Process immediately if buffer reaches threshold, or process single event for real-time
+                        if len(self.event_buffer) >= config.EVENT_BATCH_SIZE:
+                            logger.info(f"📦 Processing batch of {len(self.event_buffer)} events")
                             await self._process_batch(self.event_buffer)
                             self.event_buffer = []
+                        # For real-time processing, also process single events after a short delay
+                        elif len(self.event_buffer) == 1:
+                            # Process single event immediately for real-time response
+                            await asyncio.sleep(0.1)  # Small delay to allow more events to accumulate
+                            if len(self.event_buffer) > 0:
+                                await self._process_batch(self.event_buffer)
+                                self.event_buffer = []
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ Invalid JSON in event: {e}, raw: {event_json[:100]}")
                 
                 # Process buffer periodically even if not full
                 elif self.event_buffer:
@@ -136,7 +144,7 @@ class RealtimeProcessor:
                     self.event_buffer = []
                     
             except Exception as e:
-                logger.error(f"Error in event processing loop: {e}")
+                logger.error(f"❌ Error in event processing loop: {e}", exc_info=True)
                 await asyncio.sleep(1)
     
     async def _process_batch(self, events: List[Dict[str, Any]]):
@@ -247,14 +255,26 @@ class RealtimeProcessor:
                             logger.error(f"Segmentation error: {e}")
             
             # Save to database
-            if predictions:
-                await self.db.insert_predictions(predictions)
+            try:
+                if predictions:
+                    await self.db.insert_predictions(predictions)
+                    logger.info(f"💾 Saved {len(predictions)} predictions to database")
+            except Exception as e:
+                logger.error(f"❌ Error saving predictions: {e}", exc_info=True)
             
-            if anomalies:
-                await self.db.insert_anomalies(anomalies)
+            try:
+                if anomalies:
+                    await self.db.insert_anomalies(anomalies)
+                    logger.info(f"💾 Saved {len(anomalies)} anomalies to database")
+            except Exception as e:
+                logger.error(f"❌ Error saving anomalies: {e}", exc_info=True)
             
-            if segments:
-                await self.db.insert_segments(segments)
+            try:
+                if segments:
+                    await self.db.insert_segments(segments)
+                    logger.info(f"💾 Saved {len(segments)} segments to database")
+            except Exception as e:
+                logger.error(f"❌ Error saving segments: {e}", exc_info=True)
             
             # Generate recommendations (less frequent)
             if self.recommendation_model and self.recommendation_model.is_trained:
@@ -292,8 +312,12 @@ class RealtimeProcessor:
                     except Exception as e:
                         logger.error(f"Recommendation error for user {user_id}: {e}")
                 
-                if recommendations:
-                    await self.db.insert_recommendations(recommendations)
+                try:
+                    if recommendations:
+                        await self.db.insert_recommendations(recommendations)
+                        logger.info(f"💾 Saved {len(recommendations)} recommendations to database")
+                except Exception as e:
+                    logger.error(f"❌ Error saving recommendations: {e}", exc_info=True)
             
             self.events_processed += len(events)
             logger.info(f"✅ Processed {len(events)} events | Total: {self.events_processed} | Predictions: {self.predictions_made} | Anomalies: {self.anomalies_detected} | Recommendations: {self.recommendations_generated}")
