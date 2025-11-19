@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { useTheme } from '@/lib/ThemeContext'
 import { 
   Brain, TrendingUp, Users, ShoppingCart, AlertTriangle, Target,
-  RefreshCw, Download, Filter, BarChart3, Zap, Activity, Eye, FileText, AlertCircle
+  RefreshCw, Download, Filter, BarChart3, Zap, Activity, Eye, FileText, AlertCircle, X
 } from 'lucide-react'
 import { 
   Line, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, 
