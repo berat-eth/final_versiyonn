@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown, MapPin, Mail, Container } from 'lucide-react'
+import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown, MapPin, Mail } from 'lucide-react'
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Bar, Legend } from 'recharts'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
@@ -101,15 +101,6 @@ export default function ServerStats() {
     uptime: '0g 0s',
     load: 0
   })
-  const [dockerStats, setDockerStats] = useState<any>({
-    runningContainers: 0,
-    totalContainers: 0,
-    imagesCount: 0,
-    diskUsage: 0,
-    status: 'online',
-    uptime: '0g 0s',
-    load: 0
-  })
 
   // Mock üretim yardımcıları
   const randomBetween = (min: number, max: number) => Math.round(min + Math.random() * (max - min))
@@ -170,19 +161,6 @@ export default function ServerStats() {
           setSnortStats({ totalLogs, highPriority, mediumPriority, lowPriority, dropped, alerts, blocked: dropped, status, uptime, load })
         }
       } catch {}
-
-      // Docker
-      const dockerStatus = Math.random() > 0.95 ? 'warning' : 'online'
-      const docker = {
-        runningContainers: randomBetween(3, 15),
-        totalContainers: randomBetween(8, 25),
-        imagesCount: randomBetween(5, 20),
-        diskUsage: randomFloat(2.5, 15.8, 1),
-        status: dockerStatus,
-        uptime: randomUptime(),
-        load: randomBetween(5, 95)
-      }
-      setDockerStats(docker)
     }
 
     generate()
@@ -705,46 +683,6 @@ export default function ServerStats() {
                 <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Loglar</span><span className="font-semibold text-slate-800 dark:text-slate-100">{snortStats.totalLogs}</span></div>
                 <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Uyarı</span><span className="font-semibold text-slate-800 dark:text-slate-100">{snortStats.alerts}</span></div>
                 <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Engellenen</span><span className="font-semibold text-slate-800 dark:text-slate-100">{snortStats.blocked}</span></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Docker */}
-          <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:shadow-md dark:hover:shadow-lg transition-shadow bg-white dark:bg-slate-800">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                  <Container className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-800 dark:text-slate-100">Docker</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Container</p>
-                </div>
-              </div>
-              <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(dockerStats.status)}`}>
-                {getStatusIcon(dockerStats.status)}
-                <span className="capitalize">{dockerStats.status}</span>
-              </span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Uptime</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.uptime}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Load</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.load}%</span>
-              </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
-                <div
-                  className={`h-1.5 rounded-full ${dockerStats.load > 70 ? 'bg-red-500' : dockerStats.load > 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                  style={{ width: `${dockerStats.load}%` }}
-                ></div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 pt-2 text-xs">
-                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Çalışan</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.runningContainers}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Toplam</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.totalContainers}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-500 dark:text-slate-400">Disk</span><span className="font-semibold text-slate-800 dark:text-slate-100">{dockerStats.diskUsage}GB</span></div>
               </div>
             </div>
           </div>

@@ -387,7 +387,6 @@ Ana Bileşenler:
 
 4.8. DEPLOYMENT
 ---------------
-- Docker desteği
 - PM2 yönetimi
 - Systemd entegrasyonu
 - Nginx reverse proxy
@@ -525,8 +524,6 @@ Ana Bileşenler:
 
 6.6. DEPLOYMENT VE DEVOPS
 ------------------------
-- Docker
-- Docker Compose
 - PM2
 - Nginx
 - Systemd
