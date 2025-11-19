@@ -64,11 +64,11 @@ class MLService {
   }
 
   /**
-   * Get ML predictions for user
+   * Get ML predictions for user (userId optional - if null, returns all)
    */
-  async getPredictions(userId, tenantId = 1, limit = 10) {
+  async getPredictions(userId = null, tenantId = 1, limit = 50) {
     try {
-      const [rows] = await poolWrapper.execute(`
+      let query = `
         SELECT 
           id,
           userId,
@@ -77,15 +77,34 @@ class MLService {
           metadata,
           createdAt
         FROM ml_predictions
-        WHERE userId = ? AND tenantId = ?
-        ORDER BY createdAt DESC
-        LIMIT ?
-      `, [userId, tenantId, limit]);
+        WHERE tenantId = ?
+      `;
+      const params = [tenantId];
 
-      return rows.map(row => ({
-        ...row,
-        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : row.metadata
-      }));
+      if (userId !== null) {
+        query += ` AND userId = ?`;
+        params.push(userId);
+      }
+
+      query += ` ORDER BY createdAt DESC LIMIT ?`;
+      params.push(limit);
+
+      const [rows] = await poolWrapper.execute(query, params);
+
+      return rows.map(row => {
+        try {
+          return {
+            ...row,
+            metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : (row.metadata || {})
+          };
+        } catch (parseError) {
+          console.warn(`⚠️ Error parsing metadata for prediction ${row.id}:`, parseError);
+          return {
+            ...row,
+            metadata: {}
+          };
+        }
+      });
     } catch (error) {
       console.error('❌ Error getting predictions:', error);
       throw error;
@@ -93,11 +112,11 @@ class MLService {
   }
 
   /**
-   * Get ML recommendations for user
+   * Get ML recommendations for user (userId optional - if null, returns all)
    */
-  async getRecommendations(userId, tenantId = 1) {
+  async getRecommendations(userId = null, tenantId = 1, limit = 50) {
     try {
-      const [rows] = await poolWrapper.execute(`
+      let query = `
         SELECT 
           id,
           userId,
@@ -107,22 +126,42 @@ class MLService {
           createdAt,
           updatedAt
         FROM ml_recommendations
-        WHERE userId = ? AND tenantId = ?
-        ORDER BY updatedAt DESC
-        LIMIT 1
-      `, [userId, tenantId]);
+        WHERE tenantId = ?
+      `;
+      const params = [tenantId];
 
-      if (rows.length === 0) {
-        return null;
+      if (userId !== null) {
+        query += ` AND userId = ?`;
+        params.push(userId);
       }
 
-      const rec = rows[0];
-      return {
-        ...rec,
-        productIds: rec.productIds.split(',').map(id => parseInt(id)),
-        scores: rec.scores.split(',').map(score => parseFloat(score)),
-        metadata: typeof rec.metadata === 'string' ? JSON.parse(rec.metadata || '{}') : rec.metadata
-      };
+      query += ` ORDER BY updatedAt DESC LIMIT ?`;
+      params.push(limit);
+
+      const [rows] = await poolWrapper.execute(query, params);
+
+      if (rows.length === 0) {
+        return [];
+      }
+
+      return rows.map(rec => {
+        try {
+          return {
+            ...rec,
+            productIds: rec.productIds ? rec.productIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)) : [],
+            scores: rec.scores ? rec.scores.split(',').map(score => parseFloat(score.trim())).filter(score => !isNaN(score)) : [],
+            metadata: typeof rec.metadata === 'string' ? JSON.parse(rec.metadata || '{}') : (rec.metadata || {})
+          };
+        } catch (parseError) {
+          console.warn(`⚠️ Error parsing recommendation ${rec.id}:`, parseError);
+          return {
+            ...rec,
+            productIds: [],
+            scores: [],
+            metadata: {}
+          };
+        }
+      });
     } catch (error) {
       console.error('❌ Error getting recommendations:', error);
       throw error;

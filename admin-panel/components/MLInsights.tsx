@@ -51,15 +51,15 @@ export default function MLInsights() {
           break
 
         case 'predictions':
-          // Get predictions for recent users
-          const predRes = await api.get(`/admin/ml/predictions?userId=1&limit=50&tenantId=${tenantId}`) as any
+          // Get all predictions (userId optional)
+          const predRes = await api.get(`/admin/ml/predictions?limit=50&tenantId=${tenantId}`) as any
           setPredictions(predRes.data || [])
           break
 
         case 'recommendations':
-          // Get recommendations for recent users
-          const recRes = await api.get(`/admin/ml/recommendations?userId=1&tenantId=${tenantId}`) as any
-          setRecommendations(recRes.data ? [recRes.data] : [])
+          // Get all recommendations (userId optional)
+          const recRes = await api.get(`/admin/ml/recommendations?limit=50&tenantId=${tenantId}`) as any
+          setRecommendations(Array.isArray(recRes.data) ? recRes.data : (recRes.data ? [recRes.data] : []))
           break
 
         case 'anomalies':
@@ -343,31 +343,40 @@ function PredictionsSection({ data, theme }: any) {
 
 // Recommendations Section
 function RecommendationsSection({ data, theme }: any) {
+  const recommendations = Array.isArray(data) ? data : (data ? [data] : []);
+  
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md">
         <h3 className="text-lg font-semibold mb-4">Ürün Önerileri</h3>
-        {data.length === 0 ? (
+        {recommendations.length === 0 ? (
           <p className="text-slate-600 dark:text-slate-400">Henüz öneri verisi yok</p>
         ) : (
           <div className="space-y-4">
-            {data.map((rec: any, index: number) => (
+            {recommendations.map((rec: any, index: number) => (
               <div key={index} className="border-b border-slate-200 dark:border-slate-700 pb-4">
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium">Kullanıcı ID: {rec.userId}</span>
                   <span className="text-sm text-slate-600 dark:text-slate-400">
-                    {new Date(rec.updatedAt).toLocaleDateString('tr-TR')}
+                    {rec.updatedAt ? new Date(rec.updatedAt).toLocaleDateString('tr-TR') : 
+                     rec.createdAt ? new Date(rec.createdAt).toLocaleDateString('tr-TR') : '-'}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
-                  {rec.productIds?.slice(0, 10).map((productId: number, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded">
-                      <span>Ürün #{productId}</span>
-                      <span className="text-sm font-bold text-blue-600">
-                        {(rec.scores[idx] * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                  ))}
+                  {rec.productIds && rec.productIds.length > 0 ? (
+                    rec.productIds.slice(0, 10).map((productId: number, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded">
+                        <span>Ürün #{productId}</span>
+                        <span className="text-sm font-bold text-blue-600">
+                          {rec.scores && rec.scores[idx] !== undefined 
+                            ? `${(rec.scores[idx] * 100).toFixed(1)}%` 
+                            : '-'}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-slate-500 text-sm">Bu öneri için ürün bilgisi yok</p>
+                  )}
                 </div>
               </div>
             ))}

@@ -9,26 +9,20 @@ router.use(authenticateAdmin);
 
 /**
  * Get ML predictions
- * GET /api/admin/ml/predictions?userId=1&limit=10
+ * GET /api/admin/ml/predictions?userId=1&limit=10 (userId optional)
  */
 router.get('/predictions', async (req, res) => {
   try {
     const userId = req.query.userId ? parseInt(req.query.userId) : null;
     const tenantId = parseInt(req.query.tenantId) || parseInt(req.headers['x-tenant-id']) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 50;
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'userId is required'
-      });
-    }
-
+    // userId opsiyonel - yoksa tüm predictions'ı getir
     const predictions = await mlService.getPredictions(userId, tenantId, limit);
 
     res.json({
       success: true,
-      data: predictions
+      data: predictions || []
     });
   } catch (error) {
     console.error('❌ Error getting predictions:', error);
@@ -41,25 +35,20 @@ router.get('/predictions', async (req, res) => {
 
 /**
  * Get ML recommendations
- * GET /api/admin/ml/recommendations?userId=1
+ * GET /api/admin/ml/recommendations?userId=1 (userId optional)
  */
 router.get('/recommendations', async (req, res) => {
   try {
     const userId = req.query.userId ? parseInt(req.query.userId) : null;
     const tenantId = parseInt(req.query.tenantId) || parseInt(req.headers['x-tenant-id']) || 1;
+    const limit = parseInt(req.query.limit) || 50;
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'userId is required'
-      });
-    }
-
-    const recommendations = await mlService.getRecommendations(userId, tenantId);
+    // userId opsiyonel - yoksa tüm recommendations'ı getir
+    const recommendations = await mlService.getRecommendations(userId, tenantId, limit);
 
     res.json({
       success: true,
-      data: recommendations
+      data: recommendations || []
     });
   } catch (error) {
     console.error('❌ Error getting recommendations:', error);
