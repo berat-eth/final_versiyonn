@@ -19160,7 +19160,6 @@ async function startServer() {
           ca.productName,
           ca.productPrice,
           ca.productImage,
-          ca.voiceUrl,
           ca.timestamp,
           p.name as productFullName,
           p.price as productFullPrice,
