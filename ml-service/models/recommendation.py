@@ -67,7 +67,11 @@ class RecommendationModel:
         self.model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=config.LEARNING_RATE),
             loss='binary_crossentropy',
-            metrics=['accuracy', 'precision', 'recall']
+            metrics=[
+                'accuracy',
+                keras.metrics.Precision(name='precision'),
+                keras.metrics.Recall(name='recall')
+            ]
         )
         
         logger.info("Recommendation model built")
