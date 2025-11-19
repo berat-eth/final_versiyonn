@@ -2996,5 +2996,6 @@ module.exports = {
   get poolWrapper() {
     return getPoolWrapper();
   },
+  getPoolWrapper,
   setPoolWrapper
 };

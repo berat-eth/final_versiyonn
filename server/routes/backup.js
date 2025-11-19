@@ -1,11 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const { getPoolWrapper } = require('../database-schema');
 const { authenticateAdmin } = require('../middleware/auth');
 const InputValidation = require('../security/input-validation');
 
-// poolWrapper'ı al
-const poolWrapper = getPoolWrapper();
+// Lazy load poolWrapper to avoid initialization order issues
+function getPoolWrapper() {
+  if (global.poolWrapper) {
+    return global.poolWrapper;
+  }
+  const { poolWrapper } = require('../database-schema');
+  return poolWrapper;
+}
+
+// poolWrapper'ı lazy olarak al (her kullanımda kontrol et)
+function getPool() {
+  return getPoolWrapper();
+}
 
 const inputValidator = new InputValidation();
 
@@ -60,7 +70,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
     for (const table of ALLOWED_TABLES) {
       try {
         // Tablo ismi whitelist'te olduğu için güvenli - backtick ile sarmalayarak kullan
-        const [rows] = await poolWrapper.execute(`SELECT * FROM \`${table}\``);
+        const [rows] = await getPool().execute(`SELECT * FROM \`${table}\``);
         backupData[table] = rows;
         console.log(`✅ Table ${table}: ${rows.length} records`);
       } catch (error) {
@@ -112,7 +122,7 @@ router.get('/sql', authenticateAdmin, async (req, res) => {
     
     // Sadece whitelist'teki tabloları al - Güvenli parametreli sorgu
     const placeholders = ALLOWED_TABLES.map(() => '?').join(',');
-    const [tables] = await poolWrapper.execute(`
+    const [tables] = await getPool().execute(`
       SELECT TABLE_NAME 
       FROM INFORMATION_SCHEMA.TABLES 
       WHERE TABLE_SCHEMA = DATABASE()
@@ -133,7 +143,7 @@ router.get('/sql', authenticateAdmin, async (req, res) => {
       
       try {
         // Tablo ismi validate edildi - backtick ile sarmalayarak kullan
-        const [createTable] = await poolWrapper.execute(`SHOW CREATE TABLE \`${tableName}\``);
+        const [createTable] = await getPool().execute(`SHOW CREATE TABLE \`${tableName}\``);
         if (createTable && createTable[0]) {
           sqlBackup += `-- Table structure for table \`${tableName}\`\n`;
           sqlBackup += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
@@ -141,7 +151,7 @@ router.get('/sql', authenticateAdmin, async (req, res) => {
         }
         
         // Tablo verilerini al - tablo ismi validate edildi
-        const [rows] = await poolWrapper.execute(`SELECT * FROM \`${tableName}\``);
+        const [rows] = await getPool().execute(`SELECT * FROM \`${tableName}\``);
         
         if (rows.length > 0) {
           sqlBackup += `-- Data for table \`${tableName}\`\n`;
@@ -244,7 +254,7 @@ router.post('/restore', authenticateAdmin, async (req, res) => {
         }
         
         if (sql.trim()) {
-          await poolWrapper.execute(sql.trim());
+          await getPool().execute(sql.trim());
         }
       }
       
@@ -264,7 +274,7 @@ router.post('/restore', authenticateAdmin, async (req, res) => {
         
         if (Array.isArray(records) && records.length > 0) {
           // Tabloyu temizle - tablo ismi validate edildi
-          await poolWrapper.execute(`DELETE FROM \`${sanitizedTableName}\``);
+          await getPool().execute(`DELETE FROM \`${sanitizedTableName}\``);
           
           // Verileri ekle
           for (const record of records) {
@@ -283,7 +293,7 @@ router.post('/restore', authenticateAdmin, async (req, res) => {
             // Column isimlerini backtick ile sarmala
             const columnNames = sanitizedColumns.map(col => `\`${col}\``).join(', ');
             
-            await poolWrapper.execute(
+            await getPool().execute(
               `INSERT INTO \`${sanitizedTableName}\` (${columnNames}) VALUES (${placeholders})`,
               values
             );
