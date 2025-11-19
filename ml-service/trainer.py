@@ -41,7 +41,7 @@ class ModelTrainer:
                     ube.timestamp,
                     ube.sessionId
                 FROM user_behavior_events ube
-                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL %s DAY)
                     AND ube.userId IS NOT NULL
                 ORDER BY ube.userId, ube.timestamp
             """
@@ -59,7 +59,7 @@ class ModelTrainer:
                     userId,
                     createdAt as purchaseDate
                 FROM orders
-                WHERE createdAt >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                WHERE createdAt >= DATE_SUB(NOW(), INTERVAL %s DAY)
                     AND status = 'completed'
             """
             purchases = await self.db.execute(purchase_query, (days,))
@@ -131,7 +131,7 @@ class ModelTrainer:
                         ELSE 0.1
                     END as rating
                 FROM user_behavior_events ube
-                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL %s DAY)
                     AND ube.userId IS NOT NULL
                     AND JSON_EXTRACT(ube.eventData, '$.productId') IS NOT NULL
             """
@@ -169,7 +169,7 @@ class ModelTrainer:
                     ube.eventData,
                     ube.eventType
                 FROM user_behavior_events ube
-                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL %s DAY)
                     AND ube.userId IS NOT NULL
                 LIMIT 10000
             """
@@ -200,7 +200,7 @@ class ModelTrainer:
                     ube.eventData,
                     ube.timestamp
                 FROM user_behavior_events ube
-                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                WHERE ube.timestamp >= DATE_SUB(NOW(), INTERVAL %s DAY)
                     AND ube.userId IS NOT NULL
                 ORDER BY ube.userId, ube.timestamp
             """
