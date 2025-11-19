@@ -1,6 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
 import logging
@@ -25,9 +24,16 @@ redis_connector = None
 db_connector = None
 realtime_processor = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
+# FastAPI app
+app = FastAPI(
+    title="ML Analytics Service",
+    description="Machine Learning service for user behavior analysis",
+    version="1.0.0"
+)
+
+@app.on_event("startup")
+async def startup_event():
+    """Startup event handler"""
     global redis_connector, db_connector, realtime_processor
     
     logger.info("🚀 Starting ML Service...")
@@ -78,10 +84,12 @@ async def lifespan(app: FastAPI):
         raise
     
     logger.info("✅ ML Service started successfully")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown event handler"""
+    global redis_connector, db_connector, realtime_processor
     
-    yield
-    
-    # Shutdown
     logger.info("🛑 Shutting down ML Service...")
     
     if realtime_processor:
@@ -94,14 +102,6 @@ async def lifespan(app: FastAPI):
         await redis_connector.close()
     
     logger.info("✅ ML Service shut down")
-
-# FastAPI app
-app = FastAPI(
-    title="ML Analytics Service",
-    description="Machine Learning service for user behavior analysis",
-    version="1.0.0",
-    lifespan=lifespan
-)
 
 # CORS middleware
 app.add_middleware(
