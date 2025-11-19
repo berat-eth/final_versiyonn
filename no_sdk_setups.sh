@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# Huglu + N8N + AI Service Full Stack Deployment Script
+# Huglu + N8N + AI Service + CasaOS Full Stack Deployment Script
 # SDK Tools Disabled - Only Project Dependencies
 # Debian 11 Bullseye Optimized
 # Domains:
@@ -9,8 +9,10 @@
 #   API: api.plaxsy.com
 #   Admin: admin.plaxsy.com
 #   N8N: otomasyon.plaxsy.com
+#   CasaOS: casaos.plaxsy.com
 # Services:
 #   AI/ML Service: localhost:8001 (internal only)
+#   CasaOS: localhost:80 (default)
 # ========================================
 
 set -e
@@ -56,6 +58,10 @@ N8N_PORT=5678
 N8N_USER=$(whoami)
 N8N_DIR="/home/$N8N_USER/n8n"
 
+# CasaOS
+CASAOS_DOMAIN="casaos.plaxsy.com"
+CASAOS_PORT=80
+
 # Redis
 REDIS_PORT=6379
 REDIS_MAXMEMORY="256mb"
@@ -69,6 +75,7 @@ SKIP_ADMIN=false
 SKIP_MAIN=false
 SKIP_N8N=false
 SKIP_AI=false
+SKIP_CASAOS=false
 
 # --------------------------
 # Root Check
@@ -110,7 +117,7 @@ cleanup_and_fix
 # --------------------------
 # System Update and Packages
 # --------------------------
-echo -e "${BLUE}[1/8] Updating system...${NC}"
+echo -e "${BLUE}[1/9] Updating system...${NC}"
 apt update -y && apt upgrade -y
 
 # Required packages for Debian 11
@@ -140,7 +147,7 @@ apt install -y \
 # --------------------------
 # Redis Installation and Configuration (No Password)
 # --------------------------
-echo -e "${BLUE}[2/8] Installing and configuring Redis...${NC}"
+echo -e "${BLUE}[2/9] Installing and configuring Redis...${NC}"
 
 # Stop Redis
 systemctl stop redis-server 2>/dev/null || true
@@ -282,7 +289,7 @@ fi
 # --------------------------
 # Node.js and PM2
 # --------------------------
-echo -e "${BLUE}[3/8] Installing Node.js and PM2...${NC}"
+echo -e "${BLUE}[3/9] Installing Node.js and PM2...${NC}"
 if ! command -v node &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt install -y nodejs
@@ -296,7 +303,7 @@ npm --version
 # --------------------------
 # Clone Repository and Check Directories
 # --------------------------
-echo -e "${BLUE}[4/8] Cloning repository...${NC}"
+echo -e "${BLUE}[4/9] Cloning repository...${NC}"
 if [ ! -d "/root/final_versiyonn" ]; then
     git clone https://github.com/berat-eth/final_versiyonn.git /root/final_versiyonn
 else
@@ -307,7 +314,7 @@ fi
 # --------------------------
 # Main Site Setup (plaxsy.com - Next.js)
 # --------------------------
-echo -e "${BLUE}[5/8] Setting up main site (Next.js - plaxsy.com)...${NC}"
+echo -e "${BLUE}[5/9] Setting up main site (Next.js - plaxsy.com)...${NC}"
 if [ -d "$MAIN_DIR" ]; then
     cd $MAIN_DIR
     
@@ -360,7 +367,7 @@ fi
 # --------------------------
 # API Setup
 # --------------------------
-echo -e "${BLUE}[6/8] Setting up API...${NC}"
+echo -e "${BLUE}[6/9] Setting up API...${NC}"
 if [ -d "$API_DIR" ]; then
     cd $API_DIR
     
@@ -418,7 +425,7 @@ fi
 # --------------------------
 # AI/ML Service Setup (Python)
 # --------------------------
-echo -e "${BLUE}[7/8] Setting up AI/ML Service (Python)...${NC}"
+echo -e "${BLUE}[7/9] Setting up AI/ML Service (Python)...${NC}"
 if [ -d "$AI_DIR" ]; then
     cd $AI_DIR
     
@@ -496,7 +503,7 @@ fi
 # --------------------------
 # N8N Installation Check and Setup
 # --------------------------
-echo -e "${BLUE}[8/8] Checking N8N...${NC}"
+echo -e "${BLUE}[8/9] Checking N8N...${NC}"
 
 # Check if N8N is already installed and running
 N8N_INSTALLED=false
@@ -579,6 +586,38 @@ EOF
     su - $N8N_USER -c "cd $N8N_DIR && pm2 start ecosystem.config.js && pm2 save"
     env PATH=$PATH:/usr/bin pm2 startup systemd -u $N8N_USER --hp /home/$N8N_USER
     echo -e "${GREEN}✅ N8N successfully installed (with Redis integration)${NC}"
+fi
+
+# --------------------------
+# CasaOS Installation
+# --------------------------
+echo -e "${BLUE}[9/9] Installing CasaOS...${NC}"
+
+# Check if CasaOS is already installed
+if command -v casaos &>/dev/null || [ -d "/var/lib/casaos" ]; then
+    echo -e "${YELLOW}⚠️  CasaOS is already installed, skipping...${NC}"
+    SKIP_CASAOS=true
+else
+    echo -e "${YELLOW}Installing CasaOS...${NC}"
+    
+    # Download and run CasaOS installation script
+    curl -fsSL https://get.casaos.io | bash
+    
+    # Wait for CasaOS to start
+    sleep 5
+    
+    # Check if CasaOS is running
+    if systemctl is-active --quiet casaos; then
+        echo -e "${GREEN}✅ CasaOS successfully installed and started${NC}"
+        
+        # Get CasaOS version
+        CASAOS_VERSION=$(casaos -v 2>/dev/null || echo "unknown")
+        echo -e "${GREEN}   CasaOS Version: $CASAOS_VERSION${NC}"
+        echo -e "${GREEN}   CasaOS Dashboard: http://localhost:${CASAOS_PORT}${NC}"
+    else
+        echo -e "${RED}❌ CasaOS failed to start! Check logs: journalctl -u casaos${NC}"
+        SKIP_CASAOS=true
+    fi
 fi
 
 # --------------------------
@@ -681,6 +720,34 @@ EOF
 ln -sf /etc/nginx/sites-available/n8n /etc/nginx/sites-enabled/
 fi
 
+# CasaOS - Only if successfully installed
+if [ "$SKIP_CASAOS" != true ]; then
+cat > /etc/nginx/sites-available/casaos << 'EOF'
+server {
+    listen 80;
+    server_name casaos.plaxsy.com;
+    client_max_body_size 100M;
+    
+    location / {
+        proxy_pass http://127.0.0.1:80;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        
+        # WebSocket support
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+}
+EOF
+ln -sf /etc/nginx/sites-available/casaos /etc/nginx/sites-enabled/
+fi
+
 # Nginx test and reload
 nginx -t && systemctl reload nginx
 
@@ -705,6 +772,11 @@ fi
 # N8N SSL - Only for new installation
 if [ "$SKIP_N8N" != true ]; then
     certbot --nginx -d $N8N_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+fi
+
+# CasaOS SSL - Only if successfully installed
+if [ "$SKIP_CASAOS" != true ]; then
+    certbot --nginx -d $CASAOS_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
 fi
 
 # Auto renewal
@@ -791,6 +863,11 @@ echo ""
 echo -e "${BLUE}Redis Status:${NC}"
 systemctl status redis-server --no-pager
 echo ""
+if [ "$SKIP_CASAOS" != true ]; then
+    echo -e "${BLUE}CasaOS Status:${NC}"
+    systemctl status casaos --no-pager
+    echo ""
+fi
 echo -e "${GREEN}Domains:${NC}"
 if [ "$SKIP_MAIN" != true ]; then
     echo -e "  Main: https://$MAIN_DOMAIN"
@@ -802,6 +879,9 @@ fi
 if [ "$SKIP_N8N" != true ]; then
     echo -e "  N8N: https://$N8N_DOMAIN"
 fi
+if [ "$SKIP_CASAOS" != true ]; then
+    echo -e "  CasaOS: https://$CASAOS_DOMAIN"
+fi
 echo ""
 echo -e "${GREEN}Internal Services:${NC}"
 if [ "$SKIP_AI" != true ]; then
@@ -812,8 +892,19 @@ echo -e "${BLUE}System Architecture:${NC}"
 echo -e "  Mobile App → Event tracking → MySQL + Redis queue"
 echo -e "  Redis queue → Python ML Service → Model inference → MySQL"
 echo -e "  Admin Panel → Node.js API → MySQL → ML results display"
+if [ "$SKIP_CASAOS" != true ]; then
+    echo -e "  CasaOS → Docker container management → Home server apps"
+fi
 echo ""
 echo -e "${YELLOW}Note: SDK tools (Java, Android SDK, Gradle) were NOT installed${NC}"
 echo -e "${YELLOW}Only project dependencies were installed${NC}"
 echo ""
-if [ "$SKIP_AI" != true
+if [ "$SKIP_CASAOS" != true ]; then
+    echo -e "${BLUE}CasaOS Management:${NC}"
+    echo -e "  Access CasaOS dashboard at: https://$CASAOS_DOMAIN"
+    echo -e "  Manage Docker containers and home server apps"
+    echo -e "  CasaOS CLI: casaos-cli"
+    echo ""
+fi
+echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
+echo -e "${BLUE}========================================${NC}"
