@@ -28,6 +28,7 @@ export default function MLInsights() {
   const [models, setModels] = useState<any[]>([])
   const [logs, setLogs] = useState<any>(null)
   const [logType, setLogType] = useState('training')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -41,48 +42,95 @@ export default function MLInsights() {
 
   const loadData = async () => {
     setLoading(true)
+    setError(null)
     try {
       const tenantId = 1
 
       switch (activeSection) {
         case 'overview':
           const statsRes = await api.get(`/admin/ml/statistics?timeRange=${timeRange}&tenantId=${tenantId}`) as any
-          setStatistics(statsRes.data)
+          console.log('📊 Statistics response:', statsRes)
+          if (statsRes && statsRes.success !== false) {
+            setStatistics(statsRes.data || statsRes)
+          } else {
+            setError(statsRes?.message || 'İstatistikler yüklenemedi')
+            setStatistics(null)
+          }
           break
 
         case 'predictions':
           // Get all predictions (userId optional)
           const predRes = await api.get(`/admin/ml/predictions?limit=50&tenantId=${tenantId}`) as any
-          setPredictions(predRes.data || [])
+          console.log('🔮 Predictions response:', predRes)
+          if (predRes && predRes.success !== false) {
+            setPredictions(predRes.data || predRes || [])
+          } else {
+            setError(predRes?.message || 'Tahminler yüklenemedi')
+            setPredictions([])
+          }
           break
 
         case 'recommendations':
           // Get all recommendations (userId optional)
           const recRes = await api.get(`/admin/ml/recommendations?limit=50&tenantId=${tenantId}`) as any
-          setRecommendations(Array.isArray(recRes.data) ? recRes.data : (recRes.data ? [recRes.data] : []))
+          console.log('🛍️ Recommendations response:', recRes)
+          if (recRes && recRes.success !== false) {
+            const recData = recRes.data || recRes
+            setRecommendations(Array.isArray(recData) ? recData : (recData ? [recData] : []))
+          } else {
+            setError(recRes?.message || 'Öneriler yüklenemedi')
+            setRecommendations([])
+          }
           break
 
         case 'anomalies':
           const anomRes = await api.get(`/admin/ml/anomalies?limit=100&tenantId=${tenantId}`) as any
-          setAnomalies(anomRes.data)
+          console.log('⚠️ Anomalies response:', anomRes)
+          if (anomRes && anomRes.success !== false) {
+            setAnomalies(anomRes.data || anomRes)
+          } else {
+            setError(anomRes?.message || 'Anomaliler yüklenemedi')
+            setAnomalies(null)
+          }
           break
 
         case 'segments':
           const segRes = await api.get(`/admin/ml/segments?tenantId=${tenantId}`) as any
-          setSegments(segRes.data || [])
+          console.log('👥 Segments response:', segRes)
+          if (segRes && segRes.success !== false) {
+            setSegments(segRes.data || segRes || [])
+          } else {
+            setError(segRes?.message || 'Segmentler yüklenemedi')
+            setSegments([])
+          }
           break
 
         case 'models':
           const modelsRes = await api.get(`/admin/ml/models`) as any
-          setModels(modelsRes.data || [])
+          console.log('🤖 Models response:', modelsRes)
+          if (modelsRes && modelsRes.success !== false) {
+            setModels(modelsRes.data || modelsRes || [])
+          } else {
+            setError(modelsRes?.message || 'Modeller yüklenemedi')
+            setModels([])
+          }
           break
 
         case 'logs':
           await loadLogs()
           break
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error loading ML data:', error)
+      const errorMsg = error.message || error.response?.data?.message || 'Veri yüklenirken bir hata oluştu'
+      setError(errorMsg)
+      // Reset all data states on error
+      setStatistics(null)
+      setPredictions([])
+      setRecommendations([])
+      setAnomalies(null)
+      setSegments([])
+      setModels([])
     } finally {
       setLoading(false)
     }
@@ -90,6 +138,7 @@ export default function MLInsights() {
 
   const loadLogs = async () => {
     try {
+      setError(null)
       let logsRes
       switch (logType) {
         case 'training':
@@ -104,9 +153,17 @@ export default function MLInsights() {
         default:
           logsRes = await api.get(`/admin/ml/logs/training?limit=100`) as any
       }
-      setLogs(logsRes.data)
-    } catch (error) {
+      console.log('📋 Logs response:', logsRes)
+      if (logsRes && logsRes.success !== false) {
+        setLogs(logsRes.data || logsRes)
+      } else {
+        setError(logsRes?.message || 'Loglar yüklenemedi')
+        setLogs(null)
+      }
+    } catch (error: any) {
       console.error('❌ Error loading logs:', error)
+      const errorMsg = error.message || error.response?.data?.message || 'Loglar yüklenirken bir hata oluştu'
+      setError(errorMsg)
       setLogs(null)
     }
   }
@@ -211,10 +268,34 @@ export default function MLInsights() {
         })}
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <div>
+              <p className="font-semibold text-red-800 dark:text-red-200">Hata</p>
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="mt-6">
         {activeSection === 'overview' && statistics && (
           <OverviewSection data={statistics} theme={theme} />
+        )}
+        {activeSection === 'overview' && !statistics && !loading && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md text-center">
+            <p className="text-slate-600 dark:text-slate-400">Henüz istatistik verisi yok</p>
+          </div>
         )}
         {activeSection === 'predictions' && (
           <PredictionsSection data={predictions} theme={theme} />
@@ -224,6 +305,11 @@ export default function MLInsights() {
         )}
         {activeSection === 'anomalies' && anomalies && (
           <AnomaliesSection data={anomalies} theme={theme} />
+        )}
+        {activeSection === 'anomalies' && !anomalies && !loading && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-md text-center">
+            <p className="text-slate-600 dark:text-slate-400">Henüz anomali verisi yok</p>
+          </div>
         )}
         {activeSection === 'segments' && (
           <SegmentsSection data={segments} theme={theme} />
