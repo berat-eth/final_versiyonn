@@ -20,13 +20,14 @@ class SegmentationModel:
         self.dbscan = None
         self.autoencoder = None
         self.is_trained = False
-        self.segment_names = [
+        self.base_segment_names = [
             'VIP Müşteriler',
             'Aktif Alıcılar',
             'Potansiyel Müşteriler',
             'Az Aktif',
             'Yeni Müşteriler'
         ]
+        self.segment_names = self.base_segment_names[:num_segments]
     
     def build_autoencoder(self, input_dim: int = 50):
         """Build autoencoder for feature extraction"""
@@ -106,16 +107,38 @@ class SegmentationModel:
         else:
             features = data
         
+        # Ensure n_clusters doesn't exceed number of samples
+        # Otomatik cluster sayısı: en az 2, en fazla 5
+        n_samples = features.shape[0]
+        n_clusters = min(5, max(2, n_samples))  # en az 2, en fazla 5
+        
+        if n_samples < 2:
+            logger.warning(f"Insufficient data for K-means: {n_samples} samples, need at least 2")
+            return
+        
+        if n_clusters < self.num_segments:
+            logger.warning(f"Reducing clusters from {self.num_segments} to {n_clusters} (only {n_samples} samples available)")
+        
         # Train K-means
         self.kmeans = KMeans(
-            n_clusters=self.num_segments,
+            n_clusters=n_clusters,
             random_state=42,
             n_init=10,
             max_iter=300
         )
         self.kmeans.fit(features)
         
-        logger.info("K-means clustering trained")
+        # Update num_segments to match actual clusters
+        self.num_segments = n_clusters
+        
+        # Update segment names to match number of clusters
+        if n_clusters <= len(self.base_segment_names):
+            self.segment_names = self.base_segment_names[:n_clusters]
+        else:
+            # If more clusters than names, extend with generic names
+            self.segment_names = self.base_segment_names + [f'Segment {i}' for i in range(len(self.base_segment_names), n_clusters)]
+        
+        logger.info(f"K-means clustering trained with {n_clusters} clusters on {n_samples} samples")
     
     def train_dbscan(self, data: np.ndarray, eps: float = 0.5, min_samples: int = 5, use_autoencoder: bool = True):
         """Train DBSCAN clustering"""

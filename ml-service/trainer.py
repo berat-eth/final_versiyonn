@@ -138,21 +138,31 @@ class ModelTrainer:
             interactions = await self.db.execute(query, (days,))
             
             if not interactions:
-                return None, None, None
+                logger.warning("No recommendation training data available")
+                return None, None, None, 0, 0
             
             # Create mappings
-            user_ids = list(set([int(i['userId']) for i in interactions]))
-            product_ids = list(set([int(i['productId']) for i in interactions if i['productId']]))
+            user_ids = sorted(list(set([int(i['userId']) for i in interactions if i['userId']])))
+            product_ids = sorted(list(set([int(i['productId']) for i in interactions if i['productId']])))
+            
+            if not user_ids or not product_ids:
+                logger.warning("Insufficient recommendation training data (no users or products)")
+                return None, None, None, 0, 0
             
             user_map = {uid: idx for idx, uid in enumerate(user_ids)}
             product_map = {pid: idx for idx, pid in enumerate(product_ids)}
             
             # Create arrays
-            user_array = np.array([user_map[int(i['userId'])] for i in interactions])
-            product_array = np.array([product_map[int(i['productId'])] for i in interactions if i['productId']])
-            ratings = np.array([float(i['rating']) for i in interactions if i['productId']])
+            user_array = np.array([user_map[int(i['userId'])] for i in interactions if i['userId'] and i['productId']])
+            product_array = np.array([product_map[int(i['productId'])] for i in interactions if i['userId'] and i['productId']])
+            ratings = np.array([float(i['rating']) for i in interactions if i['userId'] and i['productId']])
             
-            return user_array, product_array, ratings, len(user_ids), len(product_ids)
+            num_users = len(user_ids)
+            num_products = len(product_ids)
+            
+            logger.info(f"Recommendation data prepared: {len(user_array)} interactions, {num_users} users, {num_products} products")
+            
+            return user_array, product_array, ratings, num_users, num_products
             
         except Exception as e:
             import traceback
@@ -246,8 +256,23 @@ class ModelTrainer:
                 logger.warning(warning_msg)
                 return
             
+            # Check minimum data requirements
+            purchase_count = int(np.sum(labels))
+            unique_users_approx = len(sequences)  # Approximate
+            
+            if len(sequences) < 20:
+                warning_msg = f"⚠️ Çok az eğitim örneği ({len(sequences)}). Model overfit olabilir. Önerilen: en az 200 örnek."
+                print(warning_msg, flush=True)
+                logger.warning(warning_msg)
+            if purchase_count < 5:
+                warning_msg = f"⚠️ Çok az satın alma etiketi ({purchase_count}). Model etkili öğrenemeyebilir. Önerilen: en az 20-50 satın alma."
+                print(warning_msg, flush=True)
+                logger.warning(warning_msg)
+            
             print(f"📈 Veri boyutları - Sequences: {sequences.shape}, Features: {features.shape}, Labels: {labels.shape}", flush=True)
             logger.info(f"📈 Veri boyutları - Sequences: {sequences.shape}, Features: {features.shape}, Labels: {labels.shape}")
+            print(f"📊 İstatistikler - Toplam örnek: {len(sequences)}, Satın alma etiketi: {purchase_count}", flush=True)
+            logger.info(f"📊 İstatistikler - Toplam örnek: {len(sequences)}, Satın alma etiketi: {purchase_count}")
             
             print("🏗️ Model oluşturuluyor...", flush=True)
             logger.info("🏗️ Model oluşturuluyor...")
@@ -313,11 +338,38 @@ class ModelTrainer:
             
             # Prepare data
             result = await self.prepare_training_data_recommendation()
+            
+            # Eğer result None ise veya yetersiz veri varsa
             if result is None:
-                logger.warning("No training data available")
+                logger.warning("No training data available for recommendation model")
                 return
             
-            user_ids, product_ids, ratings, num_users, num_products = result
+            # Result'un uzunluğunu kontrol et (3 veya 5 değer olabilir)
+            if len(result) < 3:
+                logger.warning("Recommendation model: yetersiz veri")
+                return
+            
+            # Eğer 3 değer döndürülmüşse (eski format), otomatik hesapla
+            if len(result) == 3:
+                user_ids, product_ids, ratings = result
+                if user_ids is None or product_ids is None or ratings is None:
+                    logger.warning("Recommendation model: yetersiz veri")
+                    return
+                # Otomatik değer ataması
+                num_users = len(set(user_ids)) if len(user_ids) > 0 else 0
+                num_products = len(set(product_ids)) if len(product_ids) > 0 else 0
+            else:
+                # 5 değer döndürülmüşse (yeni format)
+                user_ids, product_ids, ratings, num_users, num_products = result
+            
+            # Veri kontrolü
+            if result[0] is None or num_users == 0 or num_products == 0:
+                logger.warning("No training data available for recommendation model")
+                return
+            
+            if len(user_ids) == 0 or len(product_ids) == 0:
+                logger.warning("Insufficient training data for recommendation model")
+                return
             
             # Create model
             model = RecommendationModel(
