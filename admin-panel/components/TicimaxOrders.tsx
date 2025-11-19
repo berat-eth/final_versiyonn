@@ -72,6 +72,7 @@ export default function TicimaxOrders() {
   const [addingQRCode, setAddingQRCode] = useState(false)
   const [deletingCargoSlip, setDeletingCargoSlip] = useState<string | null>(null)
   const [selectedOrder, setSelectedOrder] = useState<TicimaxOrder | null>(null)
+  const [cargoSlipGenerated, setCargoSlipGenerated] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -414,6 +415,11 @@ export default function TicimaxOrders() {
       const objectUrl = window.URL.createObjectURL(blob)
       setSelectedCargoSlipUrl(objectUrl)
       setShowCargoSlipModal(true)
+      
+      // Kargo fişi görüntülendi, state'e ekle (eğer sipariş seçiliyse)
+      if (selectedOrder?.id) {
+        setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
+      }
     } catch (error: any) {
       console.error('Kargo fişi yükleme hatası:', error)
       alert('Kargo fişi yüklenirken hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
@@ -486,6 +492,11 @@ export default function TicimaxOrders() {
     a.click()
     window.URL.revokeObjectURL(cargoSlipUrl)
     document.body.removeChild(a)
+    
+    // Kargo fişi başarıyla indirildi, state'e ekle
+    if (selectedOrder.id) {
+      setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
+    }
   }
 
   const handleBulkUploadFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -752,9 +763,17 @@ export default function TicimaxOrders() {
                       {order.totalAmount.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(order.status)}`}>
-                        {getStatusLabel(order.status)}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(order.status)}`}>
+                          {getStatusLabel(order.status)}
+                        </span>
+                        {cargoSlipGenerated.has(order.id) && (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium border bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 flex items-center gap-1">
+                            <Printer className="w-3 h-3" />
+                            Kargo Gişi Yazıldı
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
                       {new Date(order.createdAt).toLocaleDateString('tr-TR')}
@@ -1362,6 +1381,11 @@ export default function TicimaxOrders() {
                           document.body.appendChild(a)
                           a.click()
                           document.body.removeChild(a)
+                          
+                          // Kargo fişi başarıyla indirildi, state'e ekle
+                          if (selectedOrder?.id) {
+                            setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
+                          }
                         }
                       }}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -1737,14 +1761,49 @@ export default function TicimaxOrders() {
                               <Eye className="w-4 h-4" />
                               Görüntüle
                             </button>
-                            <a
-                              href={`${process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(slip.fileName)}`}
-                              download
+                            <button
+                              onClick={async () => {
+                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+                                const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                                const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+                                const token = sessionStorage.getItem('authToken') || ''
+                                
+                                try {
+                                  const response = await fetch(`${API_BASE_URL}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(slip.fileName)}`, {
+                                    headers: {
+                                      'X-API-Key': API_KEY,
+                                      'Authorization': `Bearer ${token}`,
+                                      'X-Admin-Key': ADMIN_KEY
+                                    }
+                                  })
+                                  
+                                  if (response.ok) {
+                                    const blob = await response.blob()
+                                    const url = window.URL.createObjectURL(blob)
+                                    const a = document.createElement('a')
+                                    a.href = url
+                                    a.download = slip.fileName || `kargo-fisi-${slip.fileName}.pdf`
+                                    document.body.appendChild(a)
+                                    a.click()
+                                    window.URL.revokeObjectURL(url)
+                                    document.body.removeChild(a)
+                                    
+                                    // Kargo fişi başarıyla indirildi, state'e ekle
+                                    if (slip.orderId && selectedOrder?.id === slip.orderId) {
+                                      setCargoSlipGenerated(prev => new Set(prev).add(slip.orderId))
+                                    } else if (selectedOrder?.id) {
+                                      setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
+                                    }
+                                  }
+                                } catch (error) {
+                                  console.error('Kargo fişi indirme hatası:', error)
+                                }
+                              }}
                               className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                             >
                               <Download className="w-4 h-4" />
                               İndir
-                            </a>
+                            </button>
                             <button
                               onClick={() => handleDeleteCargoSlip(slip.fileName)}
                               disabled={deletingCargoSlip === slip.fileName}

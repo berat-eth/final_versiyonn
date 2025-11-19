@@ -55,7 +55,9 @@ class DataProcessor:
         
         # Event data features
         event_data = event.get('eventData', {})
-        if isinstance(event_data, str):
+        if event_data is None:
+            event_data = {}
+        elif isinstance(event_data, str):
             try:
                 event_data = json.loads(event_data)
             except:
@@ -146,7 +148,9 @@ class DataProcessor:
         
         for event in events:
             event_data = event.get('eventData', {})
-            if isinstance(event_data, str):
+            if event_data is None:
+                event_data = {}
+            elif isinstance(event_data, str):
                 try:
                     event_data = json.loads(event_data)
                 except:
