@@ -307,12 +307,15 @@ class MLService {
           modelType,
           version,
           status,
+          filePath,
           accuracy,
           \`precision\`,
           recall,
           f1Score,
           trainingDataSize,
           trainingDuration,
+          hyperparameters,
+          metadata,
           deployedAt,
           createdAt,
           updatedAt
@@ -320,14 +323,36 @@ class MLService {
         ORDER BY updatedAt DESC
       `);
 
-      return rows.map(row => ({
-        ...row,
-        hyperparameters: typeof row.hyperparameters === 'string' ? JSON.parse(row.hyperparameters || '{}') : row.hyperparameters,
-        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : row.metadata
-      }));
+      return rows.map(row => {
+        try {
+          return {
+            ...row,
+            hyperparameters: row.hyperparameters 
+              ? (typeof row.hyperparameters === 'string' 
+                  ? JSON.parse(row.hyperparameters || '{}') 
+                  : row.hyperparameters)
+              : {},
+            metadata: row.metadata 
+              ? (typeof row.metadata === 'string' 
+                  ? JSON.parse(row.metadata || '{}') 
+                  : row.metadata)
+              : {}
+          };
+        } catch (parseError) {
+          // JSON parse hatası durumunda boş obje döndür
+          console.warn(`⚠️ Error parsing JSON for model ${row.id}:`, parseError);
+          return {
+            ...row,
+            hyperparameters: {},
+            metadata: {}
+          };
+        }
+      });
     } catch (error) {
       console.error('❌ Error getting models status:', error);
-      throw error;
+      // Hata durumunda boş array döndür, 500 hatası verme
+      console.warn('⚠️ Returning empty array due to error');
+      return [];
     }
   }
 

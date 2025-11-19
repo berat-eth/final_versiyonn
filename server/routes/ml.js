@@ -167,15 +167,19 @@ router.get('/models', async (req, res) => {
   try {
     const models = await mlService.getModelsStatus();
 
+    // getModelsStatus() artık hata durumunda boş array döndürüyor
+    // Bu normal bir durum, 500 hatası verme
     res.json({
       success: true,
-      data: models
+      data: models || []
     });
   } catch (error) {
     console.error('❌ Error getting models status:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error getting models status'
+    // Hata durumunda bile boş array döndür, frontend'in çökmesini önle
+    res.json({
+      success: true,
+      data: [],
+      warning: 'Could not load models status, returning empty array'
     });
   }
 });
