@@ -9690,7 +9690,7 @@ app.get('/api/admin/invoices', authenticateAdmin, async (req, res) => {
     const [rows] = await poolWrapper.execute(
       `SELECT id, invoiceNumber, customerName, customerEmail, customerPhone, orderId, 
               amount, taxAmount, totalAmount, currency, invoiceDate, dueDate, status, 
-              fileName, fileSize, shareToken, shareUrl, notes, createdAt, updatedAt
+              fileName, fileSize, filePath, fileUrl, shareToken, shareUrl, notes, createdAt, updatedAt
        FROM invoices
        WHERE ${where.join(' AND ')}
        ORDER BY createdAt DESC

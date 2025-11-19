@@ -58,29 +58,27 @@ export default function Invoices() {
   const loadInvoices = async () => {
     try {
       setLoading(true)
+      setError(null)
+      
       const params: Record<string, string> = {}
-      if (searchQuery) params.q = searchQuery
+      if (searchQuery.trim()) params.q = searchQuery.trim()
       if (statusFilter) params.status = statusFilter
       
-      // Faturaları yükle
+      // Faturaları yükle (backend'de filtrelenmiş olarak gelecek)
       const invoicesResponse = await api.get<ApiResponse<Invoice[]>>('/admin/invoices', params)
+      
       if (invoicesResponse.success && invoicesResponse.data) {
-        // Debug: API'den dönen verileri kontrol et
-        console.log('Loaded invoices:', invoicesResponse.data)
-        invoicesResponse.data.forEach((inv, idx) => {
-          console.log(`Invoice ${idx + 1}:`, {
-            id: inv.id,
-            invoiceNumber: inv.invoiceNumber,
-            fileName: inv.fileName,
-            filePath: inv.filePath,
-            fileUrl: inv.fileUrl,
-            shareUrl: inv.shareUrl
-          })
-        })
-        setInvoices(invoicesResponse.data)
+        setInvoices(Array.isArray(invoicesResponse.data) ? invoicesResponse.data : [])
+      } else {
+        setInvoices([])
+        if (invoicesResponse.message) {
+          setError(invoicesResponse.message)
+        }
       }
     } catch (err: any) {
+      console.error('❌ Error loading invoices:', err)
       setError('Faturalar yüklenemedi: ' + (err.message || 'Bilinmeyen hata'))
+      setInvoices([])
     } finally {
       setLoading(false)
     }
@@ -470,18 +468,9 @@ export default function Invoices() {
     }
   }
 
-  const filteredInvoices = invoices.filter(invoice => {
-    if (statusFilter && invoice.status !== statusFilter) return false
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      return (
-        invoice.invoiceNumber.toLowerCase().includes(query) ||
-        invoice.customerName?.toLowerCase().includes(query) ||
-        invoice.customerEmail?.toLowerCase().includes(query)
-      )
-    }
-    return true
-  })
+  // Backend'den zaten filtrelenmiş veri geliyor, tekrar filtrelemeye gerek yok
+  // Ama yine de güvenlik için client-side filtreleme de yapabiliriz (opsiyonel)
+  const filteredInvoices = invoices
 
 
   if (loading) {
@@ -558,9 +547,9 @@ export default function Invoices() {
               className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
             >
               <option value="">Tüm Durumlar</option>
-              <option value="pending">Beklemede</option>
-              <option value="processing">İşleniyor</option>
-              <option value="completed">Tamamlandı</option>
+              <option value="draft">Taslak</option>
+              <option value="sent">Gönderildi</option>
+              <option value="paid">Ödendi</option>
               <option value="cancelled">İptal</option>
             </select>
           </div>
