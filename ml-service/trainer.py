@@ -111,7 +111,9 @@ class ModelTrainer:
             return np.array(sequences), np.array(features), np.array(labels)
             
         except Exception as e:
+            import traceback
             logger.error(f"Error preparing purchase training data: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def prepare_training_data_recommendation(self, days: int = 30) -> tuple:
@@ -153,7 +155,9 @@ class ModelTrainer:
             return user_array, product_array, ratings, len(user_ids), len(product_ids)
             
         except Exception as e:
+            import traceback
             logger.error(f"Error preparing recommendation training data: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def prepare_training_data_anomaly(self, days: int = 30) -> np.ndarray:
@@ -180,7 +184,9 @@ class ModelTrainer:
             return np.array(features)
             
         except Exception as e:
+            import traceback
             logger.error(f"Error preparing anomaly training data: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def prepare_training_data_segmentation(self, days: int = 30) -> np.ndarray:
@@ -217,7 +223,9 @@ class ModelTrainer:
             return np.array(features)
             
         except Exception as e:
+            import traceback
             logger.error(f"Error preparing segmentation training data: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def train_purchase_model(self, version: str = None):
@@ -293,7 +301,9 @@ class ModelTrainer:
             logger.info(success_msg)
             
         except Exception as e:
+            import traceback
             logger.error(f"Error training purchase model: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def train_recommendation_model(self, version: str = None):
@@ -340,7 +350,9 @@ class ModelTrainer:
             logger.info("Recommendation model trained successfully")
             
         except Exception as e:
+            import traceback
             logger.error(f"Error training recommendation model: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def train_anomaly_model(self, version: str = None):
@@ -382,7 +394,9 @@ class ModelTrainer:
             logger.info("Anomaly detection model trained successfully")
             
         except Exception as e:
+            import traceback
             logger.error(f"Error training anomaly model: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def train_segmentation_model(self, version: str = None):
@@ -424,7 +438,9 @@ class ModelTrainer:
             logger.info("Segmentation model trained successfully")
             
         except Exception as e:
+            import traceback
             logger.error(f"Error training segmentation model: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def train_all_models(self):
