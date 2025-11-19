@@ -19,6 +19,14 @@ router.get('/predictions', async (req, res) => {
 
     // userId opsiyonel - yoksa tüm predictions'ı getir
     const predictions = await mlService.getPredictions(userId, tenantId, limit);
+    
+    console.log('🔮 ML Predictions response:', JSON.stringify({
+      userId,
+      tenantId,
+      limit,
+      predictionsCount: predictions ? predictions.length : 0,
+      predictions: predictions?.slice(0, 3) // İlk 3'ünü göster
+    }, null, 2));
 
     res.json({
       success: true,
@@ -45,6 +53,14 @@ router.get('/recommendations', async (req, res) => {
 
     // userId opsiyonel - yoksa tüm recommendations'ı getir
     const recommendations = await mlService.getRecommendations(userId, tenantId, limit);
+    
+    console.log('🛍️ ML Recommendations response:', JSON.stringify({
+      userId,
+      tenantId,
+      limit,
+      recommendationsCount: recommendations ? recommendations.length : 0,
+      recommendations: recommendations?.slice(0, 3) // İlk 3'ünü göster
+    }, null, 2));
 
     res.json({
       success: true,
@@ -77,6 +93,16 @@ router.get('/anomalies', async (req, res) => {
     const offset = parseInt(req.query.offset) || 0;
 
     const result = await mlService.getAnomalies(tenantId, filters, limit, offset);
+    
+    console.log('⚠️ ML Anomalies response:', JSON.stringify({
+      tenantId,
+      filters,
+      limit,
+      offset,
+      anomaliesCount: result?.anomalies ? result.anomalies.length : 0,
+      total: result?.total || 0,
+      anomalies: result?.anomalies?.slice(0, 3) // İlk 3'ünü göster
+    }, null, 2));
 
     res.json({
       success: true,
@@ -103,6 +129,13 @@ router.get('/segments', async (req, res) => {
     };
 
     const segments = await mlService.getSegments(tenantId, filters);
+    
+    console.log('👥 ML Segments response:', JSON.stringify({
+      tenantId,
+      filters,
+      segmentsCount: segments ? segments.length : 0,
+      segments: segments
+    }, null, 2));
 
     res.json({
       success: true,
@@ -155,6 +188,11 @@ router.get('/segments/user', async (req, res) => {
 router.get('/models', async (req, res) => {
   try {
     const models = await mlService.getModelsStatus();
+    
+    console.log('🤖 ML Models response:', JSON.stringify({
+      modelsCount: models ? models.length : 0,
+      models: models
+    }, null, 2));
 
     // getModelsStatus() artık hata durumunda boş array döndürüyor
     // Bu normal bir durum, 500 hatası verme
@@ -183,6 +221,13 @@ router.get('/statistics', async (req, res) => {
     const timeRange = req.query.timeRange || '7d';
 
     const statistics = await mlService.getStatistics(tenantId, timeRange);
+    
+    console.log('📊 ML Statistics response:', JSON.stringify({
+      tenantId,
+      timeRange,
+      statisticsCount: statistics ? Object.keys(statistics).length : 0,
+      statistics: statistics
+    }, null, 2));
 
     res.json({
       success: true,
