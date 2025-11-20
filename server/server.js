@@ -14973,10 +14973,23 @@ app.get('/api/products', async (req, res) => {
     }
 
     // Tekstil kategorileri (sadece tekstilOnly=true ise kullanılacak)
+    // Alternatif isimler de eklendi (T-Shirt, Tshirt, tişört gibi)
     const tekstilKategoriler = [
-      'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
-      'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
-      'Yağmurluk', 'Rüzgarlık'
+      'Tişört', 'T-Shirt', 'Tshirt', 'tişört', 'T-SHIRT', 'TSHIRT',
+      'Gömlek', 'gömlek', 'GOMLEK',
+      'Pantolon', 'pantolon', 'PANTOLON',
+      'Mont', 'mont', 'MONT',
+      'Hırka', 'hırka', 'HIRKA',
+      'Polar Bere', 'polar bere', 'POLAR BERE', 'Polar', 'polar',
+      'Şapka', 'şapka', 'SAPKA',
+      'Eşofman', 'eşofman', 'ESOFMAN',
+      'Hoodie', 'hoodie', 'HOODIE',
+      'Bandana', 'bandana', 'BANDANA',
+      'Aplike', 'aplike', 'APLIKE',
+      'Battaniye', 'battaniye', 'BATTANIYE',
+      'Waistcoat', 'waistcoat', 'WAISTCOAT',
+      'Yağmurluk', 'yağmurluk', 'YAGMURLUK',
+      'Rüzgarlık', 'rüzgarlık', 'RUZGARLIK'
       // Camp Ürünleri, Silah Aksesuarları ve Mutfak Ürünleri çıkarıldı - web sitesinde görünmeyecek
     ];
 
@@ -14989,10 +15002,11 @@ app.get('/api/products', async (req, res) => {
     let selectParams = [req.tenant.id];
 
     // Sadece tekstilOnly=true ise filtrele
+    // Case-insensitive LIKE sorgusu kullanılıyor (LOWER ile)
     if (tekstilOnly) {
-      const kategoriConditions = tekstilKategoriler.map(() => 'category LIKE ?').join(' OR ');
-      countQuery += ` AND (${kategoriConditions})`;
-      selectQuery += ` AND (${kategoriConditions})`;
+      const kategoriConditions = tekstilKategoriler.map(() => 'LOWER(category) LIKE LOWER(?)').join(' OR ');
+      countQuery += ` AND category IS NOT NULL AND category != '' AND (${kategoriConditions})`;
+      selectQuery += ` AND category IS NOT NULL AND category != '' AND (${kategoriConditions})`;
       
       tekstilKategoriler.forEach(kat => {
         countParams.push(`%${kat}%`);
@@ -15823,14 +15837,28 @@ app.post('/api/products/filter', async (req, res) => {
     // Tekstil ürünleri için kategori filtreleme (sadece eksplisit olarak tekstilOnly=true ise)
     // Varsayılan olarak false - yani tüm ürünler gelir
     if (tekstilOnly === true || tekstilOnly === 'true') {
+      // Alternatif isimler de eklendi (T-Shirt, Tshirt, tişört gibi)
       const tekstilKategoriler = [
-        'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
-        'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
-        'Yağmurluk', 'Rüzgarlık'
+        'Tişört', 'T-Shirt', 'Tshirt', 'tişört', 'T-SHIRT', 'TSHIRT',
+        'Gömlek', 'gömlek', 'GOMLEK',
+        'Pantolon', 'pantolon', 'PANTOLON',
+        'Mont', 'mont', 'MONT',
+        'Hırka', 'hırka', 'HIRKA',
+        'Polar Bere', 'polar bere', 'POLAR BERE', 'Polar', 'polar',
+        'Şapka', 'şapka', 'SAPKA',
+        'Eşofman', 'eşofman', 'ESOFMAN',
+        'Hoodie', 'hoodie', 'HOODIE',
+        'Bandana', 'bandana', 'BANDANA',
+        'Aplike', 'aplike', 'APLIKE',
+        'Battaniye', 'battaniye', 'BATTANIYE',
+        'Waistcoat', 'waistcoat', 'WAISTCOAT',
+        'Yağmurluk', 'yağmurluk', 'YAGMURLUK',
+        'Rüzgarlık', 'rüzgarlık', 'RUZGARLIK'
         // Camp Ürünleri, Silah Aksesuarları ve Mutfak Ürünleri çıkarıldı - web sitesinde görünmeyecek
       ];
-      const kategoriConditions = tekstilKategoriler.map(() => 'category LIKE ?').join(' OR ');
-      query += ` AND (${kategoriConditions})`;
+      // Case-insensitive LIKE sorgusu kullanılıyor (LOWER ile)
+      const kategoriConditions = tekstilKategoriler.map(() => 'LOWER(category) LIKE LOWER(?)').join(' OR ');
+      query += ` AND category IS NOT NULL AND category != '' AND (${kategoriConditions})`;
       tekstilKategoriler.forEach(kat => {
         params.push(`%${kat}%`);
       });
