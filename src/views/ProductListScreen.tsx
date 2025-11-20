@@ -11,9 +11,9 @@ import {
   RefreshControl,
   TextInput,
   Alert,
-  Image,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -859,16 +859,27 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         ) : renderEmptyState}
         ListFooterComponent={!showFlashDeals ? renderFooter : null}
         removeClippedSubviews={true}
-        maxToRenderPerBatch={20}
-        updateCellsBatchingPeriod={50}
-        initialNumToRender={20}
-        windowSize={10}
-        // Infinite scroll için getItemLayout optimize edildi
-        getItemLayout={viewMode === 'grid' ? undefined : (data, index) => ({
-          length: 120,
-          offset: 120 * index,
-          index,
-        })}
+        maxToRenderPerBatch={viewMode === 'grid' ? 10 : 15}
+        updateCellsBatchingPeriod={100}
+        initialNumToRender={viewMode === 'grid' ? 10 : 15}
+        windowSize={viewMode === 'grid' ? 5 : 8}
+        // Optimized getItemLayout for both grid and list views
+        getItemLayout={viewMode === 'grid' 
+          ? (data, index) => {
+              const numColumns = 2;
+              const itemHeight = 280; // Approximate height for grid item
+              const row = Math.floor(index / numColumns);
+              return {
+                length: itemHeight,
+                offset: itemHeight * row,
+                index,
+              };
+            }
+          : (data, index) => ({
+              length: 120,
+              offset: 120 * index,
+              index,
+            })}
       />
 
       {/* Infinite scroll aktif - sayfalama kaldırıldı */}

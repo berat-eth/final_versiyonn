@@ -44,6 +44,7 @@ import { CustomProductionRequestDetailScreen } from '../views/CustomProductionRe
 import { AllCategoriesScreen } from '../views/AllCategoriesScreen';
 import MyCampaignsScreen from '../views/MyCampaignsScreen';
 import MyDiscountCodesScreen from '../views/MyDiscountCodesScreen';
+import PersonalizedOffersScreen from '../views/PersonalizedOffersScreen';
 import StoreLocatorScreen from '../views/StoreLocatorScreen';
 import ReferralScreen from '../views/ReferralScreen';
 import { UserLevelScreen } from '../views/UserLevelScreen';
@@ -602,6 +603,11 @@ const ProfileStack = () => {
       <Stack.Screen
         name="MyCampaigns"
         component={MyCampaignsScreen as any}
+        options={{ title: 'Bana Özel Kampanyalar', headerShown: true }}
+      />
+      <Stack.Screen
+        name="PersonalizedOffers"
+        component={PersonalizedOffersScreen as any}
         options={{ title: 'Bana Özel Kampanyalar', headerShown: true }}
       />
       <Stack.Screen

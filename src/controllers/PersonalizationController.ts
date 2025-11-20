@@ -27,6 +27,42 @@ export interface PersonalizedContent {
 }
 
 export class PersonalizationController {
+  // Retry helper with exponential backoff for 429 errors
+  static async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 2000
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        
+        // 429 hatası kontrolü
+        const is429Error = 
+          error?.status === 429 || 
+          error?.response?.status === 429 ||
+          (error?.message && error.message.includes('429')) ||
+          (error?.message && error.message.includes('Too many requests'));
+        
+        if (is429Error && attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 2s, 4s, 8s
+          console.log(`⏳ Rate limit (429) - ${delay}ms bekleniyor (deneme ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // 429 değilse veya son denemeyse throw et
+        throw error;
+      }
+    }
+    
+    throw lastError;
+  }
+
   // Generate personalized content for a user
   static async generatePersonalizedContent(userId: number): Promise<PersonalizedContent> {
     try {
@@ -35,11 +71,19 @@ export class PersonalizationController {
       // Analytics kaldırıldı
       const analytics = null as any;
       
-      // Get product recommendations
-      const recommendations = await CampaignController.getProductRecommendations(userId, { limit: 8 });
+      // Get product recommendations with retry logic
+      const recommendations = await this.retryWithBackoff(
+        () => CampaignController.getProductRecommendations(userId, { limit: 8 }),
+        2, // 2 retry
+        1500 // 1.5s base delay
+      );
       
-      // Get available campaigns
-      const campaigns = await CampaignController.getAvailableCampaigns(userId);
+      // Get available campaigns with retry logic
+      const campaigns = await this.retryWithBackoff(
+        () => CampaignController.getAvailableCampaigns(userId),
+        2,
+        1500
+      );
       
       // Generate personalized offers
       const personalizedOffers = await this.generatePersonalizedOffers(userId, analytics, campaigns);
@@ -84,12 +128,12 @@ export class PersonalizationController {
     } catch (error) {
       console.error('❌ PersonalizationController - generatePersonalizedContent error:', error);
       return {
-        greeting: 'Hoş geldiniz!',
+        greeting: '',
         recommendedProducts: [],
         personalizedOffers: [],
         categorySuggestions: [],
         brandSuggestions: [],
-        nextBestAction: 'Ürünleri keşfedin'
+        nextBestAction: ''
       };
     }
   }
@@ -157,7 +201,12 @@ export class PersonalizationController {
 
     // Birthday offer: sadece kullanıcının doğum günü ise ekle
     try {
-      const userInfoResponse = await apiService.getUserById(userId);
+      // User info çağrısını retry logic ile yap (429 hatası için)
+      const userInfoResponse = await PersonalizationController.retryWithBackoff(
+        () => apiService.getUserById(userId),
+        2,
+        1000
+      );
       const birthDateStr = (userInfoResponse.success && userInfoResponse.data && (userInfoResponse.data.birthDate || userInfoResponse.data.birth_date)) ? (userInfoResponse.data.birthDate || userInfoResponse.data.birth_date) : null;
       if (birthDateStr) {
         const today = new Date();
@@ -225,7 +274,7 @@ export class PersonalizationController {
   // Generate personalized greeting
   private static generatePersonalizedGreeting(analytics: CustomerAnalytics | null): string {
     if (!analytics) {
-      return 'Hoş geldiniz!';
+      return '';
     }
 
     const totalOrders = analytics.totalOrders;
@@ -263,59 +312,28 @@ export class PersonalizationController {
 
   // Get category suggestions based on user preferences
   private static getCategorySuggestions(analytics: CustomerAnalytics | null): string[] {
-    if (!analytics || !analytics.favoriteCategories) {
-      return ['Popüler Kategoriler', 'Yeni Ürünler', 'İndirimli Ürünler'];
+    if (!analytics || !analytics.favoriteCategories || analytics.favoriteCategories.length === 0) {
+      return [];
     }
 
-    const suggestions = [...analytics.favoriteCategories];
-    
-    // Add complementary categories
-    const complementaryCategories: Record<string, string[]> = {
-      'Elektronik': ['Aksesuar', 'Kablo', 'Koruyucu'],
-      'Giyim': ['Ayakkabı', 'Aksesuar', 'Çanta'],
-      'Ev & Yaşam': ['Dekorasyon', 'Mutfak', 'Banyo'],
-      'Spor': ['Giyim', 'Ayakkabı', 'Ekipman']
-    };
-
-    analytics.favoriteCategories.forEach(category => {
-      if (complementaryCategories[category]) {
-        suggestions.push(...complementaryCategories[category]);
-      }
-    });
-
-    // Remove duplicates and limit to 5
-    return [...new Set(suggestions)].slice(0, 5);
+    // Return only user's favorite categories from analytics
+    return analytics.favoriteCategories.slice(0, 5);
   }
 
   // Get brand suggestions based on user preferences
   private static getBrandSuggestions(analytics: CustomerAnalytics | null): string[] {
-    if (!analytics || !analytics.favoriteBrands) {
-      return ['Popüler Markalar', 'Yeni Markalar', 'İndirimli Markalar'];
+    if (!analytics || !analytics.favoriteBrands || analytics.favoriteBrands.length === 0) {
+      return [];
     }
 
-    const suggestions = [...analytics.favoriteBrands];
-    
-    // Add similar brands (this would be based on actual brand data)
-    const similarBrands: Record<string, string[]> = {
-      'Nike': ['Adidas', 'Puma', 'Reebok'],
-      'Apple': ['Samsung', 'Huawei', 'Xiaomi'],
-      'Zara': ['H&M', 'Mango', 'Pull & Bear']
-    };
-
-    analytics.favoriteBrands.forEach(brand => {
-      if (similarBrands[brand]) {
-        suggestions.push(...similarBrands[brand]);
-      }
-    });
-
-    // Remove duplicates and limit to 5
-    return [...new Set(suggestions)].slice(0, 5);
+    // Return only user's favorite brands from analytics
+    return analytics.favoriteBrands.slice(0, 5);
   }
 
   // Get next best action for the user
   private static getNextBestAction(analytics: CustomerAnalytics | null, recommendations: ProductRecommendation[]): string {
     if (!analytics) {
-      return 'Ürünleri keşfedin';
+      return '';
     }
 
     const totalOrders = analytics.totalOrders;
@@ -323,7 +341,7 @@ export class PersonalizationController {
     const lastOrderDate = analytics.lastOrderDate;
 
     if (totalOrders === 0) {
-      return 'İlk alışverişinizi yapın ve %20 indirim kazanın!';
+      return 'İlk alışverişinizi yapın ve özel indirim kazanın!';
     }
 
     if (totalOrders === 1) {

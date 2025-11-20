@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   View,
-  Image,
   StyleSheet,
   Dimensions,
   TouchableOpacity,
@@ -10,6 +9,7 @@ import {
   SafeAreaView,
   Text,
 } from 'react-native';
+import { Image } from 'expo-image';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface ImageGalleryProps {

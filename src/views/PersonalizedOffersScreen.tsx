@@ -1,54 +1,230 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   RefreshControl,
   Alert,
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useAppContext } from '../contexts/AppContext';
-import { CampaignController, Campaign } from '../controllers/CampaignController';
+import { Image } from 'expo-image';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CampaignController } from '../controllers/CampaignController';
 import { PersonalizationController, PersonalizedContent, PersonalizedOffer } from '../controllers/PersonalizationController';
 import { Product } from '../utils/types';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { EmptyState } from '../components/EmptyState';
+import { UserController } from '../controllers/UserController';
 
 const { width } = Dimensions.get('window');
 
+// Cache keys
+const CACHE_KEY = 'personalized_content_cache';
+const CACHE_TIMESTAMP_KEY = 'personalized_content_cache_timestamp';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 dakika
+const USER_ID_CACHE_KEY = 'cached_user_id';
+const USER_ID_CACHE_DURATION = 60 * 1000; // 1 dakika
+
 export default function PersonalizedOffersScreen() {
-  const { user } = useAppContext();
+  const navigation = useNavigation<any>();
   const [personalizedContent, setPersonalizedContent] = useState<PersonalizedContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const loadingRef = useRef(false);
+  const lastRequestTimeRef = useRef<number>(0);
+  const requestCooldown = 2000; // 2 saniye minimum bekleme
 
   useEffect(() => {
     loadPersonalizedContent();
   }, []);
 
-  const loadPersonalizedContent = async () => {
-    if (!user?.id) return;
+  // Cached user ID helper
+  const getCachedUserId = async (): Promise<number | null> => {
+    try {
+      const cached = await AsyncStorage.getItem(USER_ID_CACHE_KEY);
+      const cachedTimestamp = await AsyncStorage.getItem(`${USER_ID_CACHE_KEY}_timestamp`);
+      
+      if (cached && cachedTimestamp) {
+        const timestamp = parseInt(cachedTimestamp, 10);
+        if (Date.now() - timestamp < USER_ID_CACHE_DURATION) {
+          return parseInt(cached, 10);
+        }
+      }
+      
+      const userId = await UserController.getCurrentUserId();
+      if (userId && userId > 0) {
+        await AsyncStorage.setItem(USER_ID_CACHE_KEY, userId.toString());
+        await AsyncStorage.setItem(`${USER_ID_CACHE_KEY}_timestamp`, Date.now().toString());
+      }
+      return userId;
+    } catch (error) {
+      console.error('Error getting cached user ID:', error);
+      return await UserController.getCurrentUserId();
+    }
+  };
+
+  // Load from cache
+  const loadFromCache = async (): Promise<PersonalizedContent | null> => {
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY);
+      const cachedTimestamp = await AsyncStorage.getItem(CACHE_TIMESTAMP_KEY);
+      
+      if (cached && cachedTimestamp) {
+        const timestamp = parseInt(cachedTimestamp, 10);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          return JSON.parse(cached);
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error loading from cache:', error);
+      return null;
+    }
+  };
+
+  // Save to cache
+  const saveToCache = async (content: PersonalizedContent) => {
+    try {
+      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(content));
+      await AsyncStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+    }
+  };
+
+  // Retry with exponential backoff for 429 errors
+  const retryWithBackoff = async <T,>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+  ): Promise<T> => {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        
+        // 429 hatası kontrolü
+        const is429Error = 
+          error?.status === 429 || 
+          error?.response?.status === 429 ||
+          (error?.message && error.message.includes('429')) ||
+          (error?.message && error.message.includes('Too many requests'));
+        
+        if (is429Error && attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
+          console.log(`⏳ Rate limit (429) - ${delay}ms bekleniyor (deneme ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // 429 değilse veya son denemeyse throw et
+        throw error;
+      }
+    }
+    
+    throw lastError;
+  };
+
+  const loadPersonalizedContent = async (forceRefresh: boolean = false) => {
+    // Request deduplication - aynı anda birden fazla istek gönderme
+    if (loadingRef.current) {
+      console.log('⏸️ Zaten yükleme devam ediyor, istek atlandı');
+      return;
+    }
+
+    // Cooldown kontrolü
+    const now = Date.now();
+    if (!forceRefresh && now - lastRequestTimeRef.current < requestCooldown) {
+      console.log('⏸️ Cooldown süresi dolmadı, istek atlandı');
+      return;
+    }
 
     try {
+      loadingRef.current = true;
       setLoading(true);
-      const content = await PersonalizationController.generatePersonalizedContent(user.id);
+      setErrorMessage(null);
+
+      // Önce cache'den yükle (force refresh değilse)
+      if (!forceRefresh) {
+        const cached = await loadFromCache();
+        if (cached) {
+          console.log('✅ Cache\'den yüklendi');
+          setPersonalizedContent(cached);
+          setLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+      }
+
+      // User ID'yi cache'den al
+      const userId = await getCachedUserId();
+      
+      if (!userId || userId <= 0) {
+        setPersonalizedContent(null);
+        setLoading(false);
+        loadingRef.current = false;
+        return;
+      }
+
+      // Retry logic ile API çağrısı
+      const content = await retryWithBackoff(
+        () => PersonalizationController.generatePersonalizedContent(userId),
+        3,
+        2000 // 2 saniye base delay
+      );
+
       setPersonalizedContent(content);
-    } catch (error) {
+      await saveToCache(content);
+      lastRequestTimeRef.current = Date.now();
+      
+    } catch (error: any) {
       console.error('Error loading personalized content:', error);
-      Alert.alert('Hata', 'Kişiselleştirilmiş içerik yüklenirken hata oluştu');
+      
+      // 429 hatası için özel mesaj
+      const is429Error = 
+        error?.status === 429 || 
+        error?.response?.status === 429 ||
+        (error?.message && error.message.includes('429')) ||
+        (error?.message && error.message.includes('Too many requests'));
+      
+      if (is429Error) {
+        setErrorMessage('Çok fazla istek gönderildi. Lütfen birkaç saniye sonra tekrar deneyin.');
+        // Cache'den yükle
+        const cached = await loadFromCache();
+        if (cached) {
+          setPersonalizedContent(cached);
+        }
+      } else {
+        setPersonalizedContent(null);
+      }
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   };
 
   const onRefresh = async () => {
+    if (loadingRef.current) return;
+    
     setRefreshing(true);
-    await loadPersonalizedContent();
+    // Cache'i temizle ve force refresh yap
+    try {
+      await AsyncStorage.removeItem(CACHE_KEY);
+      await AsyncStorage.removeItem(CACHE_TIMESTAMP_KEY);
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+    }
+    
+    await loadPersonalizedContent(true);
     setRefreshing(false);
   };
 
@@ -74,8 +250,11 @@ export default function PersonalizedOffersScreen() {
   };
 
   const handleProductPress = (product: Product) => {
-    // Navigate to product detail
-    console.log('Navigate to product:', product.id);
+    if (navigation) {
+      navigation.navigate('ProductDetail', { productId: product.id });
+    } else {
+      console.warn('Navigation not available');
+    }
   };
 
   const renderOfferCard = (offer: PersonalizedOffer, index: number) => (
@@ -86,7 +265,7 @@ export default function PersonalizedOffersScreen() {
     >
       <View style={styles.offerHeader}>
         <View style={styles.offerIcon}>
-          <Ionicons name={getOfferIcon(offer.type)} size={24} color="white" />
+          <Icon name={getOfferIcon(offer.type)} size={24} color="white" />
         </View>
         <View style={styles.offerInfo}>
           <Text style={styles.offerTitle}>{offer.title}</Text>
@@ -135,8 +314,18 @@ export default function PersonalizedOffersScreen() {
     </TouchableOpacity>
   );
 
+  const handleCategoryPress = (category: string) => {
+    if (navigation) {
+      navigation.navigate('ProductList', { category });
+    }
+  };
+
   const renderCategorySuggestion = (category: string) => (
-    <TouchableOpacity key={category} style={styles.categoryChip}>
+    <TouchableOpacity 
+      key={category} 
+      style={styles.categoryChip}
+      onPress={() => handleCategoryPress(category)}
+    >
       <Text style={styles.categoryText}>{category}</Text>
     </TouchableOpacity>
   );
@@ -152,17 +341,31 @@ export default function PersonalizedOffersScreen() {
     );
   }
 
-  if (!personalizedContent) {
+  if (!personalizedContent && !loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Size Özel Teklifler</Text>
         </View>
-        <EmptyState
-          title="Teklif Bulunamadı"
-          message="Size özel teklifler henüz hazır değil"
-          icon="gift-outline"
-        />
+        {errorMessage ? (
+          <View style={styles.errorContainer}>
+            <Icon name="error-outline" size={48} color="#ff6b6b" />
+            <Text style={styles.errorTitle}>İstek Limiti Aşıldı</Text>
+            <Text style={styles.errorMessage}>{errorMessage}</Text>
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={() => loadPersonalizedContent(true)}
+            >
+              <Text style={styles.retryButtonText}>Tekrar Dene</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <EmptyState
+            title="Teklif Bulunamadı"
+            message="Size özel teklifler henüz hazır değil. Giriş yaparak size özel kampanyalardan yararlanabilirsiniz."
+            icon="card-giftcard"
+          />
+        )}
       </SafeAreaView>
     );
   }
@@ -172,7 +375,7 @@ export default function PersonalizedOffersScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Size Özel Teklifler</Text>
         <TouchableOpacity onPress={onRefresh}>
-          <Ionicons name="refresh" size={24} color="#007bff" />
+          <Icon name="refresh" size={24} color="#007bff" />
         </TouchableOpacity>
       </View>
 
@@ -184,12 +387,14 @@ export default function PersonalizedOffersScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Personalized Greeting */}
-        <View style={styles.greetingCard}>
-          <Text style={styles.greetingText}>{personalizedContent.greeting}</Text>
-        </View>
+        {personalizedContent && personalizedContent.greeting && (
+          <View style={styles.greetingCard}>
+            <Text style={styles.greetingText}>{personalizedContent.greeting}</Text>
+          </View>
+        )}
 
         {/* Personalized Offers */}
-        {personalizedContent.personalizedOffers.length > 0 && (
+        {personalizedContent && personalizedContent.personalizedOffers.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🎁 Size Özel Kampanyalar</Text>
             <ScrollView
@@ -205,7 +410,7 @@ export default function PersonalizedOffersScreen() {
         )}
 
         {/* Recommended Products */}
-        {personalizedContent.recommendedProducts.length > 0 && (
+        {personalizedContent && personalizedContent.recommendedProducts.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>⭐ Size Önerilen Ürünler</Text>
             <ScrollView
@@ -219,7 +424,7 @@ export default function PersonalizedOffersScreen() {
         )}
 
         {/* Category Suggestions */}
-        {personalizedContent.categorySuggestions.length > 0 && (
+        {personalizedContent && personalizedContent.categorySuggestions.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🏷️ İlginizi Çekebilecek Kategoriler</Text>
             <View style={styles.categoriesContainer}>
@@ -229,7 +434,7 @@ export default function PersonalizedOffersScreen() {
         )}
 
         {/* Brand Suggestions */}
-        {personalizedContent.brandSuggestions.length > 0 && (
+        {personalizedContent && personalizedContent.brandSuggestions.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🏪 Önerilen Markalar</Text>
             <View style={styles.categoriesContainer}>
@@ -239,10 +444,12 @@ export default function PersonalizedOffersScreen() {
         )}
 
         {/* Next Best Action */}
-        <View style={styles.nextActionCard}>
-          <Text style={styles.nextActionTitle}>💡 Önerilen Aksiyon</Text>
-          <Text style={styles.nextActionText}>{personalizedContent.nextBestAction}</Text>
-        </View>
+        {personalizedContent && personalizedContent.nextBestAction && (
+          <View style={styles.nextActionCard}>
+            <Text style={styles.nextActionTitle}>💡 Önerilen Aksiyon</Text>
+            <Text style={styles.nextActionText}>{personalizedContent.nextBestAction}</Text>
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -466,5 +673,35 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 20,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#007bff',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

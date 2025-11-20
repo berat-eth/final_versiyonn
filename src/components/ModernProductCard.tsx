@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Gradients } from '../theme/colors';
@@ -29,7 +29,7 @@ interface ModernProductCardProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-export const ModernProductCard: React.FC<ModernProductCardProps> = ({
+const ModernProductCardComponent: React.FC<ModernProductCardProps> = ({
   product,
   onPress,
   onAddToCart,
@@ -95,7 +95,10 @@ export const ModernProductCard: React.FC<ModernProductCardProps> = ({
           <View style={styles.horizontalInfo}>
             <View style={styles.horizontalHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.brandText}>{getTranslatedProductBrand(product, currentLanguage)}</Text>
+                <View style={styles.brandContainer}>
+                  <Text style={styles.brandText}>{getTranslatedProductBrand(product, currentLanguage)}</Text>
+                  <Icon name="check-circle" size={14} color="#007AFF" style={styles.verifiedIcon} />
+                </View>
                 <Text style={styles.productName} numberOfLines={2}>
                   {getTranslatedProductName(product, currentLanguage)}
                 </Text>
@@ -227,7 +230,10 @@ export const ModernProductCard: React.FC<ModernProductCardProps> = ({
       </View>
       
       <View style={styles.infoContainer}>
-        <Text style={styles.brandText}>{getTranslatedProductBrand(product, currentLanguage)}</Text>
+        <View style={styles.brandContainer}>
+          <Text style={styles.brandText}>{getTranslatedProductBrand(product, currentLanguage)}</Text>
+          <Icon name="check-circle" size={14} color="#007AFF" style={styles.verifiedIcon} />
+        </View>
         <Text style={styles.productName} numberOfLines={2}>
           {getTranslatedProductName(product, currentLanguage)}
         </Text>
@@ -333,12 +339,20 @@ const styles = StyleSheet.create({
   infoContainer: {
     padding: Spacing.md,
   },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 0,
+  },
   brandText: {
     fontSize: 11,
     color: Colors.textMuted,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  verifiedIcon: {
+    marginLeft: 4,
   },
   productName: {
     fontSize: 14,
@@ -482,4 +496,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
   },
+});
+
+// Memoization with custom comparator for performance optimization
+export const ModernProductCard = React.memo(ModernProductCardComponent, (prevProps, nextProps) => {
+  // Only re-render if these critical props change
+  return (
+    prevProps.product.id === nextProps.product.id &&
+    prevProps.product.price === nextProps.product.price &&
+    prevProps.product.stock === nextProps.product.stock &&
+    prevProps.product.image === nextProps.product.image &&
+    prevProps.isFavorite === nextProps.isFavorite &&
+    prevProps.variant === nextProps.variant &&
+    prevProps.width === nextProps.width
+  );
 });

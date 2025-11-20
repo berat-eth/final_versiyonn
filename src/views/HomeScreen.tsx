@@ -7,12 +7,12 @@ import {
   ScrollView,
   Dimensions,
   FlatList,
-  Image,
   TouchableOpacity,
   RefreshControl,
   Alert,
   Linking,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -860,7 +860,10 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         )}
       </View>
       <View style={styles.productInfo}>
-        <Text style={styles.productBrand}>{getTranslatedProductBrand(item, currentLanguage)}</Text>
+        <View style={styles.brandContainer}>
+          <Text style={styles.productBrand}>{getTranslatedProductBrand(item, currentLanguage)}</Text>
+          <Icon name="check-circle" size={12} color="#007AFF" style={styles.verifiedIcon} />
+        </View>
         <Text style={styles.productName} numberOfLines={2}>
           {getTranslatedProductName(item, currentLanguage)}
         </Text>
@@ -911,7 +914,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
     </ModernCard>
   ), [favoriteProducts, handleProductPress, handleToggleFavorite, handleAddToCart, currentLanguage, isAuthenticated, t]);
 
-  const renderPopularProducts = () => (
+  const renderPopularProducts = useCallback(() => (
     <View style={styles.sectionContainer}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionTitleContainer}>
@@ -951,9 +954,9 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         })}
       />
     </View>
-  );
+  ), [popularProducts, popularProductsCounter, favoriteProducts, handleProductPress, handleToggleFavorite, handleAddToCart, currentLanguage, isAuthenticated, t, countdownTimer, navigation, width]);
 
-  const renderNewProducts = () => (
+  const renderNewProducts = useCallback(() => (
     <View style={styles.sectionContainer}>
       <View style={styles.sectionHeader}>
         <View>
@@ -975,19 +978,22 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         decelerationRate="fast"
         snapToInterval={Math.round(width * 0.4) + Spacing.xl + 15}
         removeClippedSubviews={true}
-        maxToRenderPerBatch={3}
+        maxToRenderPerBatch={5}
         windowSize={5}
-        initialNumToRender={3}
-          getItemLayout={(data: any, index: number) => ({
-          length: 200,
-          offset: 200 * index,
-          index,
-        })}
+        initialNumToRender={4}
+        getItemLayout={(data: any, index: number) => {
+          const itemWidth = Math.round(width * 0.42) + Spacing.xl + 15;
+          return {
+            length: itemWidth,
+            offset: itemWidth * index,
+            index,
+          };
+        }}
       />
     </View>
-  );
+  ), [newProducts, favoriteProducts, handleProductPress, handleToggleFavorite, handleAddToCart, currentLanguage, isAuthenticated, t, navigation, width]);
 
-  const renderCampaigns = () => {
+  const renderCampaigns = useCallback(() => {
     const activeCampaigns = (campaigns || []).filter((c: any) => c.isActive && c.status === 'active');
     if (activeCampaigns.length === 0) return null;
     return (
@@ -1039,9 +1045,9 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         </ScrollView>
       </View>
     );
-  };
+  }, [campaigns, navigation, nowTs]);
 
-  const renderFlashDeals = () => {
+  const renderFlashDeals = useCallback(() => {
     const now = nowTs;
     
     // Flash deals API'sinden gelen tüm ürünleri topla
@@ -1170,7 +1176,10 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.productInfo}>
-                  <Text style={styles.productBrand}>{item.brand}</Text>
+                  <View style={styles.brandContainer}>
+                    <Text style={styles.productBrand}>{item.brand}</Text>
+                    <Icon name="check-circle" size={12} color="#007AFF" style={styles.verifiedIcon} />
+                  </View>
                   <Text style={styles.productName} numberOfLines={2}>
                     {item.name}
                   </Text>
@@ -1205,197 +1214,10 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         </ScrollView>
       </View>
     );
-  };
+  }, [flashDeals, nowTs, favoriteProducts, handleProductPress, handleToggleFavorite, handleAddToCart, currentLanguage, isAuthenticated, navigation, width]);
 
-  const renderDiscountOffers = () => {
-    if (!flashDeals || flashDeals.length === 0) {
-      return null;
-    }
 
-    // Tüm aktif flash deal'ların ürünlerini birleştir
-    const allFlashProducts: Product[] = [];
-    
-    flashDeals
-      .filter(deal => {
-        const isActive = deal.is_active !== undefined ? deal.is_active : deal.isActive !== undefined ? deal.isActive : true;
-        const endDateStr = deal.end_date || deal.endDate || '';
-        if (!endDateStr) return false;
-        try {
-          const endDate = new Date(endDateStr);
-          return isActive && !isNaN(endDate.getTime()) && endDate > new Date();
-        } catch {
-          return false;
-        }
-      })
-      .forEach(deal => {
-        // Backend'den gelen veriler snake_case veya camelCase olabilir
-        const discountType = deal.discount_type || deal.discountType || 'percentage';
-        const discountValue = deal.discount_value || deal.discountValue || 0;
-        
-        if (deal.products && Array.isArray(deal.products) && deal.products.length > 0) {
-          deal.products.forEach((p: any) => {
-            // Duplicate kontrolü - aynı ürün farklı flash deal'larda olabilir, sadece birini al
-            const existingIndex = allFlashProducts.findIndex(fp => fp.id === p.id);
-            
-            // Backend'den gelen ürün verilerini Product formatına dönüştür
-            const productWithDiscount: Product = {
-              id: p.id,
-              name: p.name || '',
-              price: parseFloat(p.price) || 0,
-              image: p.image || p.imageUrl || '',
-              images: p.images || [],
-              category: p.category || '',
-              brand: p.brand || '',
-              description: p.description || '',
-              stock: parseInt(p.stock) || 0,
-              rating: parseFloat(p.rating) || 0,
-              reviewCount: parseInt(p.reviewCount) || 0,
-              hasVariations: p.hasVariations || false,
-              variations: p.variations || [],
-              externalId: p.externalId || p.id.toString(),
-              lastUpdated: p.lastUpdated || '',
-              // Flash deal bilgilerini ekle
-              flashDiscount: discountType === 'percentage' ? discountValue : undefined,
-              flashDiscountFixed: discountType === 'fixed' ? discountValue : undefined,
-            };
-            
-            if (existingIndex >= 0) {
-              // Eğer ürün zaten varsa, daha yüksek indirimli olanı tut
-              const existing = allFlashProducts[existingIndex];
-              const existingDiscount = (existing as any).flashDiscount || (existing as any).flashDiscountFixed || 0;
-              const newDiscount = discountValue;
-              
-              if (newDiscount > existingDiscount) {
-                allFlashProducts[existingIndex] = productWithDiscount;
-              }
-            } else {
-              allFlashProducts.push(productWithDiscount);
-            }
-          });
-        }
-      });
-
-    if (allFlashProducts.length === 0) {
-      return null;
-    }
-
-    return (
-      <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>🔥 Özel İndirimler</Text>
-            <Text style={styles.sectionSubtitle}>Kaçırılmayacak fırsatlar</Text>
-          </View>
-          <TouchableOpacity onPress={() => {
-            // Tüm flash deal ürünlerini göster
-            navigation.navigate('ProductList', {
-              title: 'Özel İndirimler',
-              products: allFlashProducts
-            });
-          }}>
-            <Text style={styles.seeAll}>Tümü →</Text>
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          horizontal
-          data={allFlashProducts.slice(0, 10)}
-          renderItem={({ item }) => {
-            // Flash indirimli ürün kartı
-            const discountType = (item as any).flashDiscount ? 'percentage' : 'fixed';
-            const discountValue = (item as any).flashDiscount || (item as any).flashDiscountFixed || 0;
-            const originalPrice = item.price || 0;
-            const discountedPrice = discountType === 'percentage' 
-              ? originalPrice * (1 - discountValue / 100)
-              : originalPrice - discountValue;
-            
-            return (
-              <ModernCard
-                key={`flash-${item.id}`}
-                onPress={() => handleProductPress(item)}
-                style={[styles.productCard, styles.flashProductCard] as any}
-                noPadding
-                variant="outlined"
-                gradientBorder={false}
-              >
-                <View style={styles.productImageContainer}>
-                  <Image 
-                    source={{ uri: item.image || 'https://via.placeholder.com/300x300?text=No+Image' }} 
-                    style={styles.productImage} 
-                  />
-                  <View style={styles.flashDiscountBadge}>
-                    <Text style={styles.flashDiscountText}>
-                      {discountType === 'percentage' ? `%${discountValue}` : `${discountValue}₺`} İndirim
-                    </Text>
-                  </View>
-                  {isAuthenticated && (
-                    <TouchableOpacity 
-                      style={styles.favoriteButton}
-                      onPress={() => handleToggleFavorite(item)}
-                    >
-                      <Icon 
-                        name={favoriteProducts.includes(item.id) ? "favorite" : "favorite-border"} 
-                        size={20} 
-                        color={favoriteProducts.includes(item.id) ? Colors.secondary : Colors.text} 
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <View style={styles.productInfo}>
-                  <Text style={styles.productBrand}>{getTranslatedProductBrand(item, currentLanguage)}</Text>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {getTranslatedProductName(item, currentLanguage)}
-                  </Text>
-                  <View style={styles.productFooter}>
-                    <View>
-                      {discountType === 'percentage' && (
-                        <Text style={styles.flashOriginalPrice}>
-                          {originalPrice.toFixed(0)} TL
-                        </Text>
-                      )}
-                      <Text style={styles.flashDiscountedPrice}>
-                        {discountedPrice.toFixed(0)} TL
-                      </Text>
-                      {item.rating > 0 && (
-                        <View style={styles.ratingContainer}>
-                          <Icon name="star" size={14} color={Colors.warning} />
-                          <Text style={styles.ratingText}>
-                            {item.rating.toFixed(1)} ({item.reviewCount})
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <TouchableOpacity 
-                      style={styles.addToCartButton}
-                      onPress={() => handleAddToCart(item)}
-                    >
-                      <Icon name="add-shopping-cart" size={18} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </ModernCard>
-            );
-          }}
-          keyExtractor={(item: Product) => `flash-product-${item.id}`}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.productList}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          snapToInterval={Math.round(width * 0.4) + Spacing.xl + 15}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={3}
-          windowSize={3}
-          initialNumToRender={3}
-          getItemLayout={(data: any, index: number) => ({
-            length: 200,
-            offset: 200 * index,
-            index,
-          })}
-        />
-      </View>
-    );
-  };
-
-  const renderPersonalizedOffers = () => {
+  const renderPersonalizedOffers = useCallback(() => {
     if (!personalizedContent || personalizedContent.personalizedOffers.length === 0) {
       return null;
     }
@@ -1461,7 +1283,7 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         </ScrollView>
       </View>
     );
-  };
+  }, [personalizedContent, handleOfferPress, navigation]);
 
 
 
@@ -1477,6 +1299,8 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1496,7 +1320,6 @@ export const HomeScreen = ({ navigation }: HomeScreenProps) => {
         {renderHeroSlider()}
         {renderCategories}
         {renderFlashDeals()}
-        {renderDiscountOffers()}
         {renderCampaigns()}
         {renderPersonalizedOffers()}
         {renderPopularProducts()}
@@ -1752,12 +1575,20 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingTop: Spacing.sm,
   },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 0,
+  },
   productBrand: {
     fontSize: 11,
     color: Colors.textMuted,
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  verifiedIcon: {
+    marginLeft: 4,
   },
   productName: {
     fontSize: 14,

@@ -21,7 +21,7 @@ interface ProductCardProps {
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 32) / 2; // Reduced margin for cleaner look
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
+const ProductCardComponent: React.FC<ProductCardProps> = ({ product, onPress }) => {
   const { currentLanguage, t, isLoading: languageLoading } = useLanguage();
   
   return (
@@ -208,4 +208,15 @@ const styles = StyleSheet.create({
     color: '#333333',
     fontWeight: '500',
   },
+});
+
+// Memoization with custom comparator for performance optimization
+export const ProductCard = React.memo(ProductCardComponent, (prevProps, nextProps) => {
+  // Only re-render if these critical props change
+  return (
+    prevProps.product.id === nextProps.product.id &&
+    prevProps.product.price === nextProps.product.price &&
+    prevProps.product.stock === nextProps.product.stock &&
+    prevProps.product.image === nextProps.product.image
+  );
 });
