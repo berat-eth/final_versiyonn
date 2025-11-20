@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { useAuth } from '@/contexts/AuthContext'
@@ -110,8 +110,83 @@ export default function Urunler() {
     }
   }
 
-  const handleSearch = async (query: string) => {
+  // Debounce için timer (useRef kullanarak)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const performSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([])
+      setIsSearching(false)
+      return
+    }
+
+    try {
+      setIsSearching(true)
+      console.log('🔍 Arama yapılıyor:', query)
+      const response = await productsApi.searchProducts(query)
+      
+      console.log('📦 Arama API Response:', {
+        success: response.success,
+        hasData: !!response.data,
+        dataLength: Array.isArray(response.data) ? response.data.length : 'N/A',
+        message: response.message
+      })
+
+      if (response.success && response.data && Array.isArray(response.data)) {
+        // Arama sonuçlarını frontend'de tekstil kategorilerine göre filtrele
+        // Alternatif kategori isimleri de kontrol ediliyor
+        const tekstilKategoriler = [
+          'Tişört', 'T-Shirt', 'Tshirt', 'tişört', 'T-SHIRT', 'TSHIRT',
+          'Gömlek', 'gömlek', 'GOMLEK',
+          'Pantolon', 'pantolon', 'PANTOLON',
+          'Mont', 'mont', 'MONT',
+          'Hırka', 'hırka', 'HIRKA',
+          'Polar Bere', 'polar bere', 'POLAR BERE', 'Polar', 'polar',
+          'Şapka', 'şapka', 'SAPKA',
+          'Eşofman', 'eşofman', 'ESOFMAN',
+          'Hoodie', 'hoodie', 'HOODIE',
+          'Bandana', 'bandana', 'BANDANA',
+          'Aplike', 'aplike', 'APLIKE',
+          'Battaniye', 'battaniye', 'BATTANIYE',
+          'Waistcoat', 'waistcoat', 'WAISTCOAT',
+          'Yağmurluk', 'yağmurluk', 'YAGMURLUK',
+          'Rüzgarlık', 'rüzgarlık', 'RUZGARLIK'
+        ]
+        
+        const filtered = response.data.filter((product: Product) => {
+          if (!product.category) return false
+          const categoryLower = product.category.toLowerCase()
+          return tekstilKategoriler.some(kat => 
+            categoryLower.includes(kat.toLowerCase())
+          )
+        })
+        
+        console.log('✅ Filtrelenmiş sonuçlar:', filtered.length, 'ürün')
+        setSearchResults(filtered)
+      } else {
+        console.warn('⚠️ Arama sonucu beklenmeyen format:', response)
+        setSearchResults([])
+      }
+    } catch (error: any) {
+      console.error('❌ Arama hatası:', {
+        error,
+        message: error?.message,
+        stack: error?.stack
+      })
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
+    
+    // Önceki timer'ı temizle
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
     if (!query.trim()) {
       setSearchResults([])
       setIsSearching(false)
@@ -119,31 +194,20 @@ export default function Urunler() {
       return
     }
 
-    try {
-      setIsSearching(true)
-      const response = await productsApi.searchProducts(query)
-      if (response.success && response.data) {
-        // Arama sonuçlarını frontend'de tekstil kategorilerine göre filtrele
-        // Mutfak Ürünleri, Camp Ürünleri ve Silah Aksesuarları çıkarıldı
-        const tekstilKategoriler = [
-          'Tişört', 'Gömlek', 'Pantolon', 'Mont', 'Hırka', 'Polar Bere', 'Şapka',
-          'Eşofman', 'Hoodie', 'Bandana', 'Aplike', 'Battaniye', 'Waistcoat',
-          'Yağmurluk', 'Rüzgarlık'
-        ]
-        const filtered = response.data.filter((product: Product) => {
-          if (!product.category) return false
-          return tekstilKategoriler.some(kat => 
-            product.category?.toLowerCase().includes(kat.toLowerCase())
-          )
-        })
-        setSearchResults(filtered)
+    // Debounce: 500ms bekle
+    searchTimeoutRef.current = setTimeout(() => {
+      performSearch(query)
+    }, 500)
+  }, [performSearch])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
       }
-    } catch (error) {
-      console.error('Arama başarısız:', error)
-    } finally {
-      setIsSearching(false)
     }
-  }
+  }, [])
 
   const displayedProducts = searchQuery ? searchResults : products
 

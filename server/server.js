@@ -15227,22 +15227,28 @@ app.get('/api/products/search', async (req, res) => {
     // LIKE tabanlı arama (FULLTEXT index gerektirmez)
     const whereTenant = tenantId ? ' AND p.tenantId = ?' : '';
     const searchPattern = `%${search}%`;
+    const namePattern = `${search}%`; // ORDER BY için başlangıç eşleşmesi
 
+    // Parametreler: WHERE için 6, ORDER BY için 2, tenantId (varsa), LIMIT/OFFSET için 2
     const paramsLike = tenantId
       ? [
-        searchPattern, searchPattern, searchPattern, // name/brand/description
-        searchPattern, // externalId
-        searchPattern, // product sku
-        searchPattern, // option sku
-        tenantId,
+        searchPattern, searchPattern, searchPattern, // WHERE: name/brand/description
+        searchPattern, // WHERE: externalId
+        searchPattern, // WHERE: product sku
+        searchPattern, // WHERE: option sku
+        tenantId, // WHERE: tenantId
+        namePattern, // ORDER BY: name LIKE (başlangıç)
+        searchPattern, // ORDER BY: brand LIKE
         limit,
         offset,
       ]
       : [
-        searchPattern, searchPattern, searchPattern,
-        searchPattern,
-        searchPattern,
-        searchPattern,
+        searchPattern, searchPattern, searchPattern, // WHERE: name/brand/description
+        searchPattern, // WHERE: externalId
+        searchPattern, // WHERE: product sku
+        searchPattern, // WHERE: option sku
+        namePattern, // ORDER BY: name LIKE (başlangıç)
+        searchPattern, // ORDER BY: brand LIKE
         limit,
         offset,
       ];
