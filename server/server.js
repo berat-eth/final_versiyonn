@@ -16678,49 +16678,15 @@ async function startServer() {
       const { userId } = req.params;
       const tenantId = req.tenant?.id || 1;
 
-      const cacheKey = `cart:${tenantId}:${userId}:-`;
-      const lockKey = `${cacheKey}:lock`;
-
-      const cached = await getJson(cacheKey);
-      if (Array.isArray(cached)) {
-        return res.json({ success: true, data: cached });
-      }
-
-      let rows;
-      await withLock(lockKey, 5, async () => {
-        const again = await getJson(cacheKey);
-        if (Array.isArray(again)) {
-          rows = again;
-          return;
-        }
-        // Optimize: Sadece gerekli column'lar
-        const q = `SELECT c.id, c.userId, c.deviceId, c.productId, c.quantity, c.variationString, c.selectedVariations, c.createdAt, 
-                          p.name, p.price, p.image, p.stock 
-         FROM cart c 
-         JOIN products p ON c.productId = p.id 
-         WHERE c.userId = ? AND c.tenantId = ?
-         ORDER BY c.createdAt DESC`;
-        const params = [userId, tenantId];
-        const [dbRows] = await poolWrapper.execute(q, params);
-        rows = dbRows;
-        // Optimize: Cache TTL 60 → 180 (3 dakika - sepet sık değişir)
-        await setJsonEx(cacheKey, 180, rows);
-      });
-
-      if (!rows) {
-        // Optimize: Sadece gerekli column'lar
-        const q = `SELECT c.id, c.userId, c.deviceId, c.productId, c.quantity, c.variationString, c.selectedVariations, c.createdAt, 
-                          p.name, p.price, p.image, p.stock 
-         FROM cart c 
-         JOIN products p ON c.productId = p.id 
-         WHERE c.userId = ? AND c.tenantId = ?
-         ORDER BY c.createdAt DESC`;
-        const params = [userId, tenantId];
-        const [dbRows] = await poolWrapper.execute(q, params);
-        rows = dbRows;
-        // Optimize: Cache TTL 60 → 180 (3 dakika)
-        await setJsonEx(cacheKey, 180, rows);
-      }
+      // Optimize: Sadece gerekli column'lar
+      const q = `SELECT c.id, c.userId, c.deviceId, c.productId, c.quantity, c.variationString, c.selectedVariations, c.createdAt, 
+                        p.name, p.price, p.image, p.stock 
+       FROM cart c 
+       JOIN products p ON c.productId = p.id 
+       WHERE c.userId = ? AND c.tenantId = ?
+       ORDER BY c.createdAt DESC`;
+      const params = [userId, tenantId];
+      const [rows] = await poolWrapper.execute(q, params);
 
       res.json({ success: true, data: rows });
     } catch (error) {
@@ -16779,12 +16745,6 @@ async function startServer() {
 
       const cartItemId = result.insertId || result.affectedRows;
       console.log(`✅ Server: Cart updated for user ${userId}, item ${cartItemId}`);
-
-      // ⚡ OPTIMIZASYON: Tek cache invalidation
-      try {
-        const cacheKey = `cart:${tenantId}:${userId}:${userId === 1 ? (deviceId || '') : '-'}`;
-        await delKey(cacheKey);
-      } catch (_) { }
 
       res.json({
         success: true,
@@ -16874,17 +16834,6 @@ async function startServer() {
           'DELETE FROM cart WHERE id = ?',
           [cartItemId]
         );
-        try {
-          const tenantId = req.tenant?.id || 1;
-          // cartItemId'den userId ve deviceId'yi bulup anahtarları sil
-          const [info] = await poolWrapper.execute('SELECT userId, deviceId FROM cart WHERE id = ?', [cartItemId]);
-          const uId = info?.[0]?.userId;
-          const dId = info?.[0]?.deviceId || '';
-          if (uId) {
-            await delKey(`cart:${tenantId}:${uId}:${uId === 1 ? dId : '-'}`);
-            await delKey(`cart:${tenantId}:${uId}:-`);
-          }
-        } catch (_) { }
         return res.json({
           success: true,
           message: 'Item removed from cart'
@@ -16895,16 +16844,6 @@ async function startServer() {
         'UPDATE cart SET quantity = ? WHERE id = ?',
         [quantity, cartItemId]
       );
-      try {
-        const tenantId = req.tenant?.id || 1;
-        const [info] = await poolWrapper.execute('SELECT userId, deviceId FROM cart WHERE id = ?', [cartItemId]);
-        const uId = info?.[0]?.userId;
-        const dId = info?.[0]?.deviceId || '';
-        if (uId) {
-          await delKey(`cart:${tenantId}:${uId}:${uId === 1 ? dId : '-'}`);
-          await delKey(`cart:${tenantId}:${uId}:-`);
-        }
-      } catch (_) { }
       res.json({
         success: true,
         message: 'Cart item updated'
@@ -16932,12 +16871,6 @@ async function startServer() {
 
       await poolWrapper.execute('DELETE FROM cart WHERE id = ?', [cartItemId]);
 
-      // ⚡ OPTIMIZASYON: Tek cache invalidation
-      try {
-        const cacheKey = `cart:${tenantId}:${uId}:${uId === 1 ? dId : '-'}`;
-        await delKey(cacheKey);
-      } catch (_) { }
-
       res.json({
         success: true,
         message: 'Item removed from cart'
@@ -16956,16 +16889,7 @@ async function startServer() {
 
       // Tenant ID from authentication
       const tenantId = req.tenant?.id || 1;
-      const cacheKey = `cart:${tenantId}:${userId}:${deviceId ? String(deviceId) : '-'}`;
 
-      // ⚡ OPTIMIZASYON: Lock kaldırıldı - direkt cache kontrolü
-      const cached = await getJson(cacheKey);
-      if (Array.isArray(cached)) {
-        console.log(`✅ Server: Cache hit for user ${userId}`);
-        return res.json({ success: true, data: cached });
-      }
-
-      // Cache miss - DB'den çek
       // Optimize: Sadece gerekli column'lar
       let getCartSql = `SELECT c.id, c.userId, c.deviceId, c.productId, c.quantity, c.variationString, c.selectedVariations, c.createdAt, 
                                p.name, p.price, p.image, p.stock
@@ -16983,9 +16907,6 @@ async function startServer() {
       getCartSql += ' ORDER BY c.createdAt DESC';
 
       const [rows] = await poolWrapper.execute(getCartSql, getCartParams);
-
-      // ⚡ OPTIMIZASYON: Cache süresi 300 → 180 saniye (3 dakika - sepet daha sık değişir)
-      await setJsonEx(cacheKey, 180, rows);
 
       console.log(`✅ Server: Found ${rows.length} cart items for user ${userId}`);
       res.json({ success: true, data: rows });

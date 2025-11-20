@@ -11,7 +11,6 @@ const PRODUCT_CACHE_DURATION = 30 * 60 * 1000; // 30 dakika - ürünler için (2
 const SEARCH_CACHE_DURATION = 2 * 60 * 1000; // 2 dakika - arama sonuçları için
 const CATEGORY_CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 saat - kategoriler için (1 → 2 saat)
 const STATIC_CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 saat - statik içerik (2 → 4 saat)
-const CART_CACHE_DURATION = 3 * 60 * 1000; // 3 dakika - sepet için (2 → 3 dakika)
 const OFFLINE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 saat offline cache
 
 // Offline özellikleri devre dışı: her zaman ağ üzerinden dene
@@ -561,15 +560,30 @@ class ApiService {
               error: trimmed.substring(0, 500)
             };
           } else {
-            try {
-              result = JSON.parse(text);
-            } catch (parseError) {
-              console.error('❌ Text to JSON parse error:', parseError);
-              // If parsing fails, create a proper error response
+            // Check if text looks like JSON before attempting to parse
+            const firstChar = trimmed.charAt(0);
+            const looksLikeJson = firstChar === '{' || firstChar === '[' || 
+                                 firstChar === '"' || 
+                                 trimmed === 'true' || trimmed === 'false' || trimmed === 'null' ||
+                                 /^-?\d/.test(trimmed);
+            
+            if (looksLikeJson) {
+              try {
+                result = JSON.parse(text);
+              } catch (parseError) {
+                // Silently handle parse errors - response is not valid JSON
+                result = {
+                  success: false,
+                  message: `Server returned invalid JSON: ${response.status} ${response.statusText}`,
+                  error: trimmed.substring(0, 200)
+                };
+              }
+            } else {
+              // Text doesn't look like JSON, don't attempt to parse
               result = {
                 success: false,
                 message: `Server returned non-JSON response: ${response.status} ${response.statusText}`,
-                error: trimmed.substring(0, 500)
+                error: trimmed.substring(0, 200)
               };
             }
           }
@@ -621,7 +635,8 @@ class ApiService {
       }
 
       // ✅ OPTIMIZASYON: Cache successful responses with appropriate TTL
-      if (method === 'GET' && result.success) {
+      // Cart endpoint'leri cache'lenmez
+      if (method === 'GET' && result.success && !endpoint.includes('/cart')) {
         const cacheKey = this.getCacheKey(endpoint);
         let ttl = CACHE_DURATION;
         
@@ -632,8 +647,6 @@ class ApiService {
           ttl = PRODUCT_CACHE_DURATION;
         } else if (endpoint.includes('/categories') || endpoint.includes('/brands')) {
           ttl = CATEGORY_CACHE_DURATION;
-        } else if (endpoint.includes('/cart')) {
-          ttl = CART_CACHE_DURATION;
         } else if (endpoint.includes('/slider') || endpoint.includes('/homepage-products')) {
           ttl = STATIC_CACHE_DURATION;
         }
@@ -1048,13 +1061,7 @@ class ApiService {
 
   // Enhanced cart endpoints with optimized caching
   async addToCart(cartData: any): Promise<ApiResponse<boolean>> {
-    const result = await this.request<boolean>('/cart', 'POST', cartData);
-    // Başarılı ekleme sonrası sepet cache'ini invalidate et
-    if (result.success && cartData.userId) {
-      const cacheKey = this.getCacheKey(`/cart/user/${cartData.userId}`);
-      await CacheService.remove(cacheKey);
-    }
-    return result;
+    return this.request<boolean>('/cart', 'POST', cartData);
   }
 
   async removeFromCart(id: number, userId?: number): Promise<ApiResponse<boolean>> {
@@ -1063,13 +1070,7 @@ class ApiService {
     if (userId) {
       endpoint += `?userId=${userId}`;
     }
-    const result = await this.request<boolean>(endpoint, 'DELETE');
-    // Başarılı silme sonrası ilgili cache'leri temizle
-    if (result.success) {
-      // Tüm sepet cache'lerini temizle (userId bilinmediği için)
-      await CacheService.clearPattern('cart/user');
-    }
-    return result;
+    return this.request<boolean>(endpoint, 'DELETE');
   }
 
   async checkCartBeforeLogout(userId: number, deviceId?: string): Promise<ApiResponse<{
@@ -1083,12 +1084,7 @@ class ApiService {
 
 
   async updateCartQuantity(id: number, quantity: number): Promise<ApiResponse<boolean>> {
-    const result = await this.request<boolean>(`/cart/${id}`, 'PUT', { quantity });
-    // Başarılı güncelleme sonrası cache'i temizle
-    if (result.success) {
-      await CacheService.clearPattern('cart/user');
-    }
-    return result;
+    return this.request<boolean>(`/cart/${id}`, 'PUT', { quantity });
   }
 
   // Return requests endpoints
@@ -1134,30 +1130,7 @@ class ApiService {
     }
 
     const endpoint = `/cart/user/${userId}`;
-    const cacheKey = this.getCacheKey(endpoint);
-
-    // ✅ OPTIMIZASYON: SWR pattern - cache varsa hemen döndür, arkaplanda yenile
-    try {
-      const cached = await CacheService.get<ApiResponse<any[]>>(cacheKey);
-      if (cached && cached.success && Array.isArray(cached.data)) {
-        // Cache varsa hemen döndür, arkaplanda sessizce yenile (SWR pattern)
-        this.request<any[]>(endpoint)
-          .then(async (fresh) => {
-            if (fresh && fresh.success) {
-              await CacheService.set(cacheKey, fresh, CART_CACHE_DURATION);
-            }
-          })
-          .catch(() => { });
-        return cached;
-      }
-    } catch { }
-
-    // Cache yoksa API'den çek ve cache'le
-    const result = await this.request<any[]>(endpoint);
-    if (result.success) {
-      await CacheService.set(cacheKey, result, CART_CACHE_DURATION);
-    }
-    return result;
+    return this.request<any[]>(endpoint);
   }
 
   async clearCart(userId: number): Promise<ApiResponse<boolean>> {
@@ -1680,14 +1653,26 @@ export async function safeJsonParse(response: Response): Promise<any> {
 
     // Boş veya geçersiz response kontrolü
     if (!responseText || responseText.trim() === '' || responseText === 'undefined') {
-      console.warn('Empty or invalid response from API');
+      return null;
+    }
+
+    const trimmed = responseText.trim();
+    
+    // JSON formatında olup olmadığını kontrol et
+    const firstChar = trimmed.charAt(0);
+    const looksLikeJson = firstChar === '{' || firstChar === '[' || 
+                         firstChar === '"' || 
+                         trimmed === 'true' || trimmed === 'false' || trimmed === 'null' ||
+                         /^-?\d/.test(trimmed);
+    
+    if (!looksLikeJson) {
       return null;
     }
 
     // JSON parse et
     return JSON.parse(responseText);
   } catch (error) {
-    console.error('Error parsing JSON response:', error);
+    // Silently handle parse errors
     return null;
   }
 }

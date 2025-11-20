@@ -45,6 +45,23 @@ export async function safeJsonParse<T = any>(response: Response): Promise<SafePa
       };
     }
 
+    const trimmed = text.trim();
+    
+    // JSON formatında olup olmadığını kontrol et
+    const firstChar = trimmed.charAt(0);
+    const looksLikeJson = firstChar === '{' || firstChar === '[' || 
+                         firstChar === '"' || 
+                         trimmed === 'true' || trimmed === 'false' || trimmed === 'null' ||
+                         /^-?\d/.test(trimmed);
+    
+    if (!looksLikeJson) {
+      return {
+        success: false,
+        error: 'Non-JSON response',
+        message: 'Response is not in JSON format'
+      };
+    }
+
     // JSON parse et
     const data = JSON.parse(text);
     
