@@ -477,7 +477,7 @@ class XmlSyncService {
       let productId;
               // Önce external ID ile mevcut ürünü kontrol et
         const [existing] = await this.pool.execute(
-          'SELECT id, name, price, stock, image, images, image1, image2, image3, image4, image5, hasVariations, sku, categoryTree, productUrl, salesUnit, totalImages, xmlOptions, variationDetails FROM products WHERE externalId = ? AND tenantId = ?',
+          'SELECT id, name, description, price, stock, image, images, image1, image2, image3, image4, image5, category, brand, hasVariations, sku, categoryTree, productUrl, salesUnit, totalImages, xmlOptions, variationDetails FROM products WHERE externalId = ? AND tenantId = ?',
           [product.externalId, tenantId]
         );
 
@@ -493,12 +493,28 @@ class XmlSyncService {
           updates.push('name = ?');
           hasChanges = true;
         }
+        if (existingProduct.description !== product.description) {
+          updates.push('description = ?');
+          hasChanges = true;
+        }
+        if (existingProduct.category !== product.category) {
+          updates.push('category = ?');
+          hasChanges = true;
+        }
+        if (existingProduct.brand !== product.brand) {
+          updates.push('brand = ?');
+          hasChanges = true;
+        }
         if (existingProduct.price !== product.price) {
           updates.push('price = ?');
           hasChanges = true;
         }
         if (existingProduct.stock !== product.stock) {
           updates.push('stock = ?');
+          hasChanges = true;
+        }
+        if (existingProduct.image !== product.image) {
+          updates.push('image = ?');
           hasChanges = true;
         }
         if (existingProduct.images !== product.images) {
@@ -579,8 +595,12 @@ class XmlSyncService {
             `UPDATE products SET ${updates.join(', ')}, lastUpdated = ? WHERE id = ?`,
             [
               ...(updates.includes('name = ?') ? [product.name] : []),
+              ...(updates.includes('description = ?') ? [product.description] : []),
+              ...(updates.includes('category = ?') ? [product.category] : []),
+              ...(updates.includes('brand = ?') ? [product.brand] : []),
               ...(updates.includes('price = ?') ? [product.price] : []),
               ...(updates.includes('stock = ?') ? [product.stock] : []),
+              ...(updates.includes('image = ?') ? [product.image] : []),
               ...(updates.includes('images = ?') ? [product.images] : []),
               ...(updates.includes('image1 = ?') ? [product.image1] : []),
               ...(updates.includes('image2 = ?') ? [product.image2] : []),
@@ -1008,8 +1028,11 @@ class XmlSyncService {
             console.log(`✅ Completed processing ${source.name} for tenant ${tenant.id}`);
             
           } catch (sourceError) {
-            console.error(`❌ Error processing source ${source.name} for tenant ${tenant.id}:`, sourceError.message);
+            const errorMsg = sourceError && sourceError.message ? sourceError.message : 'Unknown error';
+            console.error(`❌ Error processing source ${source.name} for tenant ${tenant.id}:`, errorMsg);
+            console.error('   Stack trace:', sourceError.stack || 'No stack trace available');
             this.syncStats.errors++;
+            this.message = `Hata: ${source.name} - ${errorMsg}`;
           }
         }
       }
@@ -1028,8 +1051,11 @@ class XmlSyncService {
       console.log(`   Last Sync: ${this.lastSyncTime.toLocaleString()}\n`);
 
     } catch (error) {
-      console.error('❌ Fatal error during XML sync:', error.message);
+      const errorMsg = error && error.message ? error.message : 'Unknown fatal error';
+      console.error('❌ Fatal error during XML sync:', errorMsg);
+      console.error('   Stack trace:', error.stack || 'No stack trace available');
       this.syncStats.errors++;
+      this.message = `Kritik hata: ${errorMsg}`;
     } finally {
       this.isRunning = false;
     }

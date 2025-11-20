@@ -18158,48 +18158,58 @@ async function startServer() {
 
   // Manual XML sync endpoint
   app.post('/api/sync/products', async (req, res) => {
+    const started = Date.now();
+    let message = 'OK';
+    let success = true;
+    
     try {
       console.log('🔄 Manual XML sync triggered...');
 
       if (!xmlSyncService) {
+        success = false;
+        message = 'XML sync service not initialized';
         return res.status(500).json({
           success: false,
-          message: 'XML sync service not initialized'
+          message: message
         });
       }
 
       // Trigger manual sync
-      const started = Date.now();
-      let message = 'OK';
-      let success = true;
       try {
         await xmlSyncService.triggerManualSync();
+        message = 'Product sync completed successfully with updated price logic';
       } catch (innerErr) {
         success = false;
         message = innerErr && innerErr.message ? innerErr.message : 'Unknown error';
         throw innerErr;
-      } finally {
-        try {
-          const durationMs = Date.now() - started;
-          global.__syncLogs = global.__syncLogs || [];
-          global.__syncLogs.unshift({ startedAt: new Date(started).toISOString(), durationMs, success, message });
-          if (global.__syncLogs.length > 50) global.__syncLogs.length = 50;
-        } catch (logErr) { /* ignore */ }
       }
 
+      // Başarılı yanıt gönder
       res.json({
         success: true,
-        message: 'Product sync completed successfully with updated price logic',
+        message: message,
         timestamp: new Date().toISOString(),
         note: 'IndirimliFiyat = 0 ise SatisFiyati kullanıldı'
       });
 
     } catch (error) {
+      success = false;
+      message = error && error.message ? error.message : 'Unknown error';
       console.error('❌ Error in manual sync:', error);
       res.status(500).json({
         success: false,
-        message: 'Error during product sync: ' + error.message
+        message: 'Error during product sync: ' + message
       });
+    } finally {
+      // Log kaydını her durumda yap
+      try {
+        const durationMs = Date.now() - started;
+        global.__syncLogs = global.__syncLogs || [];
+        global.__syncLogs.unshift({ startedAt: new Date(started).toISOString(), durationMs, success, message });
+        if (global.__syncLogs.length > 50) global.__syncLogs.length = 50;
+      } catch (logErr) { 
+        console.error('❌ Error logging sync:', logErr);
+      }
     }
   });
 
