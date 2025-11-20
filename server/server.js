@@ -15279,10 +15279,20 @@ app.get('/api/products/search', async (req, res) => {
 
     const cleanedProducts = rows.map(cleanProductData);
     res.setHeader('Cache-Control', 'public, max-age=30');
+    console.log(`✅ [GET /api/products/search] Arama tamamlandı: "${search}" - ${cleanedProducts.length} sonuç bulundu`);
     return res.json({ success: true, data: cleanedProducts, page, limit, count: cleanedProducts.length });
   } catch (error) {
-    console.error('Error searching products:', error);
-    return res.status(500).json({ success: false, message: 'Error searching products' });
+    console.error('❌ [GET /api/products/search] Arama hatası:', {
+      error: error.message,
+      stack: error.stack,
+      search: req.query.q,
+      tenantId: req.tenant?.id
+    });
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error searching products',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

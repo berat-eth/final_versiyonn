@@ -114,7 +114,16 @@ export default function Urunler() {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const performSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
+    const trimmedQuery = query.trim()
+    
+    if (!trimmedQuery) {
+      setSearchResults([])
+      setIsSearching(false)
+      return
+    }
+
+    // Minimum 2 karakter kontrolü (backend ile uyumlu)
+    if (trimmedQuery.length < 2) {
       setSearchResults([])
       setIsSearching(false)
       return
@@ -122,8 +131,8 @@ export default function Urunler() {
 
     try {
       setIsSearching(true)
-      console.log('🔍 Arama yapılıyor:', query)
-      const response = await productsApi.searchProducts(query)
+      console.log('🔍 Arama yapılıyor:', trimmedQuery)
+      const response = await productsApi.searchProducts(trimmedQuery)
       
       console.log('📦 Arama API Response:', {
         success: response.success,
@@ -194,10 +203,10 @@ export default function Urunler() {
       return
     }
 
-    // Debounce: 500ms bekle
+    // Debounce: 800ms bekle (daha uzun süre, daha az istek)
     searchTimeoutRef.current = setTimeout(() => {
       performSearch(query)
-    }, 500)
+    }, 800)
   }, [performSearch])
 
   // Cleanup timer on unmount
