@@ -13399,16 +13399,24 @@ app.get('/api/favorites/user/:userId', async (req, res) => {
     const { userId } = req.params;
     const tenantId = req.tenant?.id || 1;
 
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
     const [favorites] = await poolWrapper.execute(`
       SELECT f.id, f.productId, f.createdAt,
-             p.name, p.price, p.image, p.stock, p.description
+             p.name, p.price, p.image, p.stock, p.description, p.brand, p.category,
+             p.rating, p.reviewCount, p.hasVariations
       FROM user_favorites_v2 f
-      JOIN products p ON f.productId = p.id AND p.tenantId = ?
-      WHERE f.userId = ?
+      LEFT JOIN products p ON f.productId = p.id AND p.tenantId = ?
+      WHERE f.userId = ? AND f.tenantId = ?
       ORDER BY f.createdAt DESC
-    `, [tenantId, userId]);
+    `, [tenantId, userId, tenantId]);
 
-    res.json({ success: true, data: favorites });
+    res.json({ success: true, data: favorites || [] });
   } catch (error) {
     console.error('❌ Error getting favorites:', error);
     res.status(500).json({ success: false, message: 'Error getting favorites' });
@@ -13431,8 +13439,8 @@ app.post('/api/favorites', async (req, res) => {
 
     // Check if already favorited
     const [existing] = await poolWrapper.execute(
-      'SELECT id FROM user_favorites_v2 WHERE userId = ? AND productId = ?',
-      [userId, productId]
+      'SELECT id FROM user_favorites_v2 WHERE userId = ? AND productId = ? AND tenantId = ?',
+      [userId, productId, tenantId]
     );
 
     if (existing.length > 0) {
@@ -13457,8 +13465,8 @@ app.post('/api/favorites', async (req, res) => {
 
     // Add to favorites
     const [result] = await poolWrapper.execute(
-      'INSERT INTO user_favorites_v2 (userId, productId) VALUES (?, ?)',
-      [userId, productId]
+      'INSERT INTO user_favorites_v2 (tenantId, userId, productId) VALUES (?, ?, ?)',
+      [tenantId, userId, productId]
     );
 
     res.json({
@@ -13485,10 +13493,12 @@ app.delete('/api/favorites/:id', async (req, res) => {
       });
     }
 
+    const tenantId = req.tenant?.id || 1;
+
     // Verify ownership
     const [favorite] = await poolWrapper.execute(
-      'SELECT id FROM user_favorites_v2 WHERE id = ? AND userId = ?',
-      [id, userId]
+      'SELECT id FROM user_favorites_v2 WHERE id = ? AND userId = ? AND tenantId = ?',
+      [id, userId, tenantId]
     );
 
     if (favorite.length === 0) {
@@ -13498,9 +13508,11 @@ app.delete('/api/favorites/:id', async (req, res) => {
       });
     }
 
+    const tenantId = req.tenant?.id || 1;
+    
     await poolWrapper.execute(
-      'DELETE FROM user_favorites_v2 WHERE id = ? AND userId = ?',
-      [id, userId]
+      'DELETE FROM user_favorites_v2 WHERE id = ? AND userId = ? AND tenantId = ?',
+      [id, userId, tenantId]
     );
 
     res.json({ success: true, message: 'Removed from favorites' });
@@ -13515,6 +13527,7 @@ app.delete('/api/favorites/product/:productId', async (req, res) => {
   try {
     const { productId } = req.params;
     const { userId } = req.query;
+    const tenantId = req.tenant?.id || 1;
 
     if (!userId) {
       return res.status(400).json({
@@ -13523,9 +13536,16 @@ app.delete('/api/favorites/product/:productId', async (req, res) => {
       });
     }
 
-    await poolWrapper.execute(
-      'DELETE FROM user_favorites_v2 WHERE productId = ? AND userId = ?',
-      [productId, userId]
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product ID is required'
+      });
+    }
+
+    const [result] = await poolWrapper.execute(
+      'DELETE FROM user_favorites_v2 WHERE productId = ? AND userId = ? AND tenantId = ?',
+      [productId, userId, tenantId]
     );
 
     res.json({ success: true, message: 'Removed from favorites' });
@@ -20595,10 +20615,10 @@ async function startServer() {
           levelProgress: {
             currentLevel,
             nextLevel,
-            currentExp: totalExp,
-            expToNextLevel,
-            progressPercentage,
-            totalExp
+            currentExp: Number(totalExp),
+            expToNextLevel: Number(expToNextLevel),
+            progressPercentage: Number(progressPercentage.toFixed(2)),
+            totalExp: Number(totalExp)
           }
         }
       });

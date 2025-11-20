@@ -67,61 +67,104 @@ export const FavoritesScreen: React.FC<FavoritesScreenProps> = ({ navigation }) 
       const user = await UserController.getCurrentUser();
       if (!user) {
         setFavorites([]);
+        setLoading(false);
+        setRefreshing(false);
         return;
       }
-      const userId = await UserController.getCurrentUserId(); // Get current user ID
+      const userId = await UserController.getCurrentUserId();
       const favoriteData = await UserController.getUserFavorites(userId);
       
-      if (favoriteData.length === 0) {
+      if (!favoriteData || favoriteData.length === 0) {
         setFavorites([]);
         return;
       }
       
-      // Get all current products to merge with favorite data
-      console.log('🔄 Loading current product data for favorites...');
-      const allProductsResult = await ProductController.getAllProducts(1, 1000);
-      const allProducts = Array.isArray((allProductsResult as any)?.products)
-        ? (allProductsResult as any).products
-        : [];
-      
-      // Convert favorite data to products with current stock information
+      // Backend'den gelen veri formatı: { id, productId, name, price, image, stock, description, createdAt }
+      // Eğer backend'den direkt product bilgileri geliyorsa, onları kullan
       const favoriteProducts: Product[] = favoriteData.map((fav: any) => {
-        const productData = JSON.parse(fav.productData || '{}');
-        const productId = parseInt(fav.productId);
+        const productId = parseInt(fav.productId || fav.id);
         
-        // Find current product data
-        const currentProduct = allProducts.find((p: any) => p.id === productId);
+        // Backend'den gelen veri formatı kontrolü
+        if (fav.name && fav.price !== undefined) {
+          // Backend'den direkt product bilgileri geliyor
+          return {
+            id: productId,
+            name: fav.name || 'Bilinmeyen Ürün',
+            price: parseFloat(fav.price) || 0,
+            image: fav.image || '',
+            brand: fav.brand || '',
+            description: fav.description || '',
+            category: fav.category || '',
+            stock: parseInt(fav.stock) || 0,
+            rating: parseFloat(fav.rating) || 0,
+            reviewCount: parseInt(fav.reviewCount) || 0,
+            hasVariations: fav.hasVariations || false,
+            variations: fav.variations || [],
+            images: fav.images || (fav.image ? [fav.image] : [])
+          };
+        }
         
-        // Debug log to see what data we have
-        console.log('🖼️ Favorite product data merge:', {
-          productId: fav.productId,
-          hasCurrentData: !!currentProduct,
-          storedStock: productData.stock,
-          currentStock: currentProduct?.stock,
-          image: productData.image || currentProduct?.image
-        });
+        // Local database formatı (fallback)
+        const productData = fav.productData ? (typeof fav.productData === 'string' ? JSON.parse(fav.productData) : fav.productData) : {};
         
         return {
           id: productId,
-          name: currentProduct?.name || productData.name || 'Bilinmeyen Ürün',
-          price: currentProduct?.price || productData.price || 0,
-          image: currentProduct?.image || productData.image || (productData.images && productData.images[0]) || '',
-          brand: currentProduct?.brand || productData.brand || '',
-          description: currentProduct?.description || productData.description || '',
-          category: currentProduct?.category || productData.category || '',
-          stock: currentProduct?.stock !== undefined ? currentProduct.stock : (productData.stock || 0),
-          rating: currentProduct?.rating || productData.rating || 0,
-          reviewCount: currentProduct?.reviewCount || productData.reviewCount || 0,
-          hasVariations: currentProduct?.hasVariations || false,
-          variations: currentProduct?.variations || [],
-          images: currentProduct?.images || productData.images || []
+          name: productData.name || 'Bilinmeyen Ürün',
+          price: parseFloat(productData.price) || 0,
+          image: productData.image || (productData.images && productData.images[0]) || '',
+          brand: productData.brand || '',
+          description: productData.description || '',
+          category: productData.category || '',
+          stock: parseInt(productData.stock) || 0,
+          rating: parseFloat(productData.rating) || 0,
+          reviewCount: parseInt(productData.reviewCount) || 0,
+          hasVariations: productData.hasVariations || false,
+          variations: productData.variations || [],
+          images: productData.images || []
         };
       });
       
-      console.log(`✅ Loaded ${favoriteProducts.length} favorites with current data`);
-      setFavorites(favoriteProducts);
+      // Ürün detaylarını güncellemek için backend'den güncel bilgileri al
+      if (favoriteProducts.length > 0) {
+        try {
+          console.log('🔄 Loading current product data for favorites...');
+          const allProductsResult = await ProductController.getAllProducts(1, 1000);
+          const allProducts = Array.isArray((allProductsResult as any)?.products)
+            ? (allProductsResult as any).products
+            : [];
+          
+          // Güncel ürün bilgileriyle merge et
+          const updatedFavorites = favoriteProducts.map((fav: Product) => {
+            const currentProduct = allProducts.find((p: any) => p.id === fav.id);
+            if (currentProduct) {
+              return {
+                ...fav,
+                name: currentProduct.name || fav.name,
+                price: currentProduct.price || fav.price,
+                image: currentProduct.image || fav.image,
+                stock: currentProduct.stock !== undefined ? currentProduct.stock : fav.stock,
+                rating: currentProduct.rating || fav.rating,
+                reviewCount: currentProduct.reviewCount || fav.reviewCount,
+                hasVariations: currentProduct.hasVariations || fav.hasVariations,
+                variations: currentProduct.variations || fav.variations,
+                images: currentProduct.images || fav.images || []
+              };
+            }
+            return fav;
+          });
+          
+          console.log(`✅ Loaded ${updatedFavorites.length} favorites with current data`);
+          setFavorites(updatedFavorites);
+        } catch (productError) {
+          console.warn('⚠️ Could not load current product data, using cached data:', productError);
+          setFavorites(favoriteProducts);
+        }
+      } else {
+        setFavorites([]);
+      }
     } catch (error) {
-      console.error('Error loading favorites:', error);
+      console.error('❌ Error loading favorites:', error);
+      setFavorites([]);
     } finally {
       if (isRefresh) {
         setRefreshing(false);

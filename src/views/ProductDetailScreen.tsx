@@ -727,12 +727,17 @@ export const ProductDetailScreen: React.FC<ProductDetailScreenProps> = ({
 
   const checkIfFavorite = async () => {
     try {
-      const userId = 1; // Default guest user ID
-      const favorites = await UserController.getUserFavorites(userId);
-      const favoriteIds = favorites.map((fav: any) => parseInt(fav.productId));
-      setIsFavorite(favoriteIds.includes(productId));
+      const user = await UserController.getCurrentUser();
+      if (!user) {
+        setIsFavorite(false);
+        return;
+      }
+      const userId = await UserController.getCurrentUserId();
+      const isFav = await UserController.isProductFavorite(userId, productId);
+      setIsFavorite(isFav);
     } catch (error) {
       console.error('Error checking favorite status:', error);
+      setIsFavorite(false);
     }
   };
 

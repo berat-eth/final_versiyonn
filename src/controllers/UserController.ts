@@ -772,62 +772,172 @@ export class UserController {
   // User Favorites Management
   static async getUserFavorites(userId: number): Promise<any[]> {
     try {
-      const db = await getDatabase();
-      const favorites = await db.getAllAsync(
-        `SELECT f.*, f.productData 
-         FROM user_favorites_v2 f 
-         WHERE f.userId = ? 
-         ORDER BY f.createdAt DESC`,
-        [userId.toString()]
-      );
-      return favorites || [];
-    } catch (error) {
-      console.error('❌ Error getting user favorites:', error);
+      // Backend API'den favorileri getir
+      const response = await apiService.get(`/favorites/user/${userId}`);
+      
+      if (response.success && response.data && Array.isArray(response.data)) {
+        console.log(`✅ Retrieved ${response.data.length} favorites from backend`);
+        // Backend'den gelen veriyi hem backend formatında hem de local format'a çevir
+        return response.data.map((fav: any) => ({
+          id: fav.id,
+          productId: fav.productId,
+          createdAt: fav.createdAt,
+          // Backend formatı (direkt kullanılabilir)
+          name: fav.name,
+          price: fav.price,
+          image: fav.image,
+          stock: fav.stock,
+          description: fav.description,
+          brand: fav.brand,
+          category: fav.category,
+          rating: fav.rating,
+          reviewCount: fav.reviewCount,
+          hasVariations: fav.hasVariations,
+          // Local format (fallback için)
+          productData: JSON.stringify({
+            name: fav.name,
+            price: fav.price,
+            image: fav.image,
+            stock: fav.stock,
+            description: fav.description,
+            brand: fav.brand,
+            category: fav.category,
+            rating: fav.rating,
+            reviewCount: fav.reviewCount,
+            hasVariations: fav.hasVariations
+          })
+        }));
+      }
+      
+      console.log('⚠️ No favorites found or invalid response format');
       return [];
+    } catch (error) {
+      console.error('❌ Error getting user favorites from backend:', error);
+      // Fallback: Local database'den dene
+      try {
+        const db = await getDatabase();
+        const favorites = await db.getAllAsync(
+          `SELECT f.*, f.productData 
+           FROM user_favorites_v2 f 
+           WHERE f.userId = ? 
+           ORDER BY f.createdAt DESC`,
+          [userId.toString()]
+        );
+        console.log(`⚠️ Using local favorites: ${favorites?.length || 0} items`);
+        return favorites || [];
+      } catch (localError) {
+        console.error('❌ Error getting favorites from local database:', localError);
+        return [];
+      }
     }
   }
 
   static async addToFavorites(userId: number, productId: number, productData?: any): Promise<boolean> {
     try {
-      const db = await getDatabase();
-      await db.runAsync(
-        'INSERT OR REPLACE INTO user_favorites_v2 (userId, productId, productData, createdAt) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
-        [userId.toString(), productId.toString(), JSON.stringify(productData || {})]
-      );
-      console.log('✅ Product added to favorites');
-      return true;
-    } catch (error) {
-      console.error('❌ Error adding to favorites:', error);
+      // Backend API'ye ekle
+      const response = await apiService.post('/favorites', {
+        userId,
+        productId
+      });
+      
+      if (response.success) {
+        console.log('✅ Product added to favorites (backend)');
+        
+        // Local database'e de ekle (offline senkronizasyon için)
+        try {
+          const db = await getDatabase();
+          await db.runAsync(
+            'INSERT OR REPLACE INTO user_favorites_v2 (userId, productId, productData, createdAt) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+            [userId.toString(), productId.toString(), JSON.stringify(productData || {})]
+          );
+        } catch (localError) {
+          console.warn('⚠️ Could not sync to local database:', localError);
+        }
+        
+        return true;
+      }
+      
+      console.error('❌ Backend returned error:', response.message);
       return false;
+    } catch (error) {
+      console.error('❌ Error adding to favorites (backend):', error);
+      // Fallback: Local database'e ekle
+      try {
+        const db = await getDatabase();
+        await db.runAsync(
+          'INSERT OR REPLACE INTO user_favorites_v2 (userId, productId, productData, createdAt) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+          [userId.toString(), productId.toString(), JSON.stringify(productData || {})]
+        );
+        console.log('✅ Product added to favorites (local fallback)');
+        return true;
+      } catch (localError) {
+        console.error('❌ Error adding to favorites (local):', localError);
+        return false;
+      }
     }
   }
 
   static async removeFromFavorites(userId: number, productId: number): Promise<boolean> {
     try {
-      const db = await getDatabase();
-      await db.runAsync(
-        'DELETE FROM user_favorites_v2 WHERE userId = ? AND productId = ?',
-        [userId.toString(), productId.toString()]
-      );
-      console.log('✅ Product removed from favorites');
-      return true;
-    } catch (error) {
-      console.error('❌ Error removing from favorites:', error);
+      // Backend API'den sil
+      const response = await apiService.delete(`/favorites/product/${productId}?userId=${userId}`);
+      
+      if (response.success) {
+        console.log('✅ Product removed from favorites (backend)');
+        
+        // Local database'den de sil
+        try {
+          const db = await getDatabase();
+          await db.runAsync(
+            'DELETE FROM user_favorites_v2 WHERE userId = ? AND productId = ?',
+            [userId.toString(), productId.toString()]
+          );
+        } catch (localError) {
+          console.warn('⚠️ Could not sync to local database:', localError);
+        }
+        
+        return true;
+      }
+      
+      console.error('❌ Backend returned error:', response.message);
       return false;
+    } catch (error) {
+      console.error('❌ Error removing from favorites (backend):', error);
+      // Fallback: Local database'den sil
+      try {
+        const db = await getDatabase();
+        await db.runAsync(
+          'DELETE FROM user_favorites_v2 WHERE userId = ? AND productId = ?',
+          [userId.toString(), productId.toString()]
+        );
+        console.log('✅ Product removed from favorites (local fallback)');
+        return true;
+      } catch (localError) {
+        console.error('❌ Error removing from favorites (local):', localError);
+        return false;
+      }
     }
   }
 
   static async isProductFavorite(userId: number, productId: number): Promise<boolean> {
     try {
-      const db = await getDatabase();
-      const result = await db.getFirstAsync(
-        'SELECT id FROM user_favorites_v2 WHERE userId = ? AND productId = ?',
-        [userId.toString(), productId.toString()]
-      );
-      return !!result;
+      // Backend'den favorileri getir ve kontrol et
+      const favorites = await this.getUserFavorites(userId);
+      return favorites.some((fav: any) => parseInt(fav.productId) === productId);
     } catch (error) {
       console.error('❌ Error checking favorite status:', error);
-      return false;
+      // Fallback: Local database'den kontrol et
+      try {
+        const db = await getDatabase();
+        const result = await db.getFirstAsync(
+          'SELECT id FROM user_favorites_v2 WHERE userId = ? AND productId = ?',
+          [userId.toString(), productId.toString()]
+        );
+        return !!result;
+      } catch (localError) {
+        console.error('❌ Error checking favorite status (local):', localError);
+        return false;
+      }
     }
   }
 

@@ -34,13 +34,41 @@ export class UserLevelController {
       const api = (parsed as any).data || {};
       console.log('✅ UserLevelController: API Response:', api);
 
-      // Beklenen API şeması: { success: boolean, data: { levelProgress: {...} } }
+      // Beklenen API şeması: { success: true, data: { levelProgress: {...} } }
       if (api.levelProgress) {
-        return api.levelProgress as UserLevelProgress;
+        const levelProgress = api.levelProgress;
+        // String değerleri number'a çevir
+        if (typeof levelProgress.currentExp === 'string') {
+          levelProgress.currentExp = parseFloat(levelProgress.currentExp) || 0;
+        }
+        if (typeof levelProgress.totalExp === 'string') {
+          levelProgress.totalExp = parseFloat(levelProgress.totalExp) || 0;
+        }
+        if (typeof levelProgress.expToNextLevel === 'string') {
+          levelProgress.expToNextLevel = parseFloat(levelProgress.expToNextLevel) || 0;
+        }
+        if (typeof levelProgress.progressPercentage === 'string') {
+          levelProgress.progressPercentage = parseFloat(levelProgress.progressPercentage) || 0;
+        }
+        return levelProgress as UserLevelProgress;
       }
-      // Alternatif şema: { success: boolean, levelProgress: {...} } (eski format)
+      // Alternatif şema: { success: true, levelProgress: {...} } (eski format)
       if ((parsed as any).levelProgress) {
-        return (parsed as any).levelProgress as UserLevelProgress;
+        const levelProgress = (parsed as any).levelProgress;
+        // String değerleri number'a çevir
+        if (typeof levelProgress.currentExp === 'string') {
+          levelProgress.currentExp = parseFloat(levelProgress.currentExp) || 0;
+        }
+        if (typeof levelProgress.totalExp === 'string') {
+          levelProgress.totalExp = parseFloat(levelProgress.totalExp) || 0;
+        }
+        if (typeof levelProgress.expToNextLevel === 'string') {
+          levelProgress.expToNextLevel = parseFloat(levelProgress.expToNextLevel) || 0;
+        }
+        if (typeof levelProgress.progressPercentage === 'string') {
+          levelProgress.progressPercentage = parseFloat(levelProgress.progressPercentage) || 0;
+        }
+        return levelProgress as UserLevelProgress;
       } else {
         console.error('❌ UserLevelController: Invalid response format:', api);
         return null;

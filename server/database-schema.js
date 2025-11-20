@@ -26,7 +26,7 @@ async function createDatabaseSchema(pool) {
       const requiredTables = [
           'tenants', 'users', 'user_addresses', 'products', 'product_variations', 'product_variation_options',
           'cart', 'orders', 'order_items', 'reviews', 'user_wallets', 'wallet_transactions',
-          'user_lists', 'user_list_items',
+          'user_lists', 'user_list_items', 'user_favorites_v2',
           'return_requests', 'payment_transactions', 'custom_production_messages', 'custom_production_requests',
           'custom_production_items', 'customer_segments', 'campaigns', 'customer_segment_assignments',
           'campaign_usage', 'customer_analytics', 'discount_wheel_spins', 'chatbot_analytics',
@@ -1139,6 +1139,27 @@ async function createDatabaseSchema(pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
       console.log('✅ User list items table ready');
+
+      // User Favorites table
+      await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_favorites_v2 (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenantId INT NOT NULL,
+      userId INT NOT NULL,
+      productId INT NOT NULL,
+      productData JSON,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
+      INDEX idx_tenant_favorites (tenantId),
+      INDEX idx_user_favorites (userId),
+      INDEX idx_product_favorites (productId),
+      UNIQUE KEY unique_user_product_favorite (userId, productId, tenantId)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+      console.log('✅ User favorites table ready');
 
       // Return Requests table
       await pool.execute(`
