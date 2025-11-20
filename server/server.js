@@ -13508,8 +13508,6 @@ app.delete('/api/favorites/:id', async (req, res) => {
       });
     }
 
-    const tenantId = req.tenant?.id || 1;
-    
     await poolWrapper.execute(
       'DELETE FROM user_favorites_v2 WHERE id = ? AND userId = ? AND tenantId = ?',
       [id, userId, tenantId]
