@@ -21,7 +21,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../theme/colors';
 import { Spacing, Shadows } from '../theme/theme';
 import { ChatbotService } from '../services/ChatbotService';
-import { AnythingLLMService } from '../services/AnythingLLMService';
 import { UserController } from '../controllers/UserController';
 import { VoiceService } from '../services/VoiceService';
 import { VoiceCommandService } from '../services/VoiceCommandService';
@@ -71,7 +70,6 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
   const [isMinimized, setIsMinimized] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
-  const [llmEnabled, setLlmEnabled] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
@@ -103,7 +101,6 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
     initializeBot();
     startPulseAnimation();
     checkOnlineStatus();
-    checkLLMStatus();
     
     // Chatbot butonunu görünür yap
     console.log('✅ Chatbot component mounted');
@@ -115,36 +112,6 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       }
     };
   }, []);
-
-  const checkLLMStatus = async () => {
-    try {
-      // Ollama veya AnythingLLM kontrolü
-      const [ollamaConfig, anythingLLMConfig] = await Promise.all([
-        import('../services/OllamaService').then(m => m.OllamaService.getConfig()).catch(() => null),
-        AnythingLLMService.getConfig().catch(() => null)
-      ]);
-      
-      const ollamaEnabled = ollamaConfig?.enabled === true;
-      const anythingLLMEnabled = anythingLLMConfig?.enabled === true;
-      
-      // Ollama aktifse durumunu kontrol et
-      if (ollamaEnabled) {
-        try {
-          const ollamaStatus = await import('../services/OllamaService').then(m => 
-            m.OllamaService.checkStatus().catch(() => false)
-          );
-          setLlmEnabled(ollamaStatus || anythingLLMEnabled);
-        } catch {
-          setLlmEnabled(anythingLLMEnabled);
-        }
-      } else {
-        setLlmEnabled(anythingLLMEnabled);
-      }
-    } catch (error) {
-      console.error('LLM status check error:', error);
-      setLlmEnabled(false);
-    }
-  };
 
   // Admin mesaj dinleyicisi
   useEffect(() => {
@@ -215,19 +182,6 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
       if (timeout) clearTimeout(timeout);
     };
   }, []);
-
-  // LLM durumunu yenile (ayarlar sayfasından dönüşte)
-  useEffect(() => {
-    const focusHandler = () => {
-      checkLLMStatus();
-    };
-
-    // Navigation focus event listener (eğer navigation prop'u varsa)
-    if (navigation?.addListener) {
-      const unsubscribe = navigation.addListener('focus', focusHandler);
-      return unsubscribe;
-    }
-  }, [navigation]);
 
   const checkOnlineStatus = () => {
     // Basit online/offline kontrolü
@@ -1365,11 +1319,6 @@ export const Chatbot: React.FC<ChatbotProps> = ({ navigation, onClose, productId
               <Text style={styles.statusText}>
                 {isOnline ? 'Çevrimiçi' : 'Çevrimdışı'}
               </Text>
-              {llmEnabled && (
-                <View style={styles.llmBadge}>
-                  <Text style={styles.llmBadgeText}>AI</Text>
-                </View>
-              )}
             </View>
           </View>
         </View>
@@ -1716,18 +1665,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     color: Colors.textLight,
-  },
-  llmBadge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  llmBadgeText: {
-    fontSize: 10,
-    color: Colors.textOnPrimary,
-    fontWeight: '600',
   },
   headerActions: {
     flexDirection: 'row',

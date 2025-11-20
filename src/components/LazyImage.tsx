@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ViewToken } from 'react-native';
+import { View, StyleSheet, ViewToken, Dimensions } from 'react-native';
 import { Image, ImageProps } from 'expo-image';
 import { NetworkMonitor } from '../utils/performance-utils';
 
@@ -38,7 +38,7 @@ export const LazyImage: React.FC<LazyImageProps> = ({
       viewRef.current.measure((x, y, width, height, pageX, pageY) => {
         // Consider image in viewport if it's within 200px of screen bounds
         const threshold = 200;
-        const screenHeight = require('react-native').Dimensions.get('window').height;
+        const screenHeight = Dimensions.get('window').height;
         
         const isVisible = 
           pageY + height >= -threshold && 

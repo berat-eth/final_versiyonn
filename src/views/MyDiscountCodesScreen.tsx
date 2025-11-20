@@ -56,6 +56,10 @@ export default function MyDiscountCodesScreen() {
   };
 
   const handleCopyCode = async (code: string) => {
+    if (!code) {
+      Alert.alert('Hata', 'Kopyalanacak kod bulunamadı');
+      return;
+    }
     try {
       await Clipboard.setStringAsync(code);
       Alert.alert('Başarılı', 'İndirim kodu panoya kopyalandı');
@@ -66,10 +70,21 @@ export default function MyDiscountCodesScreen() {
   };
 
   const handleShareCode = async (code: DiscountCode) => {
+    if (!code || !code.discountCode) {
+      Alert.alert('Hata', 'Paylaşılacak kod bulunamadı');
+      return;
+    }
     try {
+      const discountDisplay = code.discountValue !== undefined && code.discountType
+        ? DiscountWheelController.getDiscountDisplay(code.discountValue, code.discountType)
+        : '-';
+      const timeRemaining = code.expiresAt
+        ? DiscountWheelController.getTimeRemaining(code.expiresAt)
+        : '-';
+      
       const message = `🎉 İndirim kodum: ${code.discountCode}\n` +
-        `💰 ${DiscountWheelController.getDiscountDisplay(code.discountValue, code.discountType)}\n` +
-        `⏰ ${DiscountWheelController.getTimeRemaining(code.expiresAt)} sonra süresi dolacak\n` +
+        `💰 ${discountDisplay}\n` +
+        `⏰ ${timeRemaining} sonra süresi dolacak\n` +
         `📱 Huglu uygulamasından kullanabilirsiniz!`;
       
       await Share.share({
@@ -94,10 +109,12 @@ export default function MyDiscountCodesScreen() {
         <View style={styles.cardHeader}>
           <View style={styles.codeInfo}>
             <Text style={styles.discountCode}>
-              {DiscountWheelController.formatDiscountCode(code.discountCode)}
+              {code.discountCode ? DiscountWheelController.formatDiscountCode(code.discountCode) : '-'}
             </Text>
             <Text style={styles.discountValue}>
-              {DiscountWheelController.getDiscountDisplay(code.discountValue, code.discountType)}
+              {code.discountValue !== undefined && code.discountType 
+                ? DiscountWheelController.getDiscountDisplay(code.discountValue, code.discountType)
+                : '-'}
             </Text>
           </View>
           <View style={[
@@ -115,11 +132,11 @@ export default function MyDiscountCodesScreen() {
             <Ionicons name="time-outline" size={16} color="#666" />
             <Text style={styles.detailLabel}>Süre:</Text>
             <Text style={[styles.detailValue, isExpired && styles.expiredText]}>
-              {DiscountWheelController.getTimeRemaining(code.expiresAt)}
+              {code.expiresAt ? DiscountWheelController.getTimeRemaining(code.expiresAt) : '-'}
             </Text>
           </View>
 
-          {code.minOrderAmount > 0 && (
+          {code.minOrderAmount && code.minOrderAmount > 0 && (
             <View style={styles.detailRow}>
               <Ionicons name="card-outline" size={16} color="#666" />
               <Text style={styles.detailLabel}>Min. Tutar:</Text>
@@ -132,7 +149,10 @@ export default function MyDiscountCodesScreen() {
               <Ionicons name="checkmark-circle-outline" size={16} color="#28a745" />
               <Text style={styles.detailLabel}>Kullanım:</Text>
               <Text style={styles.detailValue}>
-                {new Date(code.usedAt).toLocaleDateString('tr-TR')}
+                {code.usedAt ? (() => {
+                  const date = new Date(code.usedAt);
+                  return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('tr-TR');
+                })() : '-'}
               </Text>
             </View>
           )}
@@ -141,7 +161,10 @@ export default function MyDiscountCodesScreen() {
             <Ionicons name="calendar-outline" size={16} color="#666" />
             <Text style={styles.detailLabel}>Oluşturulma:</Text>
             <Text style={styles.detailValue}>
-              {new Date(code.createdAt).toLocaleDateString('tr-TR')}
+              {code.createdAt ? (() => {
+                const date = new Date(code.createdAt);
+                return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('tr-TR');
+              })() : '-'}
             </Text>
           </View>
         </View>
@@ -209,15 +232,15 @@ export default function MyDiscountCodesScreen() {
         {/* Summary Cards */}
         <View style={styles.summaryContainer}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryNumber}>{activeCodes.length}</Text>
+            <Text style={styles.summaryNumber}>{activeCodes?.length || 0}</Text>
             <Text style={styles.summaryLabel}>Aktif Kod</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryNumber}>{usedCodes.length}</Text>
+            <Text style={styles.summaryNumber}>{usedCodes?.length || 0}</Text>
             <Text style={styles.summaryLabel}>Kullanılan</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryNumber}>{expiredCodes.length}</Text>
+            <Text style={styles.summaryNumber}>{expiredCodes?.length || 0}</Text>
             <Text style={styles.summaryLabel}>Süresi Dolmuş</Text>
           </View>
         </View>

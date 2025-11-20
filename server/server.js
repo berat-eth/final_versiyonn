@@ -18843,17 +18843,22 @@ async function startServer() {
   app.get('/api/discount-codes/:userId', async (req, res) => {
     try {
       const { userId } = req.params;
+      const tenantId = req.tenant?.id || 1;
+
+      if (!userId) {
+        return res.status(400).json({ success: false, message: 'User ID is required' });
+      }
 
       const [codes] = await poolWrapper.execute(
         `SELECT * FROM user_discount_codes 
        WHERE userId = ? AND tenantId = ? 
        ORDER BY createdAt DESC`,
-        [userId, req.tenant.id]
+        [userId, tenantId]
       );
 
       res.json({
         success: true,
-        data: codes
+        data: codes || []
       });
 
     } catch (error) {
@@ -20546,22 +20551,27 @@ async function startServer() {
   app.get('/api/user-level/:userId', async (req, res) => {
     try {
       const { userId } = req.params;
+      const tenantId = req.tenant?.id || 1;
+
+      if (!userId) {
+        return res.status(400).json({ success: false, message: 'User ID is required' });
+      }
 
       // Get user's total EXP
       const [expRows] = await poolWrapper.execute(
         'SELECT SUM(amount) as total_exp FROM user_exp_transactions WHERE userId = ? AND tenantId = ?',
-        [userId, req.tenant.id]
+        [userId, tenantId]
       );
 
-      const totalExp = expRows[0].total_exp || 0;
+      const totalExp = expRows[0]?.total_exp || 0;
 
       // Calculate level based on EXP
       const levels = [
-        { id: 'bronze', name: 'bronze', displayName: 'Bronz', minExp: 0, maxExp: 1500, color: '#CD7F32', icon: 'medal', multiplier: 1.0 },
-        { id: 'iron', name: 'iron', displayName: 'Demir', minExp: 1500, maxExp: 4500, color: '#C0C0C0', icon: 'shield', multiplier: 1.2 },
-        { id: 'gold', name: 'gold', displayName: 'Altın', minExp: 4500, maxExp: 10500, color: '#FFD700', icon: 'star', multiplier: 1.5 },
-        { id: 'platinum', name: 'platinum', displayName: 'Platin', minExp: 10500, maxExp: 22500, color: '#E5E4E2', icon: 'diamond', multiplier: 2.0 },
-        { id: 'diamond', name: 'diamond', displayName: 'Elmas', minExp: 22500, maxExp: Infinity, color: '#B9F2FF', icon: 'diamond', multiplier: 3.0 }
+        { id: 'bronze', name: 'bronze', displayName: 'Bronz', minExp: 0, maxExp: 1500, color: '#CD7F32', icon: 'medal', multiplier: 1.0, benefits: ['Temel indirimler', 'Ücretsiz kargo', 'Özel ürün erişimi'] },
+        { id: 'iron', name: 'iron', displayName: 'Demir', minExp: 1500, maxExp: 4500, color: '#C0C0C0', icon: 'shield', multiplier: 1.2, benefits: ['Bronz faydaları', '%5 ekstra indirim', 'Öncelikli destek', 'Özel kampanyalar'] },
+        { id: 'gold', name: 'gold', displayName: 'Altın', minExp: 4500, maxExp: 10500, color: '#FFD700', icon: 'star', multiplier: 1.5, benefits: ['Demir faydaları', '%10 ekstra indirim', 'Hediye paketleri', 'VIP müşteri hizmetleri', 'Erken erişim'] },
+        { id: 'platinum', name: 'platinum', displayName: 'Platin', minExp: 10500, maxExp: 22500, color: '#E5E4E2', icon: 'diamond', multiplier: 2.0, benefits: ['Altın faydaları', '%15 ekstra indirim', 'Özel ürün koleksiyonları', 'Kişisel alışveriş danışmanı', 'Ücretsiz hediye paketleri'] },
+        { id: 'diamond', name: 'diamond', displayName: 'Elmas', minExp: 22500, maxExp: Infinity, color: '#B9F2FF', icon: 'diamond', multiplier: 3.0, benefits: ['Platin faydaları', '%20 ekstra indirim', 'Özel etkinlikler', 'Sınırsız kargo', 'Özel ürün tasarımı'] }
       ];
 
       // Find current level
@@ -20581,17 +20591,19 @@ async function startServer() {
 
       res.json({
         success: true,
-        levelProgress: {
-          currentLevel,
-          nextLevel,
-          currentExp: totalExp,
-          expToNextLevel,
-          progressPercentage,
-          totalExp
+        data: {
+          levelProgress: {
+            currentLevel,
+            nextLevel,
+            currentExp: totalExp,
+            expToNextLevel,
+            progressPercentage,
+            totalExp
+          }
         }
       });
     } catch (error) {
-      console.error('Error getting user level:', error);
+      console.error('❌ Error getting user level:', error);
       res.status(500).json({ success: false, message: 'Error getting user level' });
     }
   });
@@ -20762,27 +20774,34 @@ async function startServer() {
   app.get('/api/user-level/:userId/history', async (req, res) => {
     try {
       const { userId } = req.params;
+      const tenantId = req.tenant?.id || 1;
       const { page = 1, limit = 20 } = req.query;
       const offset = (page - 1) * limit;
 
+      if (!userId) {
+        return res.status(400).json({ success: false, message: 'User ID is required' });
+      }
+
       const [transactions] = await poolWrapper.execute(
         'SELECT * FROM user_exp_transactions WHERE userId = ? AND tenantId = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?',
-        [userId, req.tenant.id, parseInt(limit), offset]
+        [userId, tenantId, parseInt(limit), offset]
       );
 
       const [totalRows] = await poolWrapper.execute(
         'SELECT COUNT(*) as total FROM user_exp_transactions WHERE userId = ? AND tenantId = ?',
-        [userId, req.tenant.id]
+        [userId, tenantId]
       );
 
       res.json({
         success: true,
-        transactions,
-        total: totalRows[0].total,
-        hasMore: offset + transactions.length < totalRows[0].total
+        data: {
+          transactions: transactions || [],
+          total: totalRows[0]?.total || 0,
+          hasMore: offset + (transactions?.length || 0) < (totalRows[0]?.total || 0)
+        }
       });
     } catch (error) {
-      console.error('Error getting EXP history:', error);
+      console.error('❌ Error getting EXP history:', error);
       res.status(500).json({ success: false, message: 'Error getting EXP history' });
     }
   });

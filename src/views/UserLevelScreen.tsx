@@ -48,12 +48,18 @@ export const UserLevelScreen: React.FC = () => {
       if (!effectiveUserId) {
         try {
           effectiveUserId = await UserController.getCurrentUserId();
-        } catch {}
+        } catch (error) {
+          console.warn('⚠️ UserLevelScreen: Could not get user ID from UserController:', error);
+        }
       }
 
-      if (!effectiveUserId || effectiveUserId === 1) {
-        console.log('❌ UserLevelScreen: No logged-in user available');
+      // Kullanıcı ID yoksa bile sayfayı göster, sadece veri yoksa uygun mesaj göster
+      if (!effectiveUserId) {
+        console.log('⚠️ UserLevelScreen: No logged-in user available, showing empty state');
         setHasUserData(false);
+        setLevelProgress(null);
+        setExpHistory([]);
+        setAllLevels(UserLevelController.getAllLevels());
         return;
       }
 
@@ -72,18 +78,22 @@ export const UserLevelScreen: React.FC = () => {
       });
 
       // Veritabanı kontrolü - kullanıcının herhangi bir seviye verisi var mı?
+      // levelData null olsa bile, eğer seviyeler listesi varsa sayfayı göster
       const hasData = levelData !== null || (historyData.transactions && historyData.transactions.length > 0);
       setHasUserData(hasData);
 
       setLevelProgress(levelData);
-      setExpHistory(historyData.transactions);
-      setAllLevels(levelsData);
+      setExpHistory(historyData.transactions || []);
+      setAllLevels(levelsData || []);
       
       console.log('✅ UserLevelScreen: Data loading completed');
     } catch (error) {
       console.error('❌ UserLevelScreen: Error loading level data:', error);
+      // Hata durumunda bile seviyeler listesini göster
+      setAllLevels(UserLevelController.getAllLevels());
       setHasUserData(false);
-      Alert.alert('Hata', 'Seviye bilgileri yüklenemedi');
+      // Alert yerine sadece console log, kullanıcı deneyimini bozmayalım
+      console.warn('⚠️ UserLevelScreen: Some data could not be loaded, showing available data');
     } finally {
       setLoading(false);
     }
@@ -169,38 +179,13 @@ export const UserLevelScreen: React.FC = () => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
           <Text style={styles.loadingText}>Seviye bilgileri yükleniyor...</Text>
-          <Text style={styles.debugText}>Debug: User ID = {user?.id || 'Yok'}</Text>
-          <TouchableOpacity 
-            style={styles.debugButton} 
-            onPress={() => {
-              console.log('🔄 Manuel yenileme başlatılıyor...');
-              loadData();
-            }}
-          >
-            <Text style={styles.debugButtonText}>Manuel Yenile</Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Veritabanında kullanıcı verisi yoksa uyarı göster
-  if (hasUserData === false) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Ionicons name="person-outline" size={64} color="#FF6B6B" />
-          <Text style={styles.errorTitle}>Hesap Hareketi Bulunamadı</Text>
-          <Text style={styles.errorText}>
-            Henüz seviye sisteminde herhangi bir hareketiniz bulunmuyor. Alışveriş yaparak, sosyal medyada paylaşım yaparak veya arkadaşlarınızı davet ederek EXP kazanmaya başlayın!
-          </Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadData}>
-            <Text style={styles.retryButtonText}>Tekrar Kontrol Et</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Veritabanında kullanıcı verisi yoksa bile sayfayı göster, sadece uyarı mesajı ekle
+  // Kullanıcı "Seviyeler" tab'ından tüm seviyeleri görebilir
 
   return (
     <SafeAreaView style={styles.container}>
@@ -306,6 +291,12 @@ export const UserLevelScreen: React.FC = () => {
               <View style={styles.emptyContainer}>
                 <Ionicons name="trending-up" size={48} color="#999" />
                 <Text style={styles.emptyText}>Seviye ilerleme verisi bulunamadı</Text>
+                <Text style={styles.emptySubtext}>
+                  Henüz seviye sisteminde herhangi bir hareketiniz bulunmuyor. Alışveriş yaparak, sosyal medyada paylaşım yaparak veya arkadaşlarınızı davet ederek EXP kazanmaya başlayın!
+                </Text>
+                <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+                  <Text style={styles.retryButtonText}>Tekrar Kontrol Et</Text>
+                </TouchableOpacity>
               </View>
             )}
             
@@ -574,6 +565,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
     marginTop: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    lineHeight: 20,
   },
   historyItem: {
     flexDirection: 'row',

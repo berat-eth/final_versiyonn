@@ -149,9 +149,11 @@ function debugValidateScreens() {
     StoreLocatorScreen,
     ReferralScreen,
     UserLevelScreen,
+    InvoicesScreen,
+    NotificationScreen,
   };
   const undefinedScreens = Object.entries(screens)
-    .filter(([, comp]) => !comp)
+    .filter(([, comp]) => !comp || comp === undefined)
     .map(([name]) => name);
   if (undefinedScreens.length > 0) {
     // eslint-disable-next-line no-console
@@ -924,9 +926,17 @@ const AppNavigatorContent = () => {
             const currentRoute = navigationRef.current?.getCurrentRoute();
             if (currentRoute?.name) {
               // Live user service'e sayfa değişikliğini bildir
-              import('../services/LiveUserService').then(({ liveUserService }) => {
-                liveUserService.updatePage(`/${currentRoute.name}`);
-              });
+              import('../services/LiveUserService')
+                .then(({ liveUserService }) => {
+                  if (liveUserService && typeof liveUserService.updatePage === 'function') {
+                    liveUserService.updatePage(`/${currentRoute.name}`);
+                  }
+                })
+                .catch((error) => {
+                  if (__DEV__) {
+                    console.warn('LiveUserService import hatası:', error);
+                  }
+                });
             }
           }
         }}

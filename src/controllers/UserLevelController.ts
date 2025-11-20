@@ -34,13 +34,13 @@ export class UserLevelController {
       const api = (parsed as any).data || {};
       console.log('✅ UserLevelController: API Response:', api);
 
-      // Beklenen API şeması: { success: boolean, levelProgress: {...} }
-      if (api.success && api.levelProgress) {
+      // Beklenen API şeması: { success: boolean, data: { levelProgress: {...} } }
+      if (api.levelProgress) {
         return api.levelProgress as UserLevelProgress;
       }
-      // Alternatif şema: { success: boolean, data: { levelProgress: {...} } }
-      if (api.success && api.data?.levelProgress) {
-        return api.data.levelProgress as UserLevelProgress;
+      // Alternatif şema: { success: boolean, levelProgress: {...} } (eski format)
+      if ((parsed as any).levelProgress) {
+        return (parsed as any).levelProgress as UserLevelProgress;
       } else {
         console.error('❌ UserLevelController: Invalid response format:', api);
         return null;
@@ -85,11 +85,20 @@ export class UserLevelController {
       const api = (parsed as any).data || {};
       console.log('✅ UserLevelController: EXP History API Response:', api);
       
-      if (api.success) {
+      // Yeni format: { success: true, data: { transactions, total, hasMore } }
+      if (api.transactions !== undefined || api.total !== undefined || api.hasMore !== undefined) {
         return {
-          transactions: api.transactions || api.data?.transactions || [],
-          total: api.total || api.data?.total || 0,
-          hasMore: api.hasMore || api.data?.hasMore || false,
+          transactions: api.transactions || [],
+          total: api.total || 0,
+          hasMore: api.hasMore || false,
+        };
+      }
+      // Eski format: { success: true, transactions, total, hasMore }
+      if ((parsed as any).transactions !== undefined) {
+        return {
+          transactions: (parsed as any).transactions || [],
+          total: (parsed as any).total || 0,
+          hasMore: (parsed as any).hasMore || false,
         };
       } else {
         console.error('❌ UserLevelController: Invalid EXP history response format:', api);
