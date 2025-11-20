@@ -15224,75 +15224,52 @@ app.get('/api/products/search', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = (page - 1) * limit;
 
-    // Öncelik: FULLTEXT arama (varsa). Düşüş: LIKE + JOIN
+    // LIKE tabanlı arama (FULLTEXT index gerektirmez)
     const whereTenant = tenantId ? ' AND p.tenantId = ?' : '';
-    const booleanQuery = search
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(w => `${w}*`)
-      .join(' ');
+    const searchPattern = `%${search}%`;
 
-    let rows;
-    try {
-      const paramsFT = tenantId
-        ? [booleanQuery, booleanQuery, tenantId, `%${search}%`, limit, offset]
-        : [booleanQuery, booleanQuery, `%${search}%`, limit, offset];
-
-      const [ftRows] = await poolWrapper.execute(
-        `SELECT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated, p.stock, p.description, p.sku, p.externalId,
-                MATCH(p.name, p.description, p.brand, p.sku, p.externalId) AGAINST (? IN BOOLEAN MODE) AS score
-         FROM products p
-         LEFT JOIN product_variations v ON v.productId = p.id
-         LEFT JOIN product_variation_options o ON o.variationId = v.id
-         WHERE (
-           MATCH(p.name, p.description, p.brand, p.sku, p.externalId) AGAINST (? IN BOOLEAN MODE)
-           OR o.sku LIKE ?
-         )${whereTenant}
-         GROUP BY p.id
-         ORDER BY score DESC, p.lastUpdated DESC
-         LIMIT ? OFFSET ?`,
-        paramsFT
-      );
-      rows = ftRows;
-    } catch (e) {
-      // FULLTEXT desteklenmiyorsa LIKE'a düş
-      const paramsLike = tenantId
-        ? [
-          `%${search}%`, `%${search}%`, `%${search}%`, // name/brand/description
-          `%${search}%`, // externalId
-          `%${search}%`, // product sku
-          `%${search}%`, // option sku
-          tenantId,
-          limit,
-          offset,
-        ]
-        : [
-          `%${search}%`, `%${search}%`, `%${search}%`,
-          `%${search}%`,
-          `%${search}%`,
-          `%${search}%`,
-          limit,
-          offset,
-        ];
-      const [likeRows] = await poolWrapper.execute(
-        `SELECT DISTINCT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated, p.stock, p.description, p.sku, p.externalId
-         FROM products p
-         LEFT JOIN product_variations v ON v.productId = p.id
-         LEFT JOIN product_variation_options o ON o.variationId = v.id
-         WHERE (
-           p.name LIKE ?
-           OR p.brand LIKE ?
-           OR p.description LIKE ?
-           OR p.externalId LIKE ?
-           OR p.sku LIKE ?
-           OR o.sku LIKE ?
-         )${whereTenant}
-         ORDER BY p.lastUpdated DESC
-         LIMIT ? OFFSET ?`,
-        paramsLike
-      );
-      rows = likeRows;
-    }
+    const paramsLike = tenantId
+      ? [
+        searchPattern, searchPattern, searchPattern, // name/brand/description
+        searchPattern, // externalId
+        searchPattern, // product sku
+        searchPattern, // option sku
+        tenantId,
+        limit,
+        offset,
+      ]
+      : [
+        searchPattern, searchPattern, searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        limit,
+        offset,
+      ];
+    
+    const [rows] = await poolWrapper.execute(
+      `SELECT DISTINCT p.id, p.name, p.price, p.image, p.brand, p.category, p.lastUpdated, p.stock, p.description, p.sku, p.externalId
+       FROM products p
+       LEFT JOIN product_variations v ON v.productId = p.id
+       LEFT JOIN product_variation_options o ON o.variationId = v.id
+       WHERE (
+         p.name LIKE ?
+         OR p.brand LIKE ?
+         OR p.description LIKE ?
+         OR p.externalId LIKE ?
+         OR p.sku LIKE ?
+         OR o.sku LIKE ?
+       )${whereTenant}
+       ORDER BY 
+         CASE 
+           WHEN p.name LIKE ? THEN 1 
+           WHEN p.brand LIKE ? THEN 2 
+           ELSE 3 
+         END,
+         p.lastUpdated DESC
+       LIMIT ? OFFSET ?`,
+      paramsLike
+    );
 
     const cleanedProducts = rows.map(cleanProductData);
     res.setHeader('Cache-Control', 'public, max-age=30');
@@ -19647,48 +19624,26 @@ async function startServer() {
         };
       }
 
-      // Ürün arama sorgusu
-      let rows;
-      try {
-        // Önce FULLTEXT araması dene
-        const booleanQuery = searchQuery
-          .split(/\s+/)
-          .filter(Boolean)
-          .map(w => `${w}*`)
-          .join(' ');
-        
-        [rows] = await poolWrapper.execute(
-          `SELECT id, name, price, image, stock, brand, category, description
-           FROM products 
-           WHERE tenantId = ? 
-           AND MATCH(name, description, brand, category) AGAINST(? IN BOOLEAN MODE)
-           ORDER BY 
-             CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
-             name
-           LIMIT 10`,
-          [tenantId, booleanQuery, `${searchQuery}%`]
-        );
-      } catch (fulltextError) {
-        // FULLTEXT yoksa LIKE ile ara
-        [rows] = await poolWrapper.execute(
-          `SELECT id, name, price, image, stock, brand, category, description
-           FROM products 
-           WHERE tenantId = ? 
-           AND (name LIKE ? OR description LIKE ? OR brand LIKE ? OR category LIKE ?)
-           ORDER BY 
-             CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
-             name
-           LIMIT 10`,
-          [
-            tenantId,
-            `%${searchQuery}%`,
-            `%${searchQuery}%`,
-            `%${searchQuery}%`,
-            `%${searchQuery}%`,
-            `${searchQuery}%`
-          ]
-        );
-      }
+      // Ürün arama sorgusu - LIKE tabanlı (FULLTEXT index gerektirmez)
+      const searchPattern = `%${searchQuery}%`;
+      const [rows] = await poolWrapper.execute(
+        `SELECT id, name, price, image, stock, brand, category, description
+         FROM products 
+         WHERE tenantId = ? 
+         AND (name LIKE ? OR description LIKE ? OR brand LIKE ? OR category LIKE ?)
+         ORDER BY 
+           CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
+           name
+         LIMIT 10`,
+        [
+          tenantId,
+          searchPattern,
+          searchPattern,
+          searchPattern,
+          searchPattern,
+          `${searchQuery}%`
+        ]
+      );
 
       if (rows.length > 0) {
         // İlk 3 ürünü product_card formatında hazırla
