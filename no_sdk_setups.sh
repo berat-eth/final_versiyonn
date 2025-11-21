@@ -755,7 +755,7 @@ reset_all_configurations() {
     echo -e "${CYAN}Yeni kurulum yapmak için ana menüden '1' veya '2' seçeneğini kullanın.${NC}"
     echo ""
 }
-show_system_status() 
+show_system_status() {
     clear
     print_header "Sistem Durumu"
     
@@ -769,3 +769,4 @@ show_system_status()
     
     echo -e "${BLUE}Redis Durumu:${NC}"
     systemctl status redis-server --no-pager | head -n 10
+}
