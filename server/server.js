@@ -604,8 +604,8 @@ const mobileLimiter = createMobileAPILimiter();
 // Login limiter - Environment variable'dan yapılandırılabilir
 const loginLimiter = createLoginLimiter();
 
-// Admin limiter - Yüksek trafik için 500+ istek/15 dakika
-const adminLimiter = createAdminLimiter();
+// Admin limiter - Rate limit kaldırıldı
+// const adminLimiter = createAdminLimiter();
 
 // Critical limiter - Yüksek trafik için 30+ istek/dakika
 const criticalLimiter = createCriticalLimiter();
@@ -615,7 +615,8 @@ const criticalLimiter = createCriticalLimiter();
 const walletTransferLimiter = createWalletTransferLimiter();
 const paymentLimiter = createPaymentLimiter();
 const giftCardLimiter = createGiftCardLimiter();
-const adminWalletTransferLimiter = createAdminWalletTransferLimiter();
+// Admin wallet transfer limiter - Rate limit kaldırıldı
+// const adminWalletTransferLimiter = createAdminWalletTransferLimiter();
 
 // OPTİMİZASYON: Suspicious IP limiter - Yüksek trafik için limit artırıldı veya devre dışı
 // Environment variable ile kontrol edilebilir (DISABLE_SUSPICIOUS_IP_LIMITER=true)
@@ -626,13 +627,15 @@ const suspiciousIPLimiter = createSuspiciousIPLimiter();
 
 // 1. En spesifik endpoint'ler önce (login, kritik endpoint'ler)
 app.use('/api/users/login', loginLimiter);
-app.use('/api/admin/login', loginLimiter);
+// Admin login rate limit kaldırıldı
+// app.use('/api/admin/login', loginLimiter);
 
 // 2. Kritik endpoint'ler (finansal)
 app.use('/api/wallet/transfer', walletTransferLimiter);
 app.use('/api/wallet/gift-card', giftCardLimiter);
 app.use('/api/payments/process', paymentLimiter);
-app.use('/api/admin/wallets/transfer', adminWalletTransferLimiter);
+// Admin wallet transfer rate limit kaldırıldı
+// app.use('/api/admin/wallets/transfer', adminWalletTransferLimiter);
 
 // 3. Kategori bazlı endpoint'ler (admin, orders, critical)
 app.use('/api/orders', criticalLimiter);
@@ -648,8 +651,8 @@ app.use('/api/reviews', mobileLimiter);
 app.use('/api/users', authLimiter);
 app.use('/api/products', authLimiter);
 
-// 5. Admin endpoint'leri (spesifik olanlar zaten uygulandı)
-app.use('/api/admin', adminLimiter);
+// 5. Admin endpoint'leri - Rate limit kaldırıldı
+// app.use('/api/admin', adminLimiter);
 
 // 6. Global limiter (en son, opsiyonel - environment variable ile kontrol edilebilir)
 // NOT: Suspicious IP limiter artık 500+ istek/15 dakika veya devre dışı

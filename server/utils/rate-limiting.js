@@ -27,6 +27,18 @@ const getClientIP = (req) => {
 };
 
 /**
+ * Kullanıcı ID'sini request'ten güvenli şekilde al
+ * Authenticated kullanıcılar için userId, guest'ler için null döner
+ */
+const getUserIdFromRequest = (req) => {
+  return req.authenticatedUserId || 
+         req.user?.userId || 
+         req.user?.id || 
+         req.headers['x-user-id'] || 
+         null;
+};
+
+/**
  * Wallet transfer endpoint için rate limiter
  * Finansal işlem - Finansal saldırılara karşı koruma
  */
@@ -153,14 +165,11 @@ const createAdminLimiter = () => rateLimit({
  * Kritik endpoint'ler için rate limiter
  * OPTİMİZASYON: Yüksek trafik için limit artırıldı
  * Mobil uygulamalar için daha esnek
+ * GEVŞETİLDİ: Mobil için 200 istek/dakika, web için 100 istek/dakika
  */
 const createCriticalLimiter = () => rateLimit({
   windowMs: 60 * 1000, // 1 dakika
-  max: parseInt(process.env.RATE_LIMIT_CRITICAL || '60', 10), // 30'dan 60'a çıkarıldı (mobil için)
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const ip = getClientIP(req);
+  max: (req) => {
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
     const clientType = (req.headers['x-client-type'] || '').toLowerCase();
     const isMobile = userAgent.includes('reactnative') || 
@@ -168,8 +177,26 @@ const createCriticalLimiter = () => rateLimit({
                      userAgent.includes('huglu-mobile') ||
                      userAgent.includes('expo') ||
                      clientType === 'mobile';
-    // Mobil için 2x limit
-    return isMobile ? `mobile:${ip}` : `web:${ip}`;
+    // Mobil için 200, web için 100
+    return isMobile ? parseInt(process.env.RATE_LIMIT_CRITICAL_MOBILE || '200', 10) : 
+                     parseInt(process.env.RATE_LIMIT_CRITICAL || '100', 10);
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = getClientIP(req);
+    const userId = getUserIdFromRequest(req);
+    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+    const clientType = (req.headers['x-client-type'] || '').toLowerCase();
+    const isMobile = userAgent.includes('reactnative') || 
+                     userAgent.includes('mobile') || 
+                     userAgent.includes('huglu-mobile') ||
+                     userAgent.includes('expo') ||
+                     clientType === 'mobile';
+    
+    // Kullanıcı bazlı: authenticated ise userId, değilse IP
+    const identifier = userId ? `user:${userId}` : `ip:${ip}`;
+    return isMobile ? `mobile:${identifier}` : `web:${identifier}`;
   },
   message: 'Rate limit exceeded for this endpoint'
 });
@@ -177,14 +204,17 @@ const createCriticalLimiter = () => rateLimit({
 /**
  * Mobil uygulama için özel rate limiter
  * Mobil uygulamalar için daha esnek limitler
+ * GEVŞETİLDİ: 2000'den 10000'e çıkarıldı
  */
 const createMobileAPILimiter = () => rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
-  max: parseInt(process.env.MOBILE_RATE_LIMIT || '2000', 10), // Mobil için 2000 istek/15 dakika
+  max: parseInt(process.env.MOBILE_RATE_LIMIT || '10000', 10), // Mobil için 10000 istek/15 dakika (gevşetildi)
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
     const ip = getClientIP(req);
+    const userId = getUserIdFromRequest(req);
+    
     // User-Agent veya X-Client-Type header'ına göre mobil tespiti
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
     const clientType = (req.headers['x-client-type'] || '').toLowerCase();
@@ -193,7 +223,10 @@ const createMobileAPILimiter = () => rateLimit({
                      userAgent.includes('huglu-mobile') ||
                      userAgent.includes('expo') ||
                      clientType === 'mobile';
-    return isMobile ? `mobile:${ip}` : `web:${ip}`;
+    
+    // Kullanıcı bazlı: authenticated ise userId, değilse IP
+    const identifier = userId ? `user:${userId}` : `ip:${ip}`;
+    return isMobile ? `mobile:${identifier}` : `web:${identifier}`;
   },
   message: 'Too many requests from mobile app, please try again later',
   skip: (req) => isPrivateIP(req.ip)
@@ -202,12 +235,19 @@ const createMobileAPILimiter = () => rateLimit({
 /**
  * Genel API endpoint'leri için rate limiter
  * OPTİMİZASYON: Yüksek trafik için limit artırıldı
+ * KULLANICI BAZLI: Her kullanıcı kendi rate limit'ini kullanır
  */
 const createGeneralAPILimiter = () => rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
   max: parseInt(process.env.API_RATE_LIMIT || '1500', 10), // 1000'den 1500'e çıkarıldı
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = getClientIP(req);
+    const userId = getUserIdFromRequest(req);
+    // Kullanıcı bazlı: authenticated ise userId, değilse IP
+    return userId ? `user:${userId}` : `ip:${ip}`;
+  },
   message: 'Too many requests from this IP, please try again later'
 });
 

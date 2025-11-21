@@ -99,10 +99,11 @@ export default function PersonalizedOffersScreen() {
   };
 
   // Retry with exponential backoff for 429 errors
+  // GEVŞETİLDİ: Retry sayısı 3'ten 5'e, base delay 1000ms'den 500ms'ye çıkarıldı
   const retryWithBackoff = async <T,>(
     fn: () => Promise<T>,
-    maxRetries: number = 3,
-    baseDelay: number = 1000
+    maxRetries: number = 5,
+    baseDelay: number = 500
   ): Promise<T> => {
     let lastError: any;
     
@@ -120,7 +121,7 @@ export default function PersonalizedOffersScreen() {
           (error?.message && error.message.includes('Too many requests'));
         
         if (is429Error && attempt < maxRetries - 1) {
-          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
+          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 500ms, 1s, 2s, 4s, 8s
           console.log(`⏳ Rate limit (429) - ${delay}ms bekleniyor (deneme ${attempt + 1}/${maxRetries})...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;

@@ -28,10 +28,11 @@ export interface PersonalizedContent {
 
 export class PersonalizationController {
   // Retry helper with exponential backoff for 429 errors
+  // GEVŞETİLDİ: Retry sayısı 3'ten 5'e, base delay 2000ms'den 1000ms'ye çıkarıldı
   static async retryWithBackoff<T>(
     fn: () => Promise<T>,
-    maxRetries: number = 3,
-    baseDelay: number = 2000
+    maxRetries: number = 5,
+    baseDelay: number = 1000
   ): Promise<T> {
     let lastError: any;
     
@@ -49,7 +50,7 @@ export class PersonalizationController {
           (error?.message && error.message.includes('Too many requests'));
         
         if (is429Error && attempt < maxRetries - 1) {
-          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 2s, 4s, 8s
+          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s, 8s, 16s
           console.log(`⏳ Rate limit (429) - ${delay}ms bekleniyor (deneme ${attempt + 1}/${maxRetries})...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;

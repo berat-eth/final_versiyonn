@@ -240,17 +240,20 @@ const limiter = createGeneralAPILimiter();
 
 // 1. En spesifik endpoint'ler önce (login, kritik endpoint'ler)
 app.use('/api/users/login', createLoginLimiter());
-app.use('/api/admin/login', createLoginLimiter());
+// Admin login rate limit kaldırıldı
+// app.use('/api/admin/login', createLoginLimiter());
 
 // 2. Kritik endpoint'ler (finansal)
 app.use('/api/wallet/transfer', createWalletTransferLimiter());
 app.use('/api/wallet/gift-card', createGiftCardLimiter());
 app.use('/api/payments/process', createPaymentLimiter());
-app.use('/api/admin/wallets/transfer', createAdminWalletTransferLimiter());
+// Admin wallet transfer rate limit kaldırıldı
+// app.use('/api/admin/wallets/transfer', createAdminWalletTransferLimiter());
 
 // 3. Kategori bazlı endpoint'ler
 app.use('/api/orders', createCriticalLimiter());
-app.use('/api/admin', createAdminLimiter());
+// Admin endpoint'leri - Rate limit kaldırıldı
+// app.use('/api/admin', createAdminLimiter());
 
 // 4. Global limiter (opsiyonel - environment variable ile kontrol edilebilir)
 if (process.env.DISABLE_SUSPICIOUS_IP_LIMITER !== 'true') {
