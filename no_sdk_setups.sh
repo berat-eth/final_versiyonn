@@ -5,15 +5,7 @@
 # SDK Tools Disabled - Only Project Dependencies
 # Debian 11 Bullseye Optimized
 # Interactive Menu System
-# Domains:
-#   Main Site: huglutekstil.com
-#   API: api.huglutekstil.com
-#   Admin: admin.huglutekstil.com
-#   N8N: otomasyon.huglutekstil.com
-#   CasaOS: casaos.huglutekstil.com
-# Services:
-#   AI/ML Service: localhost:8001 (internal only)
-#   CasaOS: localhost:80 (default)
+# PORT & NGINX CONFLICT FIXED
 # ========================================
 
 set -e
@@ -61,10 +53,10 @@ N8N_PORT=5678
 N8N_USER=$(whoami)
 N8N_DIR="/home/$N8N_USER/n8n"
 
-# CasaOS
+# CasaOS - FIXED PORTS
 CASAOS_DOMAIN="casaos.huglutekstil.com"
-CASAOS_PORT=3564
-CASAOS_INTERNAL_PORT=80
+CASAOS_INTERNAL_PORT=8088  # Changed from 80 to avoid conflict
+CASAOS_NGINX_PORT=80       # Nginx listens on 80
 
 # Redis
 REDIS_PORT=6379
@@ -144,6 +136,33 @@ pause_screen() {
 }
 
 # --------------------------
+# Port Check Function
+# --------------------------
+check_port_usage() {
+    local port=$1
+    local service_name=$2
+    
+    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️  Port $port zaten kullanımda ($service_name için)${NC}"
+        local pid=$(lsof -Pi :$port -sTCP:LISTEN -t)
+        local process=$(ps -p $pid -o comm=)
+        echo -e "${YELLOW}   Process: $process (PID: $pid)${NC}"
+        
+        read -p "Bu portu kullanan servisi durdurmak ister misiniz? [e/H]: " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Ee]$ ]]; then
+            kill -9 $pid 2>/dev/null || true
+            echo -e "${GREEN}✅ Port $port temizlendi${NC}"
+            return 0
+        else
+            echo -e "${RED}❌ Port çakışması çözülmedi. Kurulum devam edemiyor.${NC}"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# --------------------------
 # Restart All Services Function
 # --------------------------
 restart_all_services() {
@@ -202,7 +221,7 @@ restart_all_services() {
             
             # Restart Nginx
             echo -e "${YELLOW}Yeniden başlatılıyor: Nginx${NC}"
-            systemctl restart nginx
+            nginx -t && systemctl restart nginx
             if systemctl is-active --quiet nginx; then
                 echo -e "${GREEN}✅ Nginx başarıyla yeniden başlatıldı${NC}"
             else
@@ -219,7 +238,7 @@ restart_all_services() {
             fi
             
             # Restart CasaOS if exists
-            if command -v casaos &>/dev/null; then
+            if systemctl list-units --full -all | grep -q casaos.service; then
                 echo -e "${YELLOW}Yeniden başlatılıyor: CasaOS${NC}"
                 systemctl restart casaos
                 if systemctl is-active --quiet casaos; then
@@ -269,7 +288,7 @@ restart_all_services() {
             
             # Nginx
             echo -e "${YELLOW}Yeniden başlatılıyor: Nginx${NC}"
-            systemctl restart nginx
+            nginx -t && systemctl restart nginx
             if systemctl is-active --quiet nginx; then
                 echo -e "${GREEN}✅ Nginx başarıyla yeniden başlatıldı${NC}"
             else
@@ -286,7 +305,7 @@ restart_all_services() {
             fi
             
             # CasaOS
-            if command -v casaos &>/dev/null; then
+            if systemctl list-units --full -all | grep -q casaos.service; then
                 echo -e "${YELLOW}Yeniden başlatılıyor: CasaOS${NC}"
                 systemctl restart casaos
                 if systemctl is-active --quiet casaos; then
@@ -354,6 +373,7 @@ check_n8n_status() {
     
     echo ""
     echo -e "${CYAN}N8N URL: https://$N8N_DOMAIN${NC}"
+    echo -e "${CYAN}N8N Port: $N8N_PORT${NC}"
 }
 
 remove_n8n() {
@@ -390,6 +410,9 @@ remove_n8n() {
 
 install_n8n() {
     echo -e "${BLUE}N8N Kuruluyor...${NC}"
+    
+    # Check port availability
+    check_port_usage $N8N_PORT "N8N" || return 1
     
     # Install N8N binary
     echo -e "${YELLOW}N8N binary kuruluyor...${NC}"
@@ -455,6 +478,10 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
+        
+        # Timeouts for long-running workflows
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
     }
 }
 NGINXEOF
@@ -465,9 +492,14 @@ NGINXEOF
     # Start N8N
     su - $N8N_USER -c "cd $N8N_DIR && pm2 start ecosystem.config.js && pm2 save"
     
+    # Wait for N8N to start
+    sleep 5
+    
     # Setup SSL
     echo -e "${YELLOW}SSL sertifikası kuruluyor...${NC}"
-    certbot --nginx -d $N8N_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+    certbot --nginx -d $N8N_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
+        echo -e "${YELLOW}⚠️  SSL kurulumu başarısız. Manuel olarak deneyebilirsiniz.${NC}"
+    }
     
     echo -e "${GREEN}✅ N8N başarıyla kuruldu${NC}"
     echo -e "${CYAN}N8N Erişim: https://$N8N_DOMAIN${NC}"
@@ -481,7 +513,7 @@ reinstall_n8n() {
 }
 
 # --------------------------
-# CasaOS Functions
+# CasaOS Functions (FIXED)
 # --------------------------
 check_casaos_status() {
     echo -e "${BLUE}CasaOS Durumu Kontrol Ediliyor...${NC}"
@@ -516,7 +548,6 @@ check_casaos_status() {
     echo ""
     echo -e "${CYAN}CasaOS Domain URL: https://$CASAOS_DOMAIN${NC}"
     echo -e "${CYAN}CasaOS Dahili Port: ${CASAOS_INTERNAL_PORT}${NC}"
-    echo -e "${CYAN}CasaOS Nginx Port: ${CASAOS_PORT}${NC}"
 }
 
 remove_casaos() {
@@ -562,39 +593,65 @@ remove_casaos() {
 install_casaos() {
     echo -e "${BLUE}CasaOS Kuruluyor...${NC}"
     
+    # IMPORTANT: Check if port 80 is available for Nginx
+    echo -e "${YELLOW}Port kontrolü yapılıyor...${NC}"
+    
+    # Stop any service using port 80
+    if lsof -Pi :80 -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️  Port 80 kullanımda, temizleniyor...${NC}"
+        systemctl stop nginx 2>/dev/null || true
+        sleep 2
+    fi
+    
     # Download and run CasaOS installation script
+    echo -e "${YELLOW}CasaOS kurulum scripti indiriliyor...${NC}"
     curl -fsSL https://get.casaos.io | bash
     
     # Wait for CasaOS to start
     sleep 5
     
-    # Check if CasaOS is running
+    # CRITICAL FIX: Change CasaOS port BEFORE starting
+    echo -e "${YELLOW}CasaOS portu ${CASAOS_INTERNAL_PORT} olarak yapılandırılıyor...${NC}"
+    
+    # Stop CasaOS temporarily
+    systemctl stop casaos 2>/dev/null || true
+    sleep 2
+    
+    # Update CasaOS configuration files
+    if [ -f "/etc/casaos/gateway.ini" ]; then
+        # Backup original config
+        cp /etc/casaos/gateway.ini /etc/casaos/gateway.ini.backup.$(date +%Y%m%d_%H%M%S)
+        
+        # Change port in configuration
+        sed -i "s/^Port = .*/Port = ${CASAOS_INTERNAL_PORT}/g" /etc/casaos/gateway.ini
+        sed -i "s/^port = .*/port = ${CASAOS_INTERNAL_PORT}/g" /etc/casaos/gateway.ini
+        echo -e "${GREEN}✅ CasaOS port yapılandırması güncellendi${NC}"
+    fi
+    
+    # Check for additional config files
+    if [ -f "/etc/casaos/env" ]; then
+        cp /etc/casaos/env /etc/casaos/env.backup.$(date +%Y%m%d_%H%M%S)
+        sed -i "s/CASA_PORT=.*/CASA_PORT=${CASAOS_INTERNAL_PORT}/g" /etc/casaos/env
+    fi
+    
+    # Restart CasaOS with new configuration
+    systemctl daemon-reload
+    systemctl start casaos
+    sleep 5
+    
+    # Verify CasaOS is running
     if systemctl is-active --quiet casaos; then
-        echo -e "${GREEN}✅ CasaOS başarıyla kuruldu ve başlatıldı${NC}"
+        echo -e "${GREEN}✅ CasaOS başarıyla başlatıldı (Port: ${CASAOS_INTERNAL_PORT})${NC}"
         
-        # Change CasaOS default port to avoid conflicts
-        echo -e "${YELLOW}CasaOS portu ${CASAOS_PORT} olarak yapılandırılıyor...${NC}"
-        
-        # Stop CasaOS temporarily
-        systemctl stop casaos
-        
-        # Update CasaOS configuration
-        if [ -f "/etc/casaos/gateway.ini" ]; then
-            # Backup original config
-            cp /etc/casaos/gateway.ini /etc/casaos/gateway.ini.backup
-            
-            # Change port in configuration
-            sed -i "s/Port = 80/Port = ${CASAOS_PORT}/g" /etc/casaos/gateway.ini
-            sed -i "s/port = 80/port = ${CASAOS_PORT}/g" /etc/casaos/gateway.ini
+        # Verify port
+        if lsof -Pi :${CASAOS_INTERNAL_PORT} -sTCP:LISTEN -t >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ CasaOS doğru portta dinliyor (${CASAOS_INTERNAL_PORT})${NC}"
+        else
+            echo -e "${RED}❌ CasaOS beklenen portta dinlemiyor!${NC}"
         fi
         
-        # Restart CasaOS with new configuration
-        systemctl start casaos
-        sleep 3
-        
-        echo -e "${GREEN}✅ CasaOS portu ${CASAOS_PORT} olarak değiştirildi${NC}"
-        
-        # Create Nginx config
+        # Create Nginx reverse proxy config
+        echo -e "${YELLOW}Nginx yapılandırması oluşturuluyor...${NC}"
         cat > /etc/nginx/sites-available/casaos << NGINXEOF
 server {
     listen 80;
@@ -602,7 +659,7 @@ server {
     client_max_body_size 100M;
     
     location / {
-        proxy_pass http://127.0.0.1:${CASAOS_PORT};
+        proxy_pass http://127.0.0.1:${CASAOS_INTERNAL_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -620,18 +677,33 @@ server {
 NGINXEOF
 
         ln -sf /etc/nginx/sites-available/casaos /etc/nginx/sites-enabled/
-        nginx -t && systemctl reload nginx
+        
+        # Test and reload Nginx
+        if nginx -t 2>/dev/null; then
+            systemctl reload nginx
+            echo -e "${GREEN}✅ Nginx yapılandırması başarıyla yüklendi${NC}"
+        else
+            echo -e "${RED}❌ Nginx yapılandırma hatası!${NC}"
+            nginx -t
+        fi
         
         # Setup SSL
         echo -e "${YELLOW}SSL sertifikası kuruluyor...${NC}"
-        certbot --nginx -d $CASAOS_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+        certbot --nginx -d $CASAOS_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
+            echo -e "${YELLOW}⚠️  SSL kurulumu başarısız. Manuel olarak deneyebilirsiniz.${NC}"
+        }
         
-        echo -e "${GREEN}✅ CasaOS Nginx yapılandırması tamamlandı${NC}"
-        echo -e "${CYAN}CasaOS Erişim: https://$CASAOS_DOMAIN${NC}"
-        echo -e "${CYAN}Lokal Erişim: http://localhost:${CASAOS_PORT}${NC}"
-        echo -e "${YELLOW}Not: CasaOS varsayılan portu çakışmayı önlemek için ${CASAOS_PORT} olarak değiştirildi${NC}"
+        echo ""
+        echo -e "${GREEN}✅ CasaOS Kurulumu Tamamlandı!${NC}"
+        echo -e "${CYAN}═══════════════════════════════════════${NC}"
+        echo -e "${CYAN}Domain Erişim: https://$CASAOS_DOMAIN${NC}"
+        echo -e "${CYAN}Lokal Erişim: http://localhost:${CASAOS_INTERNAL_PORT}${NC}"
+        echo -e "${CYAN}═══════════════════════════════════════${NC}"
+        echo -e "${YELLOW}Not: CasaOS varsayılan port 80'den ${CASAOS_INTERNAL_PORT}'e değiştirildi${NC}"
+        echo -e "${YELLOW}     Nginx port 80'de reverse proxy olarak çalışıyor${NC}"
     else
-        echo -e "${RED}❌ CasaOS başlatılamadı! Logları kontrol edin: journalctl -u casaos${NC}"
+        echo -e "${RED}❌ CasaOS başlatılamadı!${NC}"
+        echo -e "${YELLOW}Logları kontrol edin: journalctl -u casaos -n 50${NC}"
     fi
 }
 
@@ -649,36 +721,85 @@ show_system_status() {
     clear
     print_header "Sistem Durumu"
     
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
     echo -e "${BLUE}PM2 Servisleri:${NC}"
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
     pm2 list
     echo ""
     
-    echo -e "${BLUE}Nginx Durumu:${NC}"
-    systemctl status nginx --no-pager | head -n 10
-    echo ""
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
+    echo -e "${BLUE}Sistem Servisleri:${NC}"
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
     
-    echo -e "${BLUE}Redis Durumu:${NC}"
-    systemctl status redis-server --no-pager | head -n 10
-    echo ""
-    
-    if command -v casaos &>/dev/null; then
-        echo -e "${BLUE}CasaOS Durumu:${NC}"
-        systemctl status casaos --no-pager | head -n 10
-        echo ""
+    # Nginx
+    if systemctl is-active --quiet nginx; then
+        echo -e "${GREEN}✅ Nginx: Çalışıyor${NC}"
+    else
+        echo -e "${RED}❌ Nginx: Durdurulmuş${NC}"
     fi
     
-    echo -e "${GREEN}Yapılandırılmış Domain'ler:${NC}"
-    echo -e "  Ana Site: https://$MAIN_DOMAIN"
-    echo -e "  API: https://$API_DOMAIN"
-    echo -e "  Admin: https://$ADMIN_DOMAIN"
-    echo -e "  N8N: https://$N8N_DOMAIN"
-    echo -e "  CasaOS: https://$CASAOS_DOMAIN"
-    echo ""
+    # Redis
+    if systemctl is-active --quiet redis-server; then
+        echo -e "${GREEN}✅ Redis: Çalışıyor${NC}"
+    else
+        echo -e "${RED}❌ Redis: Durdurulmuş${NC}"
+    fi
     
-    echo -e "${GREEN}Dahili Servisler:${NC}"
-    echo -e "  AI/ML Servisi: http://localhost:${AI_PORT}"
-    echo -e "  Redis: localhost:${REDIS_PORT}"
-    echo -e "  CasaOS: localhost:${CASAOS_PORT}"
+    # CasaOS
+    if systemctl list-units --full -all | grep -q casaos.service; then
+        if systemctl is-active --quiet casaos; then
+            echo -e "${GREEN}✅ CasaOS: Çalışıyor${NC}"
+        else
+            echo -e "${RED}❌ CasaOS: Durdurulmuş${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  CasaOS: Kurulu Değil${NC}"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
+    echo -e "${BLUE}Port Kullanımı:${NC}"
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
+    
+    check_port_display() {
+        local port=$1
+        local service=$2
+        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+            local process=$(lsof -Pi :$port -sTCP:LISTEN | tail -1 | awk '{print $1}')
+            echo -e "${GREEN}✅ Port $port: $service ($process)${NC}"
+        else
+            echo -e "${RED}❌ Port $port: $service (Kullanımda Değil)${NC}"
+        fi
+    }
+    
+    check_port_display 80 "Nginx"
+    check_port_display 443 "Nginx SSL"
+    check_port_display $MAIN_PORT "Main Site"
+    check_port_display $API_PORT "API"
+    check_port_display $ADMIN_PORT "Admin"
+    check_port_display $AI_PORT "AI Service"
+    check_port_display $N8N_PORT "N8N"
+    check_port_display $REDIS_PORT "Redis"
+    check_port_display $CASAOS_INTERNAL_PORT "CasaOS"
+    
+    echo ""
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
+    echo -e "${GREEN}Public Domain URLs:${NC}"
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
+    echo -e "  ${CYAN}Ana Site:${NC} https://$MAIN_DOMAIN"
+    echo -e "  ${CYAN}API:${NC} https://$API_DOMAIN"
+    echo -e "  ${CYAN}Admin:${NC} https://$ADMIN_DOMAIN"
+    echo -e "  ${CYAN}N8N:${NC} https://$N8N_DOMAIN"
+    echo -e "  ${CYAN}CasaOS:${NC} https://$CASAOS_DOMAIN"
+    
+    echo ""
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
+    echo -e "${GREEN}Internal Services:${NC}"
+    echo -e "${BLUE}════════════════════════════════════════${NC}"
+    echo -e "  ${CYAN}AI/ML Service:${NC} http://localhost:${AI_PORT}"
+    echo -e "  ${CYAN}Redis:${NC} localhost:${REDIS_PORT}"
+    echo -e "  ${CYAN}CasaOS Internal:${NC} http://localhost:${CASAOS_INTERNAL_PORT}"
+    echo ""
 }
 
 # --------------------------
@@ -698,6 +819,9 @@ cleanup_and_fix() {
     rm -f /etc/nginx/sites-available/$API_DOMAIN
     rm -f /etc/nginx/sites-available/$ADMIN_DOMAIN
     rm -f /etc/nginx/sites-enabled/default
+    
+    # Test Nginx config and reload
+    nginx -t && systemctl reload nginx || true
 }
 
 install_system_packages() {
@@ -730,7 +854,7 @@ install_system_packages() {
 }
 
 install_redis() {
-    echo -e "${BLUE}[2/7] Installing and configuring Redis...${NC}"
+    echo -e "${BLUE}[2/7] Redis kuruluyor ve yapılandırılıyor...${NC}"
 
     # Stop Redis
     systemctl stop redis-server 2>/dev/null || true
@@ -798,17 +922,17 @@ REDISCONF
     # Check Redis status
     sleep 2
     if systemctl is-active --quiet redis-server; then
-        echo -e "${GREEN}✅ Redis successfully installed and started${NC}"
+        echo -e "${GREEN}✅ Redis başarıyla kuruldu ve başlatıldı${NC}"
         if redis-cli ping > /dev/null 2>&1; then
-            echo -e "${GREEN}✅ Redis connection test successful (PONG)${NC}"
+            echo -e "${GREEN}✅ Redis bağlantı testi başarılı (PONG)${NC}"
         fi
     else
-        echo -e "${RED}❌ Redis failed to start!${NC}"
+        echo -e "${RED}❌ Redis başlatılamadı!${NC}"
     fi
 }
 
 install_nodejs() {
-    echo -e "${BLUE}[3/7] Installing Node.js and PM2...${NC}"
+    echo -e "${BLUE}[3/7] Node.js ve PM2 kuruluyor...${NC}"
     if ! command -v node &> /dev/null; then
         curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
         apt install -y nodejs
@@ -821,7 +945,7 @@ install_nodejs() {
 }
 
 clone_repository() {
-    echo -e "${BLUE}[4/7] Cloning repository...${NC}"
+    echo -e "${BLUE}[4/7] Repository klonlanıyor...${NC}"
     if [ ! -d "/root/final_versiyonn" ]; then
         git clone https://github.com/berat-eth/final_versiyonn.git /root/final_versiyonn
     else
@@ -831,9 +955,12 @@ clone_repository() {
 }
 
 install_main_site() {
-    echo -e "${BLUE}[5/7] Setting up main site (Next.js)...${NC}"
+    echo -e "${BLUE}[5/7] Ana site kuruluyor (Next.js)...${NC}"
     if [ -d "$MAIN_DIR" ]; then
         cd $MAIN_DIR
+        
+        # Check port availability
+        check_port_usage $MAIN_PORT "Main Site" || return 1
         
         npm install
         npm run build
@@ -863,17 +990,20 @@ EOF
         pm2 start ecosystem.config.js
         pm2 save
         
-        echo -e "${GREEN}✅ Next.js main site successfully installed${NC}"
+        echo -e "${GREEN}✅ Next.js ana site başarıyla kuruldu${NC}"
     else
-        echo -e "${YELLOW}⚠️  Web directory not found, skipping...${NC}"
+        echo -e "${YELLOW}⚠️  Web dizini bulunamadı, atlanıyor...${NC}"
         SKIP_MAIN=true
     fi
 }
 
 install_api() {
-    echo -e "${BLUE}[6/7] Setting up API...${NC}"
+    echo -e "${BLUE}[6/7] API kuruluyor...${NC}"
     if [ -d "$API_DIR" ]; then
         cd $API_DIR
+        
+        # Check port availability
+        check_port_usage $API_PORT "API" || return 1
         
         if [ -f ".env" ]; then
             if ! grep -q "REDIS_HOST" .env; then
@@ -895,28 +1025,35 @@ ENVEOF
         npm install --production
         pm2 start server.js --name $API_PM2_NAME --time
         pm2 save
-        echo -e "${GREEN}✅ API successfully installed${NC}"
+        echo -e "${GREEN}✅ API başarıyla kuruldu${NC}"
     fi
 }
 
 install_admin() {
     if [ -d "$ADMIN_DIR" ]; then
-        echo -e "${BLUE}Setting up Admin Panel...${NC}"
+        echo -e "${BLUE}Admin Panel kuruluyor...${NC}"
         cd $ADMIN_DIR
+        
+        # Check port availability
+        check_port_usage $ADMIN_PORT "Admin Panel" || return 1
+        
         npm install
         npm run build
         PORT=$ADMIN_PORT pm2 start npm --name "$ADMIN_PM2_NAME" -- start
         pm2 save
-        echo -e "${GREEN}✅ Admin panel successfully installed${NC}"
+        echo -e "${GREEN}✅ Admin panel başarıyla kuruldu${NC}"
     else
         SKIP_ADMIN=true
     fi
 }
 
 install_ai_service() {
-    echo -e "${BLUE}[7/7] Setting up AI/ML Service...${NC}"
+    echo -e "${BLUE}[7/7] AI/ML Servisi kuruluyor...${NC}"
     if [ -d "$AI_DIR" ]; then
         cd $AI_DIR
+        
+        # Check port availability
+        check_port_usage $AI_PORT "AI Service" || return 1
         
         python3 -m pip install --upgrade pip
         
@@ -947,7 +1084,7 @@ EOF
                 pm2 start ecosystem.config.js
                 pm2 save
                 
-                echo -e "${GREEN}✅ AI/ML Service successfully installed${NC}"
+                echo -e "${GREEN}✅ AI/ML Servisi başarıyla kuruldu${NC}"
             fi
         fi
     else
@@ -956,7 +1093,7 @@ EOF
 }
 
 configure_nginx() {
-    echo -e "${BLUE}Configuring Nginx...${NC}"
+    echo -e "${BLUE}Nginx yapılandırılıyor...${NC}"
 
     # Main Site
     if [ "$SKIP_MAIN" != true ]; then
@@ -972,6 +1109,9 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
 }
@@ -990,6 +1130,9 @@ server {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 EOF
@@ -1006,26 +1149,42 @@ server {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 EOF
     ln -sf /etc/nginx/sites-available/$ADMIN_DOMAIN /etc/nginx/sites-enabled/
     fi
 
-    nginx -t && systemctl reload nginx
+    # Test and reload Nginx
+    if nginx -t; then
+        systemctl reload nginx
+        echo -e "${GREEN}✅ Nginx yapılandırması başarıyla yüklendi${NC}"
+    else
+        echo -e "${RED}❌ Nginx yapılandırma hatası!${NC}"
+        nginx -t
+    fi
 }
 
 install_ssl() {
-    echo -e "${BLUE}Installing SSL certificates...${NC}"
+    echo -e "${BLUE}SSL sertifikaları kuruluyor...${NC}"
 
     if [ "$SKIP_MAIN" != true ]; then
-        certbot --nginx -d $MAIN_DOMAIN -d www.$MAIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+        certbot --nginx -d $MAIN_DOMAIN -d www.$MAIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
+            echo -e "${YELLOW}⚠️  $MAIN_DOMAIN için SSL kurulumu başarısız${NC}"
+        }
     fi
 
-    certbot --nginx -d $API_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+    certbot --nginx -d $API_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
+        echo -e "${YELLOW}⚠️  $API_DOMAIN için SSL kurulumu başarısız${NC}"
+    }
 
     if [ "$SKIP_ADMIN" != true ]; then
-        certbot --nginx -d $ADMIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
+        certbot --nginx -d $ADMIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
+            echo -e "${YELLOW}⚠️  $ADMIN_DOMAIN için SSL kurulumu başarısız${NC}"
+        }
     fi
 
     # Auto renewal
@@ -1033,24 +1192,26 @@ install_ssl() {
 }
 
 configure_firewall() {
-    echo -e "${BLUE}Configuring firewall...${NC}"
+    echo -e "${BLUE}Firewall yapılandırılıyor...${NC}"
     ufw --force enable
     ufw allow 22/tcp
     ufw allow 80/tcp
     ufw allow 443/tcp
     ufw reload
+    echo -e "${GREEN}✅ Firewall yapılandırıldı${NC}"
 }
 
 setup_pm2_startup() {
-    pm2 startup systemd
+    pm2 startup systemd -u root --hp /root
     pm2 save
+    echo -e "${GREEN}✅ PM2 startup yapılandırıldı${NC}"
 }
 
 # --------------------------
 # Full Installation Function
 # --------------------------
 full_installation() {
-    print_header "Starting Full Installation"
+    print_header "Tam Kurulum Başlatılıyor"
     
     cleanup_and_fix
     install_system_packages
@@ -1066,17 +1227,17 @@ full_installation() {
     
     # Install N8N
     echo ""
-    read -p "Do you want to install N8N? [Y/n]: " -n 1 -r
+    read -p "N8N kurmak istiyor musunuz? [E/h]: " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    if [[ ! $REPLY =~ ^[Hh]$ ]]; then
         install_n8n
     fi
     
     # Install CasaOS
     echo ""
-    read -p "Do you want to install CasaOS? [Y/n]: " -n 1 -r
+    read -p "CasaOS kurmak istiyor musunuz? [E/h]: " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    if [[ ! $REPLY =~ ^[Hh]$ ]]; then
         install_casaos
     fi
     
@@ -1084,8 +1245,8 @@ full_installation() {
     setup_pm2_startup
     
     echo ""
-    print_header "Installation Completed!"
-    echo -e "${GREEN}All services have been installed successfully!${NC}"
+    print_header "Kurulum Tamamlandı!"
+    echo -e "${GREEN}Tüm servisler başarıyla kuruldu!${NC}"
     echo ""
     show_system_status
 }
@@ -1094,7 +1255,7 @@ full_installation() {
 # Core Services Only Installation
 # --------------------------
 core_installation() {
-    print_header "Installing Core Services Only"
+    print_header "Sadece Temel Servisler Kuruluyor"
     
     cleanup_and_fix
     install_system_packages
@@ -1111,9 +1272,9 @@ core_installation() {
     setup_pm2_startup
     
     echo ""
-    print_header "Core Installation Completed!"
-    echo -e "${GREEN}Core services have been installed successfully!${NC}"
-    echo -e "${YELLOW}N8N and CasaOS were not installed.${NC}"
+    print_header "Temel Kurulum Tamamlandı!"
+    echo -e "${GREEN}Temel servisler başarıyla kuruldu!${NC}"
+    echo -e "${YELLOW}N8N ve CasaOS kurulmadı.${NC}"
     echo ""
     show_system_status
 }
@@ -1124,12 +1285,12 @@ core_installation() {
 n8n_menu_handler() {
     while true; do
         print_n8n_menu
-        read -p "Select an option [1-5]: " n8n_choice
+        read -p "Bir seçenek seçin [1-5]: " n8n_choice
         
         case $n8n_choice in
             1)
                 if command -v n8n &>/dev/null || pm2 describe n8n &>/dev/null; then
-                    echo -e "${YELLOW}N8N is already installed!${NC}"
+                    echo -e "${YELLOW}N8N zaten kurulu!${NC}"
                     pause_screen
                 else
                     install_n8n
@@ -1152,7 +1313,7 @@ n8n_menu_handler() {
                 break
                 ;;
             *)
-                echo -e "${RED}Invalid option!${NC}"
+                echo -e "${RED}Geçersiz seçenek!${NC}"
                 pause_screen
                 ;;
         esac
@@ -1165,12 +1326,12 @@ n8n_menu_handler() {
 casaos_menu_handler() {
     while true; do
         print_casaos_menu
-        read -p "Select an option [1-5]: " casaos_choice
+        read -p "Bir seçenek seçin [1-5]: " casaos_choice
         
         case $casaos_choice in
             1)
                 if command -v casaos &>/dev/null; then
-                    echo -e "${YELLOW}CasaOS is already installed!${NC}"
+                    echo -e "${YELLOW}CasaOS zaten kurulu!${NC}"
                     pause_screen
                 else
                     install_casaos
@@ -1193,7 +1354,7 @@ casaos_menu_handler() {
                 break
                 ;;
             *)
-                echo -e "${RED}Invalid option!${NC}"
+                echo -e "${RED}Geçersiz seçenek!${NC}"
                 pause_screen
                 ;;
         esac
@@ -1206,7 +1367,7 @@ casaos_menu_handler() {
 main_menu() {
     while true; do
         print_menu
-        read -p "Select an option [1-6]: " choice
+        read -p "Bir seçenek seçin [1-7]: " choice
         
         case $choice in
             1)
@@ -1224,15 +1385,19 @@ main_menu() {
                 casaos_menu_handler
                 ;;
             5)
-                show_system_status
+                restart_all_services
                 pause_screen
                 ;;
             6)
-                echo -e "${GREEN}Exiting...${NC}"
+                show_system_status
+                pause_screen
+                ;;
+            7)
+                echo -e "${GREEN}Çıkılıyor...${NC}"
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option! Please select 1-6${NC}"
+                echo -e "${RED}Geçersiz seçenek! Lütfen 1-7 arası seçin${NC}"
                 pause_screen
                 ;;
         esac
@@ -1242,9 +1407,10 @@ main_menu() {
 # --------------------------
 # Start Script
 # --------------------------
-print_header "Huglu Tekstil Deployment Manager"
-echo -e "${CYAN}Debian 11 Bullseye Optimized${NC}"
-echo -e "${YELLOW}Initializing...${NC}"
+print_header "Huglu Tekstil Dağıtım Yöneticisi"
+echo -e "${CYAN}Debian 11 Bullseye Optimize Edilmiş${NC}"
+echo -e "${CYAN}Port Çakışmaları Düzeltildi${NC}"
+echo -e "${YELLOW}Başlatılıyor...${NC}"
 sleep 1
 
 # Start main menu
