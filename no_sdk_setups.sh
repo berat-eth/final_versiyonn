@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# Huglu + N8N + AI Service + CasaOS Full Stack Deployment Script
+# Huglu + N8N + AI Service Full Stack Deployment Script
 # SDK Tools Disabled - Only Project Dependencies
 # Debian 11 Bullseye Optimized
 # Interactive Menu System
@@ -53,11 +53,6 @@ N8N_PORT=5678
 N8N_USER=$(whoami)
 N8N_DIR="/home/$N8N_USER/n8n"
 
-# CasaOS - FIXED PORTS
-CASAOS_DOMAIN="casaos.huglutekstil.com"
-CASAOS_INTERNAL_PORT=8088  # Changed from 80 to avoid conflict
-CASAOS_NGINX_PORT=80       # Nginx listens on 80
-
 # Redis
 REDIS_PORT=6379
 REDIS_MAXMEMORY="256mb"
@@ -71,7 +66,6 @@ SKIP_ADMIN=false
 SKIP_MAIN=false
 SKIP_N8N=false
 SKIP_AI=false
-SKIP_CASAOS=false
 
 # --------------------------
 # Root Check
@@ -99,10 +93,9 @@ print_menu() {
     echo -e "  ${CYAN}1)${NC} Tam Kurulum (Tüm Servisler)"
     echo -e "  ${CYAN}2)${NC} Sadece Temel Servisleri Kur (Web, API, Admin, AI)"
     echo -e "  ${CYAN}3)${NC} N8N Yönetimi"
-    echo -e "  ${CYAN}4)${NC} CasaOS Yönetimi"
-    echo -e "  ${CYAN}5)${NC} Tüm Servisleri Yeniden Başlat"
-    echo -e "  ${CYAN}6)${NC} Sistem Durumunu Görüntüle"
-    echo -e "  ${CYAN}7)${NC} Çıkış"
+    echo -e "  ${CYAN}4)${NC} Tüm Servisleri Yeniden Başlat"
+    echo -e "  ${CYAN}5)${NC} Sistem Durumunu Görüntüle"
+    echo -e "  ${CYAN}6)${NC} Çıkış"
     echo ""
 }
 
@@ -114,18 +107,6 @@ print_n8n_menu() {
     echo -e "  ${CYAN}2)${NC} N8N'i Yeniden Kur (Sil ve Kur)"
     echo -e "  ${CYAN}3)${NC} N8N'i Tamamen Kaldır"
     echo -e "  ${CYAN}4)${NC} N8N Durumunu Kontrol Et"
-    echo -e "  ${CYAN}5)${NC} Ana Menüye Dön"
-    echo ""
-}
-
-print_casaos_menu() {
-    clear
-    print_header "CasaOS Yönetimi"
-    echo -e "${YELLOW}Seçenekler:${NC}"
-    echo -e "  ${CYAN}1)${NC} CasaOS Kur (Yeni Kurulum)"
-    echo -e "  ${CYAN}2)${NC} CasaOS'u Yeniden Kur (Sil ve Kur)"
-    echo -e "  ${CYAN}3)${NC} CasaOS'u Tamamen Kaldır"
-    echo -e "  ${CYAN}4)${NC} CasaOS Durumunu Kontrol Et"
     echo -e "  ${CYAN}5)${NC} Ana Menüye Dön"
     echo ""
 }
@@ -172,7 +153,7 @@ restart_all_services() {
     echo -e "${YELLOW}Hangi servisleri yeniden başlatmak istiyorsunuz?${NC}"
     echo ""
     echo -e "  ${CYAN}1)${NC} Sadece PM2 Servisleri (Web, API, Admin, AI, N8N)"
-    echo -e "  ${CYAN}2)${NC} Sadece Sistem Servisleri (Nginx, Redis, CasaOS)"
+    echo -e "  ${CYAN}2)${NC} Sadece Sistem Servisleri (Nginx, Redis)"
     echo -e "  ${CYAN}3)${NC} TÜM SERVİSLER (PM2 + Sistem)"
     echo -e "  ${CYAN}4)${NC} İptal"
     echo ""
@@ -237,17 +218,6 @@ restart_all_services() {
                 echo -e "${RED}❌ Redis yeniden başlatılamadı!${NC}"
             fi
             
-            # Restart CasaOS if exists
-            if systemctl list-units --full -all | grep -q casaos.service; then
-                echo -e "${YELLOW}Yeniden başlatılıyor: CasaOS${NC}"
-                systemctl restart casaos
-                if systemctl is-active --quiet casaos; then
-                    echo -e "${GREEN}✅ CasaOS başarıyla yeniden başlatıldı${NC}"
-                else
-                    echo -e "${RED}❌ CasaOS yeniden başlatılamadı!${NC}"
-                fi
-            fi
-            
             echo ""
             echo -e "${GREEN}✅ Sistem servisleri yeniden başlatıldı!${NC}"
             ;;
@@ -302,17 +272,6 @@ restart_all_services() {
                 echo -e "${GREEN}✅ Redis başarıyla yeniden başlatıldı${NC}"
             else
                 echo -e "${RED}❌ Redis yeniden başlatılamadı!${NC}"
-            fi
-            
-            # CasaOS
-            if systemctl list-units --full -all | grep -q casaos.service; then
-                echo -e "${YELLOW}Yeniden başlatılıyor: CasaOS${NC}"
-                systemctl restart casaos
-                if systemctl is-active --quiet casaos; then
-                    echo -e "${GREEN}✅ CasaOS başarıyla yeniden başlatıldı${NC}"
-                else
-                    echo -e "${RED}❌ CasaOS yeniden başlatılamadı!${NC}"
-                fi
             fi
             
             echo ""
@@ -513,208 +472,6 @@ reinstall_n8n() {
 }
 
 # --------------------------
-# CasaOS Functions (FIXED)
-# --------------------------
-check_casaos_status() {
-    echo -e "${BLUE}CasaOS Durumu Kontrol Ediliyor...${NC}"
-    echo ""
-    
-    if command -v casaos &>/dev/null; then
-        echo -e "${GREEN}✅ CasaOS Binary: Kurulu${NC}"
-        CASAOS_VERSION=$(casaos -v 2>/dev/null || echo "bilinmiyor")
-        echo -e "   Versiyon: $CASAOS_VERSION"
-    else
-        echo -e "${RED}❌ CasaOS Binary: Kurulu Değil${NC}"
-    fi
-    
-    if systemctl is-active --quiet casaos; then
-        echo -e "${GREEN}✅ CasaOS Servisi: Çalışıyor${NC}"
-    else
-        echo -e "${RED}❌ CasaOS Servisi: Durdurulmuş${NC}"
-    fi
-    
-    if [ -d "/var/lib/casaos" ]; then
-        echo -e "${GREEN}✅ CasaOS Veri Dizini: Mevcut${NC}"
-    else
-        echo -e "${RED}❌ CasaOS Veri Dizini: Bulunamadı${NC}"
-    fi
-    
-    if [ -f "/etc/nginx/sites-available/casaos" ]; then
-        echo -e "${GREEN}✅ CasaOS Nginx Yapılandırması: Mevcut${NC}"
-    else
-        echo -e "${RED}❌ CasaOS Nginx Yapılandırması: Bulunamadı${NC}"
-    fi
-    
-    echo ""
-    echo -e "${CYAN}CasaOS Domain URL: https://$CASAOS_DOMAIN${NC}"
-    echo -e "${CYAN}CasaOS Dahili Port: ${CASAOS_INTERNAL_PORT}${NC}"
-}
-
-remove_casaos() {
-    echo -e "${YELLOW}CasaOS Kaldırılıyor...${NC}"
-    
-    # Stop CasaOS service
-    systemctl stop casaos 2>/dev/null || true
-    systemctl disable casaos 2>/dev/null || true
-    
-    # Remove Nginx config
-    rm -f /etc/nginx/sites-enabled/casaos
-    rm -f /etc/nginx/sites-available/casaos
-    nginx -t && systemctl reload nginx
-    
-    # Remove SSL certificate
-    certbot delete --cert-name $CASAOS_DOMAIN --non-interactive 2>/dev/null || true
-    
-    # Ask about complete removal
-    echo ""
-    read -p "CasaOS'u TAMAMEN kaldırmak istiyor musunuz (tüm veriler dahil)? [e/H]: " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Ee]$ ]]; then
-        # Run CasaOS uninstall script if exists
-        if [ -f "/usr/bin/casaos-uninstall" ]; then
-            /usr/bin/casaos-uninstall || true
-        fi
-        
-        # Manual cleanup
-        rm -rf /var/lib/casaos
-        rm -rf /etc/casaos
-        rm -rf /usr/share/casaos
-        rm -f /usr/bin/casaos*
-        rm -f /etc/systemd/system/casaos*
-        
-        systemctl daemon-reload
-        
-        echo -e "${GREEN}✅ CasaOS tamamen kaldırıldı${NC}"
-    else
-        echo -e "${YELLOW}⚠️  CasaOS servisi durduruldu ancak veriler korundu${NC}"
-    fi
-}
-
-install_casaos() {
-    echo -e "${BLUE}CasaOS Kuruluyor...${NC}"
-    
-    # IMPORTANT: Check if port 80 is available for Nginx
-    echo -e "${YELLOW}Port kontrolü yapılıyor...${NC}"
-    
-    # Stop any service using port 80
-    if lsof -Pi :80 -sTCP:LISTEN -t >/dev/null 2>&1; then
-        echo -e "${YELLOW}⚠️  Port 80 kullanımda, temizleniyor...${NC}"
-        systemctl stop nginx 2>/dev/null || true
-        sleep 2
-    fi
-    
-    # Download and run CasaOS installation script
-    echo -e "${YELLOW}CasaOS kurulum scripti indiriliyor...${NC}"
-    curl -fsSL https://get.casaos.io | bash
-    
-    # Wait for CasaOS to start
-    sleep 5
-    
-    # CRITICAL FIX: Change CasaOS port BEFORE starting
-    echo -e "${YELLOW}CasaOS portu ${CASAOS_INTERNAL_PORT} olarak yapılandırılıyor...${NC}"
-    
-    # Stop CasaOS temporarily
-    systemctl stop casaos 2>/dev/null || true
-    sleep 2
-    
-    # Update CasaOS configuration files
-    if [ -f "/etc/casaos/gateway.ini" ]; then
-        # Backup original config
-        cp /etc/casaos/gateway.ini /etc/casaos/gateway.ini.backup.$(date +%Y%m%d_%H%M%S)
-        
-        # Change port in configuration
-        sed -i "s/^Port = .*/Port = ${CASAOS_INTERNAL_PORT}/g" /etc/casaos/gateway.ini
-        sed -i "s/^port = .*/port = ${CASAOS_INTERNAL_PORT}/g" /etc/casaos/gateway.ini
-        echo -e "${GREEN}✅ CasaOS port yapılandırması güncellendi${NC}"
-    fi
-    
-    # Check for additional config files
-    if [ -f "/etc/casaos/env" ]; then
-        cp /etc/casaos/env /etc/casaos/env.backup.$(date +%Y%m%d_%H%M%S)
-        sed -i "s/CASA_PORT=.*/CASA_PORT=${CASAOS_INTERNAL_PORT}/g" /etc/casaos/env
-    fi
-    
-    # Restart CasaOS with new configuration
-    systemctl daemon-reload
-    systemctl start casaos
-    sleep 5
-    
-    # Verify CasaOS is running
-    if systemctl is-active --quiet casaos; then
-        echo -e "${GREEN}✅ CasaOS başarıyla başlatıldı (Port: ${CASAOS_INTERNAL_PORT})${NC}"
-        
-        # Verify port
-        if lsof -Pi :${CASAOS_INTERNAL_PORT} -sTCP:LISTEN -t >/dev/null 2>&1; then
-            echo -e "${GREEN}✅ CasaOS doğru portta dinliyor (${CASAOS_INTERNAL_PORT})${NC}"
-        else
-            echo -e "${RED}❌ CasaOS beklenen portta dinlemiyor!${NC}"
-        fi
-        
-        # Create Nginx reverse proxy config
-        echo -e "${YELLOW}Nginx yapılandırması oluşturuluyor...${NC}"
-        cat > /etc/nginx/sites-available/casaos << NGINXEOF
-server {
-    listen 80;
-    server_name ${CASAOS_DOMAIN};
-    client_max_body_size 100M;
-    
-    location / {
-        proxy_pass http://127.0.0.1:${CASAOS_INTERNAL_PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        
-        # WebSocket support
-        proxy_read_timeout 86400;
-        proxy_send_timeout 86400;
-    }
-}
-NGINXEOF
-
-        ln -sf /etc/nginx/sites-available/casaos /etc/nginx/sites-enabled/
-        
-        # Test and reload Nginx
-        if nginx -t 2>/dev/null; then
-            systemctl reload nginx
-            echo -e "${GREEN}✅ Nginx yapılandırması başarıyla yüklendi${NC}"
-        else
-            echo -e "${RED}❌ Nginx yapılandırma hatası!${NC}"
-            nginx -t
-        fi
-        
-        # Setup SSL
-        echo -e "${YELLOW}SSL sertifikası kuruluyor...${NC}"
-        certbot --nginx -d $CASAOS_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
-            echo -e "${YELLOW}⚠️  SSL kurulumu başarısız. Manuel olarak deneyebilirsiniz.${NC}"
-        }
-        
-        echo ""
-        echo -e "${GREEN}✅ CasaOS Kurulumu Tamamlandı!${NC}"
-        echo -e "${CYAN}═══════════════════════════════════════${NC}"
-        echo -e "${CYAN}Domain Erişim: https://$CASAOS_DOMAIN${NC}"
-        echo -e "${CYAN}Lokal Erişim: http://localhost:${CASAOS_INTERNAL_PORT}${NC}"
-        echo -e "${CYAN}═══════════════════════════════════════${NC}"
-        echo -e "${YELLOW}Not: CasaOS varsayılan port 80'den ${CASAOS_INTERNAL_PORT}'e değiştirildi${NC}"
-        echo -e "${YELLOW}     Nginx port 80'de reverse proxy olarak çalışıyor${NC}"
-    else
-        echo -e "${RED}❌ CasaOS başlatılamadı!${NC}"
-        echo -e "${YELLOW}Logları kontrol edin: journalctl -u casaos -n 50${NC}"
-    fi
-}
-
-reinstall_casaos() {
-    echo -e "${YELLOW}CasaOS Yeniden Kuruluyor...${NC}"
-    remove_casaos
-    echo ""
-    install_casaos
-}
-
-# --------------------------
 # System Status Function
 # --------------------------
 show_system_status() {
@@ -745,17 +502,6 @@ show_system_status() {
         echo -e "${RED}❌ Redis: Durdurulmuş${NC}"
     fi
     
-    # CasaOS
-    if systemctl list-units --full -all | grep -q casaos.service; then
-        if systemctl is-active --quiet casaos; then
-            echo -e "${GREEN}✅ CasaOS: Çalışıyor${NC}"
-        else
-            echo -e "${RED}❌ CasaOS: Durdurulmuş${NC}"
-        fi
-    else
-        echo -e "${YELLOW}⚠️  CasaOS: Kurulu Değil${NC}"
-    fi
-    
     echo ""
     echo -e "${BLUE}════════════════════════════════════════${NC}"
     echo -e "${BLUE}Port Kullanımı:${NC}"
@@ -780,7 +526,6 @@ show_system_status() {
     check_port_display $AI_PORT "AI Service"
     check_port_display $N8N_PORT "N8N"
     check_port_display $REDIS_PORT "Redis"
-    check_port_display $CASAOS_INTERNAL_PORT "CasaOS"
     
     echo ""
     echo -e "${BLUE}════════════════════════════════════════${NC}"
@@ -790,7 +535,6 @@ show_system_status() {
     echo -e "  ${CYAN}API:${NC} https://$API_DOMAIN"
     echo -e "  ${CYAN}Admin:${NC} https://$ADMIN_DOMAIN"
     echo -e "  ${CYAN}N8N:${NC} https://$N8N_DOMAIN"
-    echo -e "  ${CYAN}CasaOS:${NC} https://$CASAOS_DOMAIN"
     
     echo ""
     echo -e "${BLUE}════════════════════════════════════════${NC}"
@@ -798,7 +542,6 @@ show_system_status() {
     echo -e "${BLUE}════════════════════════════════════════${NC}"
     echo -e "  ${CYAN}AI/ML Service:${NC} http://localhost:${AI_PORT}"
     echo -e "  ${CYAN}Redis:${NC} localhost:${REDIS_PORT}"
-    echo -e "  ${CYAN}CasaOS Internal:${NC} http://localhost:${CASAOS_INTERNAL_PORT}"
     echo ""
 }
 
@@ -1198,13 +941,13 @@ configure_firewall() {
     ufw allow 80/tcp
     ufw allow 443/tcp
     ufw reload
-    echo -e "${GREEN}✅ Firewall yapılandırıldı${NC}"
+    echo -e "${GREEN} Firewall yapılandırıldı${NC}"
 }
 
 setup_pm2_startup() {
     pm2 startup systemd -u root --hp /root
     pm2 save
-    echo -e "${GREEN}✅ PM2 startup yapılandırıldı${NC}"
+    echo -e "${GREEN} PM2 startup yapılandırıldı${NC}"
 }
 
 # --------------------------
@@ -1231,14 +974,6 @@ full_installation() {
     echo
     if [[ ! $REPLY =~ ^[Hh]$ ]]; then
         install_n8n
-    fi
-    
-    # Install CasaOS
-    echo ""
-    read -p "CasaOS kurmak istiyor musunuz? [E/h]: " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Hh]$ ]]; then
-        install_casaos
     fi
     
     configure_firewall
@@ -1274,7 +1009,7 @@ core_installation() {
     echo ""
     print_header "Temel Kurulum Tamamlandı!"
     echo -e "${GREEN}Temel servisler başarıyla kuruldu!${NC}"
-    echo -e "${YELLOW}N8N ve CasaOS kurulmadı.${NC}"
+    echo -e "${YELLOW}N8N kurulmadı.${NC}"
     echo ""
     show_system_status
 }
@@ -1321,53 +1056,12 @@ n8n_menu_handler() {
 }
 
 # --------------------------
-# CasaOS Menu Handler
-# --------------------------
-casaos_menu_handler() {
-    while true; do
-        print_casaos_menu
-        read -p "Bir seçenek seçin [1-5]: " casaos_choice
-        
-        case $casaos_choice in
-            1)
-                if command -v casaos &>/dev/null; then
-                    echo -e "${YELLOW}CasaOS zaten kurulu!${NC}"
-                    pause_screen
-                else
-                    install_casaos
-                    pause_screen
-                fi
-                ;;
-            2)
-                reinstall_casaos
-                pause_screen
-                ;;
-            3)
-                remove_casaos
-                pause_screen
-                ;;
-            4)
-                check_casaos_status
-                pause_screen
-                ;;
-            5)
-                break
-                ;;
-            *)
-                echo -e "${RED}Geçersiz seçenek!${NC}"
-                pause_screen
-                ;;
-        esac
-    done
-}
-
-# --------------------------
 # Main Menu Loop
 # --------------------------
 main_menu() {
     while true; do
         print_menu
-        read -p "Bir seçenek seçin [1-7]: " choice
+        read -p "Bir seçenek seçin [1-6]: " choice
         
         case $choice in
             1)
@@ -1382,22 +1076,19 @@ main_menu() {
                 n8n_menu_handler
                 ;;
             4)
-                casaos_menu_handler
-                ;;
-            5)
                 restart_all_services
                 pause_screen
                 ;;
-            6)
+            5)
                 show_system_status
                 pause_screen
                 ;;
-            7)
+            6)
                 echo -e "${GREEN}Çıkılıyor...${NC}"
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Geçersiz seçenek! Lütfen 1-7 arası seçin${NC}"
+                echo -e "${RED}Geçersiz seçenek! Lütfen 1-6 arası seçin${NC}"
                 pause_screen
                 ;;
         esac
