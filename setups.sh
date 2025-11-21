@@ -25,7 +25,7 @@ NC='\033[0m'
 # Değişkenler
 # --------------------------
 # Ana Site
-MAIN_DOMAIN="plaxsy.com"
+MAIN_DOMAIN="huglutekstil.com"
 MAIN_DIR="/root/final_versiyonn/web"
 MAIN_PORT=3006
 MAIN_PM2_NAME="plaxsy-web"
