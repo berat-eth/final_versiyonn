@@ -5,41 +5,38 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
+import { slidersApi } from '@/utils/api'
 
 const Header = dynamic(() => import('@/components/Header'), { ssr: true })
 const Footer = dynamic(() => import('@/components/Footer'), { ssr: true })
 
-const SLIDES = [
-  {
-    image: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=1200&q=75&auto=format&fit=crop',
-    title: 'Özel İş Kıyafetlerinde',
-    highlight: 'Kalite ve Ustalık',
-    description: 'Size özel tasarımlarla, işinize en uygun kıyafetleri üretiyoruz'
-  },
-  {
-    image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=1200&q=75&auto=format&fit=crop',
-    title: 'Profesyonel Üretim',
-    highlight: 'Modern Teknoloji',
-    description: 'En son teknoloji ile kusursuz işçilik sunuyoruz'
-  },
-  {
-    image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=1200&q=75&auto=format&fit=crop',
-    title: 'Markanıza Özel',
-    highlight: 'Tasarım Çözümleri',
-    description: 'Logo baskı ve nakış ile markanızı öne çıkarın'
-  },
-  {
-    image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1200&q=75&auto=format&fit=crop',
-    title: 'Hızlı ve Güvenilir',
-    highlight: 'Teslimat Garantisi',
-    description: 'Siparişlerinizi zamanında ve eksiksiz teslim ediyoruz'
-  }
-] as const
+interface SliderItem {
+  id: string | number;
+  title: string;
+  description?: string;
+  imageUrl: string;
+  thumbnailUrl?: string;
+  videoUrl?: string;
+  isActive: boolean;
+  order: number;
+  autoPlay: boolean;
+  duration: number;
+  clickAction?: {
+    type: 'product' | 'category' | 'url' | 'none';
+    value?: string;
+  };
+  buttonText?: string;
+  buttonColor?: string;
+  textColor?: string;
+  overlayOpacity?: number;
+}
 
 export default function Home() {
   const pathname = usePathname()
   const [currentSlide, setCurrentSlide] = useState(0)
   const [showPopup, setShowPopup] = useState(false)
+  const [slides, setSlides] = useState<SliderItem[]>([])
+  const [loadingSliders, setLoadingSliders] = useState(true)
 
   useEffect(() => {
     // Popup'ı sadece ana sayfada ve her sayfa yenilendiğinde göster
@@ -50,6 +47,28 @@ export default function Home() {
     }
   }, [pathname])
 
+  // Load sliders from API
+  useEffect(() => {
+    const loadSliders = async () => {
+      try {
+        setLoadingSliders(true)
+        const response = await slidersApi.getSliders(10)
+        if (response.success && response.data && Array.isArray(response.data)) {
+          const activeSliders = response.data.filter(slider => slider.isActive)
+          setSlides(activeSliders)
+        } else {
+          setSlides([])
+        }
+      } catch (error) {
+        console.error('Slider yükleme hatası:', error)
+        setSlides([])
+      } finally {
+        setLoadingSliders(false)
+      }
+    }
+    loadSliders()
+  }, [])
+
   const handleRetailClick = useCallback(() => {
     window.location.href = 'https://hugluoutdoor.com'
   }, [])
@@ -58,18 +77,14 @@ export default function Home() {
     setShowPopup(false)
   }, [])
 
-  const slides = useMemo(() => SLIDES, [])
-
   useEffect(() => {
+    if (slides.length === 0) return
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % SLIDES.length)
+      setCurrentSlide((prev) => (prev + 1) % slides.length)
     }, 5000)
     return () => clearInterval(timer)
-  }, [])
+  }, [slides.length])
 
-  const goToSlide = useCallback((index: number) => {
-    setCurrentSlide(index)
-  }, [])
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Popup Modal */}
@@ -134,86 +149,100 @@ export default function Home() {
           <div className="relative">
             <div className="relative overflow-hidden shadow-2xl h-screen">
               {/* Slides */}
-              {slides.map((slide, index) => (
-                <div
-                  key={index}
-                  className={`absolute inset-0 transition-opacity duration-1000 ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'
-                    }`}
-                >
-                  <div className="relative flex h-full flex-col gap-6 items-center justify-center p-6">
-                    <Image
-                      src={slide.image}
-                      alt={slide.title}
-                      fill
-                      priority={index === 0}
-                      loading={index === 0 ? 'eager' : 'lazy'}
-                      quality={index === 0 ? 85 : 70}
-                      sizes="100vw"
-                      className="object-cover -z-10"
-                      placeholder="blur"
-                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQAD8AElzOveIckqyjLh4m6jWyH54N6qHQ0X1B5fdnLm4iQfdSklRDq9zX//2Q=="
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 -z-5"></div>
-                    {/* Decorative Elements */}
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl"></div>
+              {loadingSliders ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-white text-lg">Yükleniyor...</div>
+                </div>
+              ) : slides.length > 0 ? (
+                slides.map((slide, index) => (
+                  <div
+                    key={slide.id}
+                    className={`absolute inset-0 transition-opacity duration-1000 ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                      }`}
+                  >
+                    <div className="relative flex h-full flex-col gap-6 items-center justify-center p-6">
+                      <Image
+                        src={slide.imageUrl}
+                        alt={slide.title}
+                        fill
+                        priority={index === 0}
+                        loading={index === 0 ? 'eager' : 'lazy'}
+                        quality={index === 0 ? 85 : 70}
+                        sizes="100vw"
+                        className="object-cover -z-10"
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQAD8AElzOveIckqyjLh4m6jWyH54N6qHQ0X1B5fdnLm4iQfdSklRDq9zX//2Q=="
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 -z-5"></div>
+                      {/* Decorative Elements */}
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl"></div>
+                      <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl"></div>
 
-                    <div className="relative z-10 flex flex-col gap-4 text-center max-w-3xl">
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-2 mx-auto">
-                        <span className="material-symbols-outlined text-white text-sm">workspace_premium</span>
-                        <span className="text-sm font-semibold text-white">Türkiye'nin Güvenilir Markası</span>
+                      <div className="relative z-10 flex flex-col gap-4 text-center max-w-3xl">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-2 mx-auto">
+                          <span className="material-symbols-outlined text-white text-sm">workspace_premium</span>
+                          <span className="text-sm font-semibold text-white">Türkiye'nin Güvenilir Markası</span>
+                        </div>
+                        <h1 className="text-white text-5xl md:text-7xl font-black leading-tight tracking-tight drop-shadow-2xl">
+                          {slide.title}
+                        </h1>
+                        {slide.description && (
+                          <h2 className="text-white/90 text-lg md:text-xl font-medium leading-relaxed drop-shadow-lg">
+                            {slide.description}
+                          </h2>
+                        )}
                       </div>
-                      <h1 className="text-white text-5xl md:text-7xl font-black leading-tight tracking-tight drop-shadow-2xl">
-                        {slide.title} <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">{slide.highlight}</span>
-                      </h1>
-                      <h2 className="text-white/90 text-lg md:text-xl font-medium leading-relaxed drop-shadow-lg">
-                        {slide.description}
-                      </h2>
-                    </div>
-                    <div className="relative z-10 flex-wrap gap-4 flex justify-center">
-                      <Link href="/urunler" className="group flex min-w-[84px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl h-14 px-8 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white text-base font-bold shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 hover:scale-105 transition-all duration-300">
-                        <span>Ürünlerimizi Keşfedin</span>
-                        <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                      </Link>
-                      <Link href="/teklif-al" className="group flex min-w-[84px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl h-14 px-8 bg-white/10 backdrop-blur-md border-2 border-white/30 text-white text-base font-bold hover:bg-white/20 hover:scale-105 transition-all duration-300">
-                        <span>Teklif Alın</span>
-                        <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">request_quote</span>
-                      </Link>
+                      <div className="relative z-10 flex-wrap gap-4 flex justify-center">
+                        <Link href="/urunler" className="group flex min-w-[84px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl h-14 px-8 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white text-base font-bold shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 hover:scale-105 transition-all duration-300">
+                          <span>Ürünlerimizi Keşfedin</span>
+                          <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                        </Link>
+                        <Link href="/teklif-al" className="group flex min-w-[84px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl h-14 px-8 bg-white/10 backdrop-blur-md border-2 border-white/30 text-white text-base font-bold hover:bg-white/20 hover:scale-105 transition-all duration-300">
+                          <span>Teklif Alın</span>
+                          <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">request_quote</span>
+                        </Link>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : null}
 
               {/* Navigation Dots */}
-              <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 -ml-[100px] z-20 flex gap-3">
-                {slides.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => goToSlide(index)}
-                    className={`transition-all duration-300 rounded-full ${index === currentSlide
-                      ? 'w-12 h-3 bg-white'
-                      : 'w-3 h-3 bg-white/50 hover:bg-white/75'
-                      }`}
-                    aria-label={`Go to slide ${index + 1}`}
-                  />
-                ))}
-              </div>
+              {slides.length > 0 && (
+                <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 -ml-[100px] z-20 flex gap-3">
+                  {slides.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentSlide(index)}
+                      className={`transition-all duration-300 rounded-full ${index === currentSlide
+                        ? 'w-12 h-3 bg-white'
+                        : 'w-3 h-3 bg-white/50 hover:bg-white/75'
+                        }`}
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* Navigation Arrows */}
-              <button
-                onClick={() => goToSlide((currentSlide - 1 + slides.length) % slides.length)}
-                className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 bg-white/10 backdrop-blur-md hover:bg-white/20 rounded-full border border-white/30 transition-all duration-300 group"
-                aria-label="Previous slide"
-              >
-                <span className="material-symbols-outlined text-white text-2xl group-hover:-translate-x-1 transition-transform">chevron_left</span>
-              </button>
-              <button
-                onClick={() => goToSlide((currentSlide + 1) % slides.length)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 bg-white/10 backdrop-blur-md hover:bg-white/20 rounded-full border border-white/30 transition-all duration-300 group"
-                aria-label="Next slide"
-              >
-                <span className="material-symbols-outlined text-white text-2xl group-hover:translate-x-1 transition-transform">chevron_right</span>
-              </button>
+              {slides.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setCurrentSlide((currentSlide - 1 + slides.length) % slides.length)}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 bg-white/10 backdrop-blur-md hover:bg-white/20 rounded-full border border-white/30 transition-all duration-300 group"
+                    aria-label="Previous slide"
+                  >
+                    <span className="material-symbols-outlined text-white text-2xl group-hover:-translate-x-1 transition-transform">chevron_left</span>
+                  </button>
+                  <button
+                    onClick={() => setCurrentSlide((currentSlide + 1) % slides.length)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 bg-white/10 backdrop-blur-md hover:bg-white/20 rounded-full border border-white/30 transition-all duration-300 group"
+                    aria-label="Next slide"
+                  >
+                    <span className="material-symbols-outlined text-white text-2xl group-hover:translate-x-1 transition-transform">chevron_right</span>
+                  </button>
+                </>
+              )}
 
               {/* Scroll Down Indicator */}
               <button
@@ -296,20 +325,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-0 max-w-5xl mx-auto">
-                  {[
-                    { name: 'Türkiye Futbol Federasyonu', color: 'from-blue-500 to-blue-600' },
-                    { name: 'Nükte Treyler', color: 'from-purple-500 to-purple-600' },
-                    { name: 'Konya Büyükşehir Belediyesi', color: 'from-pink-500 to-pink-600' }
-                  ].map((reference, i) => (
-                    <div key={i} className="group relative flex flex-col items-center justify-center gap-4 p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/50 hover:shadow-2xl hover:scale-105 transition-all duration-300 min-h-[200px]">
-                      <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${reference.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                        <span className="material-symbols-outlined text-white text-3xl">business</span>
-                      </div>
-                      <h3 className="font-bold text-[#0d141b] dark:text-slate-50 text-lg text-center leading-tight">
-                        {reference.name}
-                      </h3>
-                    </div>
-                  ))}
+                  {/* Referanslar API'den gelecek şekilde düzenlenebilir */}
                 </div>
               </div>
 

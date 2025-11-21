@@ -18,6 +18,46 @@ class XmlSyncService {
     this.message = null;
   }
 
+  /**
+   * Retry mekanizması ile pool.execute çağrısı
+   * ECONNRESET ve diğer bağlantı hatalarını otomatik olarak yeniden dener
+   */
+  async executeWithRetry(sql, params, maxRetries = 3, retryDelay = 1000) {
+    let lastError;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await this.pool.execute(sql, params);
+      } catch (error) {
+        lastError = error;
+        
+        // ECONNRESET, ETIMEDOUT, PROTOCOL_CONNECTION_LOST gibi bağlantı hataları
+        const isConnectionError = 
+          error.code === 'ECONNRESET' ||
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'PROTOCOL_CONNECTION_LOST' ||
+          error.code === 'ECONNREFUSED' ||
+          error.code === 'ENOTFOUND' ||
+          error.message?.includes('Connection lost') ||
+          error.message?.includes('read ECONNRESET') ||
+          error.message?.includes('timeout');
+        
+        if (isConnectionError && attempt < maxRetries - 1) {
+          const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
+          console.warn(`⚠️ Database connection error (${error.code || error.message}), retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // Bağlantı hatası değilse veya son denemeyse throw et
+        throw error;
+      }
+    }
+    
+    // Tüm denemeler başarısız
+    throw lastError;
+  }
+
   // XML kaynakları konfigürasyonu
   getXmlSources() {
     return [
@@ -476,7 +516,7 @@ class XmlSyncService {
     try {
       let productId;
               // Önce external ID ile mevcut ürünü kontrol et
-        const [existing] = await this.pool.execute(
+        const [existing] = await this.executeWithRetry(
           'SELECT id, name, description, price, stock, image, images, image1, image2, image3, image4, image5, category, brand, hasVariations, sku, categoryTree, productUrl, salesUnit, totalImages, xmlOptions, variationDetails FROM products WHERE externalId = ? AND tenantId = ?',
           [product.externalId, tenantId]
         );
@@ -591,7 +631,7 @@ class XmlSyncService {
 
         // Eğer sadece variationDetails değiştiyse bile UPDATE yap
         if (hasChanges || variationDetailsChanged) {
-          await this.pool.execute(
+          await this.executeWithRetry(
             `UPDATE products SET ${updates.join(', ')}, lastUpdated = ? WHERE id = ?`,
             [
               ...(updates.includes('name = ?') ? [product.name] : []),
@@ -625,7 +665,7 @@ class XmlSyncService {
         }
       } else {
         // Yeni ürün ekle
-        const [insertResult] = await this.pool.execute(
+        const [insertResult] = await this.executeWithRetry(
           `INSERT INTO products (tenantId, name, description, price, category, image, images, image1, image2, image3, image4, image5, stock, brand, rating, reviewCount, externalId, source, hasVariations, sku, lastUpdated, categoryTree, productUrl, salesUnit, totalImages, xmlOptions, xmlRaw, variationDetails) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
@@ -703,11 +743,11 @@ class XmlSyncService {
       }
 
       // Önce mevcut varyasyonları sil
-      await this.pool.execute(
+      await this.executeWithRetry(
         'DELETE FROM product_variation_options WHERE variationId IN (SELECT id FROM product_variations WHERE productId = ? AND tenantId = ?)',
         [productId, tenantId]
       );
-      await this.pool.execute(
+      await this.executeWithRetry(
         'DELETE FROM product_variations WHERE productId = ? AND tenantId = ?',
         [productId, tenantId]
       );
@@ -772,7 +812,7 @@ class XmlSyncService {
       // Her varyasyon türü için kayıt oluştur
       for (const [variationName, options] of variationMap) {
         // Varyasyon türünü kaydet
-        const [variationResult] = await this.pool.execute(
+        const [variationResult] = await this.executeWithRetry(
           `INSERT INTO product_variations (tenantId, productId, name, displayOrder, createdAt)
            VALUES (?, ?, ?, ?, ?)`,
           [tenantId, productId, variationName, 0, new Date()]
@@ -821,7 +861,7 @@ class XmlSyncService {
         // Varyasyon seçeneklerini kaydet (tekilleştirilmiş) - upsert ile güvenli
         for (let i = 0; i < dedupedOptions.length; i++) {
           const option = dedupedOptions[i];
-          await this.pool.execute(
+          await this.executeWithRetry(
             `INSERT INTO product_variation_options 
              (tenantId, variationId, value, priceModifier, stock, sku, barkod, alisFiyati, satisFiyati, 
               indirimliFiyat, kdvDahil, kdvOrani, paraBirimi, paraBirimiKodu, desi, externalId, 
@@ -882,14 +922,14 @@ class XmlSyncService {
     try {
       for (const category of categories) {
         // Mevcut kategoriyi kontrol et
-        const [existing] = await this.pool.execute(
+        const [existing] = await this.executeWithRetry(
           'SELECT id FROM categories WHERE name = ? AND tenantId = ?',
           [category.name, tenantId]
         );
 
         if (existing.length > 0) {
           // Mevcut kategoriyi güncelle
-          await this.pool.execute(
+          await this.executeWithRetry(
             `UPDATE categories SET 
              description = ?, 
              categoryTree = ?, 
@@ -907,7 +947,7 @@ class XmlSyncService {
           console.log(`🔄 Updated category: ${category.name}`);
         } else {
           // Yeni kategori ekle
-          await this.pool.execute(
+          await this.executeWithRetry(
             `INSERT INTO categories (tenantId, name, description, categoryTree, externalId, source) 
              VALUES (?, ?, ?, ?, ?, ?)`,
             [
@@ -985,7 +1025,7 @@ class XmlSyncService {
       if (tenantId) {
         tenants = [{ id: tenantId }];
       } else {
-        const [tenantRows] = await this.pool.execute('SELECT id, name FROM tenants WHERE isActive = true');
+        const [tenantRows] = await this.executeWithRetry('SELECT id, name FROM tenants WHERE isActive = true');
         tenants = tenantRows;
       }
 

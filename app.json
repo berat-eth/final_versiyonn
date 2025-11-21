@@ -42,7 +42,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "EXPO_PUBLIC_API_BASE_URL": "https://api.plaxsy.com/api",
+      "EXPO_PUBLIC_API_BASE_URL": "https://api.huglutekstil.com/api",
       "EXPO_PUBLIC_TENANT_ID": "1",
       "EXPO_PUBLIC_TENANT_API_KEY": "huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f",
       "eas": {

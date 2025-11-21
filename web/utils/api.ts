@@ -1,9 +1,9 @@
 // API Client for Backend Communication
-// UZAK SUNUCU: Tüm istekler https://api.plaxsy.com/api'ye gider
+// UZAK SUNUCU: Tüm istekler https://api.huglutekstil.com/api'ye gider
 
 import type { ApiResponse, User, Order, UserAddress, LoginResponse } from '@/lib/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
 
 export interface ApiRequestOptions extends RequestInit {
@@ -419,6 +419,52 @@ export const listsApi = {
   updateListItem: async (listId: number, itemId: number, userId: number, quantity?: number, notes?: string): Promise<ApiResponse<any>> => {
     const client = new ApiClient(API_BASE_URL);
     return client.put<ApiResponse<any>>(`/lists/${listId}/items/${itemId}`, { userId, quantity, notes }, { requiresAuth: true });
+  },
+};
+
+// Sliders API methods
+export const slidersApi = {
+  getSliders: async (limit = 10): Promise<ApiResponse<Array<{
+    id: string | number;
+    title: string;
+    description?: string;
+    imageUrl: string;
+    thumbnailUrl?: string;
+    videoUrl?: string;
+    isActive: boolean;
+    order: number;
+    autoPlay: boolean;
+    duration: number;
+    clickAction?: {
+      type: 'product' | 'category' | 'url' | 'none';
+      value?: string;
+    };
+    buttonText?: string;
+    buttonColor?: string;
+    textColor?: string;
+    overlayOpacity?: number;
+  }>>> => {
+    const client = new ApiClient(API_BASE_URL);
+    return client.get<ApiResponse<Array<{
+      id: string | number;
+      title: string;
+      description?: string;
+      imageUrl: string;
+      thumbnailUrl?: string;
+      videoUrl?: string;
+      isActive: boolean;
+      order: number;
+      autoPlay: boolean;
+      duration: number;
+      clickAction?: {
+        type: 'product' | 'category' | 'url' | 'none';
+        value?: string;
+      };
+      buttonText?: string;
+      buttonColor?: string;
+      textColor?: string;
+      overlayOpacity?: number;
+    }>>>(`/sliders?limit=${limit}`, { requiresAuth: false });
   },
 };
 

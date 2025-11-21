@@ -65,9 +65,9 @@ function getApiBaseUrl(): string {
     }
     
     // Fallback: default URL
-    return 'https://api.plaxsy.com/api';
+    return 'https://api.huglutekstil.com/api';
   } catch {
-    return 'https://api.plaxsy.com/api';
+    return 'https://api.huglutekstil.com/api';
   }
 }
 

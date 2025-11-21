@@ -280,7 +280,7 @@ const cspDirectives = {
   // Script'ler için nonce veya hash kullanılmalı
   scriptSrc: ["'self'"],
   imgSrc: ["'self'", "https:", "data:"],
-  connectSrc: ["'self'", "https://api.plaxsy.com", "https://admin.plaxsy.com", "https://plaxsy.com", "https://www.plaxsy.com", "https://api.zerodaysoftware.tr"],
+  connectSrc: ["'self'", "https://api.huglutekstil.com", "https://admin.plaxsy.com", "https://plaxsy.com", "https://www.plaxsy.com", "https://api.zerodaysoftware.tr"],
   fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
   objectSrc: ["'none'"],
   mediaSrc: ["'self'"],
@@ -376,7 +376,7 @@ app.use(cors({
       'https://admin.plaxsy.com',
       'https://www.plaxsy.com',
       'https://plaxsy.com',
-      'https://api.plaxsy.com',
+      'https://api.huglutekstil.com',
       'https://api.zerodaysoftware.tr',
       'https://huglutekstil.com',
       'https://www.huglutekstil.com'
@@ -5366,7 +5366,7 @@ app.get('/api/admin/panel-config', authenticateAdmin, async (req, res) => {
       cfg = JSON.parse(raw);
     } catch (_) {
       cfg = {
-        API_BASE_URL: 'https://api.plaxsy.com/api',
+        API_BASE_URL: 'https://api.huglutekstil.com/api',
         ADMIN_TOKEN: '',
         TENANT_API_KEY: '',
         FTP_BACKUP: { enabled: false, host: '', port: 21, user: '', password: '', remoteDir: '/backups' }

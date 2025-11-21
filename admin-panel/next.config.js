@@ -51,7 +51,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'", // Tailwind ve inline styles için
               "img-src 'self' data: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://api.plaxsy.com https://api.zerodaysoftware.tr",
+              "connect-src 'self' https://api.huglutekstil.com https://api.zerodaysoftware.tr",
               "frame-ancestors 'self'",
               "base-uri 'self'",
               "form-action 'self'",

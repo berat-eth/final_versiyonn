@@ -12,10 +12,10 @@ export interface NetworkConfig {
 export const defaultNetworkConfig: NetworkConfig = {
   autoDetectOnStart: false, // Uzak sunucu kullanıldığı için auto-detect kapalı
   preferredUrls: [
-    'https://api.plaxsy.com/api'
+    'https://api.huglutekstil.com/api'
   ],
   fallbackUrls: [
-    'https://api.plaxsy.com/api'
+    'https://api.huglutekstil.com/api'
   ],
   detectionTimeout: 15000 // 15 seconds - increased for better detection
 };

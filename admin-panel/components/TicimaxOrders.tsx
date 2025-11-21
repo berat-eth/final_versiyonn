@@ -135,7 +135,7 @@ export default function TicimaxOrders() {
       formData.append('file', file)
       
       // API base URL'i al - api utility'sinden aynı değerleri kullan
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
       const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
       const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
       const token = sessionStorage.getItem('authToken') || ''
@@ -281,7 +281,7 @@ export default function TicimaxOrders() {
       return
     }
     
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
     
     // Fatura linki veya seçili fatura kontrolü
     let invoiceUrl = ''
@@ -390,7 +390,7 @@ export default function TicimaxOrders() {
   }
 
   const handleViewCargoSlip = async (fileName: string) => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
     const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
     const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
     const token = sessionStorage.getItem('authToken') || ''
@@ -433,7 +433,7 @@ export default function TicimaxOrders() {
       return
     }
     
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
     const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
     const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
     const token = sessionStorage.getItem('authToken') || ''
@@ -511,7 +511,7 @@ export default function TicimaxOrders() {
       return
     }
 
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
     const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
     const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
     const token = sessionStorage.getItem('authToken') || ''
@@ -965,7 +965,7 @@ export default function TicimaxOrders() {
                               Görüntüle
                             </button>
                             <a
-                              href={`${process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(selectedCargoSlip)}`}
+                              href={`${process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(selectedCargoSlip)}`}
                               download
                               className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm"
                             >
@@ -1007,7 +1007,7 @@ export default function TicimaxOrders() {
                             setSelectedInvoiceId(null)
                           }
                         }}
-                        placeholder="https://api.plaxsy.com/api/invoices/share/..."
+                        placeholder="https://api.huglutekstil.com/api/invoices/share/..."
                         className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                       {invoiceLink && invoiceLink.trim() && (
@@ -1763,7 +1763,7 @@ export default function TicimaxOrders() {
                             </button>
                             <button
                               onClick={async () => {
-                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
                                 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
                                 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
                                 const token = sessionStorage.getItem('authToken') || ''

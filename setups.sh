@@ -5,7 +5,7 @@
 # Debian 11 Bullseye Optimized
 # Domains:
 #   Main Site: plaxsy.com
-#   API: api.plaxsy.com
+#   API: api.huglutekstil.com
 #   Admin: admin.plaxsy.com
 #   N8N: otomasyon.plaxsy.com
 # ========================================
@@ -31,7 +31,7 @@ MAIN_PORT=3006
 MAIN_PM2_NAME="plaxsy-web"
 
 # API
-API_DOMAIN="api.plaxsy.com"
+API_DOMAIN="api.huglutekstil.com"
 API_DIR="/root/final_versiyonn/server"
 API_PORT=3000
 API_PM2_NAME="huglu-api"
@@ -642,7 +642,7 @@ fi
 cat > /etc/nginx/sites-available/$API_DOMAIN << 'EOF'
 server {
     listen 80;
-    server_name api.plaxsy.com;
+    server_name api.huglutekstil.com;
     
     client_max_body_size 100M;
     

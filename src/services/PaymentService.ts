@@ -307,25 +307,6 @@ export class PaymentService {
     return translations[error] || error || 'Bilinmeyen hata';
   }
 
-  // Test için örnek kart bilgileri
-  static getSampleCards(): { [key: string]: PaymentCard } {
-    return {
-      success: {
-        cardHolderName: 'John Doe',
-        cardNumber: '5528 7900 0000 0008',
-        expireMonth: '12',
-        expireYear: '2030',
-        cvc: '123'
-      },
-      failure: {
-        cardHolderName: 'Jane Doe',
-        cardNumber: '4111 1111 1111 1129',
-        expireMonth: '12',
-        expireYear: '2030',
-        cvc: '123'
-      }
-    };
-  }
 }
 
 export default PaymentService;

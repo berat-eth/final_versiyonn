@@ -11,19 +11,19 @@ export interface ApiConfig {
 // Environment-based API configurations
 export const API_CONFIGS: Record<string, ApiConfig> = {
   development: {
-    baseUrl: 'https://api.plaxsy.com/api',
+    baseUrl: 'https://api.huglutekstil.com/api',
     timeout: 30000,
     retryAttempts: 2,
     environment: 'development'
   },
   staging: {
-    baseUrl: 'https://api.plaxsy.com/api',
+    baseUrl: 'https://api.huglutekstil.com/api',
     timeout: 45000,
     retryAttempts: 3,
     environment: 'staging'
   },
   production: {
-    baseUrl: 'https://api.plaxsy.com/api',
+    baseUrl: 'https://api.huglutekstil.com/api',
     timeout: 30000, // 30 seconds for production
     retryAttempts: 5, // More retry attempts for production
     environment: 'production'
@@ -32,10 +32,10 @@ export const API_CONFIGS: Record<string, ApiConfig> = {
 
 // Remote server configurations - GÜVENLİK: Sadece HTTPS kullan
 export const REMOTE_SERVERS = {
-  primary: 'https://api.plaxsy.com/api',
+  primary: 'https://api.huglutekstil.com/api',
   // GÜVENLİK: HTTP fallback kaldırıldı, sadece HTTPS
-  backup: 'https://api.plaxsy.com/api',
-  local: 'https://api.plaxsy.com/api'
+  backup: 'https://api.huglutekstil.com/api',
+  local: 'https://api.huglutekstil.com/api'
 };
 
 // Single-tenant mod ayarı: env üzerinden yönetilir (Expo: EXPO_PUBLIC_*)

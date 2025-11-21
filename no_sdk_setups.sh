@@ -5,11 +5,11 @@
 # SDK Tools Disabled - Only Project Dependencies
 # Debian 11 Bullseye Optimized
 # Domains:
-#   Main Site: plaxsy.com
-#   API: api.plaxsy.com
-#   Admin: admin.plaxsy.com
-#   N8N: otomasyon.plaxsy.com
-#   CasaOS: casaos.plaxsy.com
+#   Main Site: huglutekstil.com
+#   API: api.huglutekstil.com
+#   Admin: admin.huglutekstil.com
+#   N8N: otomasyon.huglutekstil.com
+#   CasaOS: casaos.huglutekstil.com
 # Services:
 #   AI/ML Service: localhost:8001 (internal only)
 #   CasaOS: localhost:80 (default)
@@ -30,19 +30,19 @@ NC='\033[0m'
 # Variables
 # --------------------------
 # Main Site
-MAIN_DOMAIN="plaxsy.com"
+MAIN_DOMAIN="huglutekstil.com"
 MAIN_DIR="/root/final_versiyonn/web"
 MAIN_PORT=3006
-MAIN_PM2_NAME="plaxsy-web"
+MAIN_PM2_NAME="huglu-web"
 
 # API
-API_DOMAIN="api.plaxsy.com"
+API_DOMAIN="api.huglutekstil.com"
 API_DIR="/root/final_versiyonn/server"
 API_PORT=3000
 API_PM2_NAME="huglu-api"
 
 # Admin Panel
-ADMIN_DOMAIN="admin.plaxsy.com"
+ADMIN_DOMAIN="admin.huglutekstil.com"
 ADMIN_DIR="/root/final_versiyonn/admin-panel"
 ADMIN_PORT=3001
 ADMIN_PM2_NAME="admin-panel"
@@ -53,13 +53,13 @@ AI_PORT=8001
 AI_PM2_NAME="ml-service"
 
 # N8N
-N8N_DOMAIN="otomasyon.plaxsy.com"
+N8N_DOMAIN="otomasyon.huglutekstil.com"
 N8N_PORT=5678
 N8N_USER=$(whoami)
 N8N_DIR="/home/$N8N_USER/n8n"
 
 # CasaOS
-CASAOS_DOMAIN="casaos.plaxsy.com"
+CASAOS_DOMAIN="casaos.huglutekstil.com"
 CASAOS_PORT=80
 
 # Redis
@@ -312,9 +312,9 @@ else
 fi
 
 # --------------------------
-# Main Site Setup (plaxsy.com - Next.js)
+# Main Site Setup (huglutekstil.com - Next.js)
 # --------------------------
-echo -e "${BLUE}[5/9] Setting up main site (Next.js - plaxsy.com)...${NC}"
+echo -e "${BLUE}[5/9] Setting up main site (Next.js - huglutekstil.com)...${NC}"
 if [ -d "$MAIN_DIR" ]; then
     cd $MAIN_DIR
     
@@ -625,12 +625,12 @@ fi
 # --------------------------
 echo -e "${BLUE}Configuring Nginx...${NC}"
 
-# Main Site (plaxsy.com)
+# Main Site (huglutekstil.com)
 if [ "$SKIP_MAIN" != true ]; then
 cat > /etc/nginx/sites-available/$MAIN_DOMAIN << 'EOF'
 server {
     listen 80;
-    server_name plaxsy.com www.plaxsy.com;
+    server_name huglutekstil.com www.huglutekstil.com;
     
     client_max_body_size 100M;
     
@@ -654,7 +654,7 @@ fi
 cat > /etc/nginx/sites-available/$API_DOMAIN << 'EOF'
 server {
     listen 80;
-    server_name api.plaxsy.com;
+    server_name api.huglutekstil.com;
     
     client_max_body_size 100M;
     
@@ -678,7 +678,7 @@ if [ "$SKIP_ADMIN" != true ]; then
 cat > /etc/nginx/sites-available/$ADMIN_DOMAIN << 'EOF'
 server {
     listen 80;
-    server_name admin.plaxsy.com;
+    server_name admin.huglutekstil.com;
     
     location / {
         proxy_pass http://127.0.0.1:3001;
@@ -701,7 +701,7 @@ if [ "$SKIP_N8N" != true ] || [ ! -f "/etc/nginx/sites-available/n8n" ]; then
 cat > /etc/nginx/sites-available/n8n << 'EOF'
 server {
     listen 80;
-    server_name otomasyon.plaxsy.com;
+    server_name otomasyon.huglutekstil.com;
     client_max_body_size 50M;
     
     location / {
@@ -725,7 +725,7 @@ if [ "$SKIP_CASAOS" != true ]; then
 cat > /etc/nginx/sites-available/casaos << 'EOF'
 server {
     listen 80;
-    server_name casaos.plaxsy.com;
+    server_name casaos.huglutekstil.com;
     client_max_body_size 100M;
     
     location / {

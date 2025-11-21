@@ -103,7 +103,7 @@ class ApiService {
     const urls: string[] = [];
 
     // Domain candidate
-    urls.push('https://api.plaxsy.com/api');
+    urls.push('https://api.huglutekstil.com/api');
 
     // IP-based candidates (for both development and production)
     (IP_SERVER_CANDIDATES || []).forEach(ip => {

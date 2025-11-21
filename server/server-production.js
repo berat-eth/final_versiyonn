@@ -275,7 +275,7 @@ const corsOptions = {
       'https://admin.plaxsy.com',
       'https://www.plaxsy.com',
       'https://plaxsy.com',
-      'https://api.plaxsy.com'
+      'https://api.huglutekstil.com'
     ];
     
     // Origin yoksa (mobil uygulama veya same-origin request için)

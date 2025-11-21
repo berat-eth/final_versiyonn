@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 const { performance } = require('perf_hooks');
 
-const BASE = 'https://api.plaxsy.com/api';
+const BASE = 'https://api.huglutekstil.com/api';
 const HEADERS = {
   'Accept': 'application/json',
   'Content-Type': 'application/json',

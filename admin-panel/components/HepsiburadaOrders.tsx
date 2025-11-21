@@ -194,7 +194,7 @@ export default function HepsiburadaOrders() {
     
     // API base URL'i api utility'sinden al (tutarlılık için)
     // api utility'sinin baseUrl'ini kullan
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.plaxsy.com/api'
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
     
     try {
       
