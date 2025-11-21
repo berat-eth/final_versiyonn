@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# Huglu + N8N + AI Service Full Stack Deployment Script
+# Huglu + AI Service Full Stack Deployment Script
 # SDK Tools Disabled - Only Project Dependencies
 # Debian 11 Bullseye Optimized
 # Interactive Menu System
@@ -47,12 +47,6 @@ AI_DIR="/root/final_versiyonn/ml-service"
 AI_PORT=8001
 AI_PM2_NAME="ml-service"
 
-# N8N
-N8N_DOMAIN="otomasyon.huglutekstil.com"
-N8N_PORT=5678
-N8N_USER=$(whoami)
-N8N_DIR="/home/$N8N_USER/n8n"
-
 # Redis
 REDIS_PORT=6379
 REDIS_MAXMEMORY="256mb"
@@ -64,7 +58,6 @@ ERRORS=0
 WARNINGS=0
 SKIP_ADMIN=false
 SKIP_MAIN=false
-SKIP_N8N=false
 SKIP_AI=false
 
 # --------------------------
@@ -92,22 +85,9 @@ print_menu() {
     echo -e "${YELLOW}Ana Menü:${NC}"
     echo -e "  ${CYAN}1)${NC} Tam Kurulum (Tüm Servisler)"
     echo -e "  ${CYAN}2)${NC} Sadece Temel Servisleri Kur (Web, API, Admin, AI)"
-    echo -e "  ${CYAN}3)${NC} N8N Yönetimi"
-    echo -e "  ${CYAN}4)${NC} Tüm Servisleri Yeniden Başlat"
-    echo -e "  ${CYAN}5)${NC} Sistem Durumunu Görüntüle"
-    echo -e "  ${CYAN}6)${NC} Çıkış"
-    echo ""
-}
-
-print_n8n_menu() {
-    clear
-    print_header "N8N Yönetimi"
-    echo -e "${YELLOW}Seçenekler:${NC}"
-    echo -e "  ${CYAN}1)${NC} N8N Kur (Yeni Kurulum)"
-    echo -e "  ${CYAN}2)${NC} N8N'i Yeniden Kur (Sil ve Kur)"
-    echo -e "  ${CYAN}3)${NC} N8N'i Tamamen Kaldır"
-    echo -e "  ${CYAN}4)${NC} N8N Durumunu Kontrol Et"
-    echo -e "  ${CYAN}5)${NC} Ana Menüye Dön"
+    echo -e "  ${CYAN}3)${NC} Tüm Servisleri Yeniden Başlat"
+    echo -e "  ${CYAN}4)${NC} Sistem Durumunu Görüntüle"
+    echo -e "  ${CYAN}5)${NC} Çıkış"
     echo ""
 }
 
@@ -124,7 +104,7 @@ check_port_usage() {
     local service_name=$2
     
     if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
-        echo -e "${YELLOW}⚠️  Port $port zaten kullanımda ($service_name için)${NC}"
+        echo -e "${YELLOW}  Port $port zaten kullanımda ($service_name için)${NC}"
         local pid=$(lsof -Pi :$port -sTCP:LISTEN -t)
         local process=$(ps -p $pid -o comm=)
         echo -e "${YELLOW}   Process: $process (PID: $pid)${NC}"
@@ -133,10 +113,10 @@ check_port_usage() {
         echo
         if [[ $REPLY =~ ^[Ee]$ ]]; then
             kill -9 $pid 2>/dev/null || true
-            echo -e "${GREEN}✅ Port $port temizlendi${NC}"
+            echo -e "${GREEN} Port $port temizlendi${NC}"
             return 0
         else
-            echo -e "${RED}❌ Port çakışması çözülmedi. Kurulum devam edemiyor.${NC}"
+            echo -e "${RED} Port çakışması çözülmedi. Kurulum devam edemiyor.${NC}"
             return 1
         fi
     fi
@@ -152,7 +132,7 @@ restart_all_services() {
     
     echo -e "${YELLOW}Hangi servisleri yeniden başlatmak istiyorsunuz?${NC}"
     echo ""
-    echo -e "  ${CYAN}1)${NC} Sadece PM2 Servisleri (Web, API, Admin, AI, N8N)"
+    echo -e "  ${CYAN}1)${NC} Sadece PM2 Servisleri (Web, API, Admin, AI)"
     echo -e "  ${CYAN}2)${NC} Sadece Sistem Servisleri (Nginx, Redis)"
     echo -e "  ${CYAN}3)${NC} TÜM SERVİSLER (PM2 + Sistem)"
     echo -e "  ${CYAN}4)${NC} İptal"
@@ -185,13 +165,8 @@ restart_all_services() {
                 pm2 restart $AI_PM2_NAME
             fi
             
-            if pm2 describe n8n &>/dev/null; then
-                echo -e "${YELLOW}Yeniden başlatılıyor: N8N${NC}"
-                pm2 restart n8n
-            fi
-            
             echo ""
-            echo -e "${GREEN}✅ PM2 servisleri yeniden başlatıldı!${NC}"
+            echo -e "${GREEN} PM2 servisleri yeniden başlatıldı!${NC}"
             echo ""
             pm2 list
             ;;
@@ -204,7 +179,7 @@ restart_all_services() {
             echo -e "${YELLOW}Yeniden başlatılıyor: Nginx${NC}"
             nginx -t && systemctl restart nginx
             if systemctl is-active --quiet nginx; then
-                echo -e "${GREEN}✅ Nginx başarıyla yeniden başlatıldı${NC}"
+                echo -e "${GREEN} Nginx başarıyla yeniden başlatıldı${NC}"
             else
                 echo -e "${RED}❌ Nginx yeniden başlatılamadı!${NC}"
             fi
@@ -213,13 +188,13 @@ restart_all_services() {
             echo -e "${YELLOW}Yeniden başlatılıyor: Redis${NC}"
             systemctl restart redis-server
             if systemctl is-active --quiet redis-server; then
-                echo -e "${GREEN}✅ Redis başarıyla yeniden başlatıldı${NC}"
+                echo -e "${GREEN} Redis başarıyla yeniden başlatıldı${NC}"
             else
-                echo -e "${RED}❌ Redis yeniden başlatılamadı!${NC}"
+                echo -e "${RED} Redis yeniden başlatılamadı!${NC}"
             fi
             
             echo ""
-            echo -e "${GREEN}✅ Sistem servisleri yeniden başlatıldı!${NC}"
+            echo -e "${GREEN} Sistem servisleri yeniden başlatıldı!${NC}"
             ;;
             
         3)
@@ -248,11 +223,6 @@ restart_all_services() {
                 pm2 restart $AI_PM2_NAME
             fi
             
-            if pm2 describe n8n &>/dev/null; then
-                echo -e "${YELLOW}Yeniden başlatılıyor: N8N${NC}"
-                pm2 restart n8n
-            fi
-            
             echo ""
             echo -e "${MAGENTA}=== Sistem Servisleri ===${NC}"
             
@@ -260,7 +230,7 @@ restart_all_services() {
             echo -e "${YELLOW}Yeniden başlatılıyor: Nginx${NC}"
             nginx -t && systemctl restart nginx
             if systemctl is-active --quiet nginx; then
-                echo -e "${GREEN}✅ Nginx başarıyla yeniden başlatıldı${NC}"
+                echo -e "${GREEN} Nginx başarıyla yeniden başlatıldı${NC}"
             else
                 echo -e "${RED}❌ Nginx yeniden başlatılamadı!${NC}"
             fi
@@ -269,13 +239,13 @@ restart_all_services() {
             echo -e "${YELLOW}Yeniden başlatılıyor: Redis${NC}"
             systemctl restart redis-server
             if systemctl is-active --quiet redis-server; then
-                echo -e "${GREEN}✅ Redis başarıyla yeniden başlatıldı${NC}"
+                echo -e "${GREEN} Redis başarıyla yeniden başlatıldı${NC}"
             else
                 echo -e "${RED}❌ Redis yeniden başlatılamadı!${NC}"
             fi
             
             echo ""
-            echo -e "${GREEN}✅ TÜM SERVİSLER başarıyla yeniden başlatıldı!${NC}"
+            echo -e "${GREEN} TÜM SERVİSLER başarıyla yeniden başlatıldı!${NC}"
             echo ""
             echo -e "${BLUE}PM2 Durumu:${NC}"
             pm2 list
@@ -290,185 +260,6 @@ restart_all_services() {
             echo -e "${RED}Geçersiz seçenek!${NC}"
             ;;
     esac
-}
-
-# --------------------------
-# N8N Functions
-# --------------------------
-check_n8n_status() {
-    echo -e "${BLUE}N8N Durumu Kontrol Ediliyor...${NC}"
-    echo ""
-    
-    if command -v n8n &>/dev/null; then
-        echo -e "${GREEN}✅ N8N Binary: Kurulu${NC}"
-        N8N_VERSION=$(n8n --version 2>/dev/null || echo "bilinmiyor")
-        echo -e "   Versiyon: $N8N_VERSION"
-    else
-        echo -e "${RED}❌ N8N Binary: Kurulu Değil${NC}"
-    fi
-    
-    if pm2 describe n8n &>/dev/null; then
-        if pm2 list | grep -q "n8n.*online"; then
-            echo -e "${GREEN}✅ N8N Servisi: Çalışıyor${NC}"
-        else
-            echo -e "${YELLOW}⚠️  N8N Servisi: Durdurulmuş${NC}"
-        fi
-    else
-        echo -e "${RED}❌ N8N Servisi: Bulunamadı${NC}"
-    fi
-    
-    if [ -f "$N8N_DIR/.n8n/database.sqlite" ]; then
-        DB_SIZE=$(du -h "$N8N_DIR/.n8n/database.sqlite" | cut -f1)
-        echo -e "${GREEN}✅ N8N Veritabanı: Mevcut ($DB_SIZE)${NC}"
-    else
-        echo -e "${RED}❌ N8N Veritabanı: Bulunamadı${NC}"
-    fi
-    
-    if [ -f "/etc/nginx/sites-available/n8n" ]; then
-        echo -e "${GREEN}✅ N8N Nginx Yapılandırması: Mevcut${NC}"
-    else
-        echo -e "${RED}❌ N8N Nginx Yapılandırması: Bulunamadı${NC}"
-    fi
-    
-    echo ""
-    echo -e "${CYAN}N8N URL: https://$N8N_DOMAIN${NC}"
-    echo -e "${CYAN}N8N Port: $N8N_PORT${NC}"
-}
-
-remove_n8n() {
-    echo -e "${YELLOW}N8N Kaldırılıyor...${NC}"
-    
-    # Stop PM2 process
-    pm2 delete n8n 2>/dev/null || true
-    pm2 save
-    
-    # Remove N8N binary
-    npm uninstall -g n8n 2>/dev/null || true
-    
-    # Remove Nginx config
-    rm -f /etc/nginx/sites-enabled/n8n
-    rm -f /etc/nginx/sites-available/n8n
-    nginx -t && systemctl reload nginx
-    
-    # Remove SSL certificate
-    certbot delete --cert-name $N8N_DOMAIN --non-interactive 2>/dev/null || true
-    
-    # Ask about data removal
-    echo ""
-    read -p "N8N veri dizinini silmek istiyor musunuz ($N8N_DIR)? [e/H]: " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Ee]$ ]]; then
-        rm -rf $N8N_DIR
-        echo -e "${GREEN}✅ N8N verileri silindi${NC}"
-    else
-        echo -e "${YELLOW}⚠️  N8N verileri korundu: $N8N_DIR${NC}"
-    fi
-    
-    echo -e "${GREEN}✅ N8N başarıyla kaldırıldı${NC}"
-}
-
-install_n8n() {
-    echo -e "${BLUE}N8N Kuruluyor...${NC}"
-    
-    # Check port availability
-    check_port_usage $N8N_PORT "N8N" || return 1
-    
-    # Install N8N binary
-    echo -e "${YELLOW}N8N binary kuruluyor...${NC}"
-    npm install -g n8n --ignore-scripts
-    
-    # Create N8N directories
-    mkdir -p $N8N_DIR/logs
-    chown -R $N8N_USER:$N8N_USER $N8N_DIR
-
-    # Create N8N ecosystem config file
-    cat > $N8N_DIR/ecosystem.config.js << EOF
-module.exports = {
-  apps: [{
-    name: 'n8n',
-    script: '$(which n8n)',
-    args: 'start',
-    interpreter: 'none',
-    cwd: '${N8N_DIR}',
-    env: {
-      N8N_HOST: '${N8N_DOMAIN}',
-      N8N_PORT: ${N8N_PORT},
-      N8N_PROTOCOL: 'https',
-      WEBHOOK_URL: 'https://${N8N_DOMAIN}/',
-      N8N_EDITOR_BASE_URL: 'https://${N8N_DOMAIN}/',
-      GENERIC_TIMEZONE: 'Europe/Istanbul',
-      NODE_ENV: 'production',
-      N8N_LOG_LEVEL: 'info',
-      N8N_USER_FOLDER: '${N8N_DIR}',
-      EXECUTIONS_DATA_SAVE_ON_ERROR: 'all',
-      EXECUTIONS_DATA_SAVE_ON_SUCCESS: 'all',
-      EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS: true,
-      REDIS_HOST: '127.0.0.1',
-      REDIS_PORT: ${REDIS_PORT},
-      QUEUE_BULL_REDIS_HOST: '127.0.0.1',
-      QUEUE_BULL_REDIS_PORT: ${REDIS_PORT}
-    },
-    instances: 1,
-    autorestart: true,
-    watch: false,
-    max_memory_restart: '1G',
-    error_file: '${N8N_DIR}/logs/error.log',
-    out_file: '${N8N_DIR}/logs/out.log',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    merge_logs: true
-  }]
-};
-EOF
-
-    # Create Nginx config
-    cat > /etc/nginx/sites-available/n8n << 'NGINXEOF'
-server {
-    listen 80;
-    server_name otomasyon.huglutekstil.com;
-    client_max_body_size 50M;
-    
-    location / {
-        proxy_pass http://127.0.0.1:5678;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        
-        # Timeouts for long-running workflows
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-    }
-}
-NGINXEOF
-
-    ln -sf /etc/nginx/sites-available/n8n /etc/nginx/sites-enabled/
-    nginx -t && systemctl reload nginx
-
-    # Start N8N
-    su - $N8N_USER -c "cd $N8N_DIR && pm2 start ecosystem.config.js && pm2 save"
-    
-    # Wait for N8N to start
-    sleep 5
-    
-    # Setup SSL
-    echo -e "${YELLOW}SSL sertifikası kuruluyor...${NC}"
-    certbot --nginx -d $N8N_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
-        echo -e "${YELLOW}⚠️  SSL kurulumu başarısız. Manuel olarak deneyebilirsiniz.${NC}"
-    }
-    
-    echo -e "${GREEN}✅ N8N başarıyla kuruldu${NC}"
-    echo -e "${CYAN}N8N Erişim: https://$N8N_DOMAIN${NC}"
-}
-
-reinstall_n8n() {
-    echo -e "${YELLOW}N8N Yeniden Kuruluyor...${NC}"
-    remove_n8n
-    echo ""
-    install_n8n
 }
 
 # --------------------------
@@ -490,16 +281,16 @@ show_system_status() {
     
     # Nginx
     if systemctl is-active --quiet nginx; then
-        echo -e "${GREEN}✅ Nginx: Çalışıyor${NC}"
+        echo -e "${GREEN} Nginx: Çalışıyor${NC}"
     else
-        echo -e "${RED}❌ Nginx: Durdurulmuş${NC}"
+        echo -e "${RED} Nginx: Durdurulmuş${NC}"
     fi
     
     # Redis
     if systemctl is-active --quiet redis-server; then
-        echo -e "${GREEN}✅ Redis: Çalışıyor${NC}"
+        echo -e "${GREEN} Redis: Çalışıyor${NC}"
     else
-        echo -e "${RED}❌ Redis: Durdurulmuş${NC}"
+        echo -e "${RED} Redis: Durdurulmuş${NC}"
     fi
     
     echo ""
@@ -512,9 +303,9 @@ show_system_status() {
         local service=$2
         if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
             local process=$(lsof -Pi :$port -sTCP:LISTEN | tail -1 | awk '{print $1}')
-            echo -e "${GREEN}✅ Port $port: $service ($process)${NC}"
+            echo -e "${GREEN} Port $port: $service ($process)${NC}"
         else
-            echo -e "${RED}❌ Port $port: $service (Kullanımda Değil)${NC}"
+            echo -e "${RED} Port $port: $service (Kullanımda Değil)${NC}"
         fi
     }
     
@@ -524,7 +315,6 @@ show_system_status() {
     check_port_display $API_PORT "API"
     check_port_display $ADMIN_PORT "Admin"
     check_port_display $AI_PORT "AI Service"
-    check_port_display $N8N_PORT "N8N"
     check_port_display $REDIS_PORT "Redis"
     
     echo ""
@@ -534,7 +324,6 @@ show_system_status() {
     echo -e "  ${CYAN}Ana Site:${NC} https://$MAIN_DOMAIN"
     echo -e "  ${CYAN}API:${NC} https://$API_DOMAIN"
     echo -e "  ${CYAN}Admin:${NC} https://$ADMIN_DOMAIN"
-    echo -e "  ${CYAN}N8N:${NC} https://$N8N_DOMAIN"
     
     echo ""
     echo -e "${BLUE}════════════════════════════════════════${NC}"
@@ -665,12 +454,12 @@ REDISCONF
     # Check Redis status
     sleep 2
     if systemctl is-active --quiet redis-server; then
-        echo -e "${GREEN}✅ Redis başarıyla kuruldu ve başlatıldı${NC}"
+        echo -e "${GREEN} Redis başarıyla kuruldu ve başlatıldı${NC}"
         if redis-cli ping > /dev/null 2>&1; then
-            echo -e "${GREEN}✅ Redis bağlantı testi başarılı (PONG)${NC}"
+            echo -e "${GREEN} Redis bağlantı testi başarılı (PONG)${NC}"
         fi
     else
-        echo -e "${RED}❌ Redis başlatılamadı!${NC}"
+        echo -e "${RED} Redis başlatılamadı!${NC}"
     fi
 }
 
@@ -733,9 +522,9 @@ EOF
         pm2 start ecosystem.config.js
         pm2 save
         
-        echo -e "${GREEN}✅ Next.js ana site başarıyla kuruldu${NC}"
+        echo -e "${GREEN} Next.js ana site başarıyla kuruldu${NC}"
     else
-        echo -e "${YELLOW}⚠️  Web dizini bulunamadı, atlanıyor...${NC}"
+        echo -e "${YELLOW}  Web dizini bulunamadı, atlanıyor...${NC}"
         SKIP_MAIN=true
     fi
 }
@@ -827,7 +616,7 @@ EOF
                 pm2 start ecosystem.config.js
                 pm2 save
                 
-                echo -e "${GREEN}✅ AI/ML Servisi başarıyla kuruldu${NC}"
+                echo -e "${GREEN} AI/ML Servisi başarıyla kuruldu${NC}"
             fi
         fi
     else
@@ -904,9 +693,9 @@ EOF
     # Test and reload Nginx
     if nginx -t; then
         systemctl reload nginx
-        echo -e "${GREEN}✅ Nginx yapılandırması başarıyla yüklendi${NC}"
+        echo -e "${GREEN} Nginx yapılandırması başarıyla yüklendi${NC}"
     else
-        echo -e "${RED}❌ Nginx yapılandırma hatası!${NC}"
+        echo -e "${RED} Nginx yapılandırma hatası!${NC}"
         nginx -t
     fi
 }
@@ -916,17 +705,17 @@ install_ssl() {
 
     if [ "$SKIP_MAIN" != true ]; then
         certbot --nginx -d $MAIN_DOMAIN -d www.$MAIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
-            echo -e "${YELLOW}⚠️  $MAIN_DOMAIN için SSL kurulumu başarısız${NC}"
+            echo -e "${YELLOW}  $MAIN_DOMAIN için SSL kurulumu başarısız${NC}"
         }
     fi
 
     certbot --nginx -d $API_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
-        echo -e "${YELLOW}⚠️  $API_DOMAIN için SSL kurulumu başarısız${NC}"
+        echo -e "${YELLOW}  $API_DOMAIN için SSL kurulumu başarısız${NC}"
     }
 
     if [ "$SKIP_ADMIN" != true ]; then
         certbot --nginx -d $ADMIN_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || {
-            echo -e "${YELLOW}⚠️  $ADMIN_DOMAIN için SSL kurulumu başarısız${NC}"
+            echo -e "${YELLOW}  $ADMIN_DOMAIN için SSL kurulumu başarısız${NC}"
         }
     fi
 
@@ -967,15 +756,6 @@ full_installation() {
     install_ai_service
     configure_nginx
     install_ssl
-    
-    # Install N8N
-    echo ""
-    read -p "N8N kurmak istiyor musunuz? [E/h]: " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Hh]$ ]]; then
-        install_n8n
-    fi
-    
     configure_firewall
     setup_pm2_startup
     
@@ -1009,50 +789,8 @@ core_installation() {
     echo ""
     print_header "Temel Kurulum Tamamlandı!"
     echo -e "${GREEN}Temel servisler başarıyla kuruldu!${NC}"
-    echo -e "${YELLOW}N8N kurulmadı.${NC}"
     echo ""
     show_system_status
-}
-
-# --------------------------
-# N8N Menu Handler
-# --------------------------
-n8n_menu_handler() {
-    while true; do
-        print_n8n_menu
-        read -p "Bir seçenek seçin [1-5]: " n8n_choice
-        
-        case $n8n_choice in
-            1)
-                if command -v n8n &>/dev/null || pm2 describe n8n &>/dev/null; then
-                    echo -e "${YELLOW}N8N zaten kurulu!${NC}"
-                    pause_screen
-                else
-                    install_n8n
-                    pause_screen
-                fi
-                ;;
-            2)
-                reinstall_n8n
-                pause_screen
-                ;;
-            3)
-                remove_n8n
-                pause_screen
-                ;;
-            4)
-                check_n8n_status
-                pause_screen
-                ;;
-            5)
-                break
-                ;;
-            *)
-                echo -e "${RED}Geçersiz seçenek!${NC}"
-                pause_screen
-                ;;
-        esac
-    done
 }
 
 # --------------------------
@@ -1061,7 +799,7 @@ n8n_menu_handler() {
 main_menu() {
     while true; do
         print_menu
-        read -p "Bir seçenek seçin [1-6]: " choice
+        read -p "Bir seçenek seçin [1-5]: " choice
         
         case $choice in
             1)
@@ -1073,22 +811,19 @@ main_menu() {
                 pause_screen
                 ;;
             3)
-                n8n_menu_handler
-                ;;
-            4)
                 restart_all_services
                 pause_screen
                 ;;
-            5)
+            4)
                 show_system_status
                 pause_screen
                 ;;
-            6)
+            5)
                 echo -e "${GREEN}Çıkılıyor...${NC}"
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Geçersiz seçenek! Lütfen 1-6 arası seçin${NC}"
+                echo -e "${RED}Geçersiz seçenek! Lütfen 1-5 arası seçin${NC}"
                 pause_screen
                 ;;
         esac
