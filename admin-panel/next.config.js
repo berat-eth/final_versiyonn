@@ -17,6 +17,9 @@ const nextConfig = {
   // Performance
   poweredByHeader: false,
   
+  // Docker için standalone output
+  output: 'standalone',
+  
   // Security headers
   async headers() {
     return [
