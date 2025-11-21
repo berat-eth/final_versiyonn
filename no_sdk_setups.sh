@@ -100,84 +100,256 @@ print_header() {
 
 print_menu() {
     clear
-    print_header "Huglu Tekstil Deployment Manager"
-    echo -e "${GREEN}Debian 11 Bullseye Optimized${NC}"
+    print_header "Huglu Tekstil Dağıtım Yöneticisi"
+    echo -e "${GREEN}Debian 11 Bullseye Optimize Edilmiş${NC}"
     echo ""
-    echo -e "${YELLOW}Main Menu:${NC}"
-    echo -e "  ${CYAN}1)${NC} Full Installation (All Services)"
-    echo -e "  ${CYAN}2)${NC} Install Core Services Only (Web, API, Admin, AI)"
-    echo -e "  ${CYAN}3)${NC} N8N Management"
-    echo -e "  ${CYAN}4)${NC} CasaOS Management"
-    echo -e "  ${CYAN}5)${NC} View System Status"
-    echo -e "  ${CYAN}6)${NC} Exit"
+    echo -e "${YELLOW}Ana Menü:${NC}"
+    echo -e "  ${CYAN}1)${NC} Tam Kurulum (Tüm Servisler)"
+    echo -e "  ${CYAN}2)${NC} Sadece Temel Servisleri Kur (Web, API, Admin, AI)"
+    echo -e "  ${CYAN}3)${NC} N8N Yönetimi"
+    echo -e "  ${CYAN}4)${NC} CasaOS Yönetimi"
+    echo -e "  ${CYAN}5)${NC} Tüm Servisleri Yeniden Başlat"
+    echo -e "  ${CYAN}6)${NC} Sistem Durumunu Görüntüle"
+    echo -e "  ${CYAN}7)${NC} Çıkış"
     echo ""
 }
 
 print_n8n_menu() {
     clear
-    print_header "N8N Management"
-    echo -e "${YELLOW}Options:${NC}"
-    echo -e "  ${CYAN}1)${NC} Install N8N (Fresh Installation)"
-    echo -e "  ${CYAN}2)${NC} Reinstall N8N (Remove & Install)"
-    echo -e "  ${CYAN}3)${NC} Remove N8N Completely"
-    echo -e "  ${CYAN}4)${NC} Check N8N Status"
-    echo -e "  ${CYAN}5)${NC} Back to Main Menu"
+    print_header "N8N Yönetimi"
+    echo -e "${YELLOW}Seçenekler:${NC}"
+    echo -e "  ${CYAN}1)${NC} N8N Kur (Yeni Kurulum)"
+    echo -e "  ${CYAN}2)${NC} N8N'i Yeniden Kur (Sil ve Kur)"
+    echo -e "  ${CYAN}3)${NC} N8N'i Tamamen Kaldır"
+    echo -e "  ${CYAN}4)${NC} N8N Durumunu Kontrol Et"
+    echo -e "  ${CYAN}5)${NC} Ana Menüye Dön"
     echo ""
 }
 
 print_casaos_menu() {
     clear
-    print_header "CasaOS Management"
-    echo -e "${YELLOW}Options:${NC}"
-    echo -e "  ${CYAN}1)${NC} Install CasaOS (Fresh Installation)"
-    echo -e "  ${CYAN}2)${NC} Reinstall CasaOS (Remove & Install)"
-    echo -e "  ${CYAN}3)${NC} Remove CasaOS Completely"
-    echo -e "  ${CYAN}4)${NC} Check CasaOS Status"
-    echo -e "  ${CYAN}5)${NC} Back to Main Menu"
+    print_header "CasaOS Yönetimi"
+    echo -e "${YELLOW}Seçenekler:${NC}"
+    echo -e "  ${CYAN}1)${NC} CasaOS Kur (Yeni Kurulum)"
+    echo -e "  ${CYAN}2)${NC} CasaOS'u Yeniden Kur (Sil ve Kur)"
+    echo -e "  ${CYAN}3)${NC} CasaOS'u Tamamen Kaldır"
+    echo -e "  ${CYAN}4)${NC} CasaOS Durumunu Kontrol Et"
+    echo -e "  ${CYAN}5)${NC} Ana Menüye Dön"
     echo ""
 }
 
 pause_screen() {
     echo ""
-    read -p "Press Enter to continue..."
+    read -p "Devam etmek için Enter'a basın..."
+}
+
+# --------------------------
+# Restart All Services Function
+# --------------------------
+restart_all_services() {
+    clear
+    print_header "Tüm Servisleri Yeniden Başlatma"
+    
+    echo -e "${YELLOW}Hangi servisleri yeniden başlatmak istiyorsunuz?${NC}"
+    echo ""
+    echo -e "  ${CYAN}1)${NC} Sadece PM2 Servisleri (Web, API, Admin, AI, N8N)"
+    echo -e "  ${CYAN}2)${NC} Sadece Sistem Servisleri (Nginx, Redis, CasaOS)"
+    echo -e "  ${CYAN}3)${NC} TÜM SERVİSLER (PM2 + Sistem)"
+    echo -e "  ${CYAN}4)${NC} İptal"
+    echo ""
+    read -p "Seçiminiz [1-4]: " restart_choice
+    
+    case $restart_choice in
+        1)
+            echo -e "${BLUE}PM2 servisleri yeniden başlatılıyor...${NC}"
+            echo ""
+            
+            # Restart PM2 services
+            if pm2 describe $MAIN_PM2_NAME &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: $MAIN_PM2_NAME${NC}"
+                pm2 restart $MAIN_PM2_NAME
+            fi
+            
+            if pm2 describe $API_PM2_NAME &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: $API_PM2_NAME${NC}"
+                pm2 restart $API_PM2_NAME
+            fi
+            
+            if pm2 describe $ADMIN_PM2_NAME &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: $ADMIN_PM2_NAME${NC}"
+                pm2 restart $ADMIN_PM2_NAME
+            fi
+            
+            if pm2 describe $AI_PM2_NAME &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: $AI_PM2_NAME${NC}"
+                pm2 restart $AI_PM2_NAME
+            fi
+            
+            if pm2 describe n8n &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: N8N${NC}"
+                pm2 restart n8n
+            fi
+            
+            echo ""
+            echo -e "${GREEN}✅ PM2 servisleri yeniden başlatıldı!${NC}"
+            echo ""
+            pm2 list
+            ;;
+            
+        2)
+            echo -e "${BLUE}Sistem servisleri yeniden başlatılıyor...${NC}"
+            echo ""
+            
+            # Restart Nginx
+            echo -e "${YELLOW}Yeniden başlatılıyor: Nginx${NC}"
+            systemctl restart nginx
+            if systemctl is-active --quiet nginx; then
+                echo -e "${GREEN}✅ Nginx başarıyla yeniden başlatıldı${NC}"
+            else
+                echo -e "${RED}❌ Nginx yeniden başlatılamadı!${NC}"
+            fi
+            
+            # Restart Redis
+            echo -e "${YELLOW}Yeniden başlatılıyor: Redis${NC}"
+            systemctl restart redis-server
+            if systemctl is-active --quiet redis-server; then
+                echo -e "${GREEN}✅ Redis başarıyla yeniden başlatıldı${NC}"
+            else
+                echo -e "${RED}❌ Redis yeniden başlatılamadı!${NC}"
+            fi
+            
+            # Restart CasaOS if exists
+            if command -v casaos &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: CasaOS${NC}"
+                systemctl restart casaos
+                if systemctl is-active --quiet casaos; then
+                    echo -e "${GREEN}✅ CasaOS başarıyla yeniden başlatıldı${NC}"
+                else
+                    echo -e "${RED}❌ CasaOS yeniden başlatılamadı!${NC}"
+                fi
+            fi
+            
+            echo ""
+            echo -e "${GREEN}✅ Sistem servisleri yeniden başlatıldı!${NC}"
+            ;;
+            
+        3)
+            echo -e "${BLUE}TÜM SERVİSLER yeniden başlatılıyor...${NC}"
+            echo ""
+            
+            # PM2 Services
+            echo -e "${MAGENTA}=== PM2 Servisleri ===${NC}"
+            if pm2 describe $MAIN_PM2_NAME &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: $MAIN_PM2_NAME${NC}"
+                pm2 restart $MAIN_PM2_NAME
+            fi
+            
+            if pm2 describe $API_PM2_NAME &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: $API_PM2_NAME${NC}"
+                pm2 restart $API_PM2_NAME
+            fi
+            
+            if pm2 describe $ADMIN_PM2_NAME &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: $ADMIN_PM2_NAME${NC}"
+                pm2 restart $ADMIN_PM2_NAME
+            fi
+            
+            if pm2 describe $AI_PM2_NAME &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: $AI_PM2_NAME${NC}"
+                pm2 restart $AI_PM2_NAME
+            fi
+            
+            if pm2 describe n8n &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: N8N${NC}"
+                pm2 restart n8n
+            fi
+            
+            echo ""
+            echo -e "${MAGENTA}=== Sistem Servisleri ===${NC}"
+            
+            # Nginx
+            echo -e "${YELLOW}Yeniden başlatılıyor: Nginx${NC}"
+            systemctl restart nginx
+            if systemctl is-active --quiet nginx; then
+                echo -e "${GREEN}✅ Nginx başarıyla yeniden başlatıldı${NC}"
+            else
+                echo -e "${RED}❌ Nginx yeniden başlatılamadı!${NC}"
+            fi
+            
+            # Redis
+            echo -e "${YELLOW}Yeniden başlatılıyor: Redis${NC}"
+            systemctl restart redis-server
+            if systemctl is-active --quiet redis-server; then
+                echo -e "${GREEN}✅ Redis başarıyla yeniden başlatıldı${NC}"
+            else
+                echo -e "${RED}❌ Redis yeniden başlatılamadı!${NC}"
+            fi
+            
+            # CasaOS
+            if command -v casaos &>/dev/null; then
+                echo -e "${YELLOW}Yeniden başlatılıyor: CasaOS${NC}"
+                systemctl restart casaos
+                if systemctl is-active --quiet casaos; then
+                    echo -e "${GREEN}✅ CasaOS başarıyla yeniden başlatıldı${NC}"
+                else
+                    echo -e "${RED}❌ CasaOS yeniden başlatılamadı!${NC}"
+                fi
+            fi
+            
+            echo ""
+            echo -e "${GREEN}✅ TÜM SERVİSLER başarıyla yeniden başlatıldı!${NC}"
+            echo ""
+            echo -e "${BLUE}PM2 Durumu:${NC}"
+            pm2 list
+            ;;
+            
+        4)
+            echo -e "${YELLOW}İptal edildi.${NC}"
+            return
+            ;;
+            
+        *)
+            echo -e "${RED}Geçersiz seçenek!${NC}"
+            ;;
+    esac
 }
 
 # --------------------------
 # N8N Functions
 # --------------------------
 check_n8n_status() {
-    echo -e "${BLUE}Checking N8N Status...${NC}"
+    echo -e "${BLUE}N8N Durumu Kontrol Ediliyor...${NC}"
     echo ""
     
     if command -v n8n &>/dev/null; then
-        echo -e "${GREEN}✅ N8N Binary: Installed${NC}"
-        N8N_VERSION=$(n8n --version 2>/dev/null || echo "unknown")
-        echo -e "   Version: $N8N_VERSION"
+        echo -e "${GREEN}✅ N8N Binary: Kurulu${NC}"
+        N8N_VERSION=$(n8n --version 2>/dev/null || echo "bilinmiyor")
+        echo -e "   Versiyon: $N8N_VERSION"
     else
-        echo -e "${RED}❌ N8N Binary: Not Installed${NC}"
+        echo -e "${RED}❌ N8N Binary: Kurulu Değil${NC}"
     fi
     
     if pm2 describe n8n &>/dev/null; then
         if pm2 list | grep -q "n8n.*online"; then
-            echo -e "${GREEN}✅ N8N Service: Running${NC}"
+            echo -e "${GREEN}✅ N8N Servisi: Çalışıyor${NC}"
         else
-            echo -e "${YELLOW}⚠️  N8N Service: Stopped${NC}"
+            echo -e "${YELLOW}⚠️  N8N Servisi: Durdurulmuş${NC}"
         fi
     else
-        echo -e "${RED}❌ N8N Service: Not Found${NC}"
+        echo -e "${RED}❌ N8N Servisi: Bulunamadı${NC}"
     fi
     
     if [ -f "$N8N_DIR/.n8n/database.sqlite" ]; then
         DB_SIZE=$(du -h "$N8N_DIR/.n8n/database.sqlite" | cut -f1)
-        echo -e "${GREEN}✅ N8N Database: Exists ($DB_SIZE)${NC}"
+        echo -e "${GREEN}✅ N8N Veritabanı: Mevcut ($DB_SIZE)${NC}"
     else
-        echo -e "${RED}❌ N8N Database: Not Found${NC}"
+        echo -e "${RED}❌ N8N Veritabanı: Bulunamadı${NC}"
     fi
     
     if [ -f "/etc/nginx/sites-available/n8n" ]; then
-        echo -e "${GREEN}✅ N8N Nginx Config: Exists${NC}"
+        echo -e "${GREEN}✅ N8N Nginx Yapılandırması: Mevcut${NC}"
     else
-        echo -e "${RED}❌ N8N Nginx Config: Not Found${NC}"
+        echo -e "${RED}❌ N8N Nginx Yapılandırması: Bulunamadı${NC}"
     fi
     
     echo ""
@@ -185,7 +357,7 @@ check_n8n_status() {
 }
 
 remove_n8n() {
-    echo -e "${YELLOW}Removing N8N...${NC}"
+    echo -e "${YELLOW}N8N Kaldırılıyor...${NC}"
     
     # Stop PM2 process
     pm2 delete n8n 2>/dev/null || true
@@ -204,23 +376,23 @@ remove_n8n() {
     
     # Ask about data removal
     echo ""
-    read -p "Do you want to remove N8N data directory ($N8N_DIR)? [y/N]: " -n 1 -r
+    read -p "N8N veri dizinini silmek istiyor musunuz ($N8N_DIR)? [e/H]: " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if [[ $REPLY =~ ^[Ee]$ ]]; then
         rm -rf $N8N_DIR
-        echo -e "${GREEN}✅ N8N data removed${NC}"
+        echo -e "${GREEN}✅ N8N verileri silindi${NC}"
     else
-        echo -e "${YELLOW}⚠️  N8N data preserved at: $N8N_DIR${NC}"
+        echo -e "${YELLOW}⚠️  N8N verileri korundu: $N8N_DIR${NC}"
     fi
     
-    echo -e "${GREEN}✅ N8N removed successfully${NC}"
+    echo -e "${GREEN}✅ N8N başarıyla kaldırıldı${NC}"
 }
 
 install_n8n() {
-    echo -e "${BLUE}Installing N8N...${NC}"
+    echo -e "${BLUE}N8N Kuruluyor...${NC}"
     
     # Install N8N binary
-    echo -e "${YELLOW}Installing N8N binary...${NC}"
+    echo -e "${YELLOW}N8N binary kuruluyor...${NC}"
     npm install -g n8n --ignore-scripts
     
     # Create N8N directories
@@ -294,15 +466,15 @@ NGINXEOF
     su - $N8N_USER -c "cd $N8N_DIR && pm2 start ecosystem.config.js && pm2 save"
     
     # Setup SSL
-    echo -e "${YELLOW}Setting up SSL certificate...${NC}"
+    echo -e "${YELLOW}SSL sertifikası kuruluyor...${NC}"
     certbot --nginx -d $N8N_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
     
-    echo -e "${GREEN}✅ N8N successfully installed${NC}"
-    echo -e "${CYAN}Access N8N at: https://$N8N_DOMAIN${NC}"
+    echo -e "${GREEN}✅ N8N başarıyla kuruldu${NC}"
+    echo -e "${CYAN}N8N Erişim: https://$N8N_DOMAIN${NC}"
 }
 
 reinstall_n8n() {
-    echo -e "${YELLOW}Reinstalling N8N...${NC}"
+    echo -e "${YELLOW}N8N Yeniden Kuruluyor...${NC}"
     remove_n8n
     echo ""
     install_n8n
@@ -312,43 +484,43 @@ reinstall_n8n() {
 # CasaOS Functions
 # --------------------------
 check_casaos_status() {
-    echo -e "${BLUE}Checking CasaOS Status...${NC}"
+    echo -e "${BLUE}CasaOS Durumu Kontrol Ediliyor...${NC}"
     echo ""
     
     if command -v casaos &>/dev/null; then
-        echo -e "${GREEN}✅ CasaOS Binary: Installed${NC}"
-        CASAOS_VERSION=$(casaos -v 2>/dev/null || echo "unknown")
-        echo -e "   Version: $CASAOS_VERSION"
+        echo -e "${GREEN}✅ CasaOS Binary: Kurulu${NC}"
+        CASAOS_VERSION=$(casaos -v 2>/dev/null || echo "bilinmiyor")
+        echo -e "   Versiyon: $CASAOS_VERSION"
     else
-        echo -e "${RED}❌ CasaOS Binary: Not Installed${NC}"
+        echo -e "${RED}❌ CasaOS Binary: Kurulu Değil${NC}"
     fi
     
     if systemctl is-active --quiet casaos; then
-        echo -e "${GREEN}✅ CasaOS Service: Running${NC}"
+        echo -e "${GREEN}✅ CasaOS Servisi: Çalışıyor${NC}"
     else
-        echo -e "${RED}❌ CasaOS Service: Stopped${NC}"
+        echo -e "${RED}❌ CasaOS Servisi: Durdurulmuş${NC}"
     fi
     
     if [ -d "/var/lib/casaos" ]; then
-        echo -e "${GREEN}✅ CasaOS Data Directory: Exists${NC}"
+        echo -e "${GREEN}✅ CasaOS Veri Dizini: Mevcut${NC}"
     else
-        echo -e "${RED}❌ CasaOS Data Directory: Not Found${NC}"
+        echo -e "${RED}❌ CasaOS Veri Dizini: Bulunamadı${NC}"
     fi
     
     if [ -f "/etc/nginx/sites-available/casaos" ]; then
-        echo -e "${GREEN}✅ CasaOS Nginx Config: Exists${NC}"
+        echo -e "${GREEN}✅ CasaOS Nginx Yapılandırması: Mevcut${NC}"
     else
-        echo -e "${RED}❌ CasaOS Nginx Config: Not Found${NC}"
+        echo -e "${RED}❌ CasaOS Nginx Yapılandırması: Bulunamadı${NC}"
     fi
     
     echo ""
     echo -e "${CYAN}CasaOS Domain URL: https://$CASAOS_DOMAIN${NC}"
-    echo -e "${CYAN}CasaOS Internal Port: ${CASAOS_INTERNAL_PORT}${NC}"
+    echo -e "${CYAN}CasaOS Dahili Port: ${CASAOS_INTERNAL_PORT}${NC}"
     echo -e "${CYAN}CasaOS Nginx Port: ${CASAOS_PORT}${NC}"
 }
 
 remove_casaos() {
-    echo -e "${YELLOW}Removing CasaOS...${NC}"
+    echo -e "${YELLOW}CasaOS Kaldırılıyor...${NC}"
     
     # Stop CasaOS service
     systemctl stop casaos 2>/dev/null || true
@@ -364,9 +536,9 @@ remove_casaos() {
     
     # Ask about complete removal
     echo ""
-    read -p "Do you want to COMPLETELY remove CasaOS (including all data)? [y/N]: " -n 1 -r
+    read -p "CasaOS'u TAMAMEN kaldırmak istiyor musunuz (tüm veriler dahil)? [e/H]: " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if [[ $REPLY =~ ^[Ee]$ ]]; then
         # Run CasaOS uninstall script if exists
         if [ -f "/usr/bin/casaos-uninstall" ]; then
             /usr/bin/casaos-uninstall || true
@@ -381,14 +553,14 @@ remove_casaos() {
         
         systemctl daemon-reload
         
-        echo -e "${GREEN}✅ CasaOS completely removed${NC}"
+        echo -e "${GREEN}✅ CasaOS tamamen kaldırıldı${NC}"
     else
-        echo -e "${YELLOW}⚠️  CasaOS service stopped but data preserved${NC}"
+        echo -e "${YELLOW}⚠️  CasaOS servisi durduruldu ancak veriler korundu${NC}"
     fi
 }
 
 install_casaos() {
-    echo -e "${BLUE}Installing CasaOS...${NC}"
+    echo -e "${BLUE}CasaOS Kuruluyor...${NC}"
     
     # Download and run CasaOS installation script
     curl -fsSL https://get.casaos.io | bash
@@ -398,25 +570,47 @@ install_casaos() {
     
     # Check if CasaOS is running
     if systemctl is-active --quiet casaos; then
-        echo -e "${GREEN}✅ CasaOS successfully installed and started${NC}"
+        echo -e "${GREEN}✅ CasaOS başarıyla kuruldu ve başlatıldı${NC}"
+        
+        # Change CasaOS default port to avoid conflicts
+        echo -e "${YELLOW}CasaOS portu ${CASAOS_PORT} olarak yapılandırılıyor...${NC}"
+        
+        # Stop CasaOS temporarily
+        systemctl stop casaos
+        
+        # Update CasaOS configuration
+        if [ -f "/etc/casaos/gateway.ini" ]; then
+            # Backup original config
+            cp /etc/casaos/gateway.ini /etc/casaos/gateway.ini.backup
+            
+            # Change port in configuration
+            sed -i "s/Port = 80/Port = ${CASAOS_PORT}/g" /etc/casaos/gateway.ini
+            sed -i "s/port = 80/port = ${CASAOS_PORT}/g" /etc/casaos/gateway.ini
+        fi
+        
+        # Restart CasaOS with new configuration
+        systemctl start casaos
+        sleep 3
+        
+        echo -e "${GREEN}✅ CasaOS portu ${CASAOS_PORT} olarak değiştirildi${NC}"
         
         # Create Nginx config
-        cat > /etc/nginx/sites-available/casaos << 'NGINXEOF'
+        cat > /etc/nginx/sites-available/casaos << NGINXEOF
 server {
     listen 80;
-    server_name casaos.huglutekstil.com;
+    server_name ${CASAOS_DOMAIN};
     client_max_body_size 100M;
     
     location / {
-        proxy_pass http://127.0.0.1:80;
+        proxy_pass http://127.0.0.1:${CASAOS_PORT};
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
         
         # WebSocket support
         proxy_read_timeout 86400;
@@ -429,18 +623,20 @@ NGINXEOF
         nginx -t && systemctl reload nginx
         
         # Setup SSL
-        echo -e "${YELLOW}Setting up SSL certificate...${NC}"
+        echo -e "${YELLOW}SSL sertifikası kuruluyor...${NC}"
         certbot --nginx -d $CASAOS_DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect || true
         
-        echo -e "${GREEN}✅ CasaOS Nginx configuration completed${NC}"
-        echo -e "${CYAN}Access CasaOS at: https://$CASAOS_DOMAIN${NC}"
+        echo -e "${GREEN}✅ CasaOS Nginx yapılandırması tamamlandı${NC}"
+        echo -e "${CYAN}CasaOS Erişim: https://$CASAOS_DOMAIN${NC}"
+        echo -e "${CYAN}Lokal Erişim: http://localhost:${CASAOS_PORT}${NC}"
+        echo -e "${YELLOW}Not: CasaOS varsayılan portu çakışmayı önlemek için ${CASAOS_PORT} olarak değiştirildi${NC}"
     else
-        echo -e "${RED}❌ CasaOS failed to start! Check logs: journalctl -u casaos${NC}"
+        echo -e "${RED}❌ CasaOS başlatılamadı! Logları kontrol edin: journalctl -u casaos${NC}"
     fi
 }
 
 reinstall_casaos() {
-    echo -e "${YELLOW}Reinstalling CasaOS...${NC}"
+    echo -e "${YELLOW}CasaOS Yeniden Kuruluyor...${NC}"
     remove_casaos
     echo ""
     install_casaos
@@ -451,44 +647,45 @@ reinstall_casaos() {
 # --------------------------
 show_system_status() {
     clear
-    print_header "System Status"
+    print_header "Sistem Durumu"
     
-    echo -e "${BLUE}PM2 Services:${NC}"
+    echo -e "${BLUE}PM2 Servisleri:${NC}"
     pm2 list
     echo ""
     
-    echo -e "${BLUE}Nginx Status:${NC}"
+    echo -e "${BLUE}Nginx Durumu:${NC}"
     systemctl status nginx --no-pager | head -n 10
     echo ""
     
-    echo -e "${BLUE}Redis Status:${NC}"
+    echo -e "${BLUE}Redis Durumu:${NC}"
     systemctl status redis-server --no-pager | head -n 10
     echo ""
     
     if command -v casaos &>/dev/null; then
-        echo -e "${BLUE}CasaOS Status:${NC}"
+        echo -e "${BLUE}CasaOS Durumu:${NC}"
         systemctl status casaos --no-pager | head -n 10
         echo ""
     fi
     
-    echo -e "${GREEN}Configured Domains:${NC}"
-    echo -e "  Main: https://$MAIN_DOMAIN"
+    echo -e "${GREEN}Yapılandırılmış Domain'ler:${NC}"
+    echo -e "  Ana Site: https://$MAIN_DOMAIN"
     echo -e "  API: https://$API_DOMAIN"
     echo -e "  Admin: https://$ADMIN_DOMAIN"
     echo -e "  N8N: https://$N8N_DOMAIN"
     echo -e "  CasaOS: https://$CASAOS_DOMAIN"
     echo ""
     
-    echo -e "${GREEN}Internal Services:${NC}"
-    echo -e "  AI/ML Service: http://localhost:${AI_PORT}"
+    echo -e "${GREEN}Dahili Servisler:${NC}"
+    echo -e "  AI/ML Servisi: http://localhost:${AI_PORT}"
     echo -e "  Redis: localhost:${REDIS_PORT}"
+    echo -e "  CasaOS: localhost:${CASAOS_PORT}"
 }
 
 # --------------------------
 # Core Installation Functions
 # --------------------------
 cleanup_and_fix() {
-    echo -e "${YELLOW}[FIX] Cleaning existing PM2 and Nginx configurations...${NC}"
+    echo -e "${YELLOW}[DÜZELTME] Mevcut PM2 ve Nginx yapılandırmaları temizleniyor...${NC}"
     pm2 delete $MAIN_PM2_NAME 2>/dev/null || true
     pm2 delete $API_PM2_NAME 2>/dev/null || true
     pm2 delete $ADMIN_PM2_NAME 2>/dev/null || true
@@ -504,7 +701,7 @@ cleanup_and_fix() {
 }
 
 install_system_packages() {
-    echo -e "${BLUE}[1/7] Updating system...${NC}"
+    echo -e "${BLUE}[1/7] Sistem güncelleniyor...${NC}"
     apt update -y && apt upgrade -y
 
     # Required packages for Debian 11
