@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import UserMenu from './UserMenu'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -12,6 +13,7 @@ export default function Header() {
   const lastScrollYRef = useRef(0)
   const [isScrolled, setIsScrolled] = useState(false)
   const pathname = usePathname()
+  const { theme, toggleTheme } = useTheme()
   
   // Ana sayfa mı kontrol et
   const isHomePage = pathname === '/'
@@ -60,7 +62,7 @@ export default function Header() {
           <Link href="/" className="group flex items-center">
             <Image
               src="/assets/logo.png"
-              alt="Huğlu Tekstil Atölyesi Logo"
+              alt="Huğlu Tekstil Logo"
               width={193}
               height={77}
               className="h-20 w-auto object-contain group-hover:scale-105 transition-transform duration-300"
@@ -108,10 +110,36 @@ export default function Header() {
                 </span>
               </Link>
             </nav>
+            {/* Dark Mode Switcher - Sadece anasayfada göster */}
+            {isHomePage && (
+              <button
+                onClick={toggleTheme}
+                className={`p-2 rounded-lg transition-all ${isTransparent ? 'text-white hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+                title={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+              >
+                <span className="material-symbols-outlined text-xl">
+                  {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+                </span>
+              </button>
+            )}
             <UserMenu isTransparent={isTransparent} />
           </div>
 
           <div className="md:hidden flex items-center gap-2">
+            {/* Dark Mode Switcher - Mobil - Sadece anasayfada göster */}
+            {isHomePage && (
+              <button
+                onClick={toggleTheme}
+                className={`p-2 rounded-lg transition-all ${isTransparent ? 'text-white hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+                title={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+              >
+                <span className="material-symbols-outlined text-xl">
+                  {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+                </span>
+              </button>
+            )}
             <UserMenu isTransparent={isTransparent} />
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className={`p-2 rounded-lg transition-all ${isTransparent ? 'text-white hover:bg-white/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
               <span className="material-symbols-outlined text-2xl">{mobileMenuOpen ? 'close' : 'menu'}</span>
@@ -147,6 +175,21 @@ export default function Header() {
                 İletişim
               </Link>
             </nav>
+            {/* Dark Mode Switcher - Mobil Menü İçinde */}
+            {isHomePage && (
+              <div className="pt-3 border-t border-gray-200 dark:border-gray-700 mt-2">
+                <button
+                  onClick={toggleTheme}
+                  className="w-full px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
+                  aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+                  </span>
+                  {theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}
+                </button>
+              </div>
+            )}
             <div className="pt-3 border-t border-gray-200 dark:border-gray-700 mt-2">
               <UserMenu isTransparent={false} />
             </div>

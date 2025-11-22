@@ -7,7 +7,7 @@ export default function WhatsAppButton() {
   
   // WhatsApp numaranızı buraya girin (ülke kodu ile birlikte, + işareti olmadan)
   const phoneNumber = '905321234567' // Örnek: 90 532 123 45 67
-  const message = 'Merhaba, Huğlu Tekstil Atölyesi hakkında bilgi almak istiyorum.'
+  const message = 'Merhaba, Huğlu Tekstil hakkında bilgi almak istiyorum.'
   
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`
 

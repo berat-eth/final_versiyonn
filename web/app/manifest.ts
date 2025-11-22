@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Huğlu Tekstil Atölyesi',
+    name: 'Huğlu Tekstil',
     short_name: 'Huğlu Tekstil',
     description: 'Özel İş Kıyafetleri ve Üniforma Üretimi',
     start_url: '/',

@@ -27,7 +27,12 @@ export default function UserMenu({ isTransparent = false }: UserMenuProps) {
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
+      // Event listener'ı güvenli şekilde kaldır
+      try {
+        document.removeEventListener('mousedown', handleClickOutside)
+      } catch (error) {
+        // Sessizce devam et
+      }
     }
   }, [isOpen])
 

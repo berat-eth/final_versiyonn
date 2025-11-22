@@ -320,7 +320,7 @@ export default function Footer() {
         <div className="border-t border-gray-600/50 py-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4 text-sm text-gray-400">
-              <p>© {currentYear} Huğlu Tekstil Atölyesi.</p>
+              <p>© {currentYear} Huğlu Tekstil.</p>
               <p className="hidden md:block">Tüm hakları saklıdır.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-4 md:gap-6 text-xs md:text-sm text-gray-400">

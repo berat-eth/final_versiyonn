@@ -501,7 +501,10 @@ export default function DesignEditorPage() {
           a.download = `tasarim-${productId || 'urun'}-${Date.now()}.png`
           document.body.appendChild(a)
           a.click()
-          document.body.removeChild(a)
+          // Element'in hala body'de olup olmadığını kontrol et
+          if (a && a.parentNode === document.body) {
+            document.body.removeChild(a)
+          }
           URL.revokeObjectURL(url)
         }
       }, 'image/png', 1.0) // Maximum kalite

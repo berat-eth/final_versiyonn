@@ -69,7 +69,13 @@ export default function Urunler() {
         
         if (data && Array.isArray(data.products)) {
           console.log('✅ Ürünler başarıyla yüklendi:', data.products.length, 'ürün')
-          setProducts(data.products)
+          // Rating'i sayıya dönüştür ve normalize et
+          const normalizedProducts = data.products.map((product: Product) => ({
+            ...product,
+            rating: product.rating ? Number(product.rating) : 0,
+            reviewCount: product.reviewCount ? Number(product.reviewCount) : 0
+          }))
+          setProducts(normalizedProducts)
           setTotal(data.total || 0)
           setHasMore(data.hasMore || false)
           setTotalPages(Math.ceil((data.total || 0) / limit))
@@ -170,8 +176,15 @@ export default function Urunler() {
           )
         })
         
-        console.log('✅ Filtrelenmiş sonuçlar:', filtered.length, 'ürün')
-        setSearchResults(filtered)
+        // Rating'i sayıya dönüştür ve normalize et
+        const normalizedResults = filtered.map((product: Product) => ({
+          ...product,
+          rating: product.rating ? Number(product.rating) : 0,
+          reviewCount: product.reviewCount ? Number(product.reviewCount) : 0
+        }))
+        
+        console.log('✅ Filtrelenmiş sonuçlar:', normalizedResults.length, 'ürün')
+        setSearchResults(normalizedResults)
       } else {
         console.warn('⚠️ Arama sonucu beklenmeyen format:', response)
         setSearchResults([])

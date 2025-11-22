@@ -2979,7 +2979,7 @@ export default function ProformaInvoice() {
                                           )}
                                           {product.price && (
                                             <div className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">
-                                              ₺{product.price.toFixed(2)}
+                                              ₺{(typeof product.price === 'number' ? product.price : parseFloat(product.price) || 0).toFixed(2)}
                                             </div>
                                           )}
                                         </div>

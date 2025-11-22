@@ -54,7 +54,10 @@ export default function LoginPage() {
     }
 
     return () => {
-      document.head.removeChild(script)
+      // Script'in hala head'de olup olmadığını kontrol et
+      if (script && script.parentNode === document.head) {
+        document.head.removeChild(script)
+      }
     }
   }, [])
 

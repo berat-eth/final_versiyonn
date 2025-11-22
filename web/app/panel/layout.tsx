@@ -207,7 +207,7 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
             <Link href="/" className="flex items-center justify-center">
               <Image
                 src="/assets/logo.png"
-                alt="Huğlu Tekstil Atölyesi Logo"
+                alt="Huğlu Tekstil Logo"
                 width={195}
                 height={78}
                 className="h-16 md:h-20 w-auto object-contain"
