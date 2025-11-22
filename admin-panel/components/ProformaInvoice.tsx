@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { FileText, Search, Filter, Calendar, User, Package, Calculator, Save, RefreshCw, Archive, CheckCircle, XCircle, Edit, Eye, X, Download, Plus, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
+import { productService } from '@/lib/services/productService'
 
 interface ProformaRequest {
   id: number
@@ -30,9 +31,20 @@ interface ProformaItem {
 
 interface ManualInvoiceItem {
   id: string // Geçici ID
+  productId?: number
   productName: string
+  productImage?: string
   quantity: number
   sizeDistribution?: SizeDistribution
+}
+
+interface Product {
+  id: number
+  name: string
+  image?: string
+  price?: number
+  brand?: string
+  category?: string
 }
 
 interface SizeDistribution {
@@ -114,6 +126,12 @@ export default function ProformaInvoice() {
   const [manualItemCosts, setManualItemCosts] = useState<Record<string, CostInputs>>({})
   const [manualCalculation, setManualCalculation] = useState<CalculationResult | null>(null)
   const [manualRequestId, setManualRequestId] = useState<number | null>(null)
+  
+  // Ürün arama
+  const [productSearchQueries, setProductSearchQueries] = useState<Record<string, string>>({})
+  const [productSearchResults, setProductSearchResults] = useState<Record<string, Product[]>>({})
+  const [productSearchLoading, setProductSearchLoading] = useState<Record<string, boolean>>({})
+  const [showProductDropdowns, setShowProductDropdowns] = useState<Record<string, boolean>>({})
   
   useEffect(() => {
     loadRequests()
@@ -510,6 +528,45 @@ export default function ProformaInvoice() {
     })
   }
   
+  // Ürün arama
+  const handleProductSearch = async (itemId: string, query: string) => {
+    setProductSearchQueries(prev => ({ ...prev, [itemId]: query }))
+    
+    if (!query || query.trim().length < 2) {
+      setProductSearchResults(prev => ({ ...prev, [itemId]: [] }))
+      setShowProductDropdowns(prev => ({ ...prev, [itemId]: false }))
+      return
+    }
+    
+    setProductSearchLoading(prev => ({ ...prev, [itemId]: true }))
+    setShowProductDropdowns(prev => ({ ...prev, [itemId]: true }))
+    
+    try {
+      const response = await productService.searchProducts(query.trim(), 1, 20)
+      if ((response as any)?.success && Array.isArray((response as any).data)) {
+        setProductSearchResults(prev => ({ ...prev, [itemId]: (response as any).data }))
+      } else {
+        setProductSearchResults(prev => ({ ...prev, [itemId]: [] }))
+      }
+    } catch (error) {
+      console.error('Ürün arama hatası:', error)
+      setProductSearchResults(prev => ({ ...prev, [itemId]: [] }))
+    } finally {
+      setProductSearchLoading(prev => ({ ...prev, [itemId]: false }))
+    }
+  }
+  
+  const selectProduct = (itemId: string, product: Product) => {
+    setManualItems(prev => prev.map(item => 
+      item.id === itemId 
+        ? { ...item, productId: product.id, productName: product.name, productImage: product.image }
+        : item
+    ))
+    setProductSearchQueries(prev => ({ ...prev, [itemId]: product.name }))
+    setShowProductDropdowns(prev => ({ ...prev, [itemId]: false }))
+    setProductSearchResults(prev => ({ ...prev, [itemId]: [] }))
+  }
+  
   // Manuel fatura işlemleri
   const addManualItem = () => {
     const newItem: ManualInvoiceItem = {
@@ -527,6 +584,7 @@ export default function ProformaInvoice() {
         embroideryCost: 0
       }
     })
+    setProductSearchQueries(prev => ({ ...prev, [newItem.id]: '' }))
   }
   
   const removeManualItem = (itemId: string) => {
@@ -534,6 +592,23 @@ export default function ProformaInvoice() {
     const newCosts = { ...manualItemCosts }
     delete newCosts[itemId]
     setManualItemCosts(newCosts)
+    
+    // Ürün arama state'lerini temizle
+    const newQueries = { ...productSearchQueries }
+    delete newQueries[itemId]
+    setProductSearchQueries(newQueries)
+    
+    const newResults = { ...productSearchResults }
+    delete newResults[itemId]
+    setProductSearchResults(newResults)
+    
+    const newLoading = { ...productSearchLoading }
+    delete newLoading[itemId]
+    setProductSearchLoading(newLoading)
+    
+    const newDropdowns = { ...showProductDropdowns }
+    delete newDropdowns[itemId]
+    setShowProductDropdowns(newDropdowns)
   }
   
   const updateManualItem = (itemId: string, field: keyof ManualInvoiceItem, value: any) => {
@@ -571,6 +646,10 @@ export default function ProformaInvoice() {
     setVatRate(10)
     setSharedShippingCost(0)
     setNotes('')
+    setProductSearchQueries({})
+    setProductSearchResults({})
+    setProductSearchLoading({})
+    setShowProductDropdowns({})
   }
   
   const handleSaveManualInvoice = async () => {
@@ -605,6 +684,7 @@ export default function ProformaInvoice() {
         customerPhone: manualCustomerPhone || undefined,
         companyName: manualCompanyName || undefined,
         items: manualItems.map(item => ({
+          productId: item.productId || null,
           productName: item.productName,
           quantity: item.sizeDistribution 
             ? Object.values(item.sizeDistribution).reduce((s: number, q: number) => s + q, 0)
@@ -2591,17 +2671,93 @@ export default function ProformaInvoice() {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                          <div>
+                          <div className="relative">
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                              Ürün Adı <span className="text-red-500">*</span>
+                              Ürün Ara ve Seç <span className="text-red-500">*</span>
                             </label>
-                            <input
-                              type="text"
-                              value={item.productName}
-                              onChange={(e) => updateManualItem(item.id, 'productName', e.target.value)}
-                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
-                              placeholder="Ürün adı"
-                            />
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                              <input
+                                type="text"
+                                value={productSearchQueries[item.id] || item.productName}
+                                onChange={(e) => {
+                                  const query = e.target.value
+                                  updateManualItem(item.id, 'productName', query)
+                                  handleProductSearch(item.id, query)
+                                }}
+                                onFocus={() => {
+                                  if (productSearchQueries[item.id] && productSearchQueries[item.id].length >= 2) {
+                                    setShowProductDropdowns(prev => ({ ...prev, [item.id]: true }))
+                                  }
+                                }}
+                                onBlur={() => {
+                                  // Dropdown'ı kapatmak için kısa bir gecikme
+                                  setTimeout(() => {
+                                    setShowProductDropdowns(prev => ({ ...prev, [item.id]: false }))
+                                  }, 200)
+                                }}
+                                className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                                placeholder="Ürün ara..."
+                              />
+                              
+                              {/* Ürün Arama Sonuçları Dropdown */}
+                              {showProductDropdowns[item.id] && (
+                                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                  {productSearchLoading[item.id] ? (
+                                    <div className="p-4 text-center text-slate-500 dark:text-slate-400">
+                                      Aranıyor...
+                                    </div>
+                                  ) : productSearchResults[item.id] && productSearchResults[item.id].length > 0 ? (
+                                    productSearchResults[item.id].map((product) => (
+                                      <div
+                                        key={product.id}
+                                        onClick={() => selectProduct(item.id, product)}
+                                        className="p-3 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-200 dark:border-slate-700 last:border-b-0 flex items-center gap-3"
+                                      >
+                                        {product.image && (
+                                          <img
+                                            src={product.image}
+                                            alt={product.name}
+                                            className="w-12 h-12 object-cover rounded"
+                                          />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                                            {product.name}
+                                          </div>
+                                          {product.brand && (
+                                            <div className="text-sm text-slate-500 dark:text-slate-400">
+                                              {product.brand}
+                                            </div>
+                                          )}
+                                          {product.price && (
+                                            <div className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">
+                                              ₺{product.price.toFixed(2)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : productSearchQueries[item.id] && productSearchQueries[item.id].length >= 2 ? (
+                                    <div className="p-4 text-center text-slate-500 dark:text-slate-400">
+                                      Ürün bulunamadı
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )}
+                            </div>
+                            {item.productImage && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <img
+                                  src={item.productImage}
+                                  alt={item.productName}
+                                  className="w-10 h-10 object-cover rounded"
+                                />
+                                <span className="text-sm text-slate-600 dark:text-slate-400">
+                                  {item.productName}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">

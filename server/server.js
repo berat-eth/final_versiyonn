@@ -6131,16 +6131,31 @@ app.post('/api/admin/custom-production-requests/manual', authenticateAdmin, asyn
 
       const requestId = requestResult.insertId;
 
-      // Ensure productName column exists in custom_production_items
+      // Ensure productName column exists and productId can be NULL
       const [itemCols] = await connection.execute(`
-        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE 
+        FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_items'
       `);
       const itemColNames = itemCols.map(c => c.COLUMN_NAME);
+      const itemColInfo = itemCols.reduce((acc, col) => {
+        acc[col.COLUMN_NAME] = col;
+        return acc;
+      }, {});
+      
+      // productName kolonu yoksa ekle
       if (!itemColNames.includes('productName')) {
         await connection.execute(`
           ALTER TABLE custom_production_items 
           ADD COLUMN productName VARCHAR(255) NULL AFTER productId
+        `);
+      }
+      
+      // productId kolonu NULL yapılabilir değilse, NULL yapılabilir hale getir
+      if (itemColInfo['productId'] && itemColInfo['productId'].IS_NULLABLE === 'NO') {
+        await connection.execute(`
+          ALTER TABLE custom_production_items 
+          MODIFY COLUMN productId INT NULL
         `);
       }
 
@@ -6149,10 +6164,11 @@ app.post('/api/admin/custom-production-requests/manual', authenticateAdmin, asyn
         await connection.execute(
           `INSERT INTO custom_production_items 
            (tenantId, requestId, productId, productName, quantity, customizations) 
-           VALUES (?, ?, NULL, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?)`,
           [
             tenantId,
             requestId,
+            item.productId || null, // Ürün ID varsa kullan, yoksa NULL
             item.productName || 'Manuel Ürün',
             item.quantity || 1,
             item.customizations ? JSON.stringify(item.customizations) : null
