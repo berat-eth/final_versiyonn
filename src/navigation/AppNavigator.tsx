@@ -34,7 +34,6 @@ import { ForgotPasswordScreen } from '../views/ForgotPasswordScreen';
 import { ReturnRequestsScreen } from '../views/ReturnRequestsScreen';
 import { FAQScreen } from '../views/FAQScreen';
 import { SupportScreen } from '../views/SupportScreen';
-import { AnythingLLMSettingsScreen } from '../views/AnythingLLMSettingsScreen';
 import EditProfileScreen from '../views/EditProfileScreen';
 import ChangePasswordScreen from '../views/ChangePasswordScreen';
 import PaymentScreen from '../views/PaymentScreen';
@@ -136,7 +135,6 @@ function debugValidateScreens() {
     ReturnRequestsScreen,
     FAQScreen,
     SupportScreen,
-    AnythingLLMSettingsScreen,
     EditProfileScreen,
     ChangePasswordScreen,
     PaymentScreen,
@@ -580,11 +578,6 @@ const ProfileStack = () => {
         name="Support"
         component={SupportScreen}
         options={{ title: 'Destek', headerShown: false }}
-      />
-      <Stack.Screen
-        name="AnythingLLMSettings"
-        component={AnythingLLMSettingsScreen}
-        options={{ title: 'AnythingLLM Ayarları', headerShown: false }}
       />
       <Stack.Screen
         name="EditProfile"

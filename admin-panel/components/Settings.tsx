@@ -1123,7 +1123,7 @@ export default function Settings() {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <h3 className="text-xl font-bold text-slate-800 mb-1">AI İçgörüleri</h3>
-                                        <p className="text-slate-500 text-sm">AI içgörüleri özelliği kaldırıldı. Sadece Ollama ve AnythingLLM desteklenmektedir.</p>
+                                        <p className="text-slate-500 text-sm">AI içgörüleri özelliği kaldırıldı. Sadece Ollama desteklenmektedir.</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -1139,7 +1139,7 @@ export default function Settings() {
 
                                 <div className="p-4 border border-slate-200 rounded-xl bg-slate-50 dark:bg-slate-900">
                                     <p className="text-slate-600 dark:text-slate-400 text-sm">
-                                        ChatGPT, Claude ve Gemini entegrasyonları kaldırıldı. Sadece Ollama ve AnythingLLM desteklenmektedir.
+                                        ChatGPT, Claude, Gemini ve AnythingLLM entegrasyonları kaldırıldı. Sadece Ollama desteklenmektedir.
                                     </p>
                                 </div>
                             </motion.div>

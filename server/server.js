@@ -6059,6 +6059,118 @@ app.put('/api/admin/custom-production-requests/:id/request-revision', authentica
 });
 
 // Admin - Proforma Onayla
+// Admin - Manuel Fatura Oluşturma
+app.post('/api/admin/custom-production-requests/manual', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const {
+      customerName,
+      customerEmail,
+      customerPhone,
+      companyName,
+      items,
+      totalQuantity,
+      totalAmount,
+      notes
+    } = req.body || {};
+
+    if (!customerName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Müşteri adı gereklidir'
+      });
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'En az bir ürün gereklidir'
+      });
+    }
+
+    const connection = await poolWrapper.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      // Ensure columns exist
+      const [cols] = await connection.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_requests'
+      `);
+      const names = cols.map(c => c.COLUMN_NAME);
+      const alters = [];
+      if (!names.includes('companyName')) alters.push("ADD COLUMN companyName VARCHAR(255) NULL AFTER customerPhone");
+      if (!names.includes('taxNumber')) alters.push("ADD COLUMN taxNumber VARCHAR(50) NULL AFTER companyName");
+      if (!names.includes('taxAddress')) alters.push("ADD COLUMN taxAddress TEXT NULL AFTER taxNumber");
+      if (!names.includes('companyAddress')) alters.push("ADD COLUMN companyAddress TEXT NULL AFTER taxAddress");
+      if (alters.length > 0) {
+        await connection.execute(`ALTER TABLE custom_production_requests ${alters.join(', ')}`);
+      }
+
+      // Generate request number
+      const requestNumber = `MANUAL-${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+
+      // Create custom production request (userId null for manual invoices)
+      const [requestResult] = await connection.execute(
+        `INSERT INTO custom_production_requests 
+         (tenantId, userId, requestNumber, status, totalQuantity, totalAmount, 
+          customerName, customerEmail, customerPhone, companyName, notes, source) 
+         VALUES (?, NULL, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, 'manual')`,
+        [
+          tenantId,
+          requestNumber,
+          totalQuantity || 0,
+          totalAmount || 0,
+          customerName,
+          customerEmail || null,
+          customerPhone || null,
+          companyName || null,
+          notes || 'Manuel oluşturulan proforma fatura',
+        ]
+      );
+
+      const requestId = requestResult.insertId;
+
+      // Create custom production items
+      for (const item of items) {
+        await connection.execute(
+          `INSERT INTO custom_production_items 
+           (requestId, productId, productName, quantity, customizations) 
+           VALUES (?, NULL, ?, ?, ?)`,
+          [
+            requestId,
+            item.productName || 'Manuel Ürün',
+            item.quantity || 1,
+            item.customizations ? JSON.stringify(item.customizations) : null
+          ]
+        );
+      }
+
+      await connection.commit();
+      connection.release();
+
+      res.json({
+        success: true,
+        data: {
+          id: requestId,
+          requestNumber
+        },
+        message: 'Manuel fatura başarıyla oluşturuldu'
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error creating manual invoice:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Manuel fatura oluşturulamadı: ' + (error.message || 'Bilinmeyen hata')
+    });
+  }
+});
+
 app.put('/api/admin/custom-production-requests/:id/approve-proforma', authenticateAdmin, async (req, res) => {
   try {
     const id = parseInt(req.params.id);

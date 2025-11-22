@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FileText, Search, Filter, Calendar, User, Package, Calculator, Save, RefreshCw, Archive, CheckCircle, XCircle, Edit, Eye, X, Download } from 'lucide-react'
+import { FileText, Search, Filter, Calendar, User, Package, Calculator, Save, RefreshCw, Archive, CheckCircle, XCircle, Edit, Eye, X, Download, Plus, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
 
@@ -25,6 +25,13 @@ interface ProformaItem {
   productImage?: string
   quantity: number
   customizations?: any
+  sizeDistribution?: SizeDistribution
+}
+
+interface ManualInvoiceItem {
+  id: string // Geçici ID
+  productName: string
+  quantity: number
   sizeDistribution?: SizeDistribution
 }
 
@@ -96,6 +103,16 @@ export default function ProformaInvoice() {
   const [profitPercentage, setProfitPercentage] = useState<number>(0)
   const [notes, setNotes] = useState<string>('')
   
+  // Manuel fatura oluşturma
+  const [showManualInvoiceModal, setShowManualInvoiceModal] = useState<boolean>(false)
+  const [manualCustomerName, setManualCustomerName] = useState<string>('')
+  const [manualCustomerEmail, setManualCustomerEmail] = useState<string>('')
+  const [manualCustomerPhone, setManualCustomerPhone] = useState<string>('')
+  const [manualCompanyName, setManualCompanyName] = useState<string>('')
+  const [manualItems, setManualItems] = useState<ManualInvoiceItem[]>([])
+  const [manualItemCosts, setManualItemCosts] = useState<Record<string, CostInputs>>({})
+  const [manualCalculation, setManualCalculation] = useState<CalculationResult | null>(null)
+  
   useEffect(() => {
     loadRequests()
   }, [])
@@ -110,6 +127,12 @@ export default function ProformaInvoice() {
   useEffect(() => {
     calculateCosts()
   }, [itemCosts, profitMargin, selectedItems, sharedShippingCost, vatRate])
+  
+  useEffect(() => {
+    if (showManualInvoiceModal) {
+      calculateManualCosts()
+    }
+  }, [manualItemCosts, profitMargin, manualItems, sharedShippingCost, vatRate, showManualInvoiceModal])
   
   useEffect(() => {
     if (calculation) {
@@ -394,6 +417,241 @@ export default function ProformaInvoice() {
   const handleProfitMarginChange = (value: string) => {
     const numValue = value === '' || isNaN(Number(value)) ? 0 : Number(value)
     setProfitMargin(numValue)
+  }
+  
+  // Manuel fatura hesaplama
+  const calculateManualCosts = () => {
+    const totalQuantity = manualItems.reduce((sum, item) => {
+      const sizeDist = item.sizeDistribution
+      if (sizeDist) {
+        return sum + Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
+      }
+      return sum + item.quantity
+    }, 0)
+    
+    if (totalQuantity === 0 || manualItems.length === 0) {
+      setManualCalculation(null)
+      return
+    }
+    
+    const itemCalculations: ItemCalculation[] = []
+    const shippingCostPerUnit = totalQuantity > 0 ? sharedShippingCost / totalQuantity : 0
+    let totalCost = 0
+    
+    manualItems.forEach(item => {
+      const costs = manualItemCosts[item.id] || {
+        unitCost: 0,
+        printingCost: 0,
+        embroideryCost: 0
+      }
+      
+      const sizeDist = item.sizeDistribution
+      const itemQuantity = sizeDist 
+        ? Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
+        : item.quantity
+      
+      if (itemQuantity === 0) return
+      
+      const itemTotalCost = 
+        (costs.unitCost * itemQuantity) +
+        costs.printingCost +
+        costs.embroideryCost
+      
+      totalCost += itemTotalCost
+      
+      const printingCostPerUnit = costs.printingCost / itemQuantity
+      const embroideryCostPerUnit = costs.embroideryCost / itemQuantity
+      
+      const unitPriceBeforeMargin = costs.unitCost
+      const unitPriceWithMargin = profitMargin > 0 
+        ? unitPriceBeforeMargin * (1 + profitMargin / 100)
+        : unitPriceBeforeMargin
+      
+      const unitSalePriceWithoutVat = unitPriceWithMargin + printingCostPerUnit + embroideryCostPerUnit + shippingCostPerUnit
+      const vatPerUnit = unitSalePriceWithoutVat * (vatRate / 100)
+      const finalUnitPrice = unitSalePriceWithoutVat + vatPerUnit
+      const itemTotalOfferAmount = unitSalePriceWithoutVat * itemQuantity
+      const itemVatAmount = vatPerUnit * itemQuantity
+      const itemTotalWithVat = finalUnitPrice * itemQuantity
+      
+      itemCalculations.push({
+        itemId: parseInt(item.id) || 0,
+        productName: item.productName,
+        quantity: itemQuantity,
+        totalCost: itemTotalCost,
+        unitPrice: unitSalePriceWithoutVat,
+        finalUnitPrice,
+        totalOfferAmount: itemTotalOfferAmount,
+        vatAmount: itemVatAmount,
+        totalWithVat: itemTotalWithVat
+      })
+    })
+    
+    const totalCostWithShipping = totalCost + sharedShippingCost
+    const totalOfferAmount = itemCalculations.reduce((sum, calc) => sum + calc.totalOfferAmount, 0)
+    const totalVatAmount = itemCalculations.reduce((sum, calc) => sum + calc.vatAmount, 0)
+    const totalWithVat = totalOfferAmount + totalVatAmount
+    const profitPercentage = totalCostWithShipping > 0 
+      ? ((totalOfferAmount - totalCostWithShipping) / totalCostWithShipping) * 100
+      : 0
+    
+    setManualCalculation({
+      itemCalculations,
+      totalCost: totalCostWithShipping,
+      totalQuantity,
+      profitMargin,
+      vatRate,
+      totalOfferAmount,
+      totalVatAmount,
+      totalWithVat,
+      profitPercentage
+    })
+  }
+  
+  // Manuel fatura işlemleri
+  const addManualItem = () => {
+    const newItem: ManualInvoiceItem = {
+      id: `manual-${Date.now()}-${Math.random()}`,
+      productName: '',
+      quantity: 1,
+      sizeDistribution: undefined
+    }
+    setManualItems([...manualItems, newItem])
+    setManualItemCosts({
+      ...manualItemCosts,
+      [newItem.id]: {
+        unitCost: 0,
+        printingCost: 0,
+        embroideryCost: 0
+      }
+    })
+  }
+  
+  const removeManualItem = (itemId: string) => {
+    setManualItems(manualItems.filter(item => item.id !== itemId))
+    const newCosts = { ...manualItemCosts }
+    delete newCosts[itemId]
+    setManualItemCosts(newCosts)
+  }
+  
+  const updateManualItem = (itemId: string, field: keyof ManualInvoiceItem, value: any) => {
+    setManualItems(manualItems.map(item => 
+      item.id === itemId ? { ...item, [field]: value } : item
+    ))
+  }
+  
+  const handleManualCostChange = (itemId: string, field: keyof CostInputs, value: string) => {
+    const numValue = value === '' || isNaN(Number(value)) ? 0 : Number(value)
+    setManualItemCosts(prev => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] || {
+          unitCost: 0,
+          printingCost: 0,
+          embroideryCost: 0
+        }),
+        [field]: numValue
+      }
+    }))
+  }
+  
+  const resetManualInvoice = () => {
+    setManualCustomerName('')
+    setManualCustomerEmail('')
+    setManualCustomerPhone('')
+    setManualCompanyName('')
+    setManualItems([])
+    setManualItemCosts({})
+    setManualCalculation(null)
+    setProfitMargin(0)
+    setVatRate(10)
+    setSharedShippingCost(0)
+    setNotes('')
+  }
+  
+  const handleSaveManualInvoice = async () => {
+    if (!manualCustomerName.trim()) {
+      alert('Lütfen müşteri adı girin')
+      return
+    }
+    
+    if (manualItems.length === 0) {
+      alert('Lütfen en az bir ürün ekleyin')
+      return
+    }
+    
+    if (!manualCalculation) {
+      alert('Lütfen maliyet bilgilerini girin ve hesaplama yapın')
+      return
+    }
+    
+    try {
+      // Önce custom production request oluştur
+      const totalQuantity = manualItems.reduce((sum, item) => {
+        const sizeDist = item.sizeDistribution
+        if (sizeDist) {
+          return sum + Object.values(sizeDist).reduce((s: number, q: number) => s + q, 0)
+        }
+        return sum + item.quantity
+      }, 0)
+      
+      const requestData = {
+        customerName: manualCustomerName,
+        customerEmail: manualCustomerEmail || undefined,
+        customerPhone: manualCustomerPhone || undefined,
+        companyName: manualCompanyName || undefined,
+        items: manualItems.map(item => ({
+          productName: item.productName,
+          quantity: item.sizeDistribution 
+            ? Object.values(item.sizeDistribution).reduce((s: number, q: number) => s + q, 0)
+            : item.quantity,
+          customizations: item.sizeDistribution ? { sizeDistribution: item.sizeDistribution } : undefined
+        })),
+        totalQuantity,
+        totalAmount: manualCalculation.totalWithVat,
+        notes: notes || 'Manuel oluşturulan proforma fatura'
+      }
+      
+      // Admin için manuel fatura oluşturma endpoint'i
+      const createRes = await api.post<any>('/admin/custom-production-requests/manual', requestData)
+      
+      if ((createRes as any)?.success && (createRes as any).data?.id) {
+        const requestId = (createRes as any).data.id
+        
+        // Proforma quote kaydet
+        const itemCostsForSave: Record<number, CostInputs> = {}
+        manualItems.forEach((item, index) => {
+          itemCostsForSave[index + 1] = manualItemCosts[item.id] || {
+            unitCost: 0,
+            printingCost: 0,
+            embroideryCost: 0
+          }
+        })
+        
+        await api.post(`/admin/custom-production-requests/${requestId}/proforma-quote`, {
+          itemCosts: itemCostsForSave,
+          sharedShippingCost,
+          profitMargin,
+          vatRate,
+          unitSalePrice: manualCalculation.totalOfferAmount / manualCalculation.totalQuantity,
+          totalOfferAmount: manualCalculation.totalOfferAmount,
+          totalVatAmount: manualCalculation.totalVatAmount,
+          totalWithVat: manualCalculation.totalWithVat,
+          profitPercentage: manualCalculation.profitPercentage,
+          notes,
+          calculation: manualCalculation
+        })
+        
+        alert('Manuel fatura başarıyla oluşturuldu')
+        resetManualInvoice()
+        setShowManualInvoiceModal(false)
+        await loadRequests()
+      } else {
+        throw new Error('Talep oluşturulamadı')
+      }
+    } catch (e: any) {
+      alert('Manuel fatura oluşturulamadı: ' + (e?.message || 'Bilinmeyen hata'))
+    }
   }
 
   const handleSaveQuote = async () => {
@@ -1172,13 +1430,25 @@ export default function ProformaInvoice() {
             Talep yönetimi ve teklif oluşturma
           </p>
         </div>
-        <button
-          onClick={loadRequests}
-          className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Yenile
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              resetManualInvoice()
+              setShowManualInvoiceModal(true)
+            }}
+            className="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Manuel Fatura Oluştur
+          </button>
+          <button
+            onClick={loadRequests}
+            className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Yenile
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -1884,6 +2154,313 @@ export default function ProformaInvoice() {
           )}
         </div>
       </div>
+      
+      {/* Manuel Fatura Oluşturma Modal */}
+      <AnimatePresence>
+        {showManualInvoiceModal && (
+          <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-700"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Manuel Fatura Oluştur</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                    Yeni bir proforma fatura oluşturun
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowManualInvoiceModal(false)
+                    resetManualInvoice()
+                  }}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                {/* Müşteri Bilgileri */}
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Müşteri Bilgileri
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Müşteri Adı <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={manualCustomerName}
+                        onChange={(e) => setManualCustomerName(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                        placeholder="Müşteri adı"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        E-posta
+                      </label>
+                      <input
+                        type="email"
+                        value={manualCustomerEmail}
+                        onChange={(e) => setManualCustomerEmail(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                        placeholder="email@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Telefon
+                      </label>
+                      <input
+                        type="tel"
+                        value={manualCustomerPhone}
+                        onChange={(e) => setManualCustomerPhone(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                        placeholder="0555 123 45 67"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Şirket Adı
+                      </label>
+                      <input
+                        type="text"
+                        value={manualCompanyName}
+                        onChange={(e) => setManualCompanyName(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                        placeholder="Şirket adı"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ürünler */}
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <Package className="w-5 h-5" />
+                      Ürünler
+                    </h4>
+                    <button
+                      onClick={addManualItem}
+                      className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Ürün Ekle
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {manualItems.map((item, index) => (
+                      <div key={item.id} className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-start justify-between mb-4">
+                          <h5 className="font-semibold text-slate-800 dark:text-slate-200">Ürün #{index + 1}</h5>
+                          <button
+                            onClick={() => removeManualItem(item.id)}
+                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Ürün Adı <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={item.productName}
+                              onChange={(e) => updateManualItem(item.id, 'productName', e.target.value)}
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                              placeholder="Ürün adı"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Adet
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updateManualItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Maliyet Girişi */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Birim Maliyeti (₺)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={manualItemCosts[item.id]?.unitCost || 0}
+                              onChange={(e) => handleManualCostChange(item.id, 'unitCost', e.target.value)}
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Baskı Maliyeti (₺)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={manualItemCosts[item.id]?.printingCost || 0}
+                              onChange={(e) => handleManualCostChange(item.id, 'printingCost', e.target.value)}
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Nakış Maliyeti (₺)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={manualItemCosts[item.id]?.embroideryCost || 0}
+                              onChange={(e) => handleManualCostChange(item.id, 'embroideryCost', e.target.value)}
+                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {manualItems.length === 0 && (
+                      <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                        Henüz ürün eklenmedi. Ürün eklemek için yukarıdaki butonu kullanın.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Genel Ayarlar */}
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+                    <Calculator className="w-5 h-5" />
+                    Genel Ayarlar
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Paylaşılan Kargo Maliyeti (₺)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={sharedShippingCost}
+                        onChange={(e) => handleSharedShippingChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        KDV Oranı (%)
+                      </label>
+                      <select
+                        value={vatRate}
+                        onChange={(e) => setVatRate(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                      >
+                        {vatRates.map(rate => (
+                          <option key={rate} value={rate}>
+                            %{rate} KDV
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Kâr Marjı (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={profitMargin}
+                        onChange={(e) => handleProfitMarginChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Notlar
+                    </label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                      placeholder="Fatura ile ilgili notlar..."
+                    />
+                  </div>
+                </div>
+
+                {/* Hesaplama Sonuçları */}
+                {manualCalculation && (
+                  <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 rounded-lg p-6 border-2 border-blue-200 dark:border-blue-800">
+                    <h4 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-4">Hesaplama Sonuçları</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                        <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Toplam Adet</div>
+                        <div className="text-2xl font-bold text-slate-900 dark:text-white">{manualCalculation.totalQuantity}</div>
+                      </div>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                        <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Toplam Maliyet</div>
+                        <div className="text-2xl font-bold text-slate-900 dark:text-white">₺{manualCalculation.totalCost.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                        <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Toplam Teklif (KDV Hariç)</div>
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">₺{manualCalculation.totalOfferAmount.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700 rounded-lg p-4 text-white">
+                        <div className="text-sm text-purple-100 mb-1">GENEL TOPLAM (KDV Dahil)</div>
+                        <div className="text-3xl font-black">₺{manualCalculation.totalWithVat.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Aksiyon Butonları */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <button
+                    onClick={() => {
+                      setShowManualInvoiceModal(false)
+                      resetManualInvoice()
+                    }}
+                    className="px-6 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={handleSaveManualInvoice}
+                    className="px-6 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    Faturayı Kaydet
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
