@@ -109,9 +109,11 @@ export default function ProformaInvoice() {
   const [manualCustomerEmail, setManualCustomerEmail] = useState<string>('')
   const [manualCustomerPhone, setManualCustomerPhone] = useState<string>('')
   const [manualCompanyName, setManualCompanyName] = useState<string>('')
+  const [manualInvoiceDate, setManualInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [manualItems, setManualItems] = useState<ManualInvoiceItem[]>([])
   const [manualItemCosts, setManualItemCosts] = useState<Record<string, CostInputs>>({})
   const [manualCalculation, setManualCalculation] = useState<CalculationResult | null>(null)
+  const [manualRequestId, setManualRequestId] = useState<number | null>(null)
   
   useEffect(() => {
     loadRequests()
@@ -560,9 +562,11 @@ export default function ProformaInvoice() {
     setManualCustomerEmail('')
     setManualCustomerPhone('')
     setManualCompanyName('')
+    setManualInvoiceDate(new Date().toISOString().split('T')[0])
     setManualItems([])
     setManualItemCosts({})
     setManualCalculation(null)
+    setManualRequestId(null)
     setProfitMargin(0)
     setVatRate(10)
     setSharedShippingCost(0)
@@ -642,10 +646,15 @@ export default function ProformaInvoice() {
           calculation: manualCalculation
         })
         
+        setManualRequestId(requestId)
         alert('Manuel fatura başarıyla oluşturuldu')
-        resetManualInvoice()
-        setShowManualInvoiceModal(false)
         await loadRequests()
+        
+        // Faturayı otomatik olarak seç
+        const newRequest = requests.find(r => r.id === requestId)
+        if (newRequest) {
+          setSelectedRequest(newRequest)
+        }
       } else {
         throw new Error('Talep oluşturulamadı')
       }
@@ -1178,6 +1187,304 @@ export default function ProformaInvoice() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+  
+  // Manuel fatura için PDF indirme
+  const handleDownloadManualPDF = async () => {
+    if (!manualCalculation || !manualCustomerName) {
+      alert('Lütfen fatura bilgilerini doldurun ve hesaplama yapın')
+      return
+    }
+
+    try {
+      let jsPDF: any
+      try {
+        const module = await import('jspdf')
+        jsPDF = module.default || module.jsPDF || module
+        if (jsPDF && typeof jsPDF !== 'function' && jsPDF.jsPDF) {
+          jsPDF = jsPDF.jsPDF
+        }
+        if (jsPDF && typeof jsPDF !== 'function' && jsPDF.default) {
+          jsPDF = jsPDF.default
+        }
+      } catch (importError: any) {
+        console.error('jsPDF import hatası:', importError)
+        throw new Error('jsPDF modülü yüklenemedi: ' + (importError?.message || 'Bilinmeyen hata'))
+      }
+      
+      if (!jsPDF || typeof jsPDF !== 'function') {
+        throw new Error('jsPDF bir constructor değil')
+      }
+      
+      const doc = new jsPDF('p', 'mm', 'a4')
+      
+      const encodeUTF8 = (text: string): string => {
+        if (!text) return text
+        return text
+      }
+      
+      const addText = (text: string, x: number, y: number, options?: any) => {
+        const encodedText = encodeUTF8(text)
+        if (options && options.align) {
+          doc.text(encodedText, x, y, options)
+        } else {
+          doc.text(encodedText, x, y)
+        }
+      }
+      
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const margin = 15
+      let yPos = margin
+
+      const colors = {
+        primary: [30, 64, 175],
+        secondary: [139, 92, 246],
+        success: [34, 197, 94],
+        warning: [234, 179, 8],
+        danger: [239, 68, 68],
+        lightGray: [243, 244, 246],
+        mediumGray: [156, 163, 175],
+        darkGray: [55, 65, 81],
+      }
+
+      // Arka plan rengi
+      doc.setFillColor(...colors.primary)
+      doc.rect(0, 0, pageWidth, 40, 'F')
+      
+      // Fatura Başlığı
+      doc.setFontSize(24)
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.text('PROFORMA FATURA', pageWidth / 2, 20, { align: 'center' })
+      
+      // Fatura Numarası ve Tarih
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'normal')
+      const invoiceNumber = manualRequestId ? `MANUAL-${manualRequestId}` : `MANUAL-${Date.now()}`
+      const invoiceDate = manualInvoiceDate 
+        ? new Date(manualInvoiceDate).toLocaleDateString('tr-TR', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        : new Date().toLocaleDateString('tr-TR', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+      doc.text(encodeUTF8(`Fatura No: ${invoiceNumber}`), margin, 32)
+      doc.text(encodeUTF8(`Tarih: ${invoiceDate}`), pageWidth - margin, 32, { align: 'right' })
+      
+      yPos = 50
+
+      // Müşteri Bilgileri
+      doc.setFillColor(...colors.lightGray)
+      doc.setDrawColor(...colors.primary)
+      doc.setLineWidth(0.5)
+      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 40, 3, 3, 'FD')
+      
+      doc.setFontSize(13)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...colors.primary)
+      addText('MÜŞTERİ BİLGİLERİ', margin + 3, yPos + 8)
+      
+      yPos += 12
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...colors.darkGray)
+      addText(`${manualCustomerName}`, margin + 3, yPos)
+      yPos += 6
+
+      if (manualCompanyName) {
+        addText(`${manualCompanyName}`, margin + 3, yPos)
+        yPos += 6
+      }
+
+      if (manualCustomerEmail) {
+        addText(`${manualCustomerEmail}`, margin + 3, yPos)
+        yPos += 6
+      }
+
+      if (manualCustomerPhone) {
+        addText(`${manualCustomerPhone}`, margin + 3, yPos)
+        yPos += 6
+      }
+
+      yPos += 12
+
+      // Ürünler Başlığı
+      doc.setFontSize(15)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...colors.primary)
+      addText('ÜRÜN DETAYLARI', margin, yPos)
+      yPos += 8
+
+      // Ürün kartları
+      manualCalculation.itemCalculations.forEach((itemCalc) => {
+        const manualItem = manualItems.find(item => parseInt(item.id) === itemCalc.itemId || item.id === `manual-${itemCalc.itemId}`)
+        const itemCostsData = manualItem ? manualItemCosts[manualItem.id] || { unitCost: 0, printingCost: 0, embroideryCost: 0 } : { unitCost: 0, printingCost: 0, embroideryCost: 0 }
+        
+        if (yPos > pageHeight - 80) {
+          doc.addPage()
+          yPos = margin
+        }
+
+        doc.setFillColor(255, 255, 255)
+        doc.setDrawColor(...colors.mediumGray)
+        doc.setLineWidth(0.3)
+        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 50, 3, 3, 'FD')
+        
+        const cardStartY = yPos
+        
+        doc.setFontSize(12)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...colors.primary)
+        const productName = itemCalc.productName.length > 40 
+          ? itemCalc.productName.substring(0, 37) + '...' 
+          : itemCalc.productName
+        addText(productName, margin + 5, yPos + 7)
+        
+        doc.setFontSize(10)
+        doc.setFillColor(...colors.success)
+        doc.setDrawColor(...colors.success)
+        doc.circle(pageWidth - margin - 10, yPos + 5, 8, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFont('helvetica', 'bold')
+        doc.text(itemCalc.quantity.toString(), pageWidth - margin - 10, yPos + 8, { align: 'center' })
+        
+        yPos += 12
+
+        const infoY = cardStartY + 35
+        doc.setFontSize(8)
+        doc.setTextColor(...colors.mediumGray)
+        doc.setFont('helvetica', 'normal')
+        
+        addText(`Birim Maliyet: ₺${itemCostsData.unitCost.toFixed(2)}`, margin + 5, infoY)
+        addText(`Baskı: ₺${itemCostsData.printingCost.toFixed(2)}`, margin + 5, infoY + 4)
+        addText(`Nakış: ₺${itemCostsData.embroideryCost.toFixed(2)}`, margin + 5, infoY + 8)
+        
+        const midX = pageWidth / 2
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...colors.primary)
+        addText(`Birim Fiyat:`, midX - 15, infoY)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...colors.success)
+        addText(`₺${itemCalc.finalUnitPrice.toFixed(2)}`, midX - 15, infoY + 4)
+        
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...colors.darkGray)
+        addText(`KDV (%${manualCalculation.vatRate}):`, pageWidth - margin - 35, infoY)
+        doc.setTextColor(...colors.warning)
+        addText(`₺${itemCalc.vatAmount.toFixed(2)}`, pageWidth - margin - 35, infoY + 4)
+        doc.setFontSize(10)
+        doc.setTextColor(...colors.danger)
+        addText(`Toplam: ₺${itemCalc.totalWithVat.toFixed(2)}`, pageWidth - margin - 35, infoY + 8)
+        
+        yPos = cardStartY + 50 + 8
+      })
+
+      // Toplam bölümü
+      if (yPos > pageHeight - 60) {
+        doc.addPage()
+        yPos = margin
+      }
+
+      yPos += 5
+      doc.setFillColor(...colors.lightGray)
+      doc.setDrawColor(...colors.primary)
+      doc.setLineWidth(0.8)
+      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 35, 3, 3, 'FD')
+      
+      yPos += 8
+
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...colors.darkGray)
+      
+      addText('Ara Toplam (KDV Hariç):', pageWidth - 100, yPos, { align: 'right' })
+      doc.setTextColor(...colors.primary)
+      addText(`₺${manualCalculation.totalOfferAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' })
+      yPos += 7
+
+      doc.setTextColor(...colors.darkGray)
+      addText(`KDV (%${manualCalculation.vatRate}):`, pageWidth - 100, yPos, { align: 'right' })
+      doc.setTextColor(...colors.warning)
+      addText(`₺${manualCalculation.totalVatAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' })
+      yPos += 8
+
+      doc.setLineWidth(0.5)
+      doc.setDrawColor(...colors.primary)
+      doc.line(pageWidth - 100, yPos - 2, pageWidth - margin, yPos - 2)
+      
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...colors.primary)
+      addText('GENEL TOPLAM (KDV Dahil):', pageWidth - 100, yPos + 5, { align: 'right' })
+      doc.setTextColor(...colors.success)
+      doc.setFontSize(16)
+      addText(`₺${manualCalculation.totalWithVat.toFixed(2)}`, pageWidth - margin, yPos + 5, { align: 'right' })
+
+      yPos += 20
+
+      // Notlar
+      if (notes && notes.trim()) {
+        if (yPos > pageHeight - 50) {
+          doc.addPage()
+          yPos = margin
+        }
+
+        doc.setFillColor(...colors.warning)
+        doc.setDrawColor(...colors.warning)
+        doc.setLineWidth(0.5)
+        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'FD')
+        
+        yPos += 7
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(255, 255, 255)
+        addText('Notlar', margin + 5, yPos)
+        yPos += 6
+        
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(255, 255, 255)
+        
+        const encodedNotes = encodeUTF8(notes)
+        const noteLines = doc.splitTextToSize(encodedNotes, pageWidth - (margin * 2) - 10)
+        noteLines.forEach((line: string) => {
+          if (yPos > pageHeight - 20) {
+            doc.addPage()
+            yPos = margin + 10
+          }
+          addText(line, margin + 8, yPos)
+          yPos += 4
+        })
+      }
+
+      // Alt bilgi
+      const finalY = pageHeight - 12
+      doc.setLineWidth(0.5)
+      doc.setDrawColor(...colors.primary)
+      doc.line(margin, finalY - 3, pageWidth - margin, finalY - 3)
+      
+      doc.setFontSize(7)
+      doc.setTextColor(...colors.mediumGray)
+      doc.setFont('helvetica', 'italic')
+      doc.text(
+        'Bu belge bir proforma faturadır ve ödeme belgesi niteliği taşımaz.',
+        pageWidth / 2,
+        finalY,
+        { align: 'center' }
+      )
+
+      // PDF'i indir
+      const fileName = `proforma-fatura-manual-${invoiceNumber}-${manualInvoiceDate || new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+    } catch (error: any) {
+      console.error('PDF oluşturma hatası:', error)
+      alert('PDF oluşturulurken bir hata oluştu: ' + (error?.message || 'Bilinmeyen hata'))
+    }
   }
 
   const generateProformaInvoiceHTML = (): string => {
@@ -2206,6 +2513,17 @@ export default function ProformaInvoice() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Fatura Tarihi <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={manualInvoiceDate}
+                        onChange={(e) => setManualInvoiceDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         E-posta
                       </label>
                       <input
@@ -2438,23 +2756,36 @@ export default function ProformaInvoice() {
                 )}
 
                 {/* Aksiyon Butonları */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <button
-                    onClick={() => {
-                      setShowManualInvoiceModal(false)
-                      resetManualInvoice()
-                    }}
-                    className="px-6 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
-                  >
-                    İptal
-                  </button>
-                  <button
-                    onClick={handleSaveManualInvoice}
-                    className="px-6 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 flex items-center gap-2"
-                  >
-                    <Save className="w-4 h-4" />
-                    Faturayı Kaydet
-                  </button>
+                <div className="flex justify-between items-center pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex gap-3">
+                    {manualCalculation && (
+                      <button
+                        onClick={handleDownloadManualPDF}
+                        className="px-6 py-2 bg-purple-600 dark:bg-purple-700 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        PDF İndir
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setShowManualInvoiceModal(false)
+                        resetManualInvoice()
+                      }}
+                      className="px-6 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
+                    >
+                      İptal
+                    </button>
+                    <button
+                      onClick={handleSaveManualInvoice}
+                      className="px-6 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 flex items-center gap-2"
+                    >
+                      <Save className="w-4 h-4" />
+                      Faturayı Kaydet
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>

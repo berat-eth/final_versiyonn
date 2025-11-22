@@ -6131,13 +6131,27 @@ app.post('/api/admin/custom-production-requests/manual', authenticateAdmin, asyn
 
       const requestId = requestResult.insertId;
 
+      // Ensure productName column exists in custom_production_items
+      const [itemCols] = await connection.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_production_items'
+      `);
+      const itemColNames = itemCols.map(c => c.COLUMN_NAME);
+      if (!itemColNames.includes('productName')) {
+        await connection.execute(`
+          ALTER TABLE custom_production_items 
+          ADD COLUMN productName VARCHAR(255) NULL AFTER productId
+        `);
+      }
+
       // Create custom production items
       for (const item of items) {
         await connection.execute(
           `INSERT INTO custom_production_items 
-           (requestId, productId, productName, quantity, customizations) 
-           VALUES (?, NULL, ?, ?, ?)`,
+           (tenantId, requestId, productId, productName, quantity, customizations) 
+           VALUES (?, ?, NULL, ?, ?, ?)`,
           [
+            tenantId,
             requestId,
             item.productName || 'Manuel Ürün',
             item.quantity || 1,
