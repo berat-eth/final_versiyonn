@@ -10278,6 +10278,63 @@ app.get('/api/invoices/share/:token/download', async (req, res) => {
   }
 });
 
+// Font dosyası endpoint'i (DejaVuSans veya Roboto)
+app.get('/api/admin/fonts/:fontName', async (req, res) => {
+  try {
+    const fontName = req.params.fontName.toLowerCase()
+    const path = require('path')
+    const fs = require('fs')
+    
+    let fontPath = null
+    
+    if (fontName === 'dejavu-sans' || fontName === 'dejavusans') {
+      const dejaVuSansPaths = [
+        path.join(__dirname, 'Fonts', 'DejaVuSans.ttf'),
+        path.join(__dirname, 'Fonts', 'dejavu-sans.ttf'),
+        path.join(__dirname, 'Fonts', 'DejaVuSans.otf'),
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/TTF/DejaVuSans.ttf',
+        'C:\\Windows\\Fonts\\DejaVuSans.ttf'
+      ]
+      
+      for (const dejaVuPath of dejaVuSansPaths) {
+        if (fs.existsSync(dejaVuPath)) {
+          fontPath = dejaVuPath
+          break
+        }
+      }
+    } else if (fontName === 'roboto') {
+      const robotoPaths = [
+        path.join(__dirname, 'Fonts', 'Roboto-Regular.ttf'),
+        path.join(__dirname, 'Fonts', 'Roboto.ttf'),
+        path.join(__dirname, 'Fonts', 'roboto-regular.ttf'),
+        '/usr/share/fonts/truetype/roboto/Roboto-Regular.ttf',
+        'C:\\Windows\\Fonts\\Roboto-Regular.ttf'
+      ]
+      
+      for (const robotoPath of robotoPaths) {
+        if (fs.existsSync(robotoPath)) {
+          fontPath = robotoPath
+          break
+        }
+      }
+    }
+    
+    if (fontPath && fs.existsSync(fontPath)) {
+      res.setHeader('Content-Type', 'font/ttf')
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(fontPath)}"`)
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      const fontData = fs.readFileSync(fontPath)
+      res.send(fontData)
+    } else {
+      res.status(404).json({ success: false, message: 'Font dosyası bulunamadı' })
+    }
+  } catch (error) {
+    console.error('❌ Font endpoint hatası:', error)
+    res.status(500).json({ success: false, message: 'Font yüklenemedi' })
+  }
+})
+
 // Kargo fişi oluşturma endpoint'i
 app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) => {
   try {

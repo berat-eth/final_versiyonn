@@ -872,27 +872,61 @@ export default function ProformaInvoice() {
       
       const doc = new jsPDF('p', 'mm', 'a4')
       
+      // DejaVuSans veya Roboto fontunu yükle (Trendyol kargo fişi ile aynı)
+      let customFontName = 'helvetica' // Fallback
+      try {
+        // Font dosyasını API'den al
+        const fontResponse = await fetch('/api/admin/fonts/dejavu-sans')
+        if (fontResponse.ok) {
+          const fontBlob = await fontResponse.blob()
+          const fontArrayBuffer = await fontBlob.arrayBuffer()
+          const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontArrayBuffer)))
+          
+          // jsPDF'e font ekle
+          doc.addFileToVFS('DejaVuSans.ttf', fontBase64)
+          doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal')
+          doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'bold')
+          customFontName = 'DejaVuSans'
+          console.log('✅ DejaVuSans fontu yüklendi')
+        } else {
+          // Roboto'yu dene
+          const robotoResponse = await fetch('/api/admin/fonts/roboto')
+          if (robotoResponse.ok) {
+            const fontBlob = await robotoResponse.blob()
+            const fontArrayBuffer = await fontBlob.arrayBuffer()
+            const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontArrayBuffer)))
+            
+            doc.addFileToVFS('Roboto-Regular.ttf', fontBase64)
+            doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal')
+            doc.addFont('Roboto-Regular.ttf', 'Roboto', 'bold')
+            customFontName = 'Roboto'
+            console.log('✅ Roboto fontu yüklendi')
+          }
+        }
+      } catch (fontError) {
+        console.warn('⚠️ Custom font yüklenemedi, Helvetica kullanılıyor:', fontError)
+      }
+      
       // UTF-8 desteği için encoding ayarları
-      // Türkçe karakterleri UTF-8 olarak koru
       const encodeUTF8 = (text: string): string => {
         if (!text) return text
-        // jsPDF için Türkçe karakterleri koru (UTF-8 encoding)
-        // Text'i normalize et ve UTF-8 olarak döndür
-        try {
-          // Unicode normalizasyonu
-          const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          // Eğer normalize edilmiş metin orijinaliyle aynıysa (Türkçe karakterler zaten doğru)
-          // direkt döndür, değilse orijinali döndür
-          return text
-        } catch {
-          return text
+        return text
+      }
+      
+      // Font ayarlama helper fonksiyonu
+      const setFont = (style: 'normal' | 'bold' | 'italic' = 'normal') => {
+        if (customFontName !== 'helvetica') {
+          doc.setFont(customFontName, style)
+        } else {
+          doc.setFont('helvetica', style)
         }
       }
       
       // jsPDF text metodunu UTF-8 destekli wrapper ile sarmala
       const addText = (text: string, x: number, y: number, options?: any) => {
         const encodedText = encodeUTF8(text)
-        // Türkçe karakterleri desteklemek için text metodunu özel encoding ile çağır
+        // Custom font kullan
+        setFont(options?.bold ? 'bold' : 'normal')
         if (options && options.align) {
           doc.text(encodedText, x, y, options)
         } else {
@@ -902,86 +936,175 @@ export default function ProformaInvoice() {
       
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
-      const margin = 15
+      const margin = 20
       let yPos = margin
 
-      // Renk tanımları
+      // Renk tanımları - Modern ve profesyonel
       const colors = {
         primary: [30, 64, 175],      // Blue-600
+        primaryLight: [59, 130, 246], // Blue-500
         secondary: [139, 92, 246],   // Purple-500
         success: [34, 197, 94],       // Green-500
         warning: [234, 179, 8],      // Yellow-500
         danger: [239, 68, 68],        // Red-500
-        lightGray: [243, 244, 246],   // Gray-100
-        mediumGray: [156, 163, 175],  // Gray-400
-        darkGray: [55, 65, 81],       // Gray-700
+        lightGray: [248, 250, 252],   // Slate-50
+        mediumGray: [148, 163, 184],  // Slate-400
+        darkGray: [51, 65, 85],       // Slate-700
+        borderGray: [226, 232, 240],  // Slate-200
       }
 
-      // Arka plan rengi (üst kısım)
+      // Beyaz arka plan
+      doc.setFillColor(255, 255, 255)
+      doc.rect(0, 0, pageWidth, pageHeight, 'F')
+      
+      // Üst başlık bölümü - Gradient efekti için
       doc.setFillColor(...colors.primary)
-      doc.rect(0, 0, pageWidth, 40, 'F')
+      doc.rect(0, 0, pageWidth, 50, 'F')
       
-      // Fatura Başlığı (beyaz renkte)
-      doc.setFontSize(24)
-      doc.setTextColor(255, 255, 255)
-      doc.setFont('helvetica', 'bold')
-      doc.text('PROFORMA FATURA', pageWidth / 2, 20, { align: 'center' })
+      // Logo ekleme (sağ üst köşe) - Base64 veya URL ile
+      try {
+        // Logo URL'ini deneyelim
+        const logoUrl = window.location.origin + '/logo.jpg'
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            console.warn('Logo yükleme zaman aşımı')
+            resolve()
+          }, 2000)
+          
+          img.onload = () => {
+            clearTimeout(timeout)
+            try {
+              const logoWidth = 40
+              const logoHeight = (img.height / img.width) * logoWidth
+              const logoX = pageWidth - margin - logoWidth
+              const logoY = 5
+              
+              // Canvas kullanarak base64'e çevir
+              const canvas = document.createElement('canvas')
+              canvas.width = img.width
+              canvas.height = img.height
+              const ctx = canvas.getContext('2d')
+              if (ctx) {
+                ctx.drawImage(img, 0, 0)
+                const imgData = canvas.toDataURL('image/jpeg', 0.9)
+                doc.addImage(imgData, 'JPEG', logoX, logoY, logoWidth, logoHeight)
+              }
+              resolve()
+            } catch (error) {
+              console.warn('Logo eklenemedi:', error)
+              resolve()
+            }
+          }
+          img.onerror = () => {
+            clearTimeout(timeout)
+            console.warn('Logo yüklenemedi, devam ediliyor...')
+            resolve()
+          }
+          img.src = logoUrl
+        })
+      } catch (error) {
+        console.warn('Logo ekleme hatası:', error)
+      }
       
-      // Fatura Numarası ve Tarih (beyaz renkte)
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'normal')
-      const invoiceNumber = `PRO-${selectedRequest.requestNumber || selectedRequest.id}`
-      const invoiceDate = new Date().toLocaleDateString('tr-TR', {
+      // Tarih ve Saat (sağ üst, logo altında)
+      const now = new Date()
+      const invoiceDate = now.toLocaleDateString('tr-TR', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       })
-      doc.text(encodeUTF8(`Fatura No: ${invoiceNumber}`), margin, 32)
-      doc.text(encodeUTF8(`Tarih: ${invoiceDate}`), pageWidth - margin, 32, { align: 'right' })
+      const invoiceTime = now.toLocaleTimeString('tr-TR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
       
-      yPos = 50
-
-      // Müşteri Bilgileri - Renkli kutu
-      doc.setFillColor(...colors.lightGray)
-      doc.setDrawColor(...colors.primary)
-      doc.setLineWidth(0.5)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 40, 3, 3, 'FD')
-      
-      doc.setFontSize(13)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...colors.primary)
-      addText('MÜŞTERİ BİLGİLERİ', margin + 3, yPos + 8)
-      
-      yPos += 12
-      doc.setFontSize(10)
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
+      doc.setTextColor(255, 255, 255)
+      const dateTimeX = pageWidth - margin
+      const dateTimeY = 50
+      addText(invoiceDate, dateTimeX, dateTimeY - 3, { align: 'right' })
+      addText(invoiceTime, dateTimeX, dateTimeY + 2, { align: 'right' })
+      
+      // Fatura Başlığı (sol taraf, büyük ve vurgulu)
+      doc.setFontSize(28)
+      if (customFontName !== 'helvetica') {
+        doc.setFont(customFontName, 'bold')
+      } else {
+        doc.setFont('helvetica', 'bold')
+      }
+      doc.setTextColor(255, 255, 255)
+      addText('PROFORMA FATURA', margin, 30)
+      
+      // Fatura Numarası (sol alt, başlık altında)
+      doc.setFontSize(10)
+      if (customFontName !== 'helvetica') {
+        doc.setFont(customFontName, 'normal')
+      } else {
+        doc.setFont('helvetica', 'normal')
+      }
+      const invoiceNumber = `PRO-${selectedRequest.requestNumber || selectedRequest.id}`
+      addText(`Fatura No: ${invoiceNumber}`, margin, 42)
+      
+      // Alt çizgi (başlık bölümünü ayıran)
+      doc.setDrawColor(255, 255, 255)
+      doc.setLineWidth(0.5)
+      doc.line(margin, 47, pageWidth - margin, 47)
+      
+      yPos = 60
+
+      // Müşteri Bilgileri - Modern kart tasarımı
+      doc.setFillColor(...colors.lightGray)
+      doc.setDrawColor(...colors.borderGray)
+      doc.setLineWidth(0.5)
+      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 45, 4, 4, 'FD')
+      
+      // Başlık arka planı
+      doc.setFillColor(...colors.primary)
+      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 12, 4, 4, 'F')
+      
+      doc.setFontSize(12)
+      setFont('bold')
+      doc.setTextColor(255, 255, 255)
+      addText('MÜŞTERİ BİLGİLERİ', margin + 5, yPos + 8)
+      
+      yPos += 15
+      doc.setFontSize(10)
+      setFont('normal')
       doc.setTextColor(...colors.darkGray)
-      addText(`${selectedRequest.customerName}`, margin + 3, yPos)
-      yPos += 6
+      
+      const infoStartX = margin + 5
+      addText(`• ${selectedRequest.customerName}`, infoStartX, yPos)
+      yPos += 7
 
       if (selectedRequest.companyName) {
-        addText(`${selectedRequest.companyName}`, margin + 3, yPos)
-        yPos += 6
+        addText(`• ${selectedRequest.companyName}`, infoStartX, yPos)
+        yPos += 7
       }
 
       if (selectedRequest.customerEmail) {
-        addText(`${selectedRequest.customerEmail}`, margin + 3, yPos)
-        yPos += 6
+        addText(`• ${selectedRequest.customerEmail}`, infoStartX, yPos)
+        yPos += 7
       }
 
       if (selectedRequest.customerPhone) {
-        addText(`${selectedRequest.customerPhone}`, margin + 3, yPos)
-        yPos += 6
+        addText(`• ${selectedRequest.customerPhone}`, infoStartX, yPos)
+        yPos += 7
       }
 
-      yPos += 12
+      yPos += 10
 
-      // Ürünler Başlığı
-      doc.setFontSize(15)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...colors.primary)
-      addText('ÜRÜN DETAYLARI', margin, yPos)
-      yPos += 8
+      // Ürünler Başlığı - Modern başlık
+      doc.setFillColor(...colors.primary)
+      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 10, 2, 2, 'F')
+      doc.setFontSize(14)
+      setFont('bold')
+      doc.setTextColor(255, 255, 255)
+      addText('ÜRÜN DETAYLARI', margin + 5, yPos + 7)
+      yPos += 15
 
       // Ürün kartları
       calculation.itemCalculations.forEach((itemCalc) => {
@@ -994,17 +1117,21 @@ export default function ProformaInvoice() {
           yPos = margin
         }
 
-        // Ürün kartı arka planı
+        // Ürün kartı arka planı - Modern shadow efekti
         doc.setFillColor(255, 255, 255)
-        doc.setDrawColor(...colors.mediumGray)
-        doc.setLineWidth(0.3)
-        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 50, 3, 3, 'FD')
+        doc.setDrawColor(...colors.borderGray)
+        doc.setLineWidth(0.5)
+        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 55, 4, 4, 'FD')
+        
+        // Hafif gölge efekti (üst kenar)
+        doc.setFillColor(...colors.lightGray)
+        doc.rect(margin, yPos, pageWidth - (margin * 2), 2, 'F')
         
         const cardStartY = yPos
         
         // Ürün adı
         doc.setFontSize(12)
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.setTextColor(...colors.primary)
         const productName = itemCalc.productName.length > 40 
           ? itemCalc.productName.substring(0, 37) + '...' 
@@ -1026,7 +1153,7 @@ export default function ProformaInvoice() {
         if (selectedItem && selectedItem.sizeDistribution) {
           doc.setFontSize(9)
           doc.setTextColor(...colors.darkGray)
-          doc.setFont('helvetica', 'bold')
+          setFont('bold')
           addText('Beden Dağılımı:', margin + 5, yPos)
           
           let xPos = margin + 40
@@ -1045,7 +1172,7 @@ export default function ProformaInvoice() {
               // Beden ve adet
               doc.setFontSize(7)
               doc.setTextColor(255, 255, 255)
-              doc.setFont('helvetica', 'bold')
+              setFont('bold')
               addText(`${size}: ${qty}`, xPos + badgeWidth / 2, yPos - 0.5, { align: 'center' })
               
               xPos += badgeWidth + 3
@@ -1055,7 +1182,7 @@ export default function ProformaInvoice() {
               }
             })
           } else {
-            doc.setFont('helvetica', 'normal')
+            setFont('normal')
             doc.setTextColor(...colors.mediumGray)
             addText('Beden bilgisi yok', margin + 40, yPos)
           }
@@ -1069,7 +1196,7 @@ export default function ProformaInvoice() {
         const infoY = cardStartY + 35
         doc.setFontSize(8)
         doc.setTextColor(...colors.mediumGray)
-        doc.setFont('helvetica', 'normal')
+        setFont('normal')
         
         // Sol sütun
         addText(`Birim Maliyet: ₺${itemCostsData.unitCost.toFixed(2)}`, margin + 5, infoY)
@@ -1078,15 +1205,15 @@ export default function ProformaInvoice() {
         
         // Orta sütun
         const midX = pageWidth / 2
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.setTextColor(...colors.primary)
         addText(`Birim Fiyat:`, midX - 15, infoY)
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.setTextColor(...colors.success)
         addText(`₺${itemCalc.finalUnitPrice.toFixed(2)}`, midX - 15, infoY + 4)
         
         // Sağ sütun
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.setTextColor(...colors.darkGray)
         addText(`KDV (%${calculation.vatRate}):`, pageWidth - margin - 35, infoY)
         doc.setTextColor(...colors.warning)
@@ -1113,7 +1240,7 @@ export default function ProformaInvoice() {
       yPos += 8
 
       doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
+      setFont('bold')
       doc.setTextColor(...colors.darkGray)
       
       // Toplam satırları
@@ -1134,7 +1261,7 @@ export default function ProformaInvoice() {
       doc.line(pageWidth - 100, yPos - 2, pageWidth - margin, yPos - 2)
       
       doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
+      setFont('bold')
       doc.setTextColor(...colors.primary)
       addText('GENEL TOPLAM (KDV Dahil):', pageWidth - 100, yPos + 5, { align: 'right' })
       doc.setTextColor(...colors.success)
@@ -1155,13 +1282,13 @@ export default function ProformaInvoice() {
       doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'FD')
       
       doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
+      setFont('bold')
       doc.setTextColor(255, 255, 255)
       addText('Maliyet Özeti', margin + 5, yPos + 7)
       
       yPos += 10
       doc.setFontSize(9)
-      doc.setFont('helvetica', 'normal')
+      setFont('normal')
       addText(`Toplam Maliyet: ₺${calculation.totalCost.toFixed(2)}`, margin + 5, yPos)
       addText(`Kâr Marjı: %${profitMargin.toFixed(2)}`, pageWidth / 2 - 20, yPos)
       addText(`Kâr: %${calculation.profitPercentage.toFixed(2)}`, pageWidth - margin - 30, yPos, { align: 'right' })
@@ -1298,6 +1425,47 @@ export default function ProformaInvoice() {
       
       const doc = new jsPDF('p', 'mm', 'a4')
       
+      // DejaVuSans veya Roboto fontunu yükle (Trendyol kargo fişi ile aynı)
+      let customFontName = 'helvetica' // Fallback
+      try {
+        const fontResponse = await fetch('/api/admin/fonts/dejavu-sans')
+        if (fontResponse.ok) {
+          const fontBlob = await fontResponse.blob()
+          const fontArrayBuffer = await fontBlob.arrayBuffer()
+          const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontArrayBuffer)))
+          
+          doc.addFileToVFS('DejaVuSans.ttf', fontBase64)
+          doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal')
+          doc.addFont('DejaVuSans.ttf', 'DejaVuSans', 'bold')
+          customFontName = 'DejaVuSans'
+          console.log('✅ DejaVuSans fontu yüklendi')
+        } else {
+          const robotoResponse = await fetch('/api/admin/fonts/roboto')
+          if (robotoResponse.ok) {
+            const fontBlob = await robotoResponse.blob()
+            const fontArrayBuffer = await fontBlob.arrayBuffer()
+            const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontArrayBuffer)))
+            
+            doc.addFileToVFS('Roboto-Regular.ttf', fontBase64)
+            doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal')
+            doc.addFont('Roboto-Regular.ttf', 'Roboto', 'bold')
+            customFontName = 'Roboto'
+            console.log('✅ Roboto fontu yüklendi')
+          }
+        }
+      } catch (fontError) {
+        console.warn('⚠️ Custom font yüklenemedi, Helvetica kullanılıyor:', fontError)
+      }
+      
+      // Font ayarlama helper fonksiyonu
+      const setFont = (style: 'normal' | 'bold' | 'italic' = 'normal') => {
+        if (customFontName !== 'helvetica') {
+          doc.setFont(customFontName, style)
+        } else {
+          doc.setFont('helvetica', style)
+        }
+      }
+      
       const encodeUTF8 = (text: string): string => {
         if (!text) return text
         return text
@@ -1305,6 +1473,7 @@ export default function ProformaInvoice() {
       
       const addText = (text: string, x: number, y: number, options?: any) => {
         const encodedText = encodeUTF8(text)
+        setFont(options?.bold ? 'bold' : 'normal')
         if (options && options.align) {
           doc.text(encodedText, x, y, options)
         } else {
@@ -1314,91 +1483,164 @@ export default function ProformaInvoice() {
       
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
-      const margin = 15
+      const margin = 20
       let yPos = margin
 
       const colors = {
         primary: [30, 64, 175],
+        primaryLight: [59, 130, 246],
         secondary: [139, 92, 246],
         success: [34, 197, 94],
         warning: [234, 179, 8],
         danger: [239, 68, 68],
-        lightGray: [243, 244, 246],
-        mediumGray: [156, 163, 175],
-        darkGray: [55, 65, 81],
+        lightGray: [248, 250, 252],
+        mediumGray: [148, 163, 184],
+        darkGray: [51, 65, 85],
+        borderGray: [226, 232, 240],
       }
 
-      // Arka plan rengi
+      // Beyaz arka plan
+      doc.setFillColor(255, 255, 255)
+      doc.rect(0, 0, pageWidth, pageHeight, 'F')
+      
+      // Üst başlık bölümü
       doc.setFillColor(...colors.primary)
-      doc.rect(0, 0, pageWidth, 40, 'F')
+      doc.rect(0, 0, pageWidth, 50, 'F')
       
-      // Fatura Başlığı
-      doc.setFontSize(24)
+      // Logo ekleme (sağ üst köşe)
+      try {
+        const logoUrl = window.location.origin + '/logo.jpg'
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            console.warn('Logo yükleme zaman aşımı')
+            resolve()
+          }, 2000)
+          
+          img.onload = () => {
+            clearTimeout(timeout)
+            try {
+              const logoWidth = 40
+              const logoHeight = (img.height / img.width) * logoWidth
+              const logoX = pageWidth - margin - logoWidth
+              const logoY = 5
+              
+              const canvas = document.createElement('canvas')
+              canvas.width = img.width
+              canvas.height = img.height
+              const ctx = canvas.getContext('2d')
+              if (ctx) {
+                ctx.drawImage(img, 0, 0)
+                const imgData = canvas.toDataURL('image/jpeg', 0.9)
+                doc.addImage(imgData, 'JPEG', logoX, logoY, logoWidth, logoHeight)
+              }
+              resolve()
+            } catch (error) {
+              console.warn('Logo eklenemedi:', error)
+              resolve()
+            }
+          }
+          img.onerror = () => {
+            clearTimeout(timeout)
+            console.warn('Logo yüklenemedi, devam ediliyor...')
+            resolve()
+          }
+          img.src = logoUrl
+        })
+      } catch (error) {
+        console.warn('Logo ekleme hatası:', error)
+      }
+      
+      // Tarih ve Saat (sağ üst, logo altında)
+      const invoiceDateObj = manualInvoiceDate ? new Date(manualInvoiceDate) : new Date()
+      const invoiceDate = invoiceDateObj.toLocaleDateString('tr-TR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+      const invoiceTime = invoiceDateObj.toLocaleTimeString('tr-TR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      
+      doc.setFontSize(9)
+      setFont('normal')
       doc.setTextColor(255, 255, 255)
-      doc.setFont('helvetica', 'bold')
-      doc.text('PROFORMA FATURA', pageWidth / 2, 20, { align: 'center' })
+      const dateTimeX = pageWidth - margin
+      const dateTimeY = 50
+      addText(invoiceDate, dateTimeX, dateTimeY - 3, { align: 'right' })
+      addText(invoiceTime, dateTimeX, dateTimeY + 2, { align: 'right' })
       
-      // Fatura Numarası ve Tarih
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'normal')
-      const invoiceNumber = manualRequestId ? `MANUAL-${manualRequestId}` : `MANUAL-${Date.now()}`
-      const invoiceDate = manualInvoiceDate 
-        ? new Date(manualInvoiceDate).toLocaleDateString('tr-TR', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })
-        : new Date().toLocaleDateString('tr-TR', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })
-      doc.text(encodeUTF8(`Fatura No: ${invoiceNumber}`), margin, 32)
-      doc.text(encodeUTF8(`Tarih: ${invoiceDate}`), pageWidth - margin, 32, { align: 'right' })
+      // Fatura Başlığı (sol taraf)
+      doc.setFontSize(28)
+      setFont('bold')
+      doc.setTextColor(255, 255, 255)
+      addText('PROFORMA FATURA', margin, 30)
       
-      yPos = 50
-
-      // Müşteri Bilgileri
-      doc.setFillColor(...colors.lightGray)
-      doc.setDrawColor(...colors.primary)
-      doc.setLineWidth(0.5)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 40, 3, 3, 'FD')
-      
-      doc.setFontSize(13)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...colors.primary)
-      addText('MÜŞTERİ BİLGİLERİ', margin + 3, yPos + 8)
-      
-      yPos += 12
+      // Fatura Numarası
       doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
+      setFont('normal')
+      const invoiceNumber = manualRequestId ? `MANUAL-${manualRequestId}` : `MANUAL-${Date.now()}`
+      addText(`Fatura No: ${invoiceNumber}`, margin, 42)
+      
+      // Alt çizgi
+      doc.setDrawColor(255, 255, 255)
+      doc.setLineWidth(0.5)
+      doc.line(margin, 47, pageWidth - margin, 47)
+      
+      yPos = 60
+
+      // Müşteri Bilgileri - Modern kart tasarımı
+      doc.setFillColor(...colors.lightGray)
+      doc.setDrawColor(...colors.borderGray)
+      doc.setLineWidth(0.5)
+      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 45, 4, 4, 'FD')
+      
+      // Başlık arka planı
+      doc.setFillColor(...colors.primary)
+      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 12, 4, 4, 'F')
+      
+      doc.setFontSize(12)
+      setFont('bold')
+      doc.setTextColor(255, 255, 255)
+      addText('MÜŞTERİ BİLGİLERİ', margin + 5, yPos + 8)
+      
+      yPos += 15
+      doc.setFontSize(10)
+      setFont('normal')
       doc.setTextColor(...colors.darkGray)
-      addText(`${manualCustomerName}`, margin + 3, yPos)
-      yPos += 6
+      
+      const infoStartX = margin + 5
+      addText(`• ${manualCustomerName}`, infoStartX, yPos)
+      yPos += 7
 
       if (manualCompanyName) {
-        addText(`${manualCompanyName}`, margin + 3, yPos)
-        yPos += 6
+        addText(`• ${manualCompanyName}`, infoStartX, yPos)
+        yPos += 7
       }
 
       if (manualCustomerEmail) {
-        addText(`${manualCustomerEmail}`, margin + 3, yPos)
-        yPos += 6
+        addText(`• ${manualCustomerEmail}`, infoStartX, yPos)
+        yPos += 7
       }
 
       if (manualCustomerPhone) {
-        addText(`${manualCustomerPhone}`, margin + 3, yPos)
-        yPos += 6
+        addText(`• ${manualCustomerPhone}`, infoStartX, yPos)
+        yPos += 7
       }
 
-      yPos += 12
+      yPos += 10
 
-      // Ürünler Başlığı
-      doc.setFontSize(15)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...colors.primary)
-      addText('ÜRÜN DETAYLARI', margin, yPos)
-      yPos += 8
+      // Ürünler Başlığı - Modern başlık
+      doc.setFillColor(...colors.primary)
+      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 10, 2, 2, 'F')
+      doc.setFontSize(14)
+      setFont('bold')
+      doc.setTextColor(255, 255, 255)
+      addText('ÜRÜN DETAYLARI', margin + 5, yPos + 7)
+      yPos += 15
 
       // Ürün kartları
       manualCalculation.itemCalculations.forEach((itemCalc) => {
@@ -1410,15 +1652,20 @@ export default function ProformaInvoice() {
           yPos = margin
         }
 
+        // Ürün kartı arka planı - Modern shadow efekti
         doc.setFillColor(255, 255, 255)
-        doc.setDrawColor(...colors.mediumGray)
-        doc.setLineWidth(0.3)
-        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 50, 3, 3, 'FD')
+        doc.setDrawColor(...colors.borderGray)
+        doc.setLineWidth(0.5)
+        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 55, 4, 4, 'FD')
+        
+        // Hafif gölge efekti (üst kenar)
+        doc.setFillColor(...colors.lightGray)
+        doc.rect(margin, yPos, pageWidth - (margin * 2), 2, 'F')
         
         const cardStartY = yPos
         
         doc.setFontSize(12)
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.setTextColor(...colors.primary)
         const productName = itemCalc.productName.length > 40 
           ? itemCalc.productName.substring(0, 37) + '...' 
@@ -1430,7 +1677,7 @@ export default function ProformaInvoice() {
         doc.setDrawColor(...colors.success)
         doc.circle(pageWidth - margin - 10, yPos + 5, 8, 'F')
         doc.setTextColor(255, 255, 255)
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.text(itemCalc.quantity.toString(), pageWidth - margin - 10, yPos + 8, { align: 'center' })
         
         yPos += 12
@@ -1438,21 +1685,21 @@ export default function ProformaInvoice() {
         const infoY = cardStartY + 35
         doc.setFontSize(8)
         doc.setTextColor(...colors.mediumGray)
-        doc.setFont('helvetica', 'normal')
+        setFont('normal')
         
         addText(`Birim Maliyet: ₺${itemCostsData.unitCost.toFixed(2)}`, margin + 5, infoY)
         addText(`Baskı: ₺${itemCostsData.printingCost.toFixed(2)}`, margin + 5, infoY + 4)
         addText(`Nakış: ₺${itemCostsData.embroideryCost.toFixed(2)}`, margin + 5, infoY + 8)
         
         const midX = pageWidth / 2
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.setTextColor(...colors.primary)
         addText(`Birim Fiyat:`, midX - 15, infoY)
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.setTextColor(...colors.success)
         addText(`₺${itemCalc.finalUnitPrice.toFixed(2)}`, midX - 15, infoY + 4)
         
-        doc.setFont('helvetica', 'bold')
+        setFont('bold')
         doc.setTextColor(...colors.darkGray)
         addText(`KDV (%${manualCalculation.vatRate}):`, pageWidth - margin - 35, infoY)
         doc.setTextColor(...colors.warning)
@@ -1479,7 +1726,7 @@ export default function ProformaInvoice() {
       yPos += 8
 
       doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
+      setFont('bold')
       doc.setTextColor(...colors.darkGray)
       
       addText('Ara Toplam (KDV Hariç):', pageWidth - 100, yPos, { align: 'right' })
@@ -1498,7 +1745,7 @@ export default function ProformaInvoice() {
       doc.line(pageWidth - 100, yPos - 2, pageWidth - margin, yPos - 2)
       
       doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
+      setFont('bold')
       doc.setTextColor(...colors.primary)
       addText('GENEL TOPLAM (KDV Dahil):', pageWidth - 100, yPos + 5, { align: 'right' })
       doc.setTextColor(...colors.success)
