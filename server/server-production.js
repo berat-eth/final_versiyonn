@@ -272,10 +272,10 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Production için izin verilen origin'ler
     const allowedOrigins = [
-      'https://admin.plaxsy.com',
-      'https://www.plaxsy.com',
-      'https://plaxsy.com',
-      'https://api.huglutekstil.com'
+      'https://api.huglutekstil.com',
+      'https://admin.huglutekstil.com',
+      'https://huglutekstil.com',
+      'https://www.huglutekstil.com'
     ];
     
     // Origin yoksa (mobil uygulama veya same-origin request için)

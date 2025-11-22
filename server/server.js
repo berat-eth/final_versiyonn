@@ -280,7 +280,7 @@ const cspDirectives = {
   // Script'ler için nonce veya hash kullanılmalı
   scriptSrc: ["'self'"],
   imgSrc: ["'self'", "https:", "data:"],
-  connectSrc: ["'self'", "https://api.huglutekstil.com", "https://admin.plaxsy.com", "https://plaxsy.com", "https://www.plaxsy.com", "https://api.zerodaysoftware.tr"],
+  connectSrc: ["'self'", "https://api.huglutekstil.com"],
   fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
   objectSrc: ["'none'"],
   mediaSrc: ["'self'"],
@@ -373,11 +373,8 @@ app.use(cors({
   origin: function (origin, callback) {
     // İzin verilen origin'ler - Production ve Development için
     const productionOrigins = [
-      'https://admin.plaxsy.com',
-      'https://www.plaxsy.com',
-      'https://plaxsy.com',
       'https://api.huglutekstil.com',
-      'https://api.zerodaysoftware.tr',
+      'https://admin.huglutekstil.com',
       'https://huglutekstil.com',
       'https://www.huglutekstil.com'
     ];

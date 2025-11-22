@@ -37,11 +37,7 @@ function createCSPDirectives(nonce, isDevelopment = false) {
     imgSrc: ["'self'", "https:", "data:"],
     connectSrc: [
       "'self'",
-      "https://api.huglutekstil.com",
-      "https://admin.plaxsy.com",
-      "https://plaxsy.com",
-      "https://www.plaxsy.com",
-      "https://api.zerodaysoftware.tr"
+      "https://api.huglutekstil.com"
     ],
     fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
     objectSrc: ["'none'"],
