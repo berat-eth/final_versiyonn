@@ -5,10 +5,54 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
-import { slidersApi } from '@/utils/api'
 
 const Header = dynamic(() => import('@/components/Header'), { ssr: true })
 const Footer = dynamic(() => import('@/components/Footer'), { ssr: true })
+
+const SLIDES = [
+  {
+    image: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=1200&q=75&auto=format&fit=crop',
+    title: 'Özel İş Kıyafetlerinde',
+    highlight: 'Kalite ve Ustalık',
+    description: 'Size özel tasarımlarla, işinize en uygun kıyafetleri üretiyoruz'
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=1200&q=75&auto=format&fit=crop',
+    title: 'Profesyonel Üretim',
+    highlight: 'Modern Teknoloji',
+    description: 'En son teknoloji ile kusursuz işçilik sunuyoruz'
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=1200&q=75&auto=format&fit=crop',
+    title: 'Markanıza Özel',
+    highlight: 'Tasarım Çözümleri',
+    description: 'Logo baskı ve nakış ile markanızı öne çıkarın'
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1200&q=75&auto=format&fit=crop',
+    title: 'Hızlı ve Güvenilir',
+    highlight: 'Teslimat Garantisi',
+    description: 'Siparişlerinizi zamanında ve eksiksiz teslim ediyoruz'
+  }
+] as const
+
+const REFERENCES = [
+  { 
+    name: 'Türkiye Futbol Federasyonu', 
+    color: 'from-blue-500 to-blue-600',
+    logo: '/assets/references/tff-logo.png'
+  },
+  { 
+    name: 'Nükte Treyler', 
+    color: 'from-purple-500 to-purple-600',
+    logo: '/assets/references/nukte-logo.png'
+  },
+  { 
+    name: 'Konya Büyükşehir Belediyesi', 
+    color: 'from-pink-500 to-pink-600',
+    logo: '/assets/references/konya-logo.png'
+  }
+] as const
 
 interface SliderItem {
   id: string | number;
@@ -47,26 +91,21 @@ export default function Home() {
     }
   }, [pathname])
 
-  // Load sliders from API
+  // Use hardcoded slides only (no API)
   useEffect(() => {
-    const loadSliders = async () => {
-      try {
-        setLoadingSliders(true)
-        const response = await slidersApi.getSliders(10)
-        if (response.success && response.data && Array.isArray(response.data)) {
-          const activeSliders = response.data.filter(slider => slider.isActive)
-          setSlides(activeSliders)
-        } else {
-          setSlides([])
-        }
-      } catch (error) {
-        console.error('Slider yükleme hatası:', error)
-        setSlides([])
-      } finally {
-        setLoadingSliders(false)
-      }
-    }
-    loadSliders()
+    const hardcodedSlides = SLIDES.map((slide, index) => ({
+      id: index + 1,
+      title: slide.title,
+      description: slide.description,
+      imageUrl: slide.image,
+      highlight: slide.highlight,
+      isActive: true,
+      order: index + 1,
+      autoPlay: true,
+      duration: 5,
+    }))
+    setSlides(hardcodedSlides as SliderItem[])
+    setLoadingSliders(false)
   }, [])
 
   const handleRetailClick = useCallback(() => {
@@ -184,7 +223,9 @@ export default function Home() {
                           <span className="text-sm font-semibold text-white">Türkiye'nin Güvenilir Markası</span>
                         </div>
                         <h1 className="text-white text-5xl md:text-7xl font-black leading-tight tracking-tight drop-shadow-2xl">
-                          {slide.title}
+                          {slide.title} {(slide as any).highlight && (
+                            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">{(slide as any).highlight}</span>
+                          )}
                         </h1>
                         {slide.description && (
                           <h2 className="text-white/90 text-lg md:text-xl font-medium leading-relaxed drop-shadow-lg">
@@ -325,7 +366,31 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-0 max-w-5xl mx-auto">
-                  {/* Referanslar API'den gelecek şekilde düzenlenebilir */}
+                  {REFERENCES.map((reference, i) => (
+                    <div key={i} className="group relative flex flex-col items-center justify-center gap-4 p-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/50 hover:shadow-2xl hover:scale-105 transition-all duration-300 min-h-[200px]">
+                      <div className={`w-24 h-24 rounded-xl bg-white dark:bg-gray-700 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300 p-3`}>
+                        <Image
+                          src={reference.logo}
+                          alt={reference.name}
+                          width={80}
+                          height={80}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            // Logo yüklenemezse fallback icon göster
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = `<span class="material-symbols-outlined text-gray-600 dark:text-gray-300 text-4xl">business</span>`;
+                            }
+                          }}
+                        />
+                      </div>
+                      <h3 className="font-bold text-[#0d141b] dark:text-slate-50 text-lg text-center leading-tight">
+                        {reference.name}
+                      </h3>
+                    </div>
+                  ))}
                 </div>
               </div>
 
