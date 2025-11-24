@@ -74,8 +74,48 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext)
+  // ThemeProvider yoksa fallback hook kullan (SSR ve edge case'ler için)
   if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider')
+    // Client-side'da useState ile state tut
+    const [fallbackTheme, setFallbackTheme] = useState<Theme>(() => {
+      if (typeof window !== 'undefined') {
+        const savedTheme = localStorage.getItem('theme') as Theme | null
+        if (savedTheme) return savedTheme
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      }
+      return 'light'
+    })
+
+    // Tema değişikliğini uygula
+    useEffect(() => {
+      if (typeof document !== 'undefined') {
+        const root = document.documentElement
+        if (fallbackTheme === 'dark') {
+          root.classList.add('dark')
+          root.classList.remove('light')
+        } else {
+          root.classList.add('light')
+          root.classList.remove('dark')
+        }
+      }
+    }, [fallbackTheme])
+
+    return {
+      theme: fallbackTheme,
+      toggleTheme: () => {
+        const newTheme = fallbackTheme === 'light' ? 'dark' : 'light'
+        setFallbackTheme(newTheme)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('theme', newTheme)
+        }
+      },
+      setTheme: (newTheme: Theme) => {
+        setFallbackTheme(newTheme)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('theme', newTheme)
+        }
+      }
+    }
   }
   return context
 }

@@ -3671,16 +3671,136 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Admin - Snort IDS logs (placeholder file reader / future DB integration)
+// Admin - Snort IDS logs (reads from filesystem)
 app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
   try {
-    // Basic mock: return empty list if no integration
-    // You can integrate with filesystem (/var/log/snort/alert_fast.txt) or a DB in the future.
-    const demo = [];
-    return res.json({ success: true, data: demo });
+    // Snort log dosyası yolu - environment variable veya varsayılan değer
+    const snortLogPath = process.env.SNORT_LOG_PATH || '/var/log/snort/alert_fast.txt';
+    const limit = parseInt(req.query.limit) || 1000; // Varsayılan 1000 log
+    
+    // Alternatif log dosyası yolları (sırayla kontrol edilir)
+    const possiblePaths = [
+      snortLogPath,
+      '/var/log/snort/alert_fast.txt',
+      '/var/log/snort/alert',
+      '/var/log/snort/snort.alert.fast',
+      '/var/log/snort/alerts.log'
+    ];
+
+    let logContent = '';
+    let foundPath = null;
+
+    // Log dosyasını bul
+    for (const logPath of possiblePaths) {
+      try {
+        if (fs.existsSync(logPath)) {
+          logContent = fs.readFileSync(logPath, 'utf-8');
+          foundPath = logPath;
+          break;
+        }
+      } catch (err) {
+        // Dosya okunamazsa bir sonraki yolu dene
+        continue;
+      }
+    }
+
+    if (!logContent) {
+      console.warn('⚠️ Snort log dosyası bulunamadı. Kontrol edilen yollar:', possiblePaths.join(', '));
+      return res.json({ success: true, data: [] });
+    }
+
+    // Snort alert_fast formatını parse et
+    // Format: [**] [sid:gid:rev] message [**] [Classification: type] [Priority: N] {protocol} src_ip:src_port -> dst_ip:dst_port
+    const lines = logContent.split('\n').filter(line => line.trim());
+    const parsedLogs = [];
+    let logId = 1;
+
+    for (const line of lines) {
+      if (parsedLogs.length >= limit) break;
+
+      try {
+        // Snort alert formatını parse et
+        const alertMatch = line.match(/\[\*\*\]\s*\[(\d+):(\d+):(\d+)\]\s*(.+?)\s*\[\*\*\]\s*\[Classification:\s*(.+?)\]\s*\[Priority:\s*(\d+)\]\s*\{(\w+)\}\s*(\d+\.\d+\.\d+\.\d+):(\d+)\s*->\s*(\d+\.\d+\.\d+\.\d+):(\d+)/);
+        
+        if (alertMatch) {
+          const [, sid, gid, rev, message, classification, priorityNum, protocol, srcIp, srcPort, dstIp, dstPort] = alertMatch;
+          
+          // Priority'yi sayıdan string'e çevir
+          const priorityNumInt = parseInt(priorityNum);
+          let priority = 'low';
+          if (priorityNumInt >= 3) priority = 'high';
+          else if (priorityNumInt >= 2) priority = 'medium';
+
+          // Action'ı belirle (genellikle alert, bazı durumlarda drop)
+          let action = 'alert';
+          if (message.toLowerCase().includes('drop') || message.toLowerCase().includes('block')) {
+            action = 'drop';
+          } else if (message.toLowerCase().includes('pass')) {
+            action = 'pass';
+          }
+
+          // Timestamp - eğer satırda yoksa şu anki zamanı kullan
+          let timestamp = new Date().toISOString();
+          const timestampMatch = line.match(/(\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\.\d+)/);
+          if (timestampMatch) {
+            // Snort timestamp formatını parse et (MM/DD-HH:mm:ss.uuuuuu)
+            const [datePart, timePart] = timestampMatch[1].split('-');
+            const [month, day] = datePart.split('/');
+            const [time, microseconds] = timePart.split('.');
+            const currentYear = new Date().getFullYear();
+            timestamp = new Date(`${currentYear}-${month}-${day}T${time}.${microseconds.substring(0, 3)}Z`).toISOString();
+          }
+
+          parsedLogs.push({
+            id: logId++,
+            timestamp,
+            priority,
+            classification: classification.trim(),
+            sourceIp: srcIp,
+            sourcePort: parseInt(srcPort),
+            destIp: dstIp,
+            destPort: parseInt(dstPort),
+            protocol: protocol.toUpperCase(),
+            message: message.trim(),
+            signature: `[${sid}:${gid}:${rev}]`,
+            action
+          });
+        } else {
+          // Alternatif format: Basit alert satırları
+          const simpleMatch = line.match(/(\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\.\d+)\s+\[.*?\]\s+(.+?)\s+\{(\w+)\}\s+(\d+\.\d+\.\d+\.\d+):(\d+)\s*->\s*(\d+\.\d+\.\d+\.\d+):(\d+)/);
+          if (simpleMatch) {
+            const [, timestampStr, message, protocol, srcIp, srcPort, dstIp, dstPort] = simpleMatch;
+            parsedLogs.push({
+              id: logId++,
+              timestamp: new Date().toISOString(), // Basit format için şu anki zaman
+              priority: 'medium',
+              classification: 'Unknown',
+              sourceIp: srcIp,
+              sourcePort: parseInt(srcPort),
+              destIp: dstIp,
+              destPort: parseInt(dstPort),
+              protocol: protocol.toUpperCase(),
+              message: message.trim(),
+              signature: 'N/A',
+              action: 'alert'
+            });
+          }
+        }
+      } catch (parseError) {
+        // Parse hatası olursa bu satırı atla
+        console.warn('⚠️ Log satırı parse edilemedi:', line.substring(0, 100));
+        continue;
+      }
+    }
+
+    // En yeni loglar önce gelsin
+    parsedLogs.reverse();
+
+    console.log(`✅ Snort logları okundu: ${parsedLogs.length} log (${foundPath})`);
+    return res.json({ success: true, data: parsedLogs });
   } catch (error) {
     console.error('❌ Error getting snort logs:', error);
-    return res.status(500).json({ success: false, message: 'Error getting snort logs' });
+    return res.status(500).json({ success: false, message: 'Error getting snort logs: ' + error.message });
   }
 });
 

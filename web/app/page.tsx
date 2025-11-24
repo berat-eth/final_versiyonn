@@ -12,27 +12,27 @@ const Footer = dynamic(() => import('@/components/Footer'), { ssr: false })
 const SLIDES = [
   {
     image: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=1200&q=75&auto=format&fit=crop',
-    title: 'Outdoor Giyim Toptan',
-    highlight: 'Özel Üretim',
-    description: 'Toptan outdoor giyim, özel üretim outdoor mont, softshell mont, polar mont üretimi. Teknik giyim toptan satış.'
+    title: 'İşletmeniz İçin',
+    highlight: 'Özel Tasarım Çözümler',
+    description: 'İşletmeniz için özel tasarlanmış outdoor giyim çözümleri. Softshell ve polar montlarımızla her mevsim koruma sağlıyoruz.'
   },
   {
     image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=1200&q=75&auto=format&fit=crop',
-    title: 'Kurumsal Outdoor Mont',
-    highlight: 'Logo Baskılı Üretim',
-    description: 'Kurumsal outdoor kıyafet üretimi, logo baskılı outdoor ürün, markaya özel outdoor mont üretimi'
+    title: 'Markanızı Öne Çıkarın',
+    highlight: 'Logo Baskılı Ürünler',
+    description: 'Markanızı yansıtan logo baskılı ürünlerimizle kurumsal kimliğinizi güçlendirin. Özel tasarım outdoor mont üretiminde uzmanız.'
   },
   {
     image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=1200&q=75&auto=format&fit=crop',
-    title: 'Teknik Giyim Üreticisi',
-    highlight: 'Yüksek Kalite',
-    description: 'Teknik outdoor giyim, su geçirmez mont, termal içlik, polar ceket toptan üretim. Dayanıklı outdoor kıyafet imalatı'
+    title: 'Her Hava Koşuluna',
+    highlight: 'Dayanıklı ve Konforlu',
+    description: 'Su geçirmez teknoloji ve termal koruma özellikli ürünlerimizle zorlu hava koşullarına hazır olun. Dayanıklılık ve konfor bir arada.'
   },
   {
     image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1200&q=75&auto=format&fit=crop',
-    title: 'Kamp Giyim Toptan',
-    highlight: 'Az Adet Özel Üretim',
-    description: 'Kamp kıyafetleri toptan, trekking montu, avcı montu, taktik mont toptan. Az adet özel üretim outdoor giyim'
+    title: 'İhtiyacınıza Özel',
+    highlight: 'Esnek Üretim Seçenekleri',
+    description: 'Kamp, trekking ve avcılık için özel tasarlanmış kıyafetler. Az adet üretim seçeneğiyle ihtiyacınıza özel çözümler sunuyoruz.'
   }
 ] as const
 
@@ -163,7 +163,7 @@ export default function Home() {
               </div>
               <h2 className="text-2xl font-black text-gray-900 dark:text-white">Hoş Geldiniz!</h2>
               <p className="text-gray-600 dark:text-gray-300 text-base">
-                Huğlu Tekstil olarak outdoor giyim toptan satış, özel üretim outdoor mont, teknik giyim üretimi hizmeti sunuyoruz.
+                Huğlu Tekstil olarak işletmeniz için özel tasarlanmış outdoor giyim çözümleri sunuyoruz. Toptan satış ve özel üretim seçeneklerimizle yanınızdayız.
               </p>
               <div className="flex flex-col gap-3">
                 <button
@@ -356,7 +356,7 @@ export default function Home() {
                     Outdoor Giyim <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">Toptan Üretim</span>
                   </h2>
                   <p className="text-gray-600 dark:text-gray-300 text-lg font-normal leading-relaxed max-w-[720px]">
-                    Toptan outdoor giyim, özel üretim outdoor mont, softshell mont, polar mont üretimi. Teknik giyim, kamp kıyafetleri, kurumsal outdoor mont üretimi. Logo baskılı outdoor ürün, az adet özel üretim. Türkiye'nin güvenilir outdoor giyim tedarikçisi.
+                    İşletmeniz için özel tasarlanmış outdoor giyim çözümleri sunuyoruz. Softshell, polar ve teknik mont üretiminde uzman ekibimizle, kamp kıyafetlerinden kurumsal üniformalara kadar geniş bir yelpazede hizmet veriyoruz. Logo baskılı ürünlerimizle markanızı öne çıkarın.
                   </p>
                 </div>
               </div>
@@ -367,7 +367,7 @@ export default function Home() {
                   </div>
                   <div className="flex flex-col gap-2">
                     <h3 className="text-[#0d141b] dark:text-slate-50 text-xl font-bold leading-tight">Yüksek Kalite Outdoor Giyim</h3>
-                    <p className="text-gray-600 dark:text-gray-300 text-sm font-normal leading-relaxed">Toptan outdoor giyim üretiminde teknik kumaşlar, su geçirmez mont, polar mont, softshell mont üretimi. Dayanıklı outdoor kıyafet imalatı.</p>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm font-normal leading-relaxed">Teknik kumaşlardan üretilen su geçirmez, polar ve softshell montlarımız uzun ömürlü ve dayanıklıdır. Her mevsim koruma sağlayan ürünlerimizle işletmenizin ihtiyaçlarını karşılıyoruz.</p>
                   </div>
                 </div>
                 <div className="group flex flex-1 gap-4 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl p-8 flex-col items-center text-center hover:shadow-2xl hover:scale-105 transition-all duration-300 hover:border-purple-300 dark:hover:border-purple-600">
@@ -376,7 +376,7 @@ export default function Home() {
                   </div>
                   <div className="flex flex-col gap-2">
                     <h3 className="text-[#0d141b] dark:text-slate-50 text-xl font-bold leading-tight">Özel Üretim Outdoor Mont</h3>
-                    <p className="text-gray-600 dark:text-gray-300 text-sm font-normal leading-relaxed">Az adet özel üretim outdoor giyim, logo baskılı outdoor ürün, markaya özel outdoor mont üretimi. Kurumsal outdoor kıyafet üretimi.</p>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm font-normal leading-relaxed">Markanıza özel tasarım ve logo baskılı ürünlerimizle kurumsal kimliğinizi yansıtın. Az adet üretim seçeneğiyle ihtiyacınıza uygun çözümler sunuyoruz.</p>
                   </div>
                 </div>
                 <div className="group flex flex-1 gap-4 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl p-8 flex-col items-center text-center hover:shadow-2xl hover:scale-105 transition-all duration-300 hover:border-pink-300 dark:hover:border-pink-600">
@@ -385,7 +385,7 @@ export default function Home() {
                   </div>
                   <div className="flex flex-col gap-2">
                     <h3 className="text-[#0d141b] dark:text-slate-50 text-xl font-bold leading-tight">Toptan Outdoor Giyim Tedarikçisi</h3>
-                    <p className="text-gray-600 dark:text-gray-300 text-sm font-normal leading-relaxed">Butikler, spor mağazaları, işletmeler için outdoor giyim toptan satış. Kamp giyim, teknik giyim, termal içlik toptan üretim.</p>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm font-normal leading-relaxed">Butiklerden spor mağazalarına, işletmelerden kurumlara kadar geniş bir müşteri portföyüne hizmet veriyoruz. Kamp giyiminden termal içliğe kadar tüm ihtiyaçlarınızı karşılıyoruz.</p>
                   </div>
                 </div>
               </div>

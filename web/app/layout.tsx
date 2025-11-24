@@ -1,10 +1,7 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
 import './globals.css'
-import WhatsAppWrapper from '@/components/WhatsAppWrapper'
-import MaintenanceMode from '@/components/MaintenanceMode'
-import { AuthProvider } from '@/contexts/AuthContext'
-import { ThemeProvider } from '@/contexts/ThemeContext'
+import Providers from './providers'
 import { sanitizeJSONLD } from '@/utils/xss-sanitizer'
 
 export const metadata: Metadata = {
@@ -14,73 +11,6 @@ export const metadata: Metadata = {
     template: '%s | Huğlu Tekstil - Outdoor Giyim Toptan'
   },
   description: 'Outdoor giyim toptan satış, özel üretim outdoor mont, softshell mont, polar mont, teknik giyim üreticisi. Toptan outdoor kıyafet, kamp giyim, kurumsal outdoor mont üretimi. Logo baskılı outdoor ürün, az adet özel üretim. Türkiye\'nin güvenilir outdoor giyim tedarikçisi.',
-  keywords: [
-    'outdoor giyim toptan',
-    'toptan outdoor kıyafet',
-    'toptan outdoor giyim üretici',
-    'outdoor tekstil toptan',
-    'toptan kamp giyim',
-    'teknik giyim toptan',
-    'toptan polar mont',
-    'toptan softshell mont',
-    'toptan outdoor mont',
-    'özel üretim outdoor giyim',
-    'kamp kıyafetleri toptan',
-    'outdoor giyim tedarikçisi',
-    'outdoor giyim toptan satış',
-    'softshell mont toptan fiyat',
-    'polar ceket toptan üretim',
-    'termal içlik toptan satış',
-    'kamuflaj kıyafet toptan',
-    'askeri giyim toptan outdoor',
-    'özel tasarım outdoor mont',
-    'logo baskılı outdoor ürün üretimi',
-    'kurumsal outdoor kıyafet üretimi',
-    'markaya özel outdoor mont üretimi',
-    'firmalara özel softshell mont üretimi',
-    'işletmeler için outdoor giyim tedarikçisi',
-    'az adet özel üretim outdoor giyim',
-    'yüksek kalite outdoor giyim toptan',
-    'dayanıklı outdoor mont imalatı',
-    'outdoor giyim üretim firması Türkiye',
-    'teknik kumaş mont üretimi',
-    'butikler için outdoor ürün tedarikçisi',
-    'spor mağazaları için outdoor mont toptan',
-    'softshell mont toptan',
-    'polar mont toptan',
-    'su geçirmez mont toptan',
-    'outdoor mont üretimi',
-    'termal içlik üretici',
-    'polar ceket toptan',
-    'outdoor sweatshirt toptan',
-    'outdoor pantolon toptan',
-    'teknik pantolon üretimi',
-    'kargo pantolon toptan üretici',
-    'kurumsal outdoor mont üretimi',
-    'promosyon outdoor mont',
-    'logo baskılı mont üretimi',
-    'özel üretim tekstil outdoor',
-    'outdoor giyim özel üretim firması',
-    'softshell ceket üretici',
-    'polar kumaş mont üretimi',
-    'su geçirmez kumaş mont üretimi',
-    'teknik outdoor giyim üreticisi',
-    'outdoor tekstil imalatı',
-    'outdoor giyim imalatçısı',
-    'kamp montu toptan',
-    'trekking montu toptan',
-    'avcı montu toptan',
-    'taktik mont toptan',
-    'outdoor iş montu toptan',
-    'dayanıklı outdoor pantolon toptan',
-    'outdoor giyim toplu alım',
-    'iş yerleri için outdoor giyim',
-    'tekstil özel üretim mont',
-    'kurumsal tekstil outdoor üretim',
-    'butiklere özel outdoor üretim',
-    'outdoor giyim fason üretim',
-    'su geçirmez özel üretim outdoor giyim'
-  ],
   authors: [{ name: 'Huğlu Tekstil' }],
   creator: 'Huğlu Tekstil',
   publisher: 'Huğlu Tekstil',
@@ -212,13 +142,9 @@ export default function RootLayout({
             `,
           }}
         />
-        <ThemeProvider>
-          <AuthProvider>
-            <MaintenanceMode />
-            {children}
-            <WhatsAppWrapper />
-          </AuthProvider>
-        </ThemeProvider>
+        <Providers>
+          {children}
+        </Providers>
         <Script id="service-worker" strategy="lazyOnload">
           {`
             if ('serviceWorker' in navigator && 'requestIdleCallback' in window) {
