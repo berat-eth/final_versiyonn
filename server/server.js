@@ -3674,84 +3674,18 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
 // Admin - Snort IDS logs (reads from filesystem)
 app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
   try {
-    // Snort log dosyası yolu - environment variable veya varsayılan değer
-    const snortLogPath = process.env.SNORT_LOG_PATH;
     const limit = parseInt(req.query.limit) || 1000; // Varsayılan 1000 log
     
-    // Snort konfigürasyon dosyasından log yolunu okumayı dene
-    let snortLogDir = '/var/log/snort';
-    const snortConfigPaths = [
-      '/etc/snort/snort.conf',
-      '/usr/local/etc/snort/snort.conf',
-      '/opt/snort/etc/snort.conf'
-    ];
-
-    // Snort konfigürasyon dosyasından log dizinini bul
-    for (const configPath of snortConfigPaths) {
-      try {
-        if (fs.existsSync(configPath)) {
-          const configContent = fs.readFileSync(configPath, 'utf-8');
-          // output alert_fast: dizinini bul
-          const logDirMatch = configContent.match(/output\s+alert_fast:\s*(.+?)(?:\s|$)/i);
-          if (logDirMatch) {
-            const dir = logDirMatch[1].trim().replace(/['"]/g, '');
-            if (dir && dir !== 'stdout' && dir !== 'stderr') {
-              snortLogDir = path.dirname(dir) || dir;
-            }
-          }
-          // var LOG_DIR dizinini bul
-          const varLogDirMatch = configContent.match(/var\s+LOG_DIR\s+([^\s]+)/i);
-          if (varLogDirMatch) {
-            snortLogDir = varLogDirMatch[1].trim().replace(/['"]/g, '');
-          }
-          break;
-        }
-      } catch (err) {
-        // Config dosyası okunamazsa devam et
-        continue;
-      }
-    }
-
-    // Alternatif log dosyası yolları (sırayla kontrol edilir)
-    const possiblePaths = [];
+    // Snort log dosyası yolu - direkt bilinen yol
+    const snortLogPath = '/var/log/snort/alert_fast.txt';
     
-    // Önce environment variable'dan gelen yolu ekle (en yüksek öncelik)
-    if (snortLogPath) {
-      possiblePaths.push(snortLogPath);
-    }
-
-    // Bilinen standart yol (kullanıcı tarafından doğrulanmış)
-    possiblePaths.push('/var/log/snort/alert_fast.txt');
-
-    // Snort log dizinindeki olası dosyalar
-    const logDirFiles = [
-      'alert_fast.txt',
-      'alert',
-      'snort.alert.fast',
-      'alerts.log',
-      'alert.txt',
-      'fast.log',
-      'alert.ids'
-    ];
-
-    // Diğer standart yollar
-    possiblePaths.push(
+    // Alternatif log dosyası yolları (sırayla kontrol edilir)
+    const possiblePaths = [
+      snortLogPath,
       '/var/log/snort/alert',
       '/var/log/snort/snort.alert.fast',
-      '/var/log/snort/alerts.log',
-      '/var/log/snort/alert.txt',
-      '/var/log/snort/fast.log',
-      '/usr/local/var/log/snort/alert_fast.txt',
-      '/opt/snort/var/log/snort/alert_fast.txt'
-    );
-
-    // Konfigürasyondan bulunan dizindeki dosyalar
-    for (const logFile of logDirFiles) {
-      const fullPath = path.join(snortLogDir, logFile);
-      if (!possiblePaths.includes(fullPath)) {
-        possiblePaths.push(fullPath);
-      }
-    }
+      '/var/log/snort/alerts.log'
+    ];
 
     // Snort log dizinindeki tüm dosyaları listele ve kontrol et
     let logContent = '';
@@ -3789,50 +3723,14 @@ app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
       }
     }
 
-    // Eğer hala bulunamadıysa, log dizinindeki tüm dosyaları tara
-    if (!logContent && fs.existsSync(snortLogDir)) {
-      try {
-        const files = fs.readdirSync(snortLogDir);
-        // alert, fast, log içeren dosyaları önceliklendir
-        const alertFiles = files.filter(f => 
-          f.toLowerCase().includes('alert') || 
-          f.toLowerCase().includes('fast') || 
-          f.toLowerCase().includes('log')
-        ).sort((a, b) => {
-          // alert_fast.txt gibi dosyaları önceliklendir
-          if (a.includes('alert_fast')) return -1;
-          if (b.includes('alert_fast')) return 1;
-          return 0;
-        });
-
-        for (const file of alertFiles) {
-          const filePath = path.join(snortLogDir, file);
-          try {
-            const stats = fs.statSync(filePath);
-            if (stats.isFile() && stats.size > 0) {
-              logContent = fs.readFileSync(filePath, 'utf-8');
-              foundPath = filePath;
-              break;
-            }
-          } catch (err) {
-            continue;
-          }
-        }
-      } catch (err) {
-        // Dizin okunamazsa devam et
-      }
-    }
 
     if (!logContent && !foundPath) {
       console.warn('⚠️ Snort log dosyası bulunamadı.');
-      console.warn('   Kontrol edilen dizin:', snortLogDir);
-      console.warn('   Kontrol edilen yollar:', possiblePaths.slice(0, 10).join(', '), '...');
-      console.warn('   Lütfen SNORT_LOG_PATH environment variable ile log dosyası yolunu belirtin.');
+      console.warn('   Kontrol edilen yollar:', possiblePaths.join(', '));
       return res.json({ 
         success: true, 
         data: [],
-        message: 'Snort log dosyası bulunamadı. SNORT_LOG_PATH environment variable ile log dosyası yolunu belirtin.',
-        checkedPaths: possiblePaths.slice(0, 10)
+        message: 'Snort log dosyası bulunamadı. Kontrol edilen yollar: ' + possiblePaths.join(', ')
       });
     }
 
