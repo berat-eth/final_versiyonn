@@ -6652,7 +6652,7 @@ app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
     }
     params.push(parseInt(limit), parseInt(offset));
     const [rows] = await poolWrapper.execute(
-      `SELECT id, name, email, phone, source, status, ownerUserId, notes, createdAt, updatedAt
+      `SELECT id, name, email, phone, source, status, notes, createdAt, updatedAt
        FROM crm_leads
        WHERE ${where.join(' AND ')}
        ORDER BY createdAt DESC
@@ -6685,7 +6685,7 @@ app.put('/api/admin/leads/:id', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
     const id = parseInt(req.params.id);
-    const allowed = ['name', 'email', 'phone', 'source', 'status', 'ownerUserId', 'notes'];
+    const allowed = ['name', 'email', 'phone', 'source', 'status', 'notes'];
     const fields = [];
     const params = [];
     for (const k of allowed) if (k in (req.body || {})) { fields.push(`${k} = ?`); params.push(req.body[k]); }
