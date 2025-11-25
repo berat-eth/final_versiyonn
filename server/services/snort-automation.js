@@ -1,4 +1,4 @@
-const dbSecurity = require('./database-security');
+const dbSecurity = require('../security/database-security');
 
 class SnortAutomationService {
   constructor() {

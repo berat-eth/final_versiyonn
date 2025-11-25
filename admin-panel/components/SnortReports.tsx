@@ -44,12 +44,22 @@ export default function SnortReports() {
 
   const handleDownload = async (filename: string) => {
     try {
-      // PDF export endpoint'ini kullan
-      const response = await api.get(`/admin/snort/logs/export/pdf`, {
-        params: { filename },
-        responseType: 'blob'
+      // PDF export için fetch kullan (blob response için)
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api'
+      const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
+      
+      const response = await fetch(`${baseUrl}/admin/snort/logs/export/pdf?filename=${encodeURIComponent(filename)}`, {
+        headers: {
+          'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_KEY || '',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
       })
-      const blob = new Blob([response], { type: 'application/pdf' })
+      
+      if (!response.ok) {
+        throw new Error('PDF indirilemedi')
+      }
+      
+      const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -172,14 +182,24 @@ function CreateReportModal({ onClose, onSuccess }: { onClose: () => void; onSucc
       setError(null)
 
       if (format === 'pdf') {
-        const response = await api.post('/admin/snort/logs/export/pdf', {
-          startDate,
-          endDate
-        }, {
-          responseType: 'blob'
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api'
+        const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
+        
+        const response = await fetch(`${baseUrl}/admin/snort/logs/export/pdf`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Key': process.env.NEXT_PUBLIC_ADMIN_KEY || '',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ startDate, endDate })
         })
         
-        const blob = new Blob([response], { type: 'application/pdf' })
+        if (!response.ok) {
+          throw new Error('PDF oluşturulamadı')
+        }
+        
+        const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
@@ -189,11 +209,9 @@ function CreateReportModal({ onClose, onSuccess }: { onClose: () => void; onSucc
       } else {
         // CSV veya JSON için normal API çağrısı
         const res = await api.get('/admin/snort/logs', {
-          params: {
-            startDate,
-            endDate,
-            limit: 10000
-          }
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          limit: 10000
         })
         
         if (res?.success) {
