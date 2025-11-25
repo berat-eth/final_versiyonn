@@ -120,7 +120,7 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
 
       // 2. Adım: Bir kategori sayfasına git (daha gerçekçi görün)
       try {
-        await axiosInstance.get('https://www.trendyol.com/erkek-giyim-x-g2', {
+        const categoryResponse = await axiosInstance.get('https://www.trendyol.com/erkek-giyim-x-g2', {
           headers: {
             'Referer': 'https://www.trendyol.com/',
             'Sec-Fetch-Dest': 'document',
@@ -132,9 +132,10 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
         });
         
         // Cookie'leri güncelle
-        if (homeResponse && homeResponse.headers['set-cookie']) {
-          const newCookies = homeResponse.headers['set-cookie'].map(c => c.split(';')[0]);
-          cookieJar = [...new Set([...cookieJar.split('; '), ...newCookies])].filter(Boolean).join('; ');
+        if (categoryResponse.headers['set-cookie']) {
+          const newCookies = categoryResponse.headers['set-cookie'].map(c => c.split(';')[0]);
+          const existingCookies = cookieJar ? cookieJar.split('; ') : [];
+          cookieJar = [...new Set([...existingCookies, ...newCookies])].filter(Boolean).join('; ');
         }
         
         // Random delay
