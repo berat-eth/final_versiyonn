@@ -8670,6 +8670,30 @@ app.get('/api/admin/marketplace-orders', authenticateAdmin, async (req, res) => 
     const { provider, status, page = 1, limit = 50, startDate, endDate } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
+    // Veritabanında cargoSlipPrintedAt sütununun var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'marketplace_orders' 
+        AND COLUMN_NAME = 'cargoSlipPrintedAt'
+      `);
+      
+      if (columns.length === 0) {
+        // cargoSlipPrintedAt sütunu yoksa ekle
+        console.log('⚠️ cargoSlipPrintedAt sütunu bulunamadı, ekleniyor...');
+        await poolWrapper.execute(`
+          ALTER TABLE marketplace_orders 
+          ADD COLUMN cargoSlipPrintedAt TIMESTAMP NULL AFTER customerPhone
+        `);
+        console.log('✅ cargoSlipPrintedAt sütunu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ cargoSlipPrintedAt sütunu kontrolü/ekleme hatası:', alterError);
+      // Hata olsa bile devam et
+    }
+
     let whereClauses = ['tenantId = ?'];
     let params = [tenantId];
 
@@ -9121,6 +9145,30 @@ app.get('/api/admin/hepsiburada-orders', authenticateAdmin, async (req, res) => 
       }
     } catch (alterError) {
       console.error('❌ barcode sütunu kontrolü/ekleme hatası:', alterError);
+      // Hata olsa bile devam et
+    }
+
+    // Veritabanında cargoSlipPrintedAt sütununun var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'hepsiburada_orders' 
+        AND COLUMN_NAME = 'cargoSlipPrintedAt'
+      `);
+      
+      if (columns.length === 0) {
+        // cargoSlipPrintedAt sütunu yoksa ekle
+        console.log('⚠️ cargoSlipPrintedAt sütunu bulunamadı, ekleniyor...');
+        await poolWrapper.execute(`
+          ALTER TABLE hepsiburada_orders 
+          ADD COLUMN cargoSlipPrintedAt TIMESTAMP NULL AFTER isReturned
+        `);
+        console.log('✅ cargoSlipPrintedAt sütunu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ cargoSlipPrintedAt sütunu kontrolü/ekleme hatası:', alterError);
       // Hata olsa bile devam et
     }
 
@@ -11380,11 +11428,48 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       addUTF8Text('Bu Sipariş Trendyol.com\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
     }
 
-    // PDF'i response olarak gönder
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="kargo-fisi-${orderId}.pdf"`);
+    // PDF'i buffer olarak oluştur
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', async () => {
+      try {
+        const pdfBuffer = Buffer.concat(chunks);
+        
+        // Veritabanını güncelle - kargo fişi yazdırıldı bilgisini kaydet
+        const tenantId = req.tenant?.id || 1;
+        
+        if (provider === 'hepsiburada') {
+          // Hepsiburada siparişi için güncelle
+          await poolWrapper.execute(
+            'UPDATE hepsiburada_orders SET cargoSlipPrintedAt = NOW() WHERE id = ? AND tenantId = ?',
+            [orderId, tenantId]
+          );
+          console.log(`✅ Hepsiburada siparişi ${orderId} için kargo fişi yazdırıldı bilgisi kaydedildi`);
+        } else if (provider === 'trendyol' || provider === 'ticimax') {
+          // Marketplace siparişi için güncelle (Trendyol veya Ticimax)
+          await poolWrapper.execute(
+            'UPDATE marketplace_orders SET cargoSlipPrintedAt = NOW() WHERE id = ? AND tenantId = ?',
+            [orderId, tenantId]
+          );
+          console.log(`✅ Marketplace siparişi ${orderId} için kargo fişi yazdırıldı bilgisi kaydedildi`);
+        }
+        
+        // PDF'i response olarak gönder
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="kargo-fisi-${orderId}.pdf"`);
+        res.send(pdfBuffer);
+      } catch (dbError) {
+        console.error('❌ Veritabanı güncelleme hatası:', dbError);
+        // Veritabanı hatası olsa bile PDF'i gönder
+        if (!res.headersSent) {
+          const pdfBuffer = Buffer.concat(chunks);
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="kargo-fisi-${orderId}.pdf"`);
+          res.send(pdfBuffer);
+        }
+      }
+    });
     
-    doc.pipe(res);
     doc.end();
 
   } catch (error) {

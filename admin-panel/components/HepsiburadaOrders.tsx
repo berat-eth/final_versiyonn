@@ -29,6 +29,7 @@ interface MarketplaceOrder {
   cargoTrackingNumber?: string
   cargoProviderName?: string
   barcode?: string
+  cargoSlipPrintedAt?: string
   items?: Array<{
     id: number
     productName: string
@@ -63,7 +64,7 @@ export default function HepsiburadaOrders() {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
-  const [cargoSlipGenerated, setCargoSlipGenerated] = useState<Set<number>>(new Set())
+  // cargoSlipGenerated state'ini kaldırdık, artık backend'den gelecek
 
   useEffect(() => {
     // Debounce: Filtre değişikliklerinde 500ms bekle
@@ -289,8 +290,8 @@ export default function HepsiburadaOrders() {
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
         
-        // Kargo fişi başarıyla indirildi, state'e ekle
-        setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
+        // Kargo fişi başarıyla indirildi, siparişleri yeniden yükle (veritabanından cargoSlipPrintedAt bilgisi gelecek)
+        await loadOrders()
       } else {
         const errorText = await response.text()
         let errorMessage = 'Bilinmeyen hata'
@@ -869,7 +870,7 @@ export default function HepsiburadaOrders() {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
                         {getStatusLabel(order.status)}
                       </span>
-                      {cargoSlipGenerated.has(order.id) && (
+                      {order.cargoSlipPrintedAt && (
                         <span className="px-2 py-1 rounded-full text-xs font-medium border bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 flex items-center gap-1">
                           <Printer className="w-3 h-3" />
                           Kargo Gişi Yazıldı
