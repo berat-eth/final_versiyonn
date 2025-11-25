@@ -214,27 +214,37 @@ export default function Products() {
     return () => clearTimeout(delaySearch)
   }, [searchTerm])
 
-  // Fetch sizes (variations) for current page of products
+  // Fetch sizes (variations) and size stocks for current page of products
   useEffect(() => {
     const loadSizes = async () => {
       try {
         const base = products
           .filter(p => (selectedCategory === 'Tümü' || p.category === selectedCategory))
           .slice(0, 100)
-        const missing = base.filter(p => sizesMap[p.id] === undefined).slice(0, 50)
+        const missing = base.filter(p => sizesMap[p.id] === undefined || productSizes[p.id] === undefined).slice(0, 50)
         if (missing.length === 0) return
         const updates: Record<number, string[]> = {}
+        const stockUpdates: Record<number, Record<string, number>> = {}
+        
         await Promise.all(missing.map(async (p) => {
           try {
             setSizesLoading(prev => ({ ...prev, [p.id]: true }))
-            const res = await productService.getProductVariations(p.id)
-            const vars = (res?.data?.variations || []) as any[]
+            
+            // Hem variations hem de product details'i çek
+            const [varsRes, productRes] = await Promise.all([
+              productService.getProductVariations(p.id).catch(() => ({ success: false, data: { variations: [] } })),
+              productService.getProductById(p.id).catch(() => ({ success: false, data: null }))
+            ])
+            
+            const vars = (varsRes as any)?.data?.variations || []
             const sizeLike = (name: string = '') => {
               const n = (name || '').toLowerCase()
               return n.includes('beden') || n.includes('size') || n.includes('numara')
             }
             const values: string[] = []
             const seen = new Set<string>()
+            
+            // Variations'dan beden isimlerini çıkar
             vars.forEach((v: any) => {
               if (!v) return
               if (!v.name || !sizeLike(v.name)) return
@@ -247,21 +257,136 @@ export default function Products() {
               })
             })
             updates[p.id] = values
+            
+            // Product details'den beden stoklarını çıkar
+            const sizes: Record<string, number> = {}
+            if ((productRes as any)?.success && (productRes as any)?.data) {
+              const productData = (productRes as any).data
+              
+              // variationDetails JSON'ını parse et
+              if (productData.variationDetails) {
+                try {
+                  const variationDetails = typeof productData.variationDetails === 'string' 
+                    ? JSON.parse(productData.variationDetails) 
+                    : productData.variationDetails
+                  
+                  if (Array.isArray(variationDetails)) {
+                    variationDetails.forEach((variation: any) => {
+                      if (variation.attributes && variation.stok !== undefined) {
+                        const attributes = variation.attributes
+                        if (attributes && typeof attributes === 'object') {
+                          const sizeKeys = Object.keys(attributes).filter(key => 
+                            key.toLowerCase().includes('beden') || 
+                            key.toLowerCase().includes('size')
+                          )
+                          
+                          if (sizeKeys.length > 0) {
+                            const size = attributes[sizeKeys[0]]
+                            if (size && typeof size === 'string') {
+                              const sizeName = size.trim()
+                              if (sizeName) {
+                                // Aynı beden için stokları topla
+                                if (!sizes[sizeName]) {
+                                  sizes[sizeName] = 0
+                                }
+                                sizes[sizeName] += parseInt(variation.stok) || 0
+                              }
+                            }
+                          }
+                        }
+                      }
+                    })
+                  }
+                } catch (parseError) {
+                  console.error(`Ürün ${p.id} variationDetails parse hatası:`, parseError)
+                }
+              }
+              
+              // API'den gelen sizeStocks'u da kontrol et
+              if ((varsRes as any)?.data?.sizeStocks) {
+                Object.entries((varsRes as any).data.sizeStocks).forEach(([size, stock]: [string, any]) => {
+                  if (size && stock !== undefined) {
+                    const sizeName = String(size).trim()
+                    if (sizeName) {
+                      if (!sizes[sizeName]) {
+                        sizes[sizeName] = 0
+                      }
+                      sizes[sizeName] += parseInt(String(stock)) || 0
+                    }
+                  }
+                })
+              }
+            }
+            
+            if (Object.keys(sizes).length > 0) {
+              stockUpdates[p.id] = sizes
+            }
           } catch {
             updates[p.id] = []
           } finally {
             setSizesLoading(prev => ({ ...prev, [p.id]: false }))
           }
         }))
-        if (Object.keys(updates).length > 0) setSizesMap(prev => ({ ...prev, ...updates }))
+        
+        if (Object.keys(updates).length > 0) {
+          setSizesMap(prev => ({ ...prev, ...updates }))
+        }
+        if (Object.keys(stockUpdates).length > 0) {
+          setProductSizes(prev => ({ ...prev, ...stockUpdates }))
+        }
       } catch {}
     }
     loadSizes()
   }, [products, selectedCategory])
 
+  // Ürünün toplam stokunu hesapla (beden bazlı veya base stock)
+  const getTotalStock = (productId: number, baseStock: number = 0): number => {
+    const sizeStocks = productSizes[productId] || {}
+    const sizeStockValues = Object.values(sizeStocks)
+    
+    if (sizeStockValues.length > 0) {
+      return sizeStockValues.reduce((sum, stock) => sum + (Number(stock) || 0), 0)
+    }
+    
+    return baseStock
+  }
+
+  // Beden bazlı stok durumunu hesapla
+  const getStockStatus = (productId: number, baseStock: number = 0): 'active' | 'low-stock' | 'out-of-stock' => {
+    // Önce beden stoklarını kontrol et
+    const sizeStocks = productSizes[productId] || {}
+    const sizeStockValues = Object.values(sizeStocks)
+    
+    // Eğer beden stokları varsa, onları kullan
+    if (sizeStockValues.length > 0) {
+      const totalSizeStock = sizeStockValues.reduce((sum, stock) => sum + (Number(stock) || 0), 0)
+      const hasAnyStock = sizeStockValues.some(stock => (Number(stock) || 0) > 0)
+      
+      // Tüm bedenler 0 ise stokta yok
+      if (!hasAnyStock || totalSizeStock === 0) {
+        return 'out-of-stock'
+      }
+      
+      // Tüm bedenlerin toplamı 10 ve daha azsa düşük stok
+      if (totalSizeStock <= 10) {
+        return 'low-stock'
+      }
+      
+      // En az bir bedende stok varsa aktif
+      return 'active'
+    }
+    
+    // Beden stokları yoksa, base stock'a bak
+    if (baseStock > 10) return 'active'
+    if (baseStock > 0) return 'low-stock'
+    return 'out-of-stock'
+  }
+
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'Tümü' || product.category === selectedCategory
-    const hasStock = (product.stock ?? 0) > 0
+    // Beden bazlı stok kontrolü - en az bir bedende stok varsa veya base stock varsa göster
+    const totalStock = getTotalStock(product.id, product.stock ?? 0)
+    const hasStock = totalStock > 0
     return matchesCategory && hasStock
   })
 
@@ -313,12 +438,6 @@ export default function Products() {
     if (form.isActive !== undefined) payload.isActive = !!form.isActive
     if (form.excludeFromXml !== undefined) payload.excludeFromXml = !!form.excludeFromXml
     return payload
-  }
-
-  const getStockStatus = (stock: number = 0): 'active' | 'low-stock' | 'out-of-stock' => {
-    if (stock > 20) return 'active'
-    if (stock > 0) return 'low-stock'
-    return 'out-of-stock'
   }
 
   const loadProductSizeStocks = async (productId: number) => {
@@ -613,8 +732,8 @@ export default function Products() {
               <p className="text-slate-500 dark:text-slate-400 text-sm">Toplam Ürün</p>
               <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{totalProducts}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Package className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+              <Package className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
         </div>
@@ -624,11 +743,14 @@ export default function Products() {
             <div>
               <p className="text-slate-500 dark:text-slate-400 text-sm">Aktif Ürün</p>
               <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                {products.filter(p => getStockStatus(p.stock) === 'active').length}
+                {products.filter(p => {
+                  const status = getStockStatus(p.id, p.stock ?? 0)
+                  return status === 'active'
+                }).length}
               </p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </div>
@@ -638,11 +760,14 @@ export default function Products() {
             <div>
               <p className="text-slate-500 dark:text-slate-400 text-sm">Düşük Stok</p>
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
-                {products.filter(p => getStockStatus(p.stock) === 'low-stock').length}
+                {products.filter(p => {
+                  const status = getStockStatus(p.id, p.stock ?? 0)
+                  return status === 'low-stock'
+                }).length}
               </p>
             </div>
-            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-              <Package className="w-6 h-6 text-orange-600" />
+            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+              <Package className="w-6 h-6 text-orange-600 dark:text-orange-400" />
             </div>
           </div>
         </div>
@@ -652,11 +777,14 @@ export default function Products() {
             <div>
               <p className="text-slate-500 dark:text-slate-400 text-sm">Stok Yok</p>
               <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-                {products.filter(p => getStockStatus(p.stock) === 'out-of-stock').length}
+                {products.filter(p => {
+                  const status = getStockStatus(p.id, p.stock ?? 0)
+                  return status === 'out-of-stock'
+                }).length}
               </p>
             </div>
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <Package className="w-6 h-6 text-red-600" />
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+              <Package className="w-6 h-6 text-red-600 dark:text-red-400" />
             </div>
           </div>
         </div>
@@ -784,7 +912,7 @@ export default function Products() {
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Kapak Görseli</label>
                     <input placeholder="Görsel URL" className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded w-full dark:bg-slate-800 dark:text-slate-300" value={form.image} onChange={(e)=>setForm({...form,image:e.target.value})} />
                     {form.image && (
-                      <div className="border border-slate-300 dark:border-slate-700 rounded-lg p-2">
+                      <div className="border border-slate-300 dark:border-slate-700 rounded-lg p-2 bg-white dark:bg-slate-800">
                         <img src={form.image} alt="preview" className="w-full h-40 object-cover rounded" />
                       </div>
                     )}
@@ -797,9 +925,9 @@ export default function Products() {
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         {(form.images||[]).map((url:string,idx:number)=>(
-                          <div key={idx} className="relative border border-slate-300 dark:border-slate-700 rounded overflow-hidden">
+                          <div key={idx} className="relative border border-slate-300 dark:border-slate-700 rounded overflow-hidden bg-white dark:bg-slate-800">
                             <img src={url} className="w-full h-24 object-cover" />
-                            <button onClick={()=>setForm({...form, images: form.images.filter((_:any,i:number)=>i!==idx)})} className="absolute top-1 right-1 bg-white/80 dark:bg-slate-800/80 rounded px-1 text-xs text-slate-700 dark:text-slate-300">Sil</button>
+                            <button onClick={()=>setForm({...form, images: form.images.filter((_:any,i:number)=>i!==idx)})} className="absolute top-1 right-1 bg-white/90 dark:bg-slate-700/90 rounded px-1 text-xs text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600">Sil</button>
                           </div>
                         ))}
                       </div>
@@ -952,7 +1080,7 @@ export default function Products() {
                           selectAllProducts()
                         }
                       }}
-                      className="rounded border-slate-300 dark:border-slate-600"
+                      className="rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-400"
                     />
                     <span>Seç</span>
                   </div>
@@ -968,88 +1096,89 @@ export default function Products() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">İşlem</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-dark-card">
               {filteredProducts.map((product, index) => {
-                const status = getStockStatus(product.stock)
+                const status = getStockStatus(product.id, product.stock ?? 0)
+                const totalStock = getTotalStock(product.id, product.stock ?? 0)
                 return (
                   <motion.tr
                     key={product.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="hover:bg-slate-50 transition-colors"
+                    className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                   >
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
                         checked={selectedProducts.includes(product.id)}
                         onChange={() => toggleProductSelection(product.id)}
-                        className="rounded border-slate-300"
+                        className="rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-400"
                       />
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl flex items-center justify-center overflow-hidden">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-xl flex items-center justify-center overflow-hidden">
                           {product.image ? (
                             <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
-                            <Package className="w-6 h-6 text-blue-600" />
+                            <Package className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                           )}
                         </div>
                         <div>
-                          <p className="font-semibold text-slate-800">{product.name}</p>
-                          <p className="text-xs text-slate-500">ID: #{product.id}</p>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">{product.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">ID: #{product.id}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium">
+                      <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium">
                         {product.category}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="font-bold text-slate-800">₺{product.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100">₺{product.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
                         <span className={`font-semibold ${
-                          status === 'active' ? 'text-green-600' :
-                          status === 'low-stock' ? 'text-orange-600' : 'text-red-600'
+                          status === 'active' ? 'text-green-600 dark:text-green-400' :
+                          status === 'low-stock' ? 'text-orange-600 dark:text-orange-400' : 'text-red-600 dark:text-red-400'
                         }`}>
-                          {product.stock || 0}
+                          {totalStock}
                         </span>
-                        <span className="text-sm text-slate-500">adet</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">adet</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       {sizesLoading[product.id] && (
-                        <span className="text-xs text-slate-500">Yükleniyor...</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Yükleniyor...</span>
                       )}
                       {!sizesLoading[product.id] && (
                         <div className="flex flex-wrap gap-1 max-w-xs">
                           {(sizesMap[product.id] || []).slice(0, 6).map((s, i) => (
-                            <span key={`${product.id}-size-${i}`} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs border border-slate-200">
+                            <span key={`${product.id}-size-${i}`} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-xs border border-slate-200 dark:border-slate-600">
                               {s}
                             </span>
                           ))}
                           {Array.isArray(sizesMap[product.id]) && sizesMap[product.id].length > 6 && (
-                            <span className="px-2 py-0.5 bg-slate-50 text-slate-500 rounded text-xs border border-slate-200">+{sizesMap[product.id].length - 6}</span>
+                            <span className="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded text-xs border border-slate-200 dark:border-slate-600">+{sizesMap[product.id].length - 6}</span>
                           )}
                           {Array.isArray(sizesMap[product.id]) && sizesMap[product.id].length === 0 && (
-                            <span className="text-xs text-slate-400">-</span>
+                            <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                           )}
                         </div>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-slate-700 font-medium">{product.brand}</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium">{product.brand}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium border ${
-                          status === 'active' ? 'bg-green-100 text-green-700 border-green-200' :
-                          status === 'low-stock' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                          'bg-red-100 text-red-700 border-red-200'
+                          status === 'active' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' :
+                          status === 'low-stock' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' :
+                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
                         }`}>
                           {status === 'active' ? 'Aktif' :
                            status === 'low-stock' ? 'Düşük Stok' : 'Stok Yok'}
@@ -1059,8 +1188,8 @@ export default function Products() {
                           disabled={statusToggleLoading[product.id]}
                           className={`p-1 rounded transition-colors ${
                             (product as any).isActive 
-                              ? 'text-green-600 hover:bg-green-50' 
-                              : 'text-orange-600 hover:bg-orange-50'
+                              ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' 
+                              : 'text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30'
                           }`}
                           title={(product as any).isActive ? 'Pasif et' : 'Aktif et'}
                         >
@@ -1075,7 +1204,7 @@ export default function Products() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-slate-500 font-mono">{product.sku || '-'}</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400 font-mono">{product.sku || '-'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -1089,28 +1218,28 @@ export default function Products() {
                           } catch {
                             setShowViewModal({ open: true, product, details: product, variations: sizesMap[product.id] || [] })
                           }
-                        }} className="p-2 hover:bg-slate-50 rounded-lg" title="Görüntüle">
-                          <Eye className="w-4 h-4 text-slate-600" />
+                        }} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg" title="Görüntüle">
+                          <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         </button>
-                        <button onClick={() => openEdit(product)} className="p-2 hover:bg-blue-50 rounded-lg" title="Güncelle">
-                          <Edit className="w-4 h-4 text-blue-600" />
+                        <button onClick={() => openEdit(product)} className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg" title="Güncelle">
+                          <Edit className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                         </button>
                         <button 
                           onClick={() => transferToTrendyol(product.id)}
                           disabled={transferringProducts[product.id] || !trendyolIntegration}
-                          className="p-2 hover:bg-orange-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed relative" 
+                          className="p-2 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed relative" 
                           title={trendyolIntegration ? "Trendyol'a Aktar" : "Trendyol entegrasyonu gerekli"}
                         >
                           {transferringProducts[product.id] ? (
-                            <RefreshCw className="w-4 h-4 text-orange-600 animate-spin" />
+                            <RefreshCw className="w-4 h-4 text-orange-600 dark:text-orange-400 animate-spin" />
                           ) : (
-                            <Upload className="w-4 h-4 text-orange-600" />
+                            <Upload className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                           )}
                           {transferMessages[product.id] && (
                             <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs rounded whitespace-nowrap z-10 ${
                               transferMessages[product.id].type === 'success' 
-                                ? 'bg-green-100 text-green-700 border border-green-300' 
-                                : 'bg-red-100 text-red-700 border border-red-300'
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800' 
+                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800'
                             }`}>
                               {transferMessages[product.id].message}
                             </div>
@@ -1118,10 +1247,10 @@ export default function Products() {
                         </button>
                         <button 
                           onClick={() => deleteProduct(product.id, product.name)} 
-                          className="p-2 hover:bg-red-50 rounded-lg" 
+                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" 
                           title="Sil"
                         >
-                          <Trash2 className="w-4 h-4 text-red-600" />
+                          <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                         </button>
                       </div>
                     </td>
@@ -1132,25 +1261,25 @@ export default function Products() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between mt-6 pt-6 border-t border-slate-200">
-          <p className="text-sm text-slate-600">
+        <div className="flex items-center justify-between mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Toplam {totalProducts} ürün içinden {filteredProducts.length} gösteriliyor
           </p>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed dark:text-slate-300"
             >
               Önceki
             </button>
-            <span className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
+            <span className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg text-sm">
               {currentPage}
             </span>
             <button
               onClick={() => setCurrentPage(p => p + 1)}
               disabled={!hasMore}
-              className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed dark:text-slate-300"
             >
               Sonraki
             </button>
@@ -1161,37 +1290,37 @@ export default function Products() {
       <AnimatePresence>
         {showViewModal.open && showViewModal.product && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowViewModal({ open: false, product: null, details: null, variations: [] })}>
-            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden" onClick={(e)=>e.stopPropagation()}>
-              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-xl font-bold">Ürün Detayları #{showViewModal.product.id}</h3>
-                <button onClick={()=>setShowViewModal({ open:false, product:null, details:null, variations:[] })} className="px-2 py-1 rounded hover:bg-slate-100">Kapat</button>
+            <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Ürün Detayları #{showViewModal.product.id}</h3>
+                <button onClick={()=>setShowViewModal({ open:false, product:null, details:null, variations:[] })} className="px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400">Kapat</button>
               </div>
               <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5 overflow-auto">
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-700 mb-2">Temel Bilgiler</h4>
-                  <div className="space-y-1 text-sm text-slate-700">
-                    <div><span className="text-slate-500">Ad:</span> {showViewModal.product.name}</div>
-                    <div><span className="text-slate-500">Marka:</span> {showViewModal.product.brand}</div>
-                    <div><span className="text-slate-500">Kategori:</span> {showViewModal.product.category}</div>
-                    <div><span className="text-slate-500">Fiyat:</span> ₺{showViewModal.product.price?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
-                    <div><span className="text-slate-500">Stok:</span> {showViewModal.product.stock ?? 0}</div>
-                    <div><span className="text-slate-500">SKU:</span> {showViewModal.product.sku || '-'}</div>
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Temel Bilgiler</h4>
+                  <div className="space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                    <div><span className="text-slate-500 dark:text-slate-400">Ad:</span> {showViewModal.product.name}</div>
+                    <div><span className="text-slate-500 dark:text-slate-400">Marka:</span> {showViewModal.product.brand}</div>
+                    <div><span className="text-slate-500 dark:text-slate-400">Kategori:</span> {showViewModal.product.category}</div>
+                    <div><span className="text-slate-500 dark:text-slate-400">Fiyat:</span> ₺{showViewModal.product.price?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
+                    <div><span className="text-slate-500 dark:text-slate-400">Stok:</span> {showViewModal.product.stock ?? 0}</div>
+                    <div><span className="text-slate-500 dark:text-slate-400">SKU:</span> {showViewModal.product.sku || '-'}</div>
                   </div>
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-700 mb-2">Bedenler</h4>
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Bedenler</h4>
                   <div className="flex flex-wrap gap-1">
                     {(sizesMap[showViewModal.product.id] || []).map((s, i) => (
-                      <span key={`view-size-${i}`} className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs border border-slate-200">{s}</span>
+                      <span key={`view-size-${i}`} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-xs border border-slate-200 dark:border-slate-600">{s}</span>
                     ))}
                     {Array.isArray(sizesMap[showViewModal.product.id]) && sizesMap[showViewModal.product.id].length === 0 && (
-                      <span className="text-xs text-slate-400">-</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                     )}
                   </div>
                 </div>
                 <div className="md:col-span-2">
-                  <h4 className="text-sm font-semibold text-slate-700 mb-2">Tüm Veriler</h4>
-                  <pre className="text-xs bg-slate-50 border border-slate-200 rounded p-3 overflow-auto max-h-64">{JSON.stringify(showViewModal.details || showViewModal.product, null, 2)}</pre>
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Tüm Veriler</h4>
+                  <pre className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-3 overflow-auto max-h-64 text-slate-800 dark:text-slate-200">{JSON.stringify(showViewModal.details || showViewModal.product, null, 2)}</pre>
                 </div>
               </div>
             </motion.div>

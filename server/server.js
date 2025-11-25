@@ -14748,9 +14748,40 @@ app.get('/api/admin/products', authenticateAdmin, async (req, res) => {
     const tenantId = req.tenant?.id || 1;
     const { limit = 100 } = req.query;
     
-    // Optimize: Admin için gerekli column'lar
+    // Veritabanında isActive ve excludeFromXml kolonlarının var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME IN ('isActive', 'excludeFromXml')
+      `);
+      
+      const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+      
+      if (!existingColumns.includes('isActive')) {
+        await poolWrapper.execute(`
+          ALTER TABLE products 
+          ADD COLUMN isActive BOOLEAN DEFAULT true AFTER hasVariations
+        `);
+        console.log('✅ isActive kolonu eklendi');
+      }
+      
+      if (!existingColumns.includes('excludeFromXml')) {
+        await poolWrapper.execute(`
+          ALTER TABLE products 
+          ADD COLUMN excludeFromXml BOOLEAN DEFAULT false AFTER isActive
+        `);
+        console.log('✅ excludeFromXml kolonu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ Kolon kontrolü/ekleme hatası:', alterError);
+    }
+    
+    // Optimize: Admin için gerekli column'lar (isActive ve excludeFromXml dahil)
     const [rows] = await poolWrapper.execute(
-      `SELECT id, name, price, image, images, brand, category, description, stock, sku, lastUpdated, createdAt, tenantId 
+      `SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, excludeFromXml, lastUpdated, createdAt, tenantId 
        FROM products 
        WHERE tenantId = ?
        ORDER BY lastUpdated DESC
@@ -14774,9 +14805,40 @@ app.get('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
     const productId = req.params.id;
     console.log('📦 Admin requesting product detail for ID:', productId);
 
-    // Optimize: Admin detail için gerekli column'lar
+    // Veritabanında isActive ve excludeFromXml kolonlarının var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME IN ('isActive', 'excludeFromXml')
+      `);
+      
+      const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+      
+      if (!existingColumns.includes('isActive')) {
+        await poolWrapper.execute(`
+          ALTER TABLE products 
+          ADD COLUMN isActive BOOLEAN DEFAULT true AFTER hasVariations
+        `);
+        console.log('✅ isActive kolonu eklendi');
+      }
+      
+      if (!existingColumns.includes('excludeFromXml')) {
+        await poolWrapper.execute(`
+          ALTER TABLE products 
+          ADD COLUMN excludeFromXml BOOLEAN DEFAULT false AFTER isActive
+        `);
+        console.log('✅ excludeFromXml kolonu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ Kolon kontrolü/ekleme hatası:', alterError);
+    }
+    
+    // Optimize: Admin detail için gerekli column'lar (isActive ve excludeFromXml dahil)
     const [rows] = await poolWrapper.execute(
-      'SELECT id, name, price, image, images, brand, category, description, stock, sku, lastUpdated, createdAt, tenantId FROM products WHERE id = ?',
+      'SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, excludeFromXml, lastUpdated, createdAt, tenantId FROM products WHERE id = ?',
       [productId]
     );
 
@@ -14838,26 +14900,164 @@ app.post('/api/admin/products', authenticateAdmin, async (req, res) => {
 app.put('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    const allowed = ['name', 'description', 'price', 'taxRate', 'priceIncludesTax', 'category', 'image', 'images', 'stock', 'brand', 'hasVariations'];
+    const tenantId = req.tenant?.id || 1;
+    
+    // Veritabanında isActive ve excludeFromXml kolonlarının var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME IN ('isActive', 'excludeFromXml')
+      `);
+      
+      const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+      
+      if (!existingColumns.includes('isActive')) {
+        await poolWrapper.execute(`
+          ALTER TABLE products 
+          ADD COLUMN isActive BOOLEAN DEFAULT true AFTER hasVariations
+        `);
+        console.log('✅ isActive kolonu eklendi');
+      }
+      
+      if (!existingColumns.includes('excludeFromXml')) {
+        await poolWrapper.execute(`
+          ALTER TABLE products 
+          ADD COLUMN excludeFromXml BOOLEAN DEFAULT false AFTER isActive
+        `);
+        console.log('✅ excludeFromXml kolonu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ Kolon kontrolü/ekleme hatası:', alterError);
+    }
+    
+    const allowed = ['name', 'description', 'price', 'taxRate', 'priceIncludesTax', 'category', 'image', 'images', 'stock', 'brand', 'hasVariations', 'isActive', 'excludeFromXml'];
     const fields = [];
     const params = [];
     for (const key of allowed) {
       if (req.body && Object.prototype.hasOwnProperty.call(req.body, key)) {
         fields.push(`${key} = ?`);
-        params.push(req.body[key]);
+        // Boolean değerleri doğru formatta gönder
+        if (key === 'isActive' || key === 'excludeFromXml' || key === 'hasVariations') {
+          params.push(!!req.body[key]);
+        } else {
+          params.push(req.body[key]);
+        }
       }
     }
     if (fields.length === 0) {
       return res.status(400).json({ success: false, message: 'Güncellenecek alan yok' });
     }
     params.push(productId);
-    await poolWrapper.execute(`UPDATE products SET ${fields.join(', ')}, lastUpdated = NOW() WHERE id = ?`, params);
+    params.push(tenantId);
+    await poolWrapper.execute(`UPDATE products SET ${fields.join(', ')}, lastUpdated = NOW() WHERE id = ? AND tenantId = ?`, params);
     // Optimize: Sadece gerekli column'lar
-    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, lastUpdated, createdAt, tenantId FROM products WHERE id = ?', [productId]);
+    const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, excludeFromXml, lastUpdated, createdAt, tenantId FROM products WHERE id = ? AND tenantId = ?', [productId, tenantId]);
     res.json({ success: true, data: rows[0], message: 'Ürün güncellendi' });
   } catch (error) {
     console.error('❌ Error updating product:', error);
     res.status(500).json({ success: false, message: 'Error updating product' });
+  }
+});
+
+// Admin - Toggle product status (active/inactive)
+app.patch('/api/admin/products/:id/status', authenticateAdmin, async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const tenantId = req.tenant?.id || 1;
+    const { isActive } = req.body || {};
+    
+    // Veritabanında isActive kolonunun var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME = 'isActive'
+      `);
+      
+      if (columns.length === 0) {
+        await poolWrapper.execute(`
+          ALTER TABLE products 
+          ADD COLUMN isActive BOOLEAN DEFAULT true AFTER hasVariations
+        `);
+        console.log('✅ isActive kolonu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ isActive kolonu kontrolü/ekleme hatası:', alterError);
+    }
+    
+    const activeVal = !!isActive;
+    await poolWrapper.execute(
+      'UPDATE products SET isActive = ?, lastUpdated = NOW() WHERE id = ? AND tenantId = ?',
+      [activeVal, productId, tenantId]
+    );
+    
+    const [rows] = await poolWrapper.execute(
+      'SELECT id, name, isActive FROM products WHERE id = ? AND tenantId = ?',
+      [productId, tenantId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Ürün bulunamadı' });
+    }
+    
+    res.json({ success: true, data: { isActive: activeVal }, message: `Ürün ${activeVal ? 'aktif' : 'pasif'} edildi` });
+  } catch (error) {
+    console.error('❌ Error toggling product status:', error);
+    res.status(500).json({ success: false, message: 'Error toggling product status' });
+  }
+});
+
+// Admin - Bulk toggle product status
+app.patch('/api/admin/products/bulk-status', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1;
+    const { productIds, isActive } = req.body || {};
+    
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Ürün ID\'leri gereklidir' });
+    }
+    
+    // Veritabanında isActive kolonunun var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME = 'isActive'
+      `);
+      
+      if (columns.length === 0) {
+        await poolWrapper.execute(`
+          ALTER TABLE products 
+          ADD COLUMN isActive BOOLEAN DEFAULT true AFTER hasVariations
+        `);
+        console.log('✅ isActive kolonu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ isActive kolonu kontrolü/ekleme hatası:', alterError);
+    }
+    
+    const activeVal = !!isActive;
+    const placeholders = productIds.map(() => '?').join(',');
+    const [result] = await poolWrapper.execute(
+      `UPDATE products SET isActive = ?, lastUpdated = NOW() WHERE id IN (${placeholders}) AND tenantId = ?`,
+      [activeVal, ...productIds, tenantId]
+    );
+    
+    res.json({ 
+      success: true, 
+      data: { updatedCount: result.affectedRows }, 
+      message: `${result.affectedRows} ürün ${activeVal ? 'aktif' : 'pasif'} edildi` 
+    });
+  } catch (error) {
+    console.error('❌ Error bulk toggling product status:', error);
+    res.status(500).json({ success: false, message: 'Error bulk toggling product status' });
   }
 });
 

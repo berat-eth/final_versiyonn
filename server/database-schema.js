@@ -263,6 +263,8 @@ async function createDatabaseSchema(pool) {
       externalId VARCHAR(255),
       source VARCHAR(100),
       hasVariations BOOLEAN DEFAULT false,
+      isActive BOOLEAN DEFAULT true,
+      excludeFromXml BOOLEAN DEFAULT false,
       sku VARCHAR(100),
       lastUpdated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE,

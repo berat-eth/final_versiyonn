@@ -65,6 +65,7 @@ import TrendyolAuth from '@/components/TrendyolAuth'
 import TrendyolProducts from '@/components/TrendyolProducts'
 import HepsiburadaOrders from '@/components/HepsiburadaOrders'
 import TicimaxOrders from '@/components/TicimaxOrders'
+import ProductResearch from '@/components/ProductResearch'
 
 
 export default function DashboardPage() {
@@ -92,12 +93,11 @@ export default function DashboardPage() {
     try {
       const logged = sessionStorage.getItem('adminLoggedIn') === '1'
       const token = sessionStorage.getItem('authToken')
-      const twoFAValidated = sessionStorage.getItem('twoFAValidated') === '1'
-      const ok = logged && !!token && twoFAValidated
+      // 2FA devre dışı - sadece login kontrolü yap
+      const ok = logged && !!token
       if (!ok) {
         // login sayfasına dön
-        const target = logged ? '/2fa' : '/login'
-        window.location.href = target
+        window.location.href = '/login'
         return
       }
     } catch {}
@@ -283,6 +283,7 @@ export default function DashboardPage() {
           {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
           {activeTab === 'recommendations' && <Recommendations />}
           {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
+          {activeTab === 'product-research' && <ProductResearch />}
           {activeTab === 'seo' && <SEO />}
           {activeTab === 'integrations' && <Integrations />}
           {activeTab === 'trendyol-auth' && <TrendyolAuth />}

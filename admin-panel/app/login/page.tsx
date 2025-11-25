@@ -39,8 +39,12 @@ export default function LoginPage() {
       })
 
       if ((res as any)?.success) {
-        try { sessionStorage.setItem('adminLoggedIn', '1') } catch {}
-        router.push('/2fa')
+        try { 
+          sessionStorage.setItem('adminLoggedIn', '1')
+          // 2FA devre dışı - direkt dashboard'a yönlendir
+          sessionStorage.setItem('twoFAValidated', '1')
+        } catch {}
+        router.push('/dashboard')
       } else {
         setErrorMsg((res as any)?.message || 'Giriş başarısız')
       }
