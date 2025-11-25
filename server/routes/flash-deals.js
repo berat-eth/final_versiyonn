@@ -34,18 +34,25 @@ router.get('/all', authenticateAdmin, async (req, res) => {
       ORDER BY fd.created_at DESC
     `);
 
-    // Her flash deal için ürün ve kategori bilgilerini getir
+    // ✅ OPTIMIZASYON: N+1 query fix - JOIN kullanarak tek sorguda tüm veriyi al
     const tenantId = req.tenant?.id;
-    const dealsWithTargets = await Promise.all(rows.map(async (deal) => {
-      // Seçili ürünler - tenantId kontrolü ekle (opsiyonel, admin için)
+    const dealIds = rows.map(d => d.id);
+    
+    let allDealProducts = [];
+    let allDealCategories = [];
+    
+    if (dealIds.length > 0) {
+      const placeholders = dealIds.map(() => '?').join(',');
+      
+      // Tüm deal'lerin ürünlerini tek sorguda al
       let productsQuery = `
-        SELECT p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
+        SELECT fdp.flash_deal_id, p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
                p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_products fdp
         JOIN products p ON fdp.product_id = p.id
-        WHERE fdp.flash_deal_id = ?
+        WHERE fdp.flash_deal_id IN (${placeholders})
       `;
-      const productsParams = [deal.id];
+      const productsParams = [...dealIds];
       
       if (tenantId) {
         productsQuery += ' AND p.tenantId = ?';
@@ -53,20 +60,49 @@ router.get('/all', authenticateAdmin, async (req, res) => {
       }
       
       const [products] = await poolWrapper.execute(productsQuery, productsParams);
+      allDealProducts = products || [];
 
+      // Tüm deal'lerin kategorilerini tek sorguda al
       const [categories] = await poolWrapper.execute(`
-        SELECT c.id, c.name
+        SELECT fdc.flash_deal_id, c.id, c.name
         FROM flash_deal_categories fdc
         JOIN categories c ON fdc.category_id = c.id
-        WHERE fdc.flash_deal_id = ?
-      `, [deal.id]);
+        WHERE fdc.flash_deal_id IN (${placeholders})
+      `, dealIds);
+      allDealCategories = categories || [];
+    }
+    
+    // Products ve categories'i dealId'ye göre grupla
+    const productsByDealId = {};
+    allDealProducts.forEach(p => {
+      if (!productsByDealId[p.flash_deal_id]) {
+        productsByDealId[p.flash_deal_id] = [];
+      }
+      // flash_deal_id'yi kaldır
+      const { flash_deal_id, ...product } = p;
+      productsByDealId[p.flash_deal_id].push(product);
+    });
+    
+    const categoriesByDealId = {};
+    allDealCategories.forEach(c => {
+      if (!categoriesByDealId[c.flash_deal_id]) {
+        categoriesByDealId[c.flash_deal_id] = [];
+      }
+      // flash_deal_id'yi kaldır
+      const { flash_deal_id, ...category } = c;
+      categoriesByDealId[c.flash_deal_id].push(category);
+    });
+
+    const dealsWithTargets = rows.map((deal) => {
+      const products = productsByDealId[deal.id] || [];
+      const categories = categoriesByDealId[deal.id] || [];
 
       return {
         ...deal,
-        products: products || [],
-        categories: categories || []
+        products: products,
+        categories: categories
       };
-    }));
+    });
 
     console.log('⚡ Flash deals found:', dealsWithTargets.length);
     res.json({ success: true, data: dealsWithTargets });
@@ -204,20 +240,25 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Her flash deal için ürünleri getir (kategori bazlı ürünler dahil)
+    // ✅ OPTIMIZASYON: N+1 query fix - Tüm deal'lerin ürünlerini tek sorguda al
     const tenantId = req.tenant?.id;
-    const dealsWithProducts = await Promise.all(rows.map(async (deal) => {
-      console.log(`📦 Processing deal ID: ${deal.id}, name: ${deal.name}`);
+    const dealIds = rows.map(d => d.id);
+    
+    let allDealProducts = [];
+    let allCategoryProducts = [];
+    
+    if (dealIds.length > 0) {
+      const placeholders = dealIds.map(() => '?').join(',');
       
-      // Seçili ürünler - tenantId kontrolü ekle
+      // Tüm deal'lerin seçili ürünlerini tek sorguda al
       let productsQuery = `
-        SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
+        SELECT DISTINCT fdp.flash_deal_id, p.id, p.name, p.price, p.image, p.category, p.brand, p.description, 
                p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_products fdp
         JOIN products p ON fdp.product_id = p.id
-        WHERE fdp.flash_deal_id = ?
+        WHERE fdp.flash_deal_id IN (${placeholders})
       `;
-      const productsParams = [deal.id];
+      const productsParams = [...dealIds];
       
       if (tenantId) {
         productsQuery += ' AND p.tenantId = ?';
@@ -225,19 +266,18 @@ router.get('/', async (req, res) => {
       }
       
       const [products] = await poolWrapper.execute(productsQuery, productsParams);
-      
-      console.log(`  - Products from flash_deal_products: ${products.length}${tenantId ? ` (tenantId: ${tenantId})` : ''}`);
+      allDealProducts = products || [];
 
-      // Seçili kategorilerdeki ürünler - tenantId kontrolü ekle
+      // Tüm deal'lerin kategori bazlı ürünlerini tek sorguda al
       let categoryProductsQuery = `
-        SELECT DISTINCT p.id, p.name, p.price, p.image, p.category, p.brand, p.description,
+        SELECT DISTINCT fdc.flash_deal_id, p.id, p.name, p.price, p.image, p.category, p.brand, p.description,
                p.stock, p.rating, p.reviewCount, p.hasVariations, p.externalId, p.lastUpdated
         FROM flash_deal_categories fdc
         JOIN categories c ON fdc.category_id = c.id
         JOIN products p ON p.category = c.name
-        WHERE fdc.flash_deal_id = ?
+        WHERE fdc.flash_deal_id IN (${placeholders})
       `;
-      const categoryProductsParams = [deal.id];
+      const categoryProductsParams = [...dealIds];
       
       if (tenantId) {
         categoryProductsQuery += ' AND p.tenantId = ?';
@@ -245,22 +285,42 @@ router.get('/', async (req, res) => {
       }
       
       const [categoryProducts] = await poolWrapper.execute(categoryProductsQuery, categoryProductsParams);
-      
-      console.log(`  - Products from categories: ${categoryProducts.length}`);
+      allCategoryProducts = categoryProducts || [];
+    }
+    
+    // Products'ı dealId'ye göre grupla
+    const productsByDealId = {};
+    allDealProducts.forEach(p => {
+      if (!productsByDealId[p.flash_deal_id]) {
+        productsByDealId[p.flash_deal_id] = [];
+      }
+      const { flash_deal_id, ...product } = p;
+      productsByDealId[p.flash_deal_id].push(product);
+    });
+    
+    const categoryProductsByDealId = {};
+    allCategoryProducts.forEach(p => {
+      if (!categoryProductsByDealId[p.flash_deal_id]) {
+        categoryProductsByDealId[p.flash_deal_id] = [];
+      }
+      const { flash_deal_id, ...product } = p;
+      categoryProductsByDealId[p.flash_deal_id].push(product);
+    });
 
+    const dealsWithProducts = rows.map((deal) => {
       // Birleştir ve duplicate'leri kaldır
-      const allProducts = [...products, ...categoryProducts];
+      const dealProducts = productsByDealId[deal.id] || [];
+      const dealCategoryProducts = categoryProductsByDealId[deal.id] || [];
+      const allProducts = [...dealProducts, ...dealCategoryProducts];
       const uniqueProducts = allProducts.filter((product, index, self) =>
         index === self.findIndex((p) => p.id === product.id)
       );
-      
-      console.log(`  - Total unique products: ${uniqueProducts.length}`);
 
       return {
         ...deal,
         products: uniqueProducts
       };
-    }));
+    });
 
     console.log('⚡ Active flash deals found:', dealsWithProducts.length);
     if (dealsWithProducts.length > 0) {

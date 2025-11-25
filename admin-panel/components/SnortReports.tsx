@@ -208,11 +208,13 @@ function CreateReportModal({ onClose, onSuccess }: { onClose: () => void; onSucc
         window.URL.revokeObjectURL(url)
       } else {
         // CSV veya JSON için normal API çağrısı
-        const res = await api.get('/admin/snort/logs', {
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
+        const params: Record<string, string | number | boolean> = {
           limit: 10000
-        })
+        }
+        if (startDate) params.startDate = startDate
+        if (endDate) params.endDate = endDate
+        
+        const res = await api.get('/admin/snort/logs', params)
         
         if (res?.success) {
           const data = format === 'csv' 

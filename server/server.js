@@ -344,11 +344,11 @@ app.use(helmet({
 app.use(cspNonceMiddleware);
 
 app.use(hpp());
-// Enable gzip compression for API responses - optimized for product lists
-// ✅ FIX: Brotli devre dışı - React Native Brotli desteklemiyor, sadece gzip/deflate kullan
-app.use(compression({
-  threshold: 1024, // Threshold artırıldı - küçük response'lar sıkıştırılmayacak (tek ürün detayı gibi)
-  level: 6, // Compression level (1-9, 6 = good balance between speed and size)
+// ✅ OPTIMIZASYON: Compression middleware'i sadece /api route'larında çalıştır
+// ✅ OPTIMIZASYON: Threshold 1024 → 512, level 6 → 4 (daha fazla response sıkıştırılacak, daha hızlı)
+app.use('/api', compression({
+  threshold: 512, // Threshold düşürüldü - daha fazla response sıkıştırılacak
+  level: 4, // Compression level düşürüldü - hız/size dengesi için (1-9, 4 = faster compression)
   // Brotli'yi devre dışı bırak - sadece gzip/deflate kullan
   filter: (req, res) => {
     if (req.headers['x-no-compress']) return false;
@@ -356,6 +356,16 @@ app.use(compression({
     // ✅ FIX: Accept-Encoding header'ından br (Brotli) kaldır - React Native uyumluluğu için
     if (req.headers['accept-encoding']) {
       req.headers['accept-encoding'] = req.headers['accept-encoding'].replace(/br,?/gi, '').replace(/,\s*,/g, ',').trim();
+    }
+    
+    // ✅ OPTIMIZASYON: JSON response'lar için özel filter
+    if (res.getHeader('Content-Type') && res.getHeader('Content-Type').includes('application/json')) {
+      // JSON response'lar için compression aktif (büyük JSON'lar için faydalı)
+      // Tek ürün detayı hariç
+      if (req.path && /^\/api\/products\/\d+$/.test(req.path)) {
+        return false; // Tek ürün detayı için compression yok
+      }
+      return true;
     }
     
     // Tek ürün detay endpoint'i için compression'ı devre dışı bırak
@@ -435,8 +445,13 @@ app.use(cors({
 
 app.use(express.json());
 
-// XSS Protection Middleware - Response'larda otomatik sanitization
-app.use(xssProtectionMiddleware);
+// ✅ OPTIMIZASYON: XSS Protection Middleware - Sadece POST/PUT/PATCH request'lerinde çalıştır
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+    return xssProtectionMiddleware(req, res, next);
+  }
+  next();
+});
 
 // ========== Google Auth (ID token doğrulama) ==========
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -1232,8 +1247,9 @@ let xmlSyncService;
 let profileScheduler;
 
 // ⚡ OPTIMIZASYON: Async Query Logger (non-blocking)
+// ✅ OPTIMIZASYON: Slow query threshold 100ms → 200ms (daha az log)
 const queryLogQueue = [];
-const SLOW_QUERY_THRESHOLD = 100; // ms
+const SLOW_QUERY_THRESHOLD = 200; // ms
 
 // Async log processor (her 5 saniyede bir batch write)
 setInterval(() => {
@@ -1255,7 +1271,13 @@ setInterval(() => {
 function logQuery(sql, params, startTime) {
   const duration = Date.now() - startTime;
 
-  // ⚡ Sadece yavaş query'leri logla (100ms+)
+  // ✅ OPTIMIZASYON: Production'da sadece error query'leri logla, development'ta slow query'leri logla
+  if (process.env.NODE_ENV === 'production') {
+    // Production'da sadece error durumunda log (error handling'de zaten loglanıyor)
+    return;
+  }
+  
+  // Development'ta yavaş query'leri logla (200ms+)
   if (duration > SLOW_QUERY_THRESHOLD) {
     const logEntry = `[${new Date().toISOString()}] SLOW QUERY (${duration}ms): ${sql.substring(0, 200)}`;
     queryLogQueue.push(logEntry);
@@ -1394,6 +1416,20 @@ async function initializeDatabase() {
     const secureConnection = dbSecurity.secureConnection(connection);
     console.log('✅ Database connected securely');
     secureConnection.release();
+    
+    // ✅ OPTIMIZASYON: Connection pool monitoring - Her 5 dakikada bir pool durumunu logla
+    setInterval(() => {
+      if (pool && pool._allConnections) {
+        const stats = {
+          total: pool._allConnections.length,
+          free: pool._freeConnections ? pool._freeConnections.length : 0,
+          queued: pool._connectionQueue ? pool._connectionQueue.length : 0
+        };
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('📊 Connection Pool Stats:', stats);
+        }
+      }
+    }, 5 * 60 * 1000); // Her 5 dakika
 
     // Create database schema
     await createDatabaseSchema(pool);
@@ -14757,6 +14793,11 @@ app.get('/api/lists/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const tenantId = req.tenant?.id || 1;
+    // ✅ OPTIMIZASYON: Pagination kontrolü ekle (max limit: 100)
+    const page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 50;
+    if (limit > 100) limit = 100;
+    const offset = (page - 1) * limit;
 
     const [lists] = await poolWrapper.execute(`
       SELECT 
@@ -14771,7 +14812,8 @@ app.get('/api/lists/user/:userId', async (req, res) => {
       WHERE ul.userId = ? AND ul.tenantId = ?
       GROUP BY ul.id
       ORDER BY ul.createdAt DESC
-    `, [tenantId, userId, tenantId]);
+      LIMIT ? OFFSET ?
+    `, [tenantId, userId, tenantId, limit, offset]);
 
     res.json({ success: true, data: lists });
   } catch (error) {
@@ -14809,6 +14851,12 @@ app.get('/api/lists/:listId', async (req, res) => {
     }
 
     // Get list items with product info
+    // ✅ OPTIMIZASYON: Pagination kontrolü ekle (max limit: 100)
+    const page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 50;
+    if (limit > 100) limit = 100;
+    const offset = (page - 1) * limit;
+    
     const [items] = await poolWrapper.execute(`
       SELECT 
         uli.id,
@@ -14824,7 +14872,8 @@ app.get('/api/lists/:listId', async (req, res) => {
       JOIN products p ON uli.productId = p.id AND p.tenantId = ?
       WHERE uli.listId = ? AND uli.tenantId = ?
       ORDER BY uli.createdAt DESC
-    `, [tenantId, listId, tenantId]);
+      LIMIT ? OFFSET ?
+    `, [tenantId, listId, tenantId, limit, offset]);
 
     res.json({
       success: true,
@@ -15648,6 +15697,16 @@ app.post('/api/admin/products', authenticateAdmin, async (req, res) => {
 
     // Optimize: Sadece gerekli column'lar
     const [rows] = await poolWrapper.execute('SELECT id, name, price, image, brand, category, description, stock, sku, lastUpdated, createdAt, tenantId FROM products WHERE id = ?', [result.insertId]);
+    
+    // ✅ OPTIMIZASYON: Cache invalidation - Yeni ürün eklendiğinde ilgili cache'leri temizle
+    try {
+      const { invalidateByTag, delPattern } = require('./redis');
+      await invalidateByTag('products');
+      await delPattern(`products:list:${tenantId}:*`);
+    } catch (error) {
+      console.warn('⚠️ Cache invalidation error:', error.message);
+    }
+    
     res.json({ success: true, data: rows[0], message: 'Ürün oluşturuldu' });
   } catch (error) {
     console.error('❌ Error creating product:', error);
@@ -15712,6 +15771,18 @@ app.put('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
     params.push(productId);
     params.push(tenantId);
     await poolWrapper.execute(`UPDATE products SET ${fields.join(', ')}, lastUpdated = NOW() WHERE id = ? AND tenantId = ?`, params);
+    
+    // ✅ OPTIMIZASYON: Cache invalidation - Ürün güncellemesinde ilgili cache'leri temizle
+    try {
+      const { invalidateByTag, delPattern } = require('./redis');
+      await invalidateByTag('products');
+      // Products list cache'lerini temizle
+      await delPattern(`products:list:${tenantId}:*`);
+      // Product detail cache'ini temizle
+      await delPattern(`product:${productId}:*`);
+    } catch (error) {
+      console.warn('⚠️ Cache invalidation error:', error.message);
+    }
     // Optimize: Sadece gerekli column'lar
     const [rows] = await poolWrapper.execute('SELECT id, name, price, image, images, brand, category, description, stock, sku, isActive, excludeFromXml, lastUpdated, createdAt, tenantId FROM products WHERE id = ? AND tenantId = ?', [productId, tenantId]);
     res.json({ success: true, data: rows[0], message: 'Ürün güncellendi' });
@@ -16359,7 +16430,9 @@ app.delete('/api/admin/flash-deals/:id', authenticateAdmin, async (req, res) => 
 app.get('/api/products', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    let limit = parseInt(req.query.limit) || 20;
+    // ✅ OPTIMIZASYON: Max limit kontrolü (100)
+    if (limit > 100) limit = 100;
     const offset = (page - 1) * limit;
     const language = req.query.language || 'tr'; // Default to Turkish
     const tekstilOnly = req.query.tekstilOnly === 'true' || req.query.tekstilOnly === true; // Sadece kullanıcı panelinden true gelirse filtrele
@@ -18349,6 +18422,14 @@ async function startServer() {
       const { deviceId } = req.query;
       const tenantId = req.tenant?.id || 1;
 
+      // ✅ OPTIMIZASYON: Redis cache ekle (TTL: 30 saniye - sepet sık değişir)
+      const { getJson, setJsonEx, CACHE_TTL } = require('./redis');
+      const cacheKey = `cart:total:${tenantId}:${userId}:${deviceId || ''}`;
+      const cached = await getJson(cacheKey);
+      if (cached) {
+        return res.json({ success: true, data: cached, cached: true, source: 'redis' });
+      }
+
       // Get cart items with product prices
       let itemsSql = `SELECT c.productId, c.quantity, p.price
         FROM cart c JOIN products p ON c.productId = p.id
@@ -18381,8 +18462,8 @@ async function startServer() {
           [tenantId]
         );
         campaigns = rows;
-        // Optimize: Cache TTL 300 → 600 (10 dakika - campaigns daha az değişir)
-        try { if (global.redis) await global.redis.set(`campaigns:active:${tenantId}`, JSON.stringify(rows), 'EX', 600); } catch { }
+        // ✅ OPTIMIZASYON: Cache TTL 600 → 300 (10 dakika → 5 dakika)
+        try { if (global.redis) await global.redis.set(`campaigns:active:${tenantId}`, JSON.stringify(rows), 'EX', 300); } catch { }
       }
 
       let discountTotal = 0;
@@ -18432,7 +18513,12 @@ async function startServer() {
 
       const total = Math.max(0, subtotal - discountTotal + shipping);
 
-      res.json({ success: true, data: { subtotal, discount: Number(discountTotal.toFixed(2)), shipping: Number(shipping.toFixed(2)), total: Number(total.toFixed(2)) } });
+      const result = { subtotal, discount: Number(discountTotal.toFixed(2)), shipping: Number(shipping.toFixed(2)), total: Number(total.toFixed(2)) };
+      
+      // Cache'e kaydet (TTL: 30 saniye)
+      await setJsonEx(cacheKey, 30, result);
+      
+      res.json({ success: true, data: result });
     } catch (error) {
       console.error('❌ Error getting detailed cart total:', error);
       res.status(500).json({ success: false, message: 'Error getting detailed cart total' });
@@ -18451,8 +18537,8 @@ async function startServer() {
       } catch { }
       // Optimize: Sadece gerekli column'lar
       const [rows] = await poolWrapper.execute(`SELECT id, name, type, discountType, discountValue, applicableProducts, startDate, endDate, minOrderAmount, maxDiscountAmount, isActive, status, createdAt, updatedAt FROM campaigns WHERE tenantId = ? ORDER BY updatedAt DESC`, [tenantId]);
-      // Optimize: Cache TTL 300 → 600 (10 dakika)
-      try { if (global.redis) await global.redis.set(`campaigns:list:${tenantId}`, JSON.stringify(rows), 'EX', 600); } catch { }
+      // ✅ OPTIMIZASYON: Cache TTL 600 → 300 (10 dakika → 5 dakika)
+      try { if (global.redis) await global.redis.set(`campaigns:list:${tenantId}`, JSON.stringify(rows), 'EX', 300); } catch { }
       res.json({ success: true, data: rows });
     } catch (error) {
       console.error('❌ Error listing campaigns:', error);
@@ -19129,29 +19215,36 @@ async function startServer() {
         [userId]
       );
 
-      // Get items for each request
-      const requestsWithItems = await Promise.all(
-        requests.map(async (request) => {
-          const [items] = await poolWrapper.execute(
-            `SELECT cpi.*, p.name as productName, p.image as productImage, p.price as productPrice
-             FROM custom_production_items cpi
-             LEFT JOIN products p ON cpi.productId = p.id AND p.tenantId = cpi.tenantId
-             WHERE cpi.requestId = ? AND cpi.tenantId = ?`,
-            [request.id, request.tenantId || tenantId]
-          );
+      // ✅ OPTIMIZASYON: N+1 query fix - Tüm items'ı tek sorguda al (batch)
+      const requestIds = requests.map(r => r.id);
+      let allItems = [];
+      if (requestIds.length > 0) {
+        const placeholders = requestIds.map(() => '?').join(',');
+        const [items] = await poolWrapper.execute(
+          `SELECT cpi.*, p.name as productName, p.image as productImage, p.price as productPrice
+           FROM custom_production_items cpi
+           LEFT JOIN products p ON cpi.productId = p.id AND p.tenantId = cpi.tenantId
+           WHERE cpi.requestId IN (${placeholders}) AND cpi.tenantId = ?`,
+          [...requestIds, requests[0].tenantId || tenantId]
+        );
+        allItems = items || [];
+      }
 
-          console.log(`📦 Request ${request.id} items:`, items?.length || 0, items);
+      // Items'ı requestId'ye göre grupla
+      const itemsByRequestId = {};
+      allItems.forEach(item => {
+        if (!itemsByRequestId[item.requestId]) {
+          itemsByRequestId[item.requestId] = [];
+        }
+        itemsByRequestId[item.requestId].push(item);
+      });
+
+      // Get items for each request (artık memory'den)
+      const requestsWithItems = requests.map((request) => {
+        const items = itemsByRequestId[request.id] || [];
 
           // Parse JSON fields in items (customizations)
-          const parsedItems = (items || []).map((item) => {
-            // Debug: Item verisini logla
-            console.log(`🔍 Raw item for request ${request.id}:`, {
-              id: item?.id,
-              productId: item?.productId,
-              quantity: item?.quantity,
-              customizations: item?.customizations ? (typeof item.customizations === 'string' ? 'string' : 'object') : 'null'
-            });
-            
+          const parsedItems = items.map((item) => {
             if (item && item.customizations && typeof item.customizations === 'string') {
               try {
                 item.customizations = JSON.parse(item.customizations);
@@ -19182,8 +19275,7 @@ async function startServer() {
             ...request,
             items: parsedItems
           };
-        })
-      );
+      });
 
       res.json({ success: true, data: requestsWithItems });
     } catch (error) {

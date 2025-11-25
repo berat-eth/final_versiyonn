@@ -4,55 +4,79 @@
  */
 
 const { poolWrapper } = require('../database-schema');
+const { getJson, setJsonEx, CACHE_TTL } = require('../redis');
 
 /**
  * Kullanıcının belirli bir resource'a erişim hakkı olup olmadığını kontrol et
+ * ✅ OPTIMIZASYON: Redis cache ile performans iyileştirmesi
  */
 async function checkUserOwnership(userId, resourceType, resourceId, tenantId) {
   try {
+    // Cache key oluştur
+    const cacheKey = `ownership:${resourceType}:${resourceId}:${tenantId}:${userId}`;
+    
+    // Cache'den kontrol et
+    const cached = await getJson(cacheKey);
+    if (cached !== null) {
+      return cached === true;
+    }
+
+    let hasAccess = false;
+    
     switch (resourceType) {
       case 'user':
         const [userRows] = await poolWrapper.execute(
           'SELECT id FROM users WHERE id = ? AND tenantId = ?',
           [resourceId, tenantId]
         );
-        return userRows.length > 0 && userRows[0].id === parseInt(userId);
+        hasAccess = userRows.length > 0 && userRows[0].id === parseInt(userId);
+        break;
 
       case 'address':
         const [addrRows] = await poolWrapper.execute(
           'SELECT userId FROM user_addresses WHERE id = ? AND tenantId = ?',
           [resourceId, tenantId]
         );
-        return addrRows.length > 0 && addrRows[0].userId === parseInt(userId);
+        hasAccess = addrRows.length > 0 && addrRows[0].userId === parseInt(userId);
+        break;
 
       case 'order':
         const [orderRows] = await poolWrapper.execute(
           'SELECT userId FROM orders WHERE id = ? AND tenantId = ?',
           [resourceId, tenantId]
         );
-        return orderRows.length > 0 && orderRows[0].userId === parseInt(userId);
+        hasAccess = orderRows.length > 0 && orderRows[0].userId === parseInt(userId);
+        break;
 
       case 'cart':
         const [cartRows] = await poolWrapper.execute(
           'SELECT userId FROM cart WHERE id = ? AND tenantId = ?',
           [resourceId, tenantId]
         );
-        return cartRows.length > 0 && cartRows[0].userId === parseInt(userId);
+        hasAccess = cartRows.length > 0 && cartRows[0].userId === parseInt(userId);
+        break;
 
       case 'return_request':
         const [returnRows] = await poolWrapper.execute(
           'SELECT userId FROM return_requests WHERE id = ? AND tenantId = ?',
           [resourceId, tenantId]
         );
-        return returnRows.length > 0 && returnRows[0].userId === parseInt(userId);
+        hasAccess = returnRows.length > 0 && returnRows[0].userId === parseInt(userId);
+        break;
 
       case 'wallet':
         // Wallet için resourceId aslında userId
-        return parseInt(resourceId) === parseInt(userId);
+        hasAccess = parseInt(resourceId) === parseInt(userId);
+        break;
 
       default:
-        return false;
+        hasAccess = false;
     }
+
+    // Sonucu cache'le (TTL: 5 dakika)
+    await setJsonEx(cacheKey, CACHE_TTL.SHORT, hasAccess);
+    
+    return hasAccess;
   } catch (error) {
     console.error('❌ Error checking user ownership:', error);
     return false;
@@ -163,20 +187,33 @@ function requireUserOwnership(resourceType, userIdSource = 'body') {
       // User ID'yi request'e ekle
       req.authenticatedUserId = parseInt(userId);
 
-      // User'ın tenant'ı kontrol et
-      const [userRows] = await poolWrapper.execute(
-        'SELECT id, tenantId FROM users WHERE id = ?',
-        [userId]
-      );
+      // ✅ OPTIMIZASYON: User'ın tenant'ı kontrol et - Redis cache ile
+      const userCacheKey = `user:${userId}:tenant`;
+      let userData = await getJson(userCacheKey);
+      
+      if (!userData) {
+        const [userRows] = await poolWrapper.execute(
+          'SELECT id, tenantId FROM users WHERE id = ?',
+          [userId]
+        );
 
-      if (userRows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
+        if (userRows.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: 'User not found'
+          });
+        }
+
+        userData = {
+          id: userRows[0].id,
+          tenantId: userRows[0].tenantId
+        };
+        
+        // Cache'le (TTL: 5 dakika)
+        await setJsonEx(userCacheKey, CACHE_TTL.SHORT, userData);
       }
 
-      if (userRows[0].tenantId !== req.tenant.id) {
+      if (userData.tenantId !== req.tenant.id) {
         return res.status(403).json({
           success: false,
           message: 'Access denied. User does not belong to this tenant.'
@@ -267,42 +304,61 @@ function enforceTenantIsolation() {
       }
       
       if (!req.tenant || !req.tenant.id) {
-        // Tenant yoksa default tenant'ı kullan (id: 1)
-        try {
-          const [defaultTenantRows] = await poolWrapper.execute(
-            'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
-          );
-          if (defaultTenantRows && defaultTenantRows.length > 0) {
-            req.tenant = defaultTenantRows[0];
-            if (req.tenant.settings) {
-              try { req.tenant.settings = JSON.parse(req.tenant.settings); } catch (_) { }
+        // ✅ OPTIMIZASYON: Tenant yoksa default tenant'ı kullan (id: 1) - Redis cache ile
+        const defaultTenantCacheKey = 'tenant:default:1';
+        let defaultTenant = await getJson(defaultTenantCacheKey);
+        
+        if (!defaultTenant) {
+          try {
+            const [defaultTenantRows] = await poolWrapper.execute(
+              'SELECT id, name, domain, subdomain, settings, isActive FROM tenants WHERE id = 1 AND isActive = true'
+            );
+            if (defaultTenantRows && defaultTenantRows.length > 0) {
+              defaultTenant = defaultTenantRows[0];
+              if (defaultTenant.settings) {
+                try { defaultTenant.settings = JSON.parse(defaultTenant.settings); } catch (_) { }
+              }
+              // Cache'le (TTL: 10 dakika - tenant bilgisi nadiren değişir)
+              await setJsonEx(defaultTenantCacheKey, CACHE_TTL.MEDIUM, defaultTenant);
+            } else {
+              // Default tenant da yoksa hata ver
+              return res.status(401).json({
+                success: false,
+                message: 'Tenant authentication required'
+              });
             }
-            // Default tenant bulundu, devam et
-          } else {
-            // Default tenant da yoksa hata ver
+          } catch (error) {
+            console.error('❌ Error getting default tenant:', error);
             return res.status(401).json({
               success: false,
               message: 'Tenant authentication required'
             });
           }
-        } catch (error) {
-          console.error('❌ Error getting default tenant:', error);
-          return res.status(401).json({
-            success: false,
-            message: 'Tenant authentication required'
-          });
         }
+        
+        req.tenant = defaultTenant;
       }
 
-      // User ID varsa, tenant kontrolü yap
+      // ✅ OPTIMIZASYON: User ID varsa, tenant kontrolü yap - Redis cache ile
       const userId = req.body?.userId || req.params?.userId || req.query?.userId;
       if (userId) {
-        const [userRows] = await poolWrapper.execute(
-          'SELECT tenantId FROM users WHERE id = ?',
-          [userId]
-        );
+        const userTenantCacheKey = `user:${userId}:tenantId`;
+        let userTenantId = await getJson(userTenantCacheKey);
+        
+        if (userTenantId === null) {
+          const [userRows] = await poolWrapper.execute(
+            'SELECT tenantId FROM users WHERE id = ?',
+            [userId]
+          );
+          
+          if (userRows.length > 0) {
+            userTenantId = userRows[0].tenantId;
+            // Cache'le (TTL: 5 dakika)
+            await setJsonEx(userTenantCacheKey, CACHE_TTL.SHORT, userTenantId);
+          }
+        }
 
-        if (userRows.length > 0 && userRows[0].tenantId !== req.tenant.id) {
+        if (userTenantId !== null && userTenantId !== req.tenant.id) {
           return res.status(403).json({
             success: false,
             message: 'Access denied. User does not belong to this tenant.'

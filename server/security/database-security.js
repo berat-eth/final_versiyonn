@@ -49,8 +49,8 @@ class DatabaseSecurity {
       connectionLimit: 50,        // ⚡ 10 → 50 (5x artış)
       queueLimit: 100,            // ⚡ 0 → 100 (sınırlı kuyruk)
       waitForConnections: true,
-      acquireTimeout: 10000,      // ⚡ 10 saniye timeout
-      timeout: 30000,             // ⚡ Connection timeout
+      acquireTimeout: 5000,       // ✅ OPTIMIZASYON: 10 saniye → 5 saniye (daha hızlı hata verme)
+      timeout: 20000,             // ✅ OPTIMIZASYON: 30 saniye → 20 saniye (daha hızlı timeout)
       ssl: sslOptions,
       charset: 'utf8mb4',
       multipleStatements: false,
