@@ -67,16 +67,54 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
     console.log(`🔍 Trendyol arama başlatılıyor: ${query} (Sayfa: ${pageNum})`);
 
     try {
-      // Sayfayı çek
+      // Önce ana sayfaya istek at (cookie almak için)
+      let cookies = '';
+      try {
+        const homeResponse = await axios.get('https://www.trendyol.com', {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+          }
+        });
+        
+        // Cookie'leri al
+        if (homeResponse.headers['set-cookie']) {
+          cookies = homeResponse.headers['set-cookie'].map(c => c.split(';')[0]).join('; ');
+        }
+      } catch (e) {
+        console.warn('Ana sayfa cookie alınamadı, devam ediliyor...');
+      }
+
+      // Sayfayı çek - Trendyol bot koruması için daha gerçekçi headers
       const response = await axios.get(url, {
         timeout: 30000,
+        maxRedirects: 5,
+        validateStatus: function (status) {
+          return status >= 200 && status < 400;
+        },
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
           'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
           'Accept-Encoding': 'gzip, deflate, br',
           'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
+          'Upgrade-Insecure-Requests': '1',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'same-origin',
+          'Sec-Fetch-User': '?1',
+          'Cache-Control': 'max-age=0',
+          'Referer': 'https://www.trendyol.com/',
+          'Cookie': cookies,
+          'DNT': '1',
+          'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"'
         }
       });
 
@@ -166,14 +204,41 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
 
     } catch (error) {
       console.error('❌ Trendyol arama hatası:', error.message);
-      return res.status(500).json({ 
+      
+      // 403 hatası için özel mesaj
+      if (error.response && error.response.status === 403) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Trendyol bot koruması nedeniyle erişim engellendi. Lütfen daha sonra tekrar deneyin veya farklı bir arama terimi kullanın.' 
+        });
+      }
+      
+      // 429 (Rate Limit) hatası için özel mesaj
+      if (error.response && error.response.status === 429) {
+        return res.status(429).json({ 
+          success: false, 
+          message: 'Çok fazla istek gönderildi. Lütfen birkaç saniye bekleyip tekrar deneyin.' 
+        });
+      }
+      
+      return res.status(error.response?.status || 500).json({ 
         success: false, 
-        message: error.message || 'Trendyol arama sırasında hata oluştu. Sayfa yapısı değişmiş olabilir.' 
+        message: error.response?.status === 403 
+          ? 'Trendyol bot koruması nedeniyle erişim engellendi.' 
+          : (error.message || 'Trendyol arama sırasında hata oluştu. Sayfa yapısı değişmiş olabilir.') 
       });
     }
 
   } catch (error) {
     console.error('❌ Trendyol arama hatası:', error);
+    
+    if (error.response && error.response.status === 403) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Trendyol bot koruması nedeniyle erişim engellendi.' 
+      });
+    }
+    
     return res.status(500).json({ 
       success: false, 
       message: error.message || 'Trendyol arama sırasında hata oluştu' 
