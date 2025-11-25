@@ -1,9 +1,14 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { Shield, AlertTriangle, Search, Filter, Download, Eye, X, RefreshCw, Clock, Activity, TrendingUp, Ban, CheckCircle, Info, Zap, Globe, Server } from 'lucide-react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
+import { Shield, AlertTriangle, Search, Filter, Download, Eye, X, RefreshCw, Clock, Activity, TrendingUp, Ban, CheckCircle, Info, Zap, Globe, Server, Calendar, Settings, BarChart3, Map, FileText, Bell, BellOff, Volume2, VolumeX, CheckSquare, Square } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
+import { format, subDays, startOfDay, endOfDay } from 'date-fns'
+import SnortCharts from './SnortCharts'
+import SnortMap from './SnortMap'
+import SnortRules from './SnortRules'
+import SnortReports from './SnortReports'
 
 interface SnortLog {
     id: number
@@ -29,6 +34,21 @@ export default function SnortLogs() {
     const [filterPriority, setFilterPriority] = useState('all')
     const [filterAction, setFilterAction] = useState('all')
     const [autoRefresh, setAutoRefresh] = useState(false)
+    const [realTimeMode, setRealTimeMode] = useState(false)
+    const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+    const [soundEnabled, setSoundEnabled] = useState(false)
+    const [selectedLogs, setSelectedLogs] = useState<Set<number>>(new Set())
+    const [startDate, setStartDate] = useState('')
+    const [endDate, setEndDate] = useState('')
+    const [filterIPs, setFilterIPs] = useState<string[]>([])
+    const [ipInput, setIpInput] = useState('')
+    const [useRegex, setUseRegex] = useState(false)
+    const [activeTab, setActiveTab] = useState<'logs' | 'charts' | 'map' | 'rules' | 'reports'>('logs')
+    const [statsData, setStatsData] = useState<any[]>([])
+    const [protocolData, setProtocolData] = useState<any[]>([])
+    const [topAttackers, setTopAttackers] = useState<any[]>([])
+    const eventSourceRef = useRef<EventSource | null>(null)
+    const audioRef = useRef<HTMLAudioElement | null>(null)
 
     const priorityConfig = {
         high: { 
@@ -111,11 +131,153 @@ export default function SnortLogs() {
         passed: logs.filter(l => l.action === 'pass').length
     }
 
-    const refreshLogs = async () => {
+    // Real-time SSE bağlantısı
+    useEffect(() => {
+        if (realTimeMode) {
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.zerodaysoftware.tr/api'
+            const token = localStorage.getItem('adminToken')
+            const eventSource = new EventSource(`${baseUrl}/admin/snort/logs/stream?token=${token}`)
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data)
+                    if (data.type === 'new_logs' && data.logs) {
+                        setLogs(prev => [...data.logs, ...prev])
+                        
+                        // Yüksek öncelikli loglar için bildirim
+                        const highPriority = data.logs.filter((log: SnortLog) => log.priority === 'high')
+                        if (highPriority.length > 0) {
+                            if (notificationsEnabled) {
+                                new Notification('Yüksek Öncelikli Snort Uyarısı', {
+                                    body: `${highPriority.length} yüksek öncelikli log tespit edildi`,
+                                    icon: '/logo.jpg'
+                                })
+                            }
+                            if (soundEnabled && audioRef.current) {
+                                audioRef.current.play().catch(() => {})
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('SSE mesaj parse hatası:', e)
+                }
+            }
+            
+            eventSource.onerror = () => {
+                eventSource.close()
+                setRealTimeMode(false)
+            }
+            
+            eventSourceRef.current = eventSource
+            
+            return () => {
+                eventSource.close()
+            }
+        } else {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close()
+                eventSourceRef.current = null
+            }
+        }
+    }, [realTimeMode, notificationsEnabled, soundEnabled])
+
+    // Bildirim izni
+    useEffect(() => {
+        if (notificationsEnabled && 'Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission()
+        }
+    }, [notificationsEnabled])
+
+    // Ses dosyası
+    useEffect(() => {
+        if (soundEnabled && !audioRef.current) {
+            audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWi77+efTRAMUKfj8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBlou+/nn00QDFCn4/C2YxwGOJHX8sx5LAUkd8fw3ZBAC')
+        }
+    }, [soundEnabled])
+
+    // İstatistikleri yükle
+    const loadStats = async () => {
+        try {
+            const [statsRes, protocolRes, attackersRes] = await Promise.all([
+                api.get('/admin/snort/logs/stats', { period: '7d' }),
+                api.get('/admin/snort/logs/protocol-stats', { period: '7d' }),
+                api.get('/admin/snort/logs/top-attackers', { period: '7d', limit: 10 })
+            ])
+            
+            if ((statsRes as any)?.success) setStatsData((statsRes as any).data || [])
+            if ((protocolRes as any)?.success) setProtocolData((protocolRes as any).data || [])
+            if ((attackersRes as any)?.success) setTopAttackers((attackersRes as any).data || [])
+        } catch (e) {
+            console.error('İstatistikler yüklenemedi:', e)
+        }
+    }
+
+    useEffect(() => {
+        if (activeTab === 'charts') {
+            loadStats()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab])
+
+    // Toplu IP engelleme
+    const handleBulkBlock = async () => {
+        if (selectedLogs.size === 0) return
+        
+        const ips = Array.from(selectedLogs)
+            .map(id => logs.find(log => log.id === id)?.sourceIp)
+            .filter((ip): ip is string => !!ip && !ip.startsWith('127.') && !ip.startsWith('192.168.'))
+        
+        if (ips.length === 0) {
+            alert('Engellenebilir IP adresi bulunamadı')
+            return
+        }
+        
+        if (!confirm(`${ips.length} IP adresini engellemek istediğinizden emin misiniz?`)) return
+        
+        try {
+            setLoading(true)
+            const res = await api.post('/admin/snort/logs/bulk-block', {
+                ips: [...new Set(ips)],
+                reason: 'Snort IDS - Toplu engelleme'
+            })
+            
+            if ((res as any)?.success) {
+                alert(`✅ ${(res as any).data.filter((r: any) => r.success).length} IP başarıyla engellendi`)
+                setSelectedLogs(new Set())
+                await refreshLogs()
+            }
+        } catch (e: any) {
+            alert(`❌ Hata: ${e?.message || 'Toplu engelleme başarısız'}`)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // IP ekle (tag input)
+    const handleAddIP = () => {
+        if (ipInput.trim() && !filterIPs.includes(ipInput.trim())) {
+            setFilterIPs([...filterIPs, ipInput.trim()])
+            setIpInput('')
+        }
+    }
+
+    // IP kaldır
+    const handleRemoveIP = (ip: string) => {
+        setFilterIPs(filterIPs.filter(i => i !== ip))
+    }
+
+    const refreshLogs = useCallback(async () => {
         try {
             setLoading(true)
             setError(null)
-            const res = await api.get<any>('/admin/snort/logs')
+            const params: any = { _t: Date.now() }
+            if (startDate) params.startDate = startDate
+            if (endDate) params.endDate = endDate
+            if (filterIPs.length > 0) params.ip = filterIPs
+            if (searchTerm) params.search = searchTerm
+            if (useRegex) params.regex = 'true'
+            
+            const res = await api.get<any>('/admin/snort/logs', params)
             if ((res as any)?.success && Array.isArray((res as any).data)) {
                 setLogs((res as any).data)
             } else {
@@ -127,11 +289,11 @@ export default function SnortLogs() {
         } finally { 
             setLoading(false) 
         }
-    }
+    }, [startDate, endDate, filterIPs, searchTerm, useRegex])
 
     useEffect(() => {
         refreshLogs()
-    }, [])
+    }, [refreshLogs])
 
     useEffect(() => {
         if (autoRefresh) {
@@ -221,7 +383,32 @@ export default function SnortLogs() {
                     </h2>
                     <p className="text-slate-500 dark:text-slate-400 mt-2">Ağ güvenlik olaylarını izleyin ve analiz edin</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                        onClick={() => setRealTimeMode(!realTimeMode)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${realTimeMode ? 'bg-green-600 text-white' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}
+                    >
+                        {realTimeMode ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                        <span className="text-sm">Real-time</span>
+                    </button>
+                    {realTimeMode && (
+                        <>
+                            <button
+                                onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                                className={`p-2 rounded-xl ${notificationsEnabled ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}
+                                title="Bildirimler"
+                            >
+                                {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                            </button>
+                            <button
+                                onClick={() => setSoundEnabled(!soundEnabled)}
+                                className={`p-2 rounded-xl ${soundEnabled ? 'bg-purple-600 text-white' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}
+                                title="Ses Uyarıları"
+                            >
+                                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                            </button>
+                        </>
+                    )}
                     <label className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                         <input
                             type="checkbox"
@@ -239,16 +426,49 @@ export default function SnortLogs() {
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                         <span className="text-slate-700 dark:text-slate-300">Yenile</span>
                     </button>
-                    <button
-                        onClick={exportLogs}
-                        disabled={filteredLogs.length === 0}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Download className="w-4 h-4" />
-                        <span>Dışa Aktar</span>
-                    </button>
+                    {selectedLogs.size > 0 && (
+                        <button
+                            onClick={handleBulkBlock}
+                            disabled={loading}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
+                        >
+                            <Ban className="w-4 h-4" />
+                            <span>Seçilenleri Engelle ({selectedLogs.size})</span>
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
+                {[
+                    { id: 'logs', label: 'Loglar', icon: Activity },
+                    { id: 'charts', label: 'Grafikler', icon: BarChart3 },
+                    { id: 'map', label: 'Harita', icon: Map },
+                    { id: 'rules', label: 'Kurallar', icon: Settings },
+                    { id: 'reports', label: 'Raporlar', icon: FileText }
+                ].map(tab => {
+                    const Icon = tab.icon
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                                activeTab === tab.id
+                                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            <Icon className="w-4 h-4" />
+                            <span>{tab.label}</span>
+                        </button>
+                    )
+                })}
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'logs' && (
+                <>
 
             {/* İstatistikler */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
@@ -326,44 +546,120 @@ export default function SnortLogs() {
 
             {/* Filtreler ve Arama */}
             <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
-                <div className="flex flex-col lg:flex-row gap-4">
-                    <div className="flex-1">
-                        <div className="relative">
-                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="IP, mesaj, signature veya sınıflandırma ara..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 transition-all text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
-                            />
+                <div className="space-y-4">
+                    <div className="flex flex-col lg:flex-row gap-4">
+                        <div className="flex-1">
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                <input
+                                    type="text"
+                                    placeholder="IP, mesaj, signature veya sınıflandırma ara..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 transition-all text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 mt-2">
+                                <input
+                                    type="checkbox"
+                                    checked={useRegex}
+                                    onChange={(e) => setUseRegex(e.target.checked)}
+                                    className="w-4 h-4"
+                                />
+                                <label className="text-sm text-slate-600 dark:text-slate-400">Regex kullan</label>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <div className="relative">
+                                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <select
+                                    value={filterPriority}
+                                    onChange={(e) => setFilterPriority(e.target.value)}
+                                    className="pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 appearance-none cursor-pointer min-w-[140px]"
+                                >
+                                    <option value="all">Tüm Öncelikler</option>
+                                    <option value="high">Yüksek</option>
+                                    <option value="medium">Orta</option>
+                                    <option value="low">Düşük</option>
+                                </select>
+                            </div>
+                            <select
+                                value={filterAction}
+                                onChange={(e) => setFilterAction(e.target.value)}
+                                className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 cursor-pointer min-w-[140px]"
+                            >
+                                <option value="all">Tüm Aksiyonlar</option>
+                                <option value="alert">Uyarı</option>
+                                <option value="drop">Engellendi</option>
+                                <option value="pass">Geçti</option>
+                            </select>
                         </div>
                     </div>
 
-                    <div className="flex gap-3">
-                        <div className="relative">
-                            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                            <select
-                                value={filterPriority}
-                                onChange={(e) => setFilterPriority(e.target.value)}
-                                className="pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 appearance-none cursor-pointer min-w-[140px]"
+                    {/* Tarih Aralığı */}
+                    <div className="flex gap-3 items-center">
+                        <Calendar className="w-4 h-4 text-slate-400" />
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100"
+                            placeholder="Başlangıç"
+                        />
+                        <span className="text-slate-400">-</span>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100"
+                            placeholder="Bitiş"
+                        />
+                        {(startDate || endDate) && (
+                            <button
+                                onClick={() => {
+                                    setStartDate('')
+                                    setEndDate('')
+                                }}
+                                className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                             >
-                                <option value="all">Tüm Öncelikler</option>
-                                <option value="high">Yüksek</option>
-                                <option value="medium">Orta</option>
-                                <option value="low">Düşük</option>
-                            </select>
+                                Temizle
+                            </button>
+                        )}
+                    </div>
+
+                    {/* IP Filtreleme */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">IP Filtreleme</label>
+                        <div className="flex gap-2 flex-wrap">
+                            {filterIPs.map(ip => (
+                                <span key={ip} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm">
+                                    {ip}
+                                    <button
+                                        onClick={() => handleRemoveIP(ip)}
+                                        className="hover:text-blue-900 dark:hover:text-blue-100"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </span>
+                            ))}
+                            <div className="flex gap-2 flex-1 min-w-[200px]">
+                                <input
+                                    type="text"
+                                    value={ipInput}
+                                    onChange={(e) => setIpInput(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleAddIP()}
+                                    placeholder="IP adresi ekle..."
+                                    className="flex-1 px-3 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+                                />
+                                <button
+                                    onClick={handleAddIP}
+                                    className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                                >
+                                    Ekle
+                                </button>
+                            </div>
                         </div>
-                        <select
-                            value={filterAction}
-                            onChange={(e) => setFilterAction(e.target.value)}
-                            className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 cursor-pointer min-w-[140px]"
-                        >
-                            <option value="all">Tüm Aksiyonlar</option>
-                            <option value="alert">Uyarı</option>
-                            <option value="drop">Engellendi</option>
-                            <option value="pass">Geçti</option>
-                        </select>
                     </div>
                 </div>
 
@@ -425,6 +721,26 @@ export default function SnortLogs() {
                                         onClick={() => setViewingLog(log)}
                                     >
                                         <div className="flex items-start gap-4">
+                                            {/* Checkbox */}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    const newSelected = new Set(selectedLogs)
+                                                    if (newSelected.has(log.id)) {
+                                                        newSelected.delete(log.id)
+                                                    } else {
+                                                        newSelected.add(log.id)
+                                                    }
+                                                    setSelectedLogs(newSelected)
+                                                }}
+                                                className="mt-1"
+                                            >
+                                                {selectedLogs.has(log.id) ? (
+                                                    <CheckSquare className="w-5 h-5 text-blue-600" />
+                                                ) : (
+                                                    <Square className="w-5 h-5 text-slate-400" />
+                                                )}
+                                            </button>
                                             {/* Öncelik Badge */}
                                             <div className={`flex-shrink-0 w-12 h-12 rounded-xl ${priorityConf.bg} ${priorityConf.border} border-2 flex items-center justify-center`}>
                                                 <div className={`w-3 h-3 rounded-full ${priorityConf.dot}`} />
@@ -691,6 +1007,12 @@ export default function SnortLogs() {
                     </motion.div>
                 )}
             </AnimatePresence>
+                </>
+            )}
+            {activeTab === 'charts' && <SnortCharts statsData={statsData} protocolData={protocolData} topAttackers={topAttackers} />}
+            {activeTab === 'map' && <SnortMap logs={logs} />}
+            {activeTab === 'rules' && <SnortRules />}
+            {activeTab === 'reports' && <SnortReports />}
         </div>
     )
 }

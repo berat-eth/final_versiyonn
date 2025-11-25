@@ -42,6 +42,12 @@ const { xssProtectionMiddleware } = require('./middleware/xss-protection');
 // Ollama integration
 const axios = require('axios');
 
+// Snort IDS services
+const snortRealtime = require('./services/snort-realtime');
+const ipGeolocation = require('./services/ip-geolocation');
+const snortReporting = require('./services/snort-reporting');
+const snortAutomation = require('./services/snort-automation');
+
 // Security utilities
 const SALT_ROUNDS = 12;
 
@@ -3675,6 +3681,11 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
 app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 1000; // Varsayılan 1000 log
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+    const filterIPs = req.query.ip ? (Array.isArray(req.query.ip) ? req.query.ip : [req.query.ip]) : null;
+    const useRegex = req.query.regex === 'true';
+    const searchTerm = req.query.search || '';
     
     // Snort log dosyası yolu - direkt bilinen yol
     const snortLogPath = '/var/log/snort/alert_fast.txt';
@@ -3750,9 +3761,8 @@ app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
     const parsedLogs = [];
     let logId = 1;
 
+    // TÜM satırları parse et (limit kontrolü yapmadan)
     for (const line of lines) {
-      if (parsedLogs.length >= limit) break;
-
       try {
         // Snort alert formatını parse et
         const alertMatch = line.match(/\[\*\*\]\s*\[(\d+):(\d+):(\d+)\]\s*(.+?)\s*\[\*\*\]\s*\[Classification:\s*(.+?)\]\s*\[Priority:\s*(\d+)\]\s*\{(\w+)\}\s*(\d+\.\d+\.\d+\.\d+):(\d+)\s*->\s*(\d+\.\d+\.\d+\.\d+):(\d+)/);
@@ -3805,9 +3815,20 @@ app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
           const simpleMatch = line.match(/(\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\.\d+)\s+\[.*?\]\s+(.+?)\s+\{(\w+)\}\s+(\d+\.\d+\.\d+\.\d+):(\d+)\s*->\s*(\d+\.\d+\.\d+\.\d+):(\d+)/);
           if (simpleMatch) {
             const [, timestampStr, message, protocol, srcIp, srcPort, dstIp, dstPort] = simpleMatch;
+            
+            // Timestamp parse et
+            let timestamp = new Date().toISOString();
+            try {
+              const [datePart, timePart] = timestampStr.split('-');
+              const [month, day] = datePart.split('/');
+              const [time, microseconds] = timePart.split('.');
+              const currentYear = new Date().getFullYear();
+              timestamp = new Date(`${currentYear}-${month}-${day}T${time}.${microseconds.substring(0, 3)}Z`).toISOString();
+            } catch {}
+            
             parsedLogs.push({
               id: logId++,
-              timestamp: new Date().toISOString(), // Basit format için şu anki zaman
+              timestamp,
               priority: 'medium',
               classification: 'Unknown',
               sourceIp: srcIp,
@@ -3828,11 +3849,64 @@ app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
       }
     }
 
-    // En yeni loglar önce gelsin
-    parsedLogs.reverse();
+    // Filtreleme uygula
+    let filteredLogs = parsedLogs;
 
-    console.log(`✅ Snort logları okundu: ${parsedLogs.length} log (${foundPath})`);
-    return res.json({ success: true, data: parsedLogs });
+    // Tarih aralığı filtresi
+    if (startDate || endDate) {
+      filteredLogs = filteredLogs.filter(log => {
+        const logDate = new Date(log.timestamp).getTime();
+        if (startDate && logDate < startDate.getTime()) return false;
+        if (endDate && logDate > endDate.getTime()) return false;
+        return true;
+      });
+    }
+
+    // IP filtresi
+    if (filterIPs && filterIPs.length > 0) {
+      filteredLogs = filteredLogs.filter(log => 
+        filterIPs.includes(log.sourceIp) || filterIPs.includes(log.destIp)
+      );
+    }
+
+    // Arama filtresi (regex veya normal)
+    if (searchTerm) {
+      try {
+        const regex = useRegex ? new RegExp(searchTerm, 'i') : null;
+        filteredLogs = filteredLogs.filter(log => {
+          if (regex) {
+            return regex.test(log.message) || 
+                   regex.test(log.sourceIp) || 
+                   regex.test(log.destIp) || 
+                   regex.test(log.signature) || 
+                   regex.test(log.classification);
+          } else {
+            const term = searchTerm.toLowerCase();
+            return log.message.toLowerCase().includes(term) ||
+                   log.sourceIp.includes(term) ||
+                   log.destIp.includes(term) ||
+                   log.signature.toLowerCase().includes(term) ||
+                   log.classification.toLowerCase().includes(term);
+          }
+        });
+      } catch (regexError) {
+        console.warn('⚠️ Regex hatası:', regexError.message);
+      }
+    }
+
+    // Timestamp'e göre sırala (en yeni önce)
+    filteredLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+    // Limit kadar en yeni logları al
+    const limitedLogs = filteredLogs.slice(0, limit);
+    
+    // ID'leri yeniden numaralandır
+    limitedLogs.forEach((log, index) => {
+      log.id = index + 1;
+    });
+
+    console.log(`✅ Snort logları okundu: ${limitedLogs.length} log (filtrelenmiş ${filteredLogs.length}, toplam ${parsedLogs.length}, limit: ${limit}) (${foundPath})`);
+    return res.json({ success: true, data: limitedLogs });
   } catch (error) {
     console.error('❌ Error getting snort logs:', error);
     return res.status(500).json({ success: false, message: 'Error getting snort logs: ' + error.message });
@@ -3921,6 +3995,562 @@ app.post('/api/admin/ip/unblock', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('❌ Error unblocking IP:', error);
     return res.status(500).json({ success: false, message: 'IP engeli kaldırma hatası: ' + error.message });
+  }
+});
+
+// ==================== SNO RT IDS GELİŞMİŞ ÖZELLİKLER ====================
+
+// Admin - Snort IDS: Real-time SSE stream
+app.get('/api/admin/snort/logs/stream', authenticateAdmin, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  // Client'ı ekle
+  snortRealtime.addClient(res);
+
+  // İlk bağlantı mesajı
+  res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Real-time stream bağlandı' })}\n\n`);
+
+  // Snort log dosyasını izlemeye başla
+  const possiblePaths = [
+    '/var/log/snort/alert_fast.txt',
+    '/var/log/snort/alert',
+    '/var/log/snort/snort.alert.fast',
+    '/var/log/snort/alerts.log'
+  ];
+
+  let foundPath = null;
+  for (const logPath of possiblePaths) {
+    if (fs.existsSync(logPath)) {
+      foundPath = logPath;
+      snortRealtime.watchLogFile(logPath, (newLogs) => {
+        // Yeni logları client'a gönder
+        snortRealtime.broadcast({
+          type: 'new_logs',
+          logs: newLogs,
+          count: newLogs.length
+        });
+
+        // Yüksek öncelikli loglar için özel bildirim
+        const highPriorityLogs = newLogs.filter(log => log.priority === 'high');
+        if (highPriorityLogs.length > 0) {
+          snortRealtime.broadcast({
+            type: 'high_priority_alert',
+            logs: highPriorityLogs,
+            count: highPriorityLogs.length
+          });
+        }
+      });
+      break;
+    }
+  }
+
+  // Bağlantı kapandığında temizle
+  req.on('close', () => {
+    snortRealtime.removeClient(res);
+    if (foundPath) {
+      snortRealtime.stopWatching(foundPath);
+    }
+  });
+});
+
+// Admin - Snort IDS: Zaman bazlı istatistikler
+app.get('/api/admin/snort/logs/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const { period = '7d' } = req.query; // 1d, 7d, 30d, 90d
+    const limit = parseInt(req.query.limit) || 10000;
+
+    // Log dosyasını oku
+    const possiblePaths = [
+      '/var/log/snort/alert_fast.txt',
+      '/var/log/snort/alert',
+      '/var/log/snort/snort.alert.fast',
+      '/var/log/snort/alerts.log'
+    ];
+
+    let logContent = '';
+    for (const logPath of possiblePaths) {
+      if (fs.existsSync(logPath)) {
+        logContent = fs.readFileSync(logPath, 'utf-8');
+        break;
+      }
+    }
+
+    if (!logContent) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // Parse logs
+    const lines = logContent.split('\n').filter(line => line.trim());
+    const parsedLogs = [];
+    let logId = 1;
+
+    for (const line of lines) {
+      if (parsedLogs.length >= limit) break;
+      try {
+        const alertMatch = line.match(/\[\*\*\]\s*\[(\d+):(\d+):(\d+)\]\s*(.+?)\s*\[\*\*\]\s*\[Classification:\s*(.+?)\]\s*\[Priority:\s*(\d+)\]\s*\{(\w+)\}\s*(\d+\.\d+\.\d+\.\d+):(\d+)\s*->\s*(\d+\.\d+\.\d+\.\d+):(\d+)/);
+        if (alertMatch) {
+          const [, sid, gid, rev, message, classification, priorityNum, protocol, srcIp, srcPort, dstIp, dstPort] = alertMatch;
+          const priorityNumInt = parseInt(priorityNum);
+          let priority = 'low';
+          if (priorityNumInt >= 3) priority = 'high';
+          else if (priorityNumInt >= 2) priority = 'medium';
+
+          let timestamp = new Date().toISOString();
+          const timestampMatch = line.match(/(\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\.\d+)/);
+          if (timestampMatch) {
+            const [datePart, timePart] = timestampMatch[1].split('-');
+            const [month, day] = datePart.split('/');
+            const [time, microseconds] = timePart.split('.');
+            const currentYear = new Date().getFullYear();
+            timestamp = new Date(`${currentYear}-${month}-${day}T${time}.${microseconds.substring(0, 3)}Z`).toISOString();
+          }
+
+          parsedLogs.push({
+            id: logId++,
+            timestamp,
+            priority,
+            classification: classification.trim(),
+            sourceIp: srcIp,
+            sourcePort: parseInt(srcPort),
+            destIp: dstIp,
+            destPort: parseInt(dstPort),
+            protocol: protocol.toUpperCase(),
+            message: message.trim(),
+            signature: `[${sid}:${gid}:${rev}]`,
+            action: message.toLowerCase().includes('drop') ? 'drop' : 'alert'
+          });
+        }
+      } catch {}
+    }
+
+    // Tarih filtresi
+    const periodMs = {
+      '1d': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+      '90d': 90 * 24 * 60 * 60 * 1000
+    }[period] || 7 * 24 * 60 * 60 * 1000;
+
+    const cutoffDate = Date.now() - periodMs;
+    const filteredLogs = parsedLogs.filter(log => new Date(log.timestamp).getTime() >= cutoffDate);
+
+    // Zaman bazlı gruplama
+    const stats = {};
+    filteredLogs.forEach(log => {
+      const date = new Date(log.timestamp);
+      const key = period === '1d' 
+        ? `${date.getHours()}:00`
+        : date.toISOString().split('T')[0];
+      
+      if (!stats[key]) {
+        stats[key] = { date: key, total: 0, high: 0, medium: 0, low: 0, alerts: 0, dropped: 0 };
+      }
+      stats[key].total++;
+      stats[key][log.priority]++;
+      if (log.action === 'alert') stats[key].alerts++;
+      if (log.action === 'drop') stats[key].dropped++;
+    });
+
+    const statsArray = Object.values(stats).sort((a, b) => a.date.localeCompare(b.date));
+
+    return res.json({ success: true, data: statsArray });
+  } catch (error) {
+    console.error('❌ Error getting snort stats:', error);
+    return res.status(500).json({ success: false, message: 'Error getting stats: ' + error.message });
+  }
+});
+
+// Admin - Snort IDS: En çok saldırı yapan IP'ler
+app.get('/api/admin/snort/logs/top-attackers', authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const { period = '7d' } = req.query;
+
+    // Log dosyasını oku ve parse et (yukarıdaki gibi)
+    const possiblePaths = [
+      '/var/log/snort/alert_fast.txt',
+      '/var/log/snort/alert',
+      '/var/log/snort/snort.alert.fast',
+      '/var/log/snort/alerts.log'
+    ];
+
+    let logContent = '';
+    for (const logPath of possiblePaths) {
+      if (fs.existsSync(logPath)) {
+        logContent = fs.readFileSync(logPath, 'utf-8');
+        break;
+      }
+    }
+
+    if (!logContent) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const lines = logContent.split('\n').filter(line => line.trim());
+    const ipCounts = {};
+    const periodMs = {
+      '1d': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+      '90d': 90 * 24 * 60 * 60 * 1000
+    }[period] || 7 * 24 * 60 * 60 * 1000;
+    const cutoffDate = Date.now() - periodMs;
+
+    lines.forEach(line => {
+      try {
+        const alertMatch = line.match(/\[\*\*\]\s*\[(\d+):(\d+):(\d+)\]\s*(.+?)\s*\[\*\*\]\s*\[Classification:\s*(.+?)\]\s*\[Priority:\s*(\d+)\]\s*\{(\w+)\}\s*(\d+\.\d+\.\d+\.\d+):(\d+)\s*->\s*(\d+\.\d+\.\d+\.\d+):(\d+)/);
+        if (alertMatch) {
+          const srcIp = alertMatch[8];
+          const timestampMatch = line.match(/(\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\.\d+)/);
+          if (timestampMatch) {
+            const [datePart, timePart] = timestampMatch[1].split('-');
+            const [month, day] = datePart.split('/');
+            const [time] = timePart.split('.');
+            const currentYear = new Date().getFullYear();
+            const timestamp = new Date(`${currentYear}-${month}-${day}T${time}Z`).getTime();
+            
+            if (timestamp >= cutoffDate) {
+              if (!ipCounts[srcIp]) {
+                ipCounts[srcIp] = { ip: srcIp, count: 0, high: 0, medium: 0, low: 0 };
+              }
+              ipCounts[srcIp].count++;
+              const priorityNum = parseInt(alertMatch[6]);
+              if (priorityNum >= 3) ipCounts[srcIp].high++;
+              else if (priorityNum >= 2) ipCounts[srcIp].medium++;
+              else ipCounts[srcIp].low++;
+            }
+          }
+        }
+      } catch {}
+    });
+
+    const topAttackers = Object.values(ipCounts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+
+    // Geolocation bilgilerini ekle
+    const ips = topAttackers.map(a => a.ip);
+    const locations = await ipGeolocation.getBulkLocations(ips);
+    topAttackers.forEach((attacker, index) => {
+      attacker.location = locations[index];
+    });
+
+    return res.json({ success: true, data: topAttackers });
+  } catch (error) {
+    console.error('❌ Error getting top attackers:', error);
+    return res.status(500).json({ success: false, message: 'Error getting top attackers: ' + error.message });
+  }
+});
+
+// Admin - Snort IDS: Protokol dağılımı
+app.get('/api/admin/snort/logs/protocol-stats', authenticateAdmin, async (req, res) => {
+  try {
+    const { period = '7d' } = req.query;
+    const limit = parseInt(req.query.limit) || 10000;
+
+    const possiblePaths = [
+      '/var/log/snort/alert_fast.txt',
+      '/var/log/snort/alert',
+      '/var/log/snort/snort.alert.fast',
+      '/var/log/snort/alerts.log'
+    ];
+
+    let logContent = '';
+    for (const logPath of possiblePaths) {
+      if (fs.existsSync(logPath)) {
+        logContent = fs.readFileSync(logPath, 'utf-8');
+        break;
+      }
+    }
+
+    if (!logContent) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const lines = logContent.split('\n').filter(line => line.trim());
+    const protocolCounts = {};
+    const periodMs = {
+      '1d': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+      '90d': 90 * 24 * 60 * 60 * 1000
+    }[period] || 7 * 24 * 60 * 60 * 1000;
+    const cutoffDate = Date.now() - periodMs;
+
+    let processed = 0;
+    for (const line of lines) {
+      if (processed >= limit) break;
+      try {
+        const alertMatch = line.match(/\[\*\*\]\s*\[(\d+):(\d+):(\d+)\]\s*(.+?)\s*\[\*\*\]\s*\[Classification:\s*(.+?)\]\s*\[Priority:\s*(\d+)\]\s*\{(\w+)\}\s*(\d+\.\d+\.\d+\.\d+):(\d+)\s*->\s*(\d+\.\d+\.\d+\.\d+):(\d+)/);
+        if (alertMatch) {
+          const protocol = alertMatch[7].toUpperCase();
+          const timestampMatch = line.match(/(\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\.\d+)/);
+          if (timestampMatch) {
+            const [datePart, timePart] = timestampMatch[1].split('-');
+            const [month, day] = datePart.split('/');
+            const [time] = timePart.split('.');
+            const currentYear = new Date().getFullYear();
+            const timestamp = new Date(`${currentYear}-${month}-${day}T${time}Z`).getTime();
+            
+            if (timestamp >= cutoffDate) {
+              protocolCounts[protocol] = (protocolCounts[protocol] || 0) + 1;
+            }
+          }
+          processed++;
+        }
+      } catch {}
+    }
+
+    const stats = Object.entries(protocolCounts).map(([protocol, count]) => ({
+      protocol,
+      count
+    })).sort((a, b) => b.count - a.count);
+
+    return res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error('❌ Error getting protocol stats:', error);
+    return res.status(500).json({ success: false, message: 'Error getting protocol stats: ' + error.message });
+  }
+});
+
+// Admin - Snort IDS: Çoklu IP engelleme
+app.post('/api/admin/snort/logs/bulk-block', authenticateAdmin, async (req, res) => {
+  try {
+    const { ips, reason } = req.body || {};
+    
+    if (!Array.isArray(ips) || ips.length === 0) {
+      return res.status(400).json({ success: false, message: 'Geçerli IP adresleri gerekli' });
+    }
+
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    const results = [];
+
+    for (const ip of ips) {
+      if (!ipRegex.test(ip)) {
+        results.push({ ip, success: false, message: 'Geçersiz IP formatı' });
+        continue;
+      }
+
+      const isPrivateIP = /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|localhost)/.test(ip);
+      if (isPrivateIP) {
+        results.push({ ip, success: false, message: 'Private IP engellenemez' });
+        continue;
+      }
+
+      try {
+        dbSecurity.blockIP(ip, reason || `Snort IDS - Toplu engelleme`);
+        
+        if (global.rateLimiter && typeof global.rateLimiter.blockIP === 'function') {
+          global.rateLimiter.blockIP(ip);
+        }
+
+        if (global.advancedSecurity && typeof global.advancedSecurity.increaseIPScore === 'function') {
+          global.advancedSecurity.increaseIPScore(ip, 500);
+        }
+
+        results.push({ ip, success: true, message: 'Engellendi' });
+      } catch (error) {
+        results.push({ ip, success: false, message: error.message });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    
+    return res.json({
+      success: true,
+      message: `${successCount}/${ips.length} IP engellendi`,
+      data: results
+    });
+  } catch (error) {
+    console.error('❌ Error bulk blocking IPs:', error);
+    return res.status(500).json({ success: false, message: 'Toplu IP engelleme hatası: ' + error.message });
+  }
+});
+
+// Admin - Snort IDS: Otomatik engelleme kuralları
+app.get('/api/admin/snort/rules', authenticateAdmin, (req, res) => {
+  try {
+    const rules = snortAutomation.getRules();
+    return res.json({ success: true, data: rules });
+  } catch (error) {
+    console.error('❌ Error getting rules:', error);
+    return res.status(500).json({ success: false, message: 'Error getting rules: ' + error.message });
+  }
+});
+
+app.post('/api/admin/snort/rules', authenticateAdmin, (req, res) => {
+  try {
+    const rule = snortAutomation.addRule(req.body);
+    return res.json({ success: true, data: rule });
+  } catch (error) {
+    console.error('❌ Error adding rule:', error);
+    return res.status(500).json({ success: false, message: 'Error adding rule: ' + error.message });
+  }
+});
+
+app.put('/api/admin/snort/rules/:id', authenticateAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const rule = snortAutomation.updateRule(id, req.body);
+    if (rule) {
+      return res.json({ success: true, data: rule });
+    }
+    return res.status(404).json({ success: false, message: 'Kural bulunamadı' });
+  } catch (error) {
+    console.error('❌ Error updating rule:', error);
+    return res.status(500).json({ success: false, message: 'Error updating rule: ' + error.message });
+  }
+});
+
+app.delete('/api/admin/snort/rules/:id', authenticateAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const deleted = snortAutomation.deleteRule(id);
+    if (deleted) {
+      return res.json({ success: true, message: 'Kural silindi' });
+    }
+    return res.status(404).json({ success: false, message: 'Kural bulunamadı' });
+  } catch (error) {
+    console.error('❌ Error deleting rule:', error);
+    return res.status(500).json({ success: false, message: 'Error deleting rule: ' + error.message });
+  }
+});
+
+// Admin - Snort IDS: Whitelist yönetimi
+app.get('/api/admin/snort/whitelist', authenticateAdmin, (req, res) => {
+  try {
+    const whitelist = snortAutomation.getWhitelist();
+    return res.json({ success: true, data: whitelist });
+  } catch (error) {
+    console.error('❌ Error getting whitelist:', error);
+    return res.status(500).json({ success: false, message: 'Error getting whitelist: ' + error.message });
+  }
+});
+
+app.post('/api/admin/snort/whitelist', authenticateAdmin, async (req, res) => {
+  try {
+    const { ip, reason } = req.body || {};
+    if (!ip) {
+      return res.status(400).json({ success: false, message: 'IP adresi gerekli' });
+    }
+    const result = await snortAutomation.addToWhitelist(ip, reason);
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('❌ Error adding to whitelist:', error);
+    return res.status(500).json({ success: false, message: 'Error adding to whitelist: ' + error.message });
+  }
+});
+
+app.delete('/api/admin/snort/whitelist/:ip', authenticateAdmin, async (req, res) => {
+  try {
+    const ip = decodeURIComponent(req.params.ip);
+    await snortAutomation.removeFromWhitelist(ip);
+    return res.json({ success: true, message: 'Whitelist\'ten kaldırıldı' });
+  } catch (error) {
+    console.error('❌ Error removing from whitelist:', error);
+    return res.status(500).json({ success: false, message: 'Error removing from whitelist: ' + error.message });
+  }
+});
+
+// Admin - Snort IDS: PDF export
+app.post('/api/admin/snort/logs/export/pdf', authenticateAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate, limit = 1000 } = req.body || {};
+    
+    // Log dosyasını oku ve parse et
+    const possiblePaths = [
+      '/var/log/snort/alert_fast.txt',
+      '/var/log/snort/alert',
+      '/var/log/snort/snort.alert.fast',
+      '/var/log/snort/alerts.log'
+    ];
+
+    let logContent = '';
+    for (const logPath of possiblePaths) {
+      if (fs.existsSync(logPath)) {
+        logContent = fs.readFileSync(logPath, 'utf-8');
+        break;
+      }
+    }
+
+    if (!logContent) {
+      return res.status(404).json({ success: false, message: 'Log dosyası bulunamadı' });
+    }
+
+    // Parse logs (yukarıdaki gibi)
+    const lines = logContent.split('\n').filter(line => line.trim());
+    const parsedLogs = [];
+    let logId = 1;
+
+    for (const line of lines) {
+      if (parsedLogs.length >= limit) break;
+      try {
+        const alertMatch = line.match(/\[\*\*\]\s*\[(\d+):(\d+):(\d+)\]\s*(.+?)\s*\[\*\*\]\s*\[Classification:\s*(.+?)\]\s*\[Priority:\s*(\d+)\]\s*\{(\w+)\}\s*(\d+\.\d+\.\d+\.\d+):(\d+)\s*->\s*(\d+\.\d+\.\d+\.\d+):(\d+)/);
+        if (alertMatch) {
+          const [, sid, gid, rev, message, classification, priorityNum, protocol, srcIp, srcPort, dstIp, dstPort] = alertMatch;
+          const priorityNumInt = parseInt(priorityNum);
+          let priority = 'low';
+          if (priorityNumInt >= 3) priority = 'high';
+          else if (priorityNumInt >= 2) priority = 'medium';
+
+          let timestamp = new Date().toISOString();
+          const timestampMatch = line.match(/(\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\.\d+)/);
+          if (timestampMatch) {
+            const [datePart, timePart] = timestampMatch[1].split('-');
+            const [month, day] = datePart.split('/');
+            const [time, microseconds] = timePart.split('.');
+            const currentYear = new Date().getFullYear();
+            timestamp = new Date(`${currentYear}-${month}-${day}T${time}.${microseconds.substring(0, 3)}Z`).toISOString();
+          }
+
+          // Tarih filtresi
+          if (startDate && new Date(timestamp) < new Date(startDate)) continue;
+          if (endDate && new Date(timestamp) > new Date(endDate)) continue;
+
+          parsedLogs.push({
+            id: logId++,
+            timestamp,
+            priority,
+            classification: classification.trim(),
+            sourceIp: srcIp,
+            sourcePort: parseInt(srcPort),
+            destIp: dstIp,
+            destPort: parseInt(dstPort),
+            protocol: protocol.toUpperCase(),
+            message: message.trim(),
+            signature: `[${sid}:${gid}:${rev}]`,
+            action: message.toLowerCase().includes('drop') ? 'drop' : 'alert'
+          });
+        }
+      } catch {}
+    }
+
+    parsedLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // PDF oluştur
+    const report = await snortReporting.generatePDFReport(parsedLogs, { startDate, endDate });
+    
+    // Dosyayı gönder
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${report.filename}"`);
+    res.sendFile(report.filepath);
+  } catch (error) {
+    console.error('❌ Error exporting PDF:', error);
+    return res.status(500).json({ success: false, message: 'PDF export hatası: ' + error.message });
+  }
+});
+
+// Admin - Snort IDS: Rapor listesi
+app.get('/api/admin/snort/reports', authenticateAdmin, (req, res) => {
+  try {
+    const reports = snortReporting.listReports();
+    return res.json({ success: true, data: reports });
+  } catch (error) {
+    console.error('❌ Error listing reports:', error);
+    return res.status(500).json({ success: false, message: 'Error listing reports: ' + error.message });
   }
 });
 
