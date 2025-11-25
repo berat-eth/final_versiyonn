@@ -108,7 +108,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
         { id: 'sliders', label: 'Slider Yönetimi', icon: Image },
         { id: 'popups', label: 'Popup Yönetimi', icon: SquareStack },
         { id: 'google-maps-scraper', label: 'AI Müşteri Bulucu', icon: Map },
-        { id: 'product-research', label: 'Ürün Araştırma', icon: Search },
       ]
     },
     {

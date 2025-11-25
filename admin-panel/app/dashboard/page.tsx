@@ -65,7 +65,6 @@ import TrendyolAuth from '@/components/TrendyolAuth'
 import TrendyolProducts from '@/components/TrendyolProducts'
 import HepsiburadaOrders from '@/components/HepsiburadaOrders'
 import TicimaxOrders from '@/components/TicimaxOrders'
-import ProductResearch from '@/components/ProductResearch'
 
 
 export default function DashboardPage() {
@@ -283,7 +282,6 @@ export default function DashboardPage() {
           {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
           {activeTab === 'recommendations' && <Recommendations />}
           {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
-          {activeTab === 'product-research' && <ProductResearch />}
           {activeTab === 'seo' && <SEO />}
           {activeTab === 'integrations' && <Integrations />}
           {activeTab === 'trendyol-auth' && <TrendyolAuth />}
