@@ -14758,7 +14758,7 @@ app.get('/api/admin/products', authenticateAdmin, async (req, res) => {
         AND COLUMN_NAME IN ('isActive', 'excludeFromXml')
       `);
       
-      const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+      const existingColumns = columns.map((c) => c.COLUMN_NAME);
       
       if (!existingColumns.includes('isActive')) {
         await poolWrapper.execute(`
@@ -14815,7 +14815,7 @@ app.get('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
         AND COLUMN_NAME IN ('isActive', 'excludeFromXml')
       `);
       
-      const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+      const existingColumns = columns.map((c) => c.COLUMN_NAME);
       
       if (!existingColumns.includes('isActive')) {
         await poolWrapper.execute(`
@@ -14912,7 +14912,7 @@ app.put('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
         AND COLUMN_NAME IN ('isActive', 'excludeFromXml')
       `);
       
-      const existingColumns = columns.map((c: any) => c.COLUMN_NAME);
+      const existingColumns = columns.map((c) => c.COLUMN_NAME);
       
       if (!existingColumns.includes('isActive')) {
         await poolWrapper.execute(`
