@@ -36,7 +36,7 @@ router.get('/google-maps/result/:jobId', async (req, res) => {
   return res.json({ success: true, data: items });
 });
 
-// Trendyol Product Research - Scrape search results
+// Trendyol Product Research - Fetch search results
 router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
   try {
     const { query, page: pageNum = 1, sortBy = 'BEST_SELLER' } = req.body || {};
@@ -48,14 +48,15 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
       });
     }
 
-    // Playwright kullanarak Trendyol arama sonuçlarını çek
-    let playwright;
+    // Cheerio ve axios kullanarak Trendyol arama sonuçlarını çek
+    let cheerio, axios;
     try {
-      playwright = require('playwright');
+      cheerio = require('cheerio');
+      axios = require('axios');
     } catch (e) {
       return res.status(500).json({ 
         success: false, 
-        message: 'Playwright paketi gerekli. Lütfen yükleyin: npm install playwright' 
+        message: 'Gerekli paketler yüklü değil. Lütfen cheerio ve axios paketlerini yükleyin.' 
       });
     }
 
@@ -65,108 +66,90 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
 
     console.log(`🔍 Trendyol arama başlatılıyor: ${query} (Sayfa: ${pageNum})`);
 
-    // Browser başlat
-    const browser = await playwright.chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1920, height: 1080 }
-    });
-
-    const page = await context.newPage();
-
     try {
-      // Sayfayı yükle
-      await page.goto(url, { 
-        waitUntil: 'networkidle',
-        timeout: 30000 
+      // Sayfayı çek
+      const response = await axios.get(url, {
+        timeout: 30000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
       });
 
-      // Sayfanın yüklenmesini bekle
-      await page.waitForTimeout(2000);
+      const $ = cheerio.load(response.data);
+      const products = [];
 
-      // Ürün kartlarını çek
-      const products = await page.evaluate(() => {
-        const productCards = document.querySelectorAll('[data-testid="product-card"]') || 
-                           document.querySelectorAll('.p-card-wrppr') ||
-                           document.querySelectorAll('.product-card');
+      // Ürün kartlarını bul - Trendyol'un farklı selector'larını dene
+      const productCards = $('[data-testid="product-card"], .p-card-wrppr, .product-card, .p-card-chldrn-cntnr, article').slice(0, 50);
 
-        const results = [];
+      productCards.each((index, element) => {
+        try {
+          const $card = $(element);
+          
+          // Ürün adı
+          const nameElement = $card.find('[data-testid="product-card-name"], .prdct-desc-cntnr-name, .product-name, a[href*="/"]').first();
+          const name = nameElement.text().trim() || $card.find('a[href*="/"]').first().text().trim();
 
-        productCards.forEach((card, index) => {
-          try {
-            // Ürün adı
-            const nameElement = card.querySelector('[data-testid="product-card-name"]') ||
-                               card.querySelector('.prdct-desc-cntnr-name') ||
-                               card.querySelector('.product-name') ||
-                               card.querySelector('a[href*="/"]');
-            const name = nameElement ? nameElement.textContent.trim() : '';
-
-            // Ürün linki
-            const linkElement = card.querySelector('a[href*="/"]');
-            const link = linkElement ? linkElement.href : '';
-
-            // Fiyat
-            const priceElement = card.querySelector('[data-testid="product-card-price"]') ||
-                                card.querySelector('.prc-box-dscntd') ||
-                                card.querySelector('.price');
-            const price = priceElement ? priceElement.textContent.trim() : '';
-
-            // Eski fiyat (varsa)
-            const oldPriceElement = card.querySelector('.prc-box-orgnl') ||
-                                  card.querySelector('.old-price');
-            const oldPrice = oldPriceElement ? oldPriceElement.textContent.trim() : null;
-
-            // İndirim yüzdesi (varsa)
-            const discountElement = card.querySelector('.prc-box-dscnt') ||
-                                  card.querySelector('.discount-badge');
-            const discount = discountElement ? discountElement.textContent.trim() : null;
-
-            // Görsel
-            const imageElement = card.querySelector('img');
-            const image = imageElement ? (imageElement.src || imageElement.getAttribute('data-src') || '') : '';
-
-            // Marka
-            const brandElement = card.querySelector('[data-testid="product-card-brand"]') ||
-                               card.querySelector('.product-brand');
-            const brand = brandElement ? brandElement.textContent.trim() : '';
-
-            // Değerlendirme (varsa)
-            const ratingElement = card.querySelector('[data-testid="product-card-rating"]') ||
-                                 card.querySelector('.rating');
-            const rating = ratingElement ? ratingElement.textContent.trim() : null;
-
-            // Yorum sayısı (varsa)
-            const reviewCountElement = card.querySelector('[data-testid="product-card-review-count"]') ||
-                                      card.querySelector('.review-count');
-            const reviewCount = reviewCountElement ? reviewCountElement.textContent.trim() : null;
-
-            if (name && link) {
-              results.push({
-                name,
-                link,
-                price,
-                oldPrice,
-                discount,
-                image,
-                brand,
-                rating,
-                reviewCount,
-                position: index + 1
-              });
-            }
-          } catch (err) {
-            console.error('Ürün parse hatası:', err);
+          // Ürün linki
+          const linkElement = $card.find('a[href*="/"]').first();
+          let link = linkElement.attr('href') || '';
+          if (link && !link.startsWith('http')) {
+            link = 'https://www.trendyol.com' + link;
           }
-        });
 
-        return results;
+          // Fiyat
+          const priceElement = $card.find('[data-testid="product-card-price"], .prc-box-dscntd, .price, .prc-box-sllng').first();
+          const price = priceElement.text().trim();
+
+          // Eski fiyat (varsa)
+          const oldPriceElement = $card.find('.prc-box-orgnl, .old-price').first();
+          const oldPrice = oldPriceElement.length ? oldPriceElement.text().trim() : null;
+
+          // İndirim yüzdesi (varsa)
+          const discountElement = $card.find('.prc-box-dscnt, .discount-badge, .discount-rate').first();
+          const discount = discountElement.length ? discountElement.text().trim() : null;
+
+          // Görsel
+          const imageElement = $card.find('img').first();
+          let image = imageElement.attr('src') || imageElement.attr('data-src') || imageElement.attr('data-lazy') || '';
+          if (image && !image.startsWith('http')) {
+            image = 'https:' + image;
+          }
+
+          // Marka
+          const brandElement = $card.find('[data-testid="product-card-brand"], .product-brand, .brand-name').first();
+          const brand = brandElement.length ? brandElement.text().trim() : '';
+
+          // Değerlendirme (varsa)
+          const ratingElement = $card.find('[data-testid="product-card-rating"], .rating, .rating-score').first();
+          const rating = ratingElement.length ? ratingElement.text().trim() : null;
+
+          // Yorum sayısı (varsa)
+          const reviewCountElement = $card.find('[data-testid="product-card-review-count"], .review-count, .rating-count').first();
+          const reviewCount = reviewCountElement.length ? reviewCountElement.text().trim() : null;
+
+          if (name && link) {
+            products.push({
+              name,
+              link,
+              price: price || 'Fiyat bilgisi yok',
+              oldPrice,
+              discount,
+              image: image || '',
+              brand,
+              rating,
+              reviewCount,
+              position: index + 1
+            });
+          }
+        } catch (err) {
+          console.error('Ürün parse hatası:', err);
+        }
       });
-
-      await browser.close();
 
       console.log(`✅ Trendyol arama tamamlandı: ${products.length} ürün bulundu`);
 
@@ -182,12 +165,15 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
       });
 
     } catch (error) {
-      await browser.close();
-      throw error;
+      console.error('❌ Trendyol arama hatası:', error.message);
+      return res.status(500).json({ 
+        success: false, 
+        message: error.message || 'Trendyol arama sırasında hata oluştu. Sayfa yapısı değişmiş olabilir.' 
+      });
     }
 
   } catch (error) {
-    console.error('❌ Trendyol scraper hatası:', error);
+    console.error('❌ Trendyol arama hatası:', error);
     return res.status(500).json({ 
       success: false, 
       message: error.message || 'Trendyol arama sırasında hata oluştu' 
