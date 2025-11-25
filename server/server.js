@@ -1,10 +1,38 @@
 const express = require('express');
+// ✅ PRODUCTION: Logging helper - Production'da sadece error/warning göster
+const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'error' : 'info');
+const logger = {
+  log: (...args) => {
+    if (LOG_LEVEL === 'info' || LOG_LEVEL === 'debug') {
+      console.log(...args);
+    }
+  },
+  warn: (...args) => {
+    if (LOG_LEVEL !== 'error') {
+      console.warn(...args);
+    }
+  },
+  error: (...args) => {
+    console.error(...args);
+  },
+  info: (...args) => {
+    if (LOG_LEVEL === 'info' || LOG_LEVEL === 'debug') {
+      console.log(...args);
+    }
+  },
+  debug: (...args) => {
+    if (LOG_LEVEL === 'debug') {
+      console.log(...args);
+    }
+  }
+};
+
 // Load environment variables from envai file
 try {
   require('dotenv').config({ path: '../.env' });
-  console.log('✅ Environment variables loaded from envai file');
+  logger.log('✅ Environment variables loaded from envai file');
 } catch (error) {
-  console.warn('⚠️ Could not load envai file, using defaults:', error.message);
+  logger.warn('⚠️ Could not load envai file, using defaults:', error.message);
 }
 const cors = require('cors');
 const mysql = require('mysql2/promise');
@@ -445,6 +473,20 @@ app.use(cors({
 
 app.use(express.json());
 
+// ✅ PRODUCTION: Request timeout middleware (30 seconds)
+app.use((req, res, next) => {
+  req.setTimeout(30000, () => {
+    if (!res.headersSent) {
+      res.status(408).json({
+        success: false,
+        message: 'Request timeout',
+        type: 'TIMEOUT_ERROR'
+      });
+    }
+  });
+  next();
+});
+
 // ✅ OPTIMIZASYON: XSS Protection Middleware - Sadece POST/PUT/PATCH request'lerinde çalıştır
 app.use((req, res, next) => {
   if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
@@ -710,7 +752,7 @@ app.use(express.text({ type: ['text/xml', 'application/xml'], limit: '20mb' }));
 const uploadsDir = path.join(__dirname, 'uploads', 'reviews');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('✅ Uploads directory created:', uploadsDir);
+  logger.log('✅ Uploads directory created:', uploadsDir);
 }
 
 // Invoices PDF yükleme için uploads klasörünü oluştur
@@ -718,13 +760,13 @@ const invoicesDir = path.join(__dirname, 'uploads', 'invoices');
 if (!fs.existsSync(invoicesDir)) {
   try {
     fs.mkdirSync(invoicesDir, { recursive: true });
-    console.log('✅ Invoices uploads directory created:', invoicesDir);
+    logger.log('✅ Invoices uploads directory created:', invoicesDir);
   } catch (error) {
-    console.error('❌ Error creating invoices directory:', error);
+    logger.error('❌ Error creating invoices directory:', error);
     throw error;
   }
 } else {
-  console.log('✅ Invoices uploads directory already exists:', invoicesDir);
+  logger.log('✅ Invoices uploads directory already exists:', invoicesDir);
 }
 
 // Ticimax kargo fişi PDF'leri için uploads klasörünü oluştur
@@ -732,22 +774,22 @@ const ticimaxCargoSlipsDir = path.join(__dirname, 'uploads', 'ticimax-cargo-slip
 if (!fs.existsSync(ticimaxCargoSlipsDir)) {
   try {
     fs.mkdirSync(ticimaxCargoSlipsDir, { recursive: true });
-    console.log('✅ Ticimax cargo slips directory created:', ticimaxCargoSlipsDir);
+    logger.log('✅ Ticimax cargo slips directory created:', ticimaxCargoSlipsDir);
   } catch (error) {
-    console.error('❌ Error creating ticimax cargo slips directory:', error);
+    logger.error('❌ Error creating ticimax cargo slips directory:', error);
     throw error;
   }
 } else {
-  console.log('✅ Ticimax cargo slips directory already exists:', ticimaxCargoSlipsDir);
+  logger.log('✅ Ticimax cargo slips directory already exists:', ticimaxCargoSlipsDir);
 }
 
 // Dizin yazma izinlerini kontrol et
 try {
   fs.accessSync(invoicesDir, fs.constants.W_OK);
-  console.log('✅ Invoices directory is writable');
+  logger.log('✅ Invoices directory is writable');
 } catch (error) {
-  console.error('❌ Invoices directory is NOT writable:', error);
-  console.error('❌ Please check directory permissions:', invoicesDir);
+    logger.error('❌ Invoices directory is NOT writable:', error);
+    logger.error('❌ Please check directory permissions:', invoicesDir);
 }
 
 // GÜVENLİK: File upload security utilities
@@ -1408,15 +1450,48 @@ async function createUserExpTransactionsTable() {
 }
 
 async function initializeDatabase() {
-  try {
-    pool = mysql.createPool(dbConfig);
+  const maxRetries = 3;
+  const retryDelay = 2000;
+  let retries = 0;
+  
+  while (retries < maxRetries) {
+    try {
+      pool = mysql.createPool(dbConfig);
 
-    // Test connection with security
-    const connection = await pool.getConnection();
-    const secureConnection = dbSecurity.secureConnection(connection);
-    console.log('✅ Database connected securely');
-    secureConnection.release();
-    
+      // Test connection with security
+      const connection = await pool.getConnection();
+      const secureConnection = dbSecurity.secureConnection(connection);
+      logger.log('✅ Database connected securely');
+      secureConnection.release();
+      
+      // ✅ PRODUCTION: Database connection error handling
+      pool.on('error', (err) => {
+        logger.error('❌ Database pool error:', err);
+        if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNREFUSED') {
+          logger.warn('⚠️ Database connection lost, attempting reconnection...');
+          // Pool will automatically retry, but we log it
+        }
+      });
+      
+      break; // Success, exit retry loop
+    } catch (error) {
+      retries++;
+      logger.error(`❌ Database connection attempt ${retries}/${maxRetries} failed:`, error.message);
+      
+      if (retries >= maxRetries) {
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error(`Failed to connect to database after ${maxRetries} attempts`);
+        } else {
+          logger.warn('⚠️ Running in development mode, continuing without database...');
+          // In development, we might continue with degraded functionality
+        }
+      } else {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+  }
+  
+  try {
     // ✅ OPTIMIZASYON: Connection pool monitoring - Her 5 dakikada bir pool durumunu logla
     setInterval(() => {
       if (pool && pool._allConnections) {
@@ -1426,7 +1501,7 @@ async function initializeDatabase() {
           queued: pool._connectionQueue ? pool._connectionQueue.length : 0
         };
         if (process.env.NODE_ENV !== 'production') {
-          console.log('📊 Connection Pool Stats:', stats);
+          logger.log('📊 Connection Pool Stats:', stats);
         }
       }
     }, 5 * 60 * 1000); // Her 5 dakika
@@ -1587,7 +1662,7 @@ async function initializeDatabase() {
     }
 
   } catch (error) {
-    console.error('❌ Database initialization error:', error);
+    logger.error('❌ Database initialization error:', error);
     dbSecurity.logDatabaseAccess('system', 'DATABASE_ERROR', 'system', {
       error: error.message,
       ip: 'localhost'
@@ -1676,28 +1751,68 @@ async function ensureTestUser() {
 }
 
 // Health check endpoint (no authentication required)
+// ✅ PRODUCTION: Enhanced health check endpoint
 app.get('/api/health', async (req, res) => {
+  const startTime = Date.now();
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    checks: {}
+  };
+  
+  let allHealthy = true;
+  
   try {
-    // Quick database check
-    const connection = await pool.getConnection();
-    connection.release();
-
-    // Quick response
-    res.json({
-      success: true,
-      message: 'Server is healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      database: 'connected'
+    // Database check
+    try {
+      const connection = await pool.getConnection();
+      await connection.ping();
+      connection.release();
+      health.checks.database = { status: 'healthy', responseTime: Date.now() - startTime };
+    } catch (error) {
+      health.checks.database = { status: 'unhealthy', error: 'Connection failed' };
+      allHealthy = false;
+    }
+    
+    // Redis check
+    try {
+      const { healthCheck } = require('./redis');
+      const redisHealth = await healthCheck();
+      health.checks.redis = {
+        status: redisHealth.available ? 'healthy' : 'unhealthy',
+        latency: redisHealth.latency || null
+      };
+      if (!redisHealth.available) allHealthy = false;
+    } catch (error) {
+      health.checks.redis = { status: 'unhealthy', error: 'Connection failed' };
+      allHealthy = false;
+    }
+    
+    // Memory usage
+    const memUsage = process.memoryUsage();
+    health.memory = {
+      rss: Math.round(memUsage.rss / 1024 / 1024), // MB
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024), // MB
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024), // MB
+      external: Math.round(memUsage.external / 1024 / 1024) // MB
+    };
+    
+    health.responseTime = Date.now() - startTime;
+    health.status = allHealthy ? 'healthy' : 'degraded';
+    
+    res.status(allHealthy ? 200 : 503).json({
+      success: allHealthy,
+      ...health
     });
   } catch (error) {
-    // GÜVENLİK: Error information disclosure - Production'da detaylı error mesajları gizlenir
-    logError(error, 'HEALTH_CHECK');
-    const errorResponse = createSafeErrorResponse(error, 'Server health check failed');
-    res.status(500).json({
-      ...errorResponse,
-      timestamp: new Date().toISOString()
+    logger.error('❌ Health check error:', error);
+    res.status(503).json({
+      success: false,
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: 'Health check failed'
     });
   }
 });
@@ -18012,8 +18127,36 @@ app.post('/api/sync/import-xml', async (req, res) => {
   }
 });
 
+// ✅ PRODUCTION: Environment variables validation
+function validateEnvironmentVariables() {
+  const requiredVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+  const missing = [];
+  
+  requiredVars.forEach(varName => {
+    if (!process.env[varName]) {
+      missing.push(varName);
+    }
+  });
+  
+  if (missing.length > 0) {
+    const errorMsg = `❌ Missing required environment variables: ${missing.join(', ')}`;
+    logger.error(errorMsg);
+    
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(errorMsg);
+    } else {
+      logger.warn('⚠️ Running in development mode with missing variables');
+    }
+  }
+  
+  logger.log('✅ Environment variables validated');
+}
+
 // Start server
 async function startServer() {
+  // ✅ PRODUCTION: Validate environment variables
+  validateEnvironmentVariables();
+  
   await initializeDatabase();
   // ✅ OPTIMIZASYON: Initialize Redis with retry and reconnection
   let redisRetries = 0;
@@ -22355,10 +22498,15 @@ async function startServer() {
     console.warn('⚠️ Admin API mount failed:', e.message);
   }
 
-  // GÜVENLİK: Enhanced error handling middleware - Production'da error detayları gizlenir
+  // ✅ PRODUCTION: Global error handler middleware - Tüm unhandled error'ları yakala
   app.use((error, req, res, next) => {
+    // Error middleware zaten response göndermişse tekrar gönderme
+    if (res.headersSent) {
+      return next(error);
+    }
+
     // GÜVENLİK: Error logging - Detaylı bilgiler sadece loglara yazılır
-    logError(error, req.path || 'UNKNOWN_ROUTE');
+    logError(error, req.path || 'UNKNOWN_ROUTE', req);
 
     // Database connection errors - Generic mesaj
     if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
@@ -22399,26 +22547,34 @@ async function startServer() {
     });
   });
 
+  // ✅ PRODUCTION: 404 handler - Tüm route'lardan sonra
+  app.use('*', (req, res) => {
+    res.status(404).json({
+      success: false,
+      message: 'Endpoint not found',
+      path: req.originalUrl
+    });
+  });
+
   // Development ortamında IP skorlarını temizle
   if (process.env.NODE_ENV !== 'production') {
     advancedSecurity.clearAllIPScores();
     console.log('🧹 Development ortamı: IP skorları temizlendi');
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 Server is running on port ${PORT}`);
-    console.log(`🌐 Local API: http://localhost:${PORT}/api`);
-    console.log(`🌐 Network API: http://${localIP}:${PORT}/api`);
-    console.log(`📊 SQL Query logging is ENABLED`);
-    console.log(`🔍 All database operations will be logged with timing`);
-    console.log(`🔧 Manual sync: POST /api/sync/products`);
-    console.log(`💰 Price Logic: IndirimliFiyat = 0 ise SatisFiyati kullanılır`);
-    console.log(`📱 API will work on same network even if IP changes`);
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    logger.log(`\n🚀 Server is running on port ${PORT}`);
+    logger.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    logger.log(`🌐 Local API: http://localhost:${PORT}/api`);
+    logger.log(`🌐 Network API: http://${localIP}:${PORT}/api`);
+    logger.log(`📊 Log Level: ${LOG_LEVEL}`);
+    logger.log(`🔧 Manual sync: POST /api/sync/products`);
+    logger.log(`💰 Price Logic: IndirimliFiyat = 0 ise SatisFiyati kullanılır`);
 
     // Start XML Sync Service
     if (xmlSyncService) {
       xmlSyncService.startScheduledSync();
-      console.log(`📡 XML Sync Service started (every 4 hours)\n`);
+      logger.log(`📡 XML Sync Service started (every 4 hours)\n`);
     }
     
     // Trendyol API rate limit sayaçlarını sıfırla (sunucu başlatıldığında)
@@ -22426,22 +22582,80 @@ async function startServer() {
       const TrendyolAPIService = require('./services/trendyol-api');
       TrendyolAPIService.resetRateLimitCounters();
     } catch (error) {
-      console.warn('⚠️ Trendyol API rate limit sıfırlama hatası:', error.message);
+      logger.warn('⚠️ Trendyol API rate limit sıfırlama hatası:', error.message);
     }
   });
+
+  // ✅ PRODUCTION: Graceful shutdown
+  let isShuttingDown = false;
+  const gracefulShutdown = async (signal) => {
+    if (isShuttingDown) {
+      logger.warn('⚠️ Shutdown already in progress, forcing exit...');
+      process.exit(1);
+    }
+    
+    isShuttingDown = true;
+    logger.log(`\n🛑 Received ${signal}, starting graceful shutdown...`);
+    
+    // Stop accepting new requests
+    server.close(() => {
+      logger.log('✅ HTTP server closed');
+    });
+    
+    // Close database connections
+    if (pool) {
+      try {
+        await pool.end();
+        logger.log('✅ Database connections closed');
+      } catch (error) {
+        logger.error('❌ Error closing database connections:', error);
+      }
+    }
+    
+    // Close Redis connection
+    try {
+      const { getClient } = require('./redis');
+      const redisClient = getClient();
+      if (redisClient && redisClient.quit) {
+        await redisClient.quit();
+        logger.log('✅ Redis connection closed');
+      }
+    } catch (error) {
+      logger.warn('⚠️ Error closing Redis connection:', error.message);
+    }
+    
+    // Force exit after timeout
+    setTimeout(() => {
+      logger.error('❌ Forced shutdown after timeout');
+      process.exit(1);
+    }, 30000); // 30 seconds
+    
+    logger.log('✅ Graceful shutdown completed');
+    process.exit(0);
+  };
+  
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  
+  // ✅ PRODUCTION: Uncaught exception handling
+  process.on('uncaughtException', (error) => {
+    logger.error('❌ Uncaught Exception:', error);
+    logError(error, 'UNCAUGHT_EXCEPTION');
+    gracefulShutdown('uncaughtException');
+  });
+  
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    logError(reason instanceof Error ? reason : new Error(String(reason)), 'UNHANDLED_REJECTION');
+    // Don't exit on unhandled rejection, just log it
+  });
+  
+  return server;
 }
 
-startServer().catch(console.error);
-
-// Global error handler: prevent leaking DB errors
-app.use((err, req, res, next) => {
-  try {
-    const isDbError = err && typeof err.message === 'string' && /sql|database|mysql|syntax/i.test(err.message);
-    if (isDbError) {
-      console.error('❌ DB error masked:', err.message);
-      return res.status(500).json({ success: false, message: 'Internal server error' });
-    }
-  } catch (_) { }
-  console.error('❌ Error:', err);
-  res.status(500).json({ success: false, message: 'Internal server error' });
+startServer().catch((error) => {
+  logger.error('❌ Failed to start server:', error);
+  process.exit(1);
 });
+
+// ✅ PRODUCTION: Duplicate error handler kaldırıldı - Global error handler yukarıda tanımlı

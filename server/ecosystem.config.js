@@ -21,7 +21,7 @@ module.exports = {
     // Auto restart configuration
     watch: false,
     ignore_watch: ['node_modules', 'logs'],
-    max_memory_restart: '1G',
+    max_memory_restart: '2G', // ✅ PRODUCTION: 1G → 2G
     
     // Advanced PM2 features
     min_uptime: '10s',
@@ -31,6 +31,13 @@ module.exports = {
     // Health monitoring
     health_check_grace_period: 3000,
     health_check_interval: 30000,
+    
+    // ✅ PRODUCTION: Log rotation
+    log_type: 'json',
+    merge_logs: true,
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    max_size: '10M',
+    retain: 7, // Keep 7 days of logs
     
     // Environment variables
     env_file: '.env'
