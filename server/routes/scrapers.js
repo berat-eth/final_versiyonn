@@ -67,31 +67,8 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
     console.log(`🔍 Trendyol arama başlatılıyor: ${query} (Sayfa: ${pageNum})`);
 
     try {
-      // Önce ana sayfaya istek at (cookie almak için)
-      let cookies = '';
-      try {
-        const homeResponse = await axios.get('https://www.trendyol.com', {
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'tr-TR,tr;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
-          }
-        });
-        
-        // Cookie'leri al
-        if (homeResponse.headers['set-cookie']) {
-          cookies = homeResponse.headers['set-cookie'].map(c => c.split(';')[0]).join('; ');
-        }
-      } catch (e) {
-        console.warn('Ana sayfa cookie alınamadı, devam ediliyor...');
-      }
-
-      // Sayfayı çek - Trendyol bot koruması için daha gerçekçi headers
-      const response = await axios.get(url, {
+      // Cookie jar için axios instance oluştur
+      const axiosInstance = axios.create({
         timeout: 30000,
         maxRedirects: 5,
         validateStatus: function (status) {
@@ -104,17 +81,80 @@ router.post('/trendyol/search', authenticateAdmin, async (req, res) => {
           'Accept-Encoding': 'gzip, deflate, br',
           'Connection': 'keep-alive',
           'Upgrade-Insecure-Requests': '1',
+          'DNT': '1',
+          'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'sec-ch-ua-platform-version': '"15.0.0"',
+          'sec-ch-ua-arch': '"x86"',
+          'sec-ch-ua-bitness': '"64"',
+          'sec-ch-ua-model': '""',
+          'sec-ch-ua-full-version': '"131.0.6778.85"',
+          'sec-ch-ua-full-version-list': '"Google Chrome";v="131.0.6778.85", "Chromium";v="131.0.6778.85", "Not_A Brand";v="24.0.0.0"'
+        }
+      });
+
+      // Cookie'leri saklamak için
+      let cookieJar = '';
+
+      // 1. Adım: Ana sayfaya git (cookie al)
+      try {
+        const homeResponse = await axiosInstance.get('https://www.trendyol.com', {
+          headers: {
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1'
+          }
+        });
+        
+        if (homeResponse.headers['set-cookie']) {
+          cookieJar = homeResponse.headers['set-cookie'].map(c => c.split(';')[0]).join('; ');
+        }
+        
+        // Random delay (human-like behavior)
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+      } catch (e) {
+        console.warn('Ana sayfa cookie alınamadı, devam ediliyor...');
+      }
+
+      // 2. Adım: Bir kategori sayfasına git (daha gerçekçi görün)
+      try {
+        await axiosInstance.get('https://www.trendyol.com/erkek-giyim-x-g2', {
+          headers: {
+            'Referer': 'https://www.trendyol.com/',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Cookie': cookieJar
+          }
+        });
+        
+        // Cookie'leri güncelle
+        if (homeResponse && homeResponse.headers['set-cookie']) {
+          const newCookies = homeResponse.headers['set-cookie'].map(c => c.split(';')[0]);
+          cookieJar = [...new Set([...cookieJar.split('; '), ...newCookies])].filter(Boolean).join('; ');
+        }
+        
+        // Random delay
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+      } catch (e) {
+        console.warn('Kategori sayfası ziyaret edilemedi, devam ediliyor...');
+      }
+
+      // 3. Adım: Arama sayfasına git
+      const response = await axiosInstance.get(url, {
+        headers: {
+          'Referer': 'https://www.trendyol.com/erkek-giyim-x-g2',
           'Sec-Fetch-Dest': 'document',
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Site': 'same-origin',
           'Sec-Fetch-User': '?1',
           'Cache-Control': 'max-age=0',
-          'Referer': 'https://www.trendyol.com/',
-          'Cookie': cookies,
-          'DNT': '1',
-          'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-          'sec-ch-ua-mobile': '?0',
-          'sec-ch-ua-platform': '"Windows"'
+          'Cookie': cookieJar,
+          'Viewport-Width': '1920',
+          'Width': '1920'
         }
       });
 
