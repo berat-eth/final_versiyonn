@@ -264,6 +264,40 @@ class DatabaseSecurity {
   }
 
   /**
+   * IP'yi manuel olarak engelle
+   */
+  blockIP(ip, reason = 'Manual block') {
+    if (!ip || typeof ip !== 'string') {
+      throw new Error('Invalid IP address');
+    }
+    this.blockedIPs.add(ip);
+    this.logDatabaseAccess('admin', 'IP_BLOCKED', ip, { reason, timestamp: new Date().toISOString() });
+    return true;
+  }
+
+  /**
+   * IP engelini kaldır
+   */
+  unblockIP(ip) {
+    if (!ip || typeof ip !== 'string') {
+      throw new Error('Invalid IP address');
+    }
+    const wasBlocked = this.blockedIPs.has(ip);
+    this.blockedIPs.delete(ip);
+    if (wasBlocked) {
+      this.logDatabaseAccess('admin', 'IP_UNBLOCKED', ip, { timestamp: new Date().toISOString() });
+    }
+    return wasBlocked;
+  }
+
+  /**
+   * Engellenmiş IP'leri listele
+   */
+  getBlockedIPs() {
+    return Array.from(this.blockedIPs);
+  }
+
+  /**
    * Başarılı giriş sonrası sıfırlama
    */
   resetFailedAttempts(ip, userId) {

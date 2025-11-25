@@ -58,10 +58,24 @@ class RateLimiter {
   }
 
   /**
+   * IP'yi engelle
+   */
+  blockIP(ip) {
+    if (!ip || typeof ip !== 'string') {
+      return false;
+    }
+    this.blockedIPs.add(ip);
+    return true;
+  }
+
+  /**
    * IP engellemeyi kaldır
    */
   unblockIP(ip) {
-    this.blockedIPs.delete(ip);
+    if (!ip || typeof ip !== 'string') {
+      return false;
+    }
+    return this.blockedIPs.delete(ip);
   }
 
   /**

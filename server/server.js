@@ -3839,6 +3839,135 @@ app.get('/api/admin/snort/logs', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - IP Engelleme: IP'yi engelle
+app.post('/api/admin/ip/block', authenticateAdmin, async (req, res) => {
+  try {
+    const { ip, reason } = req.body || {};
+    
+    if (!ip || typeof ip !== 'string') {
+      return res.status(400).json({ success: false, message: 'Geçerli bir IP adresi gerekli' });
+    }
+
+    // IP format kontrolü (basit)
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (!ipRegex.test(ip)) {
+      return res.status(400).json({ success: false, message: 'Geçersiz IP adresi formatı' });
+    }
+
+    // Localhost ve private IP'leri engellemeyi önle
+    const isPrivateIP = /^(::1|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|localhost)/.test(ip);
+    if (isPrivateIP) {
+      return res.status(400).json({ success: false, message: 'Private IP adresleri engellenemez' });
+    }
+
+    // IP'yi engelle
+    dbSecurity.blockIP(ip, reason || 'Snort IDS log - Manual block');
+    
+    // Rate limiter'da da engelle
+    if (global.rateLimiter && typeof global.rateLimiter.blockIP === 'function') {
+      global.rateLimiter.blockIP(ip);
+    }
+
+    // Advanced security'de de engelle
+    if (global.advancedSecurity && typeof global.advancedSecurity.increaseIPScore === 'function') {
+      global.advancedSecurity.increaseIPScore(ip, 500); // Yüksek skor = engellendi
+    }
+
+    console.log(`✅ IP engellendi: ${ip} (Sebep: ${reason || 'Manual block'})`);
+    
+    return res.json({ 
+      success: true, 
+      message: `IP adresi ${ip} başarıyla engellendi`,
+      data: { ip, reason: reason || 'Manual block', timestamp: new Date().toISOString() }
+    });
+  } catch (error) {
+    console.error('❌ Error blocking IP:', error);
+    return res.status(500).json({ success: false, message: 'IP engelleme hatası: ' + error.message });
+  }
+});
+
+// Admin - IP Engelleme: IP engelini kaldır
+app.post('/api/admin/ip/unblock', authenticateAdmin, async (req, res) => {
+  try {
+    const { ip } = req.body || {};
+    
+    if (!ip || typeof ip !== 'string') {
+      return res.status(400).json({ success: false, message: 'Geçerli bir IP adresi gerekli' });
+    }
+
+    // IP engelini kaldır
+    const wasBlocked = dbSecurity.unblockIP(ip);
+    
+    // Rate limiter'dan da kaldır
+    if (global.rateLimiter && typeof global.rateLimiter.unblockIP === 'function') {
+      global.rateLimiter.unblockIP(ip);
+    }
+
+    if (!wasBlocked) {
+      return res.json({ 
+        success: true, 
+        message: `IP adresi ${ip} zaten engellenmemiş`,
+        data: { ip, wasBlocked: false }
+      });
+    }
+
+    console.log(`✅ IP engeli kaldırıldı: ${ip}`);
+    
+    return res.json({ 
+      success: true, 
+      message: `IP adresi ${ip} engeli kaldırıldı`,
+      data: { ip, timestamp: new Date().toISOString() }
+    });
+  } catch (error) {
+    console.error('❌ Error unblocking IP:', error);
+    return res.status(500).json({ success: false, message: 'IP engeli kaldırma hatası: ' + error.message });
+  }
+});
+
+// Admin - IP Engelleme: Engellenmiş IP'leri listele
+app.get('/api/admin/ip/blocked', authenticateAdmin, async (req, res) => {
+  try {
+    const blockedIPs = dbSecurity.getBlockedIPs();
+    
+    return res.json({ 
+      success: true, 
+      data: blockedIPs.map(ip => ({
+        ip,
+        blockedAt: new Date().toISOString() // Tam zamanı takip etmek için DB'ye kaydedilebilir
+      })),
+      count: blockedIPs.length
+    });
+  } catch (error) {
+    console.error('❌ Error getting blocked IPs:', error);
+    return res.status(500).json({ success: false, message: 'Engellenmiş IP listesi alınamadı: ' + error.message });
+  }
+});
+
+// Admin - IP Engelleme: IP engelleme durumunu kontrol et
+app.get('/api/admin/ip/check/:ip', authenticateAdmin, async (req, res) => {
+  try {
+    const { ip } = req.params;
+    
+    if (!ip) {
+      return res.status(400).json({ success: false, message: 'IP adresi gerekli' });
+    }
+
+    const isBlocked = dbSecurity.isIPBlocked(ip);
+    
+    return res.json({ 
+      success: true, 
+      data: { 
+        ip, 
+        isBlocked,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error checking IP status:', error);
+    return res.status(500).json({ success: false, message: 'IP durumu kontrol edilemedi: ' + error.message });
+  }
+});
+
 // Admin - Redis stats
 app.get('/api/admin/redis/stats', authenticateAdmin, async (req, res) => {
   try {
