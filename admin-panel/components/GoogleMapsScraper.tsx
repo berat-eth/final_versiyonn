@@ -7,6 +7,8 @@ import GoogleMapsExportButton from '@/components/GoogleMapsExportButton';
 import GoogleMapsProgressBar from '@/components/GoogleMapsProgressBar';
 import { BusinessData, ScrapeResponse } from '@/lib/googleMapsTypes';
 import { api, ApiResponse } from '@/lib/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Brain, Sparkles, MapPin } from 'lucide-react';
 
 export default function GoogleMapsScraper() {
   const [scrapedData, setScrapedData] = useState<BusinessData[]>([]);
@@ -312,6 +314,165 @@ export default function GoogleMapsScraper() {
           </div>
         </div>
       </div>
+
+      {/* AI Loading Screen */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-purple-900"
+          >
+            <div className="text-center space-y-8 px-4">
+              {/* AI Brain Icon with Animation */}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.5 }}
+                className="relative"
+              >
+                <div className="relative w-32 h-32 mx-auto">
+                  {/* Glowing Background */}
+                  <motion.div
+                    className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-20 blur-3xl"
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      opacity: [0.2, 0.4, 0.2],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                  />
+                  
+                  {/* Brain Icon */}
+                  <motion.div
+                    className="relative w-full h-full flex items-center justify-center"
+                    animate={{
+                      rotate: [0, 5, -5, 0],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <Brain className="w-20 h-20 text-white drop-shadow-2xl" strokeWidth={1.5} />
+                  </motion.div>
+
+                  {/* Sparkles around brain */}
+                  {[...Array(8)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute w-2 h-2 bg-white rounded-full"
+                      style={{
+                        top: '50%',
+                        left: '50%',
+                        originX: 0.5,
+                        originY: 0.5,
+                      }}
+                      animate={{
+                        x: [0, Math.cos((i * Math.PI * 2) / 8) * 60],
+                        y: [0, Math.sin((i * Math.PI * 2) / 8) * 60],
+                        opacity: [0, 1, 0],
+                        scale: [0, 1, 0],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        delay: i * 0.2,
+                        ease: "easeInOut"
+                      }}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* AI Text */}
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="space-y-4"
+              >
+                <h3 className="text-3xl font-bold text-white flex items-center justify-center gap-3">
+                  <Sparkles className="w-8 h-8 text-yellow-400 animate-pulse" />
+                  <span>AI Müşteri Bulucu</span>
+                  <Sparkles className="w-8 h-8 text-yellow-400 animate-pulse" />
+                </h3>
+                <motion.p
+                  className="text-xl text-blue-200 font-medium"
+                  animate={{
+                    opacity: [0.5, 1, 0.5],
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                >
+                  {progress.status || 'Google Maps\'ten veriler analiz ediliyor...'}
+                </motion.p>
+                {progress.total > 0 && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-lg text-purple-200"
+                  >
+                    {progress.current} / {progress.total} işletme işleniyor
+                  </motion.p>
+                )}
+              </motion.div>
+
+              {/* Progress Dots */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="flex items-center justify-center gap-2"
+              >
+                {[...Array(3)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="w-3 h-3 bg-white rounded-full"
+                    animate={{
+                      scale: [1, 1.5, 1],
+                      opacity: [0.5, 1, 0.5],
+                    }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      delay: i * 0.2,
+                      ease: "easeInOut"
+                    }}
+                  />
+                ))}
+              </motion.div>
+
+              {/* Loading Stats */}
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.7 }}
+                className="pt-8 space-y-2"
+              >
+                <div className="flex items-center justify-center gap-6 text-sm text-blue-300">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-green-400" />
+                    <span>Konum verileri toplanıyor</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
+                    <span>AI analiz çalışıyor</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

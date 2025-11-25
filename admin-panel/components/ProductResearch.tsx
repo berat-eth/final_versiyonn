@@ -5,7 +5,7 @@ import { Search, Loader2, ExternalLink, Star, TrendingUp, Package, Sparkles, Bra
 import { api } from '@/lib/api'
 import { motion, AnimatePresence } from 'framer-motion'
 
-interface TrendyolProduct {
+interface Product {
   name: string
   link: string
   price: string
@@ -21,7 +21,7 @@ interface TrendyolProduct {
 export default function ProductResearch() {
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<{ query: string; page: number; sortBy: string; totalResults: number; products: TrendyolProduct[] } | null>(null)
+  const [results, setResults] = useState<{ query: string; page: number; sortBy: string; totalResults: number; products: Product[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
 
@@ -52,7 +52,7 @@ export default function ProductResearch() {
       }
     } catch (err: any) {
       setError(err?.message || 'Arama sırasında hata oluştu')
-      console.error('Trendyol arama hatası:', err)
+      console.error('Ürün arama hatası:', err)
     } finally {
       setLoading(false)
     }
@@ -69,7 +69,7 @@ export default function ProductResearch() {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Ürün Araştırma</h2>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">Trendyol'dan ürün araştırması yapın</p>
+        <p className="text-slate-500 dark:text-slate-400 mt-1">Pazaryerlerinden ürün araştırması yapın</p>
       </div>
 
       {/* Arama Formu */}
@@ -231,7 +231,7 @@ export default function ProductResearch() {
                     rel="noopener noreferrer"
                     className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all text-sm font-medium"
                   >
-                    <span>Trendyol'da Gör</span>
+                    <span>Üründe Gör</span>
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 </div>
@@ -348,7 +348,7 @@ export default function ProductResearch() {
                     ease: "easeInOut"
                   }}
                 >
-                  Trendyol'dan veriler analiz ediliyor...
+                  Pazaryerlerinden veriler analiz ediliyor...
                 </motion.p>
               </motion.div>
 
