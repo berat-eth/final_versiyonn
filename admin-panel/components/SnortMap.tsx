@@ -3,6 +3,11 @@
 import React, { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 
+// CSS'i sadece client-side'da yükle
+if (typeof window !== 'undefined') {
+  require('leaflet/dist/leaflet.css')
+}
+
 // Leaflet'i dinamik olarak yükle (SSR hatası için)
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
@@ -39,7 +44,6 @@ export default function SnortMap({ logs }: SnortMapProps) {
         })
         setLeafletLoaded(true)
       })
-      import('leaflet/dist/leaflet.css')
       setMapReady(true)
     }
   }, [])
