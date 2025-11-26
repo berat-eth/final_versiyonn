@@ -216,7 +216,7 @@ function CreateReportModal({ onClose, onSuccess }: { onClose: () => void; onSucc
         
         const res = await api.get<ApiResponse<any[]>>('/admin/snort/logs', params)
         
-        if (res?.success) {
+        if (res?.success && res.data) {
           const data = format === 'csv' 
             ? convertToCSV(res.data)
             : JSON.stringify(res.data, null, 2)
