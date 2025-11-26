@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { FileText, Download, Calendar, Mail, Clock, X } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, ApiResponse } from '@/lib/api'
 import { format } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -27,7 +27,7 @@ export default function SnortReports() {
   const loadReports = async () => {
     try {
       setLoading(true)
-      const res = await api.get<any>('/admin/snort/reports')
+      const res = await api.get<ApiResponse<any[]>>('/admin/snort/reports')
       if (res?.success) {
         setReports((res.data || []).map((r: any) => ({
           ...r,
@@ -214,7 +214,7 @@ function CreateReportModal({ onClose, onSuccess }: { onClose: () => void; onSucc
         if (startDate) params.startDate = startDate
         if (endDate) params.endDate = endDate
         
-        const res = await api.get('/admin/snort/logs', params)
+        const res = await api.get<ApiResponse<any[]>>('/admin/snort/logs', params)
         
         if (res?.success) {
           const data = format === 'csv' 
