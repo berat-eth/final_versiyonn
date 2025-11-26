@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
 
     const { limit = 20 } = req.query;
     const [sliders] = await poolWrapper.execute(`
-      SELECT id, title, imageUrl, clickAction, \`order\`, isActive, createdAt, updatedAt
+      SELECT id, title, description, imageUrl, thumbnailUrl, videoUrl, clickAction, \`order\`, isActive, autoPlay, duration, buttonText, buttonColor, textColor, overlayOpacity, createdAt, updatedAt
       FROM sliders 
       WHERE isActive = true
       ORDER BY \`order\` ASC

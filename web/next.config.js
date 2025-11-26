@@ -18,6 +18,30 @@ const nextConfig = {
         protocol: 'https',
         hostname: '*.ticimax.cloud',
       },
+      {
+        protocol: 'https',
+        hostname: 'api.huglutekstil.com',
+      },
+      {
+        protocol: 'http',
+        hostname: 'api.huglutekstil.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.huglutekstil.com',
+      },
+      {
+        protocol: 'http',
+        hostname: '*.huglutekstil.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'api.zerodaysoftware.tr',
+      },
+      {
+        protocol: 'http',
+        hostname: 'api.zerodaysoftware.tr',
+      },
     ],
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
