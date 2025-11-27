@@ -424,7 +424,9 @@ export default function TicimaxOrders() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
-                      {new Date(order.createdAt).toLocaleDateString('tr-TR')}
+                      {order.orderDate 
+                        ? new Date(order.orderDate).toLocaleDateString('tr-TR')
+                        : new Date(order.createdAt).toLocaleDateString('tr-TR')}
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
@@ -800,8 +802,16 @@ export default function TicimaxOrders() {
                 {/* Tarih Bilgileri */}
                 <div className="border-t border-slate-200 dark:border-dark-border pt-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
+                    {selectedOrder.orderDate && (
+                      <div>
+                        <label className="text-slate-600 dark:text-slate-400">Sipariş Tarihi</label>
+                        <p className="text-slate-900 dark:text-slate-200 font-medium">
+                          {new Date(selectedOrder.orderDate).toLocaleString('tr-TR')}
+                        </p>
+                      </div>
+                    )}
                     <div>
-                      <label className="text-slate-600 dark:text-slate-400">Oluşturulma Tarihi</label>
+                      <label className="text-slate-600 dark:text-slate-400">İmport Tarihi</label>
                       <p className="text-slate-900 dark:text-slate-200 font-medium">
                         {new Date(selectedOrder.createdAt).toLocaleString('tr-TR')}
                       </p>
