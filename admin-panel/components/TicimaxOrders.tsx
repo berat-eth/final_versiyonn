@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { 
   ShoppingCart, Search, Loader2, X, User, Mail, Phone, 
-  Calendar, DollarSign, Package, MapPin, Upload, CheckCircle, Trash2, FileSpreadsheet, Eye, Truck, Code, FileJson, Printer, Download, FileUp, AlertCircle, FileText, Link as LinkIcon
+  Calendar, DollarSign, Package, MapPin, Upload, Trash2, FileSpreadsheet, Eye, Truck, Code, FileJson, Receipt, Printer, FileText, Download, ExternalLink
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type ApiResponse } from '@/lib/api'
@@ -52,27 +52,12 @@ export default function TicimaxOrders() {
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
   const [showOrderDetailModal, setShowOrderDetailModal] = useState(false)
   const [showJsonModal, setShowJsonModal] = useState(false)
-  const [showCargoSlipModal, setShowCargoSlipModal] = useState(false)
-  const [cargoSlipUrl, setCargoSlipUrl] = useState<string | null>(null)
-  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
-  const [bulkUploadFiles, setBulkUploadFiles] = useState<File[]>([])
-  const [uploadingBulk, setUploadingBulk] = useState(false)
-  const [bulkUploadResult, setBulkUploadResult] = useState<any>(null)
+  const [selectedOrder, setSelectedOrder] = useState<TicimaxOrder | null>(null)
+  const [showInvoicesModal, setShowInvoicesModal] = useState(false)
   const [invoices, setInvoices] = useState<any[]>([])
   const [invoicesLoading, setInvoicesLoading] = useState(false)
-  const [showInvoicesModal, setShowInvoicesModal] = useState(false)
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
   const [invoiceLink, setInvoiceLink] = useState<string>('')
-  const [showCargoSlipsModal, setShowCargoSlipsModal] = useState(false)
-  const [cargoSlips, setCargoSlips] = useState<any[]>([])
-  const [cargoSlipsLoading, setCargoSlipsLoading] = useState(false)
-  const [selectedCargoSlip, setSelectedCargoSlip] = useState<string | null>(null)
-  const [selectedCargoSlipUrl, setSelectedCargoSlipUrl] = useState<string | null>(null)
-  const [loadingCargoSlip, setLoadingCargoSlip] = useState(false)
-  const [addingQRCode, setAddingQRCode] = useState(false)
-  const [deletingCargoSlip, setDeletingCargoSlip] = useState<string | null>(null)
-  const [selectedOrder, setSelectedOrder] = useState<TicimaxOrder | null>(null)
-  const [cargoSlipGenerated, setCargoSlipGenerated] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -241,325 +226,8 @@ export default function TicimaxOrders() {
   const handleOrderClick = (order: TicimaxOrder) => {
     setSelectedOrder(order)
     setShowOrderDetailModal(true)
-    // Sipariş detay modalı açıldığında kargo fişlerini yükle
-    loadCargoSlips()
   }
 
-  const loadCargoSlips = async () => {
-    try {
-      const response = await api.get<ApiResponse<any[]>>('/admin/ticimax-orders/cargo-slips')
-      if (response.success && response.data) {
-        setCargoSlips(response.data)
-      }
-    } catch (error: any) {
-      console.error('Kargo fişlerini yükleme hatası:', error)
-    }
-  }
-
-  const handleShowInvoices = async () => {
-    try {
-      setInvoicesLoading(true)
-      setShowInvoicesModal(true)
-      const response = await api.get<ApiResponse<any[]>>('/admin/invoices')
-      if (response.success && response.data) {
-        setInvoices(response.data)
-        // İlk faturayı varsayılan olarak seç
-        if (response.data.length > 0 && !selectedInvoiceId) {
-          setSelectedInvoiceId(response.data[0].id)
-        }
-      }
-    } catch (error: any) {
-      console.error('Faturaları yükleme hatası:', error)
-    } finally {
-      setInvoicesLoading(false)
-    }
-  }
-
-  const handleAddQRCodeToCargoSlip = async () => {
-    if (!selectedCargoSlip) {
-      alert('Lütfen bir kargo fişi seçin')
-      return
-    }
-    
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
-    
-    // Fatura linki veya seçili fatura kontrolü
-    let invoiceUrl = ''
-    
-    if (invoiceLink && invoiceLink.trim()) {
-      // Fatura linki girilmişse onu kullan
-      invoiceUrl = invoiceLink.trim()
-    } else if (selectedInvoiceId) {
-      // Seçili faturayı bul
-      const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId)
-      if (!selectedInvoice) {
-        alert('Seçili fatura bulunamadı.')
-        return
-      }
-      
-      // Direkt PDF dosyasına erişim için download URL'i oluştur
-      if (selectedInvoice.id) {
-        // Admin endpoint ile direkt dosya indirme
-        invoiceUrl = `${API_BASE_URL}/admin/invoices/${selectedInvoice.id}/download`
-      } else if (selectedInvoice.shareUrl) {
-        // Share URL varsa download endpoint'ine yönlendir
-        invoiceUrl = `${selectedInvoice.shareUrl}/download`
-      }
-    } else {
-      alert('Lütfen bir fatura seçin veya fatura linki girin')
-      return
-    }
-
-    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
-    const token = sessionStorage.getItem('authToken') || ''
-    
-    try {
-      setAddingQRCode(true)
-      setError(null)
-      
-      const response = await fetch(`${API_BASE_URL}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(selectedCargoSlip)}/add-qr`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': API_KEY,
-          'Authorization': `Bearer ${token}`,
-          'X-Admin-Key': ADMIN_KEY
-        },
-        body: JSON.stringify({
-          invoiceUrl: invoiceUrl
-        })
-      })
-      
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.message || errorData.error || errorMessage
-        } catch {
-          // JSON parse hatası
-        }
-        throw new Error(errorMessage)
-      }
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        alert('QR kod başarıyla eklendi!')
-        // Kargo fişlerini yeniden yükle
-        await loadCargoSlips()
-        // Seçili kargo fişini yeniden görüntüle
-        if (selectedCargoSlip) {
-          await handleViewCargoSlip(selectedCargoSlip)
-        }
-      } else {
-        throw new Error(result.message || 'QR kod eklenemedi')
-      }
-    } catch (err: any) {
-      setError('QR kod eklenirken hata oluştu: ' + (err.message || 'Bilinmeyen hata'))
-      alert('QR kod eklenirken hata oluştu: ' + (err.message || 'Bilinmeyen hata'))
-    } finally {
-      setAddingQRCode(false)
-    }
-  }
-
-  const fixInvoiceFileName = (fileName: string) => {
-    if (!fileName) return ''
-    try {
-      // Latin1 encoding sorununu düzelt
-      return decodeURIComponent(escape(fileName))
-    } catch {
-      return fileName
-    }
-  }
-
-  const handleShowCargoSlips = async () => {
-    try {
-      setCargoSlipsLoading(true)
-      setShowCargoSlipsModal(true)
-      const response = await api.get<ApiResponse<any[]>>('/admin/ticimax-orders/cargo-slips')
-      if (response.success && response.data) {
-        setCargoSlips(response.data)
-      }
-    } catch (error: any) {
-      console.error('Kargo fişlerini yükleme hatası:', error)
-      setError('Kargo fişleri yüklenirken hata oluştu')
-    } finally {
-      setCargoSlipsLoading(false)
-    }
-  }
-
-  const handleViewCargoSlip = async (fileName: string) => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
-    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
-    const token = sessionStorage.getItem('authToken') || ''
-    
-    try {
-      setLoadingCargoSlip(true)
-      const url = `${API_BASE_URL}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(fileName)}`
-      
-      const response = await fetch(url, {
-        headers: {
-          'X-API-Key': API_KEY,
-          'Authorization': `Bearer ${token}`,
-          'X-Admin-Key': ADMIN_KEY
-        }
-      })
-      
-      if (!response.ok) {
-        throw new Error('PDF yüklenemedi')
-      }
-      
-      const blob = await response.blob()
-      const objectUrl = window.URL.createObjectURL(blob)
-      setSelectedCargoSlipUrl(objectUrl)
-      setShowCargoSlipModal(true)
-      
-      // Kargo fişi görüntülendi, state'e ekle (eğer sipariş seçiliyse)
-      if (selectedOrder?.id) {
-        setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
-      }
-    } catch (error: any) {
-      console.error('Kargo fişi yükleme hatası:', error)
-      alert('Kargo fişi yüklenirken hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
-    } finally {
-      setLoadingCargoSlip(false)
-    }
-  }
-
-  const handleDeleteCargoSlip = async (fileName: string) => {
-    if (!confirm('Bu kargo fişini silmek istediğinizden emin misiniz?')) {
-      return
-    }
-    
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
-    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
-    const token = sessionStorage.getItem('authToken') || ''
-    
-    try {
-      setDeletingCargoSlip(fileName)
-      
-      const response = await fetch(`${API_BASE_URL}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(fileName)}`, {
-        method: 'DELETE',
-        headers: {
-          'X-API-Key': API_KEY,
-          'Authorization': `Bearer ${token}`,
-          'X-Admin-Key': ADMIN_KEY
-        }
-      })
-      
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.message || errorData.error || errorMessage
-        } catch {
-          // JSON parse hatası
-        }
-        throw new Error(errorMessage)
-      }
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        alert('Kargo fişi başarıyla silindi')
-        // Kargo fişlerini yeniden yükle
-        await loadCargoSlips()
-        // Eğer silinen kargo fişi seçiliyse, seçimi temizle
-        if (selectedCargoSlip === fileName) {
-          setSelectedCargoSlip(null)
-        }
-      } else {
-        throw new Error(result.message || 'Kargo fişi silinemedi')
-      }
-    } catch (error: any) {
-      console.error('Kargo fişi silme hatası:', error)
-      alert('Kargo fişi silinirken hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
-    } finally {
-      setDeletingCargoSlip(null)
-    }
-  }
-
-  const handleDownloadCargoSlip = () => {
-    if (!cargoSlipUrl || !selectedOrder) return
-    
-    const a = document.createElement('a')
-    a.href = cargoSlipUrl
-    a.download = `kargo-fisi-ticimax-${selectedOrder.orderNumber || selectedOrder.externalOrderId}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(cargoSlipUrl)
-    document.body.removeChild(a)
-    
-    // Kargo fişi başarıyla indirildi, state'e ekle
-    if (selectedOrder.id) {
-      setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
-    }
-  }
-
-  const handleBulkUploadFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    const pdfFiles = files.filter(file => file.type === 'application/pdf')
-    setBulkUploadFiles(pdfFiles)
-  }
-
-  const handleBulkUpload = async () => {
-    if (bulkUploadFiles.length === 0) {
-      alert('Lütfen en az bir PDF dosyası seçin')
-      return
-    }
-
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
-    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
-    const token = sessionStorage.getItem('authToken') || ''
-
-    try {
-      setUploadingBulk(true)
-      setError(null)
-      setBulkUploadResult(null)
-
-      const formData = new FormData()
-      bulkUploadFiles.forEach(file => {
-        formData.append('cargoSlips', file)
-      })
-
-      const response = await fetch(`${API_BASE_URL}/admin/ticimax-orders/bulk-upload-cargo-slips`, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': API_KEY,
-          'Authorization': `Bearer ${token}`,
-          'X-Admin-Key': ADMIN_KEY
-        },
-        body: formData
-      })
-
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.message || errorData.error || errorMessage
-        } catch {
-          // JSON parse hatası
-        }
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
-      setBulkUploadResult(result.data)
-      
-      // Başarılı yüklemelerden sonra siparişleri yeniden yükle
-      if (result.data.processed > 0) {
-        loadOrders()
-      }
-    } catch (err: any) {
-      setError('Toplu yükleme hatası: ' + (err.message || 'Bilinmeyen hata'))
-    } finally {
-      setUploadingBulk(false)
-    }
-  }
 
   const filteredOrders = orders.filter(order => {
     if (searchQuery) {
@@ -593,20 +261,6 @@ export default function TicimaxOrders() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleShowCargoSlips}
-            className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-          >
-            <Truck className="w-4 h-4" />
-            Kargo Fişleri
-          </button>
-          <button
-            onClick={() => setShowBulkUploadModal(true)}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-          >
-            <FileUp className="w-4 h-4" />
-            Kargo Fişi Yükle
-          </button>
           <button
             onClick={() => setShowUploadModal(true)}
             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
@@ -767,12 +421,6 @@ export default function TicimaxOrders() {
                         <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(order.status)}`}>
                           {getStatusLabel(order.status)}
                         </span>
-                        {cargoSlipGenerated.has(order.id) && (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium border bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700 flex items-center gap-1">
-                            <Printer className="w-3 h-3" />
-                            Kargo Gişi Yazıldı
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
@@ -892,6 +540,20 @@ export default function TicimaxOrders() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={handleShowInvoices}
+                      className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                      title="Faturaları Görüntüle"
+                    >
+                      <Receipt className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={handleGenerateCargoSlip}
+                      className="p-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                      title="Kargo Fişi Oluştur"
+                    >
+                      <Printer className="w-5 h-5" />
+                    </button>
+                    <button
                       onClick={() => {
                         setShowJsonModal(true)
                       }}
@@ -914,88 +576,13 @@ export default function TicimaxOrders() {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Kargo Fişi Seçimi */}
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Kargo Fişi</h3>
-                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-dark-border">
-                    {cargoSlipsLoading ? (
-                      <div className="flex items-center justify-center py-4">
-                        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                      </div>
-                    ) : cargoSlips.length === 0 ? (
-                      <p className="text-sm text-slate-600 dark:text-slate-400 text-center py-2">
-                        Henüz kargo fişi yüklenmemiş
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                          Kargo Fişi Seçiniz
-                        </label>
-                        <select
-                          value={selectedCargoSlip || ''}
-                          onChange={(e) => {
-                            setSelectedCargoSlip(e.target.value || null)
-                          }}
-                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">Kargo Fişi Seçiniz</option>
-                          {cargoSlips.map((slip, idx) => (
-                            <option key={idx} value={slip.fileName}>
-                              {slip.originalName || slip.fileName} - {new Date(slip.createdAt).toLocaleDateString('tr-TR')}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedCargoSlip && (
-                          <div className="flex items-center gap-2 mt-2">
-                            <button
-                              onClick={async () => {
-                                const slip = cargoSlips.find(s => s.fileName === selectedCargoSlip)
-                                if (slip) {
-                                  await handleViewCargoSlip(slip.fileName)
-                                }
-                              }}
-                              disabled={loadingCargoSlip}
-                              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
-                            >
-                              {loadingCargoSlip ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Eye className="w-4 h-4" />
-                              )}
-                              Görüntüle
-                            </button>
-                            <a
-                              href={`${process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(selectedCargoSlip)}`}
-                              download
-                              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm"
-                            >
-                              <Download className="w-4 h-4" />
-                              İndir
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {/* Fatura Seçimi */}
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Fatura Bilgileri</h3>
-                    <button
-                      onClick={handleShowInvoices}
-                      className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-                      title="Faturaları Görüntüle"
-                    >
-                      <FileText className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-dark-border space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Fatura Bilgileri</h3>
+                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-4">
                     {/* Fatura Linki */}
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        <LinkIcon className="w-4 h-4 inline mr-1" />
                         Fatura Linki (Opsiyonel)
                       </label>
                       <input
@@ -1043,45 +630,19 @@ export default function TicimaxOrders() {
                             <option key={invoice.id} value={invoice.id}>
                               {invoice.invoiceNumber || `Fatura #${invoice.id}`} 
                               {invoice.fileName && ` - ${fixInvoiceFileName(invoice.fileName)}`}
-                              {invoice.totalAmount && ` (${invoice.totalAmount.toLocaleString('tr-TR', { style: 'currency', currency: invoice.currency || 'TRY' })})`}
+                              {invoice.totalAmount && ` (${Number(invoice.totalAmount).toFixed(2)} ${invoice.currency || 'TRY'})`}
                             </option>
                           ))}
                         </select>
-                          {selectedInvoiceId && !invoiceLink && (
-                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                              Seçili fatura kargo fişindeki QR kodda kullanılacak
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      
-                      {/* QR Kod Ekle Butonu */}
-                      {selectedCargoSlip && (invoiceLink || selectedInvoiceId) && (
-                        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                          <button
-                            onClick={handleAddQRCodeToCargoSlip}
-                            disabled={addingQRCode}
-                            className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                          >
-                            {addingQRCode ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                QR Kod Ekleniyor...
-                              </>
-                            ) : (
-                              <>
-                                <Printer className="w-4 h-4" />
-                                Kargo Fişine QR Kod Ekle
-                              </>
-                            )}
-                          </button>
-                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
-                            Seçili kargo fişine fatura linki QR kodu eklenecek (sol alt köşe, A5 uyumlu)
+                        {selectedInvoiceId && !invoiceLink && (
+                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                            Seçili fatura kargo fişindeki QR kodda kullanılacak
                           </p>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+                </div>
 
                 {/* Sipariş Bilgileri */}
                 <div>
@@ -1253,9 +814,198 @@ export default function TicimaxOrders() {
         )}
       </AnimatePresence>
 
-      {/* JSON Data Modal */}
-      <AnimatePresence>
-        {showJsonModal && selectedOrder && (
+        {/* Invoices Modal */}
+        <AnimatePresence>
+          {showInvoicesModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowInvoicesModal(false)}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Receipt className="w-6 h-6" />
+                        PDF Faturalar
+                      </h2>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                        Sisteme yüklenmiş tüm faturalar
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowInvoicesModal(false)
+                      }}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6">
+                  {invoicesLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    </div>
+                  ) : invoices.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                      <p className="text-slate-600 dark:text-slate-400">Henüz fatura yüklenmemiş</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {invoices.map((invoice) => (
+                        <div
+                          key={invoice.id}
+                          className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                                <h3 className="font-semibold text-slate-900 dark:text-white">
+                                  {invoice.invoiceNumber || `Fatura #${invoice.id}`}
+                                </h3>
+                                {invoice.fileName && (
+                                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                                    {fixInvoiceFileName(invoice.fileName)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                {invoice.customerName && (
+                                  <div>
+                                    <label className="text-slate-600 dark:text-slate-400">Müşteri</label>
+                                    <p className="text-slate-900 dark:text-white">{invoice.customerName}</p>
+                                  </div>
+                                )}
+                                {invoice.totalAmount && (
+                                  <div>
+                                    <label className="text-slate-600 dark:text-slate-400">Tutar</label>
+                                    <p className="text-slate-900 dark:text-white">
+                                      {Number(invoice.totalAmount).toFixed(2)} {invoice.currency || 'TRY'}
+                                    </p>
+                                  </div>
+                                )}
+                                {invoice.invoiceDate && (
+                                  <div>
+                                    <label className="text-slate-600 dark:text-slate-400">Tarih</label>
+                                    <p className="text-slate-900 dark:text-white">
+                                      {new Date(invoice.invoiceDate).toLocaleDateString('tr-TR')}
+                                    </p>
+                                  </div>
+                                )}
+                                {invoice.fileSize && (
+                                  <div>
+                                    <label className="text-slate-600 dark:text-slate-400">Boyut</label>
+                                    <p className="text-slate-900 dark:text-white">
+                                      {(invoice.fileSize / 1024).toFixed(2)} KB
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 ml-4">
+                              {(() => {
+                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
+                                const token = sessionStorage.getItem('authToken') || ''
+                                const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                                const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+                                
+                                const viewUrl = invoice.id 
+                                  ? `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
+                                  : invoice.shareUrl 
+                                    ? `${invoice.shareUrl}/download`
+                                    : null
+                                
+                                const downloadUrl = invoice.id
+                                  ? `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
+                                  : invoice.shareUrl
+                                    ? `${invoice.shareUrl}/download`
+                                    : null
+
+                                if (!viewUrl || !downloadUrl) return null
+
+                                return (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        fetch(viewUrl, {
+                                          headers: {
+                                            'Authorization': `Bearer ${token}`,
+                                            'X-API-Key': API_KEY,
+                                            'X-Admin-Key': ADMIN_KEY
+                                          }
+                                        })
+                                          .then(res => res.blob())
+                                          .then(blob => {
+                                            const url = window.URL.createObjectURL(blob)
+                                            window.open(url, '_blank')
+                                            setTimeout(() => window.URL.revokeObjectURL(url), 100)
+                                          })
+                                          .catch(err => {
+                                            console.error('PDF görüntüleme hatası:', err)
+                                            alert('PDF görüntülenemedi')
+                                          })
+                                      }}
+                                      className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                      title="Görüntüle"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        fetch(downloadUrl, {
+                                          headers: {
+                                            'Authorization': `Bearer ${token}`,
+                                            'X-API-Key': API_KEY,
+                                            'X-Admin-Key': ADMIN_KEY
+                                          }
+                                        })
+                                          .then(res => res.blob())
+                                          .then(blob => {
+                                            const url = window.URL.createObjectURL(blob)
+                                            const a = document.createElement('a')
+                                            a.href = url
+                                            a.download = fixInvoiceFileName(invoice.fileName) || `fatura-${invoice.id}.pdf`
+                                            document.body.appendChild(a)
+                                            a.click()
+                                            window.URL.revokeObjectURL(url)
+                                            document.body.removeChild(a)
+                                          })
+                                          .catch(err => {
+                                            console.error('PDF indirme hatası:', err)
+                                            alert('PDF indirilemedi')
+                                          })
+                                      }}
+                                      className="p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                                      title="İndir"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* JSON Data Modal */}
+        <AnimatePresence>
+          {showJsonModal && selectedOrder && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowJsonModal(false)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1337,496 +1087,6 @@ export default function TicimaxOrders() {
         )}
       </AnimatePresence>
 
-      {/* Kargo Fişi PDF Modal */}
-      <AnimatePresence>
-        {showCargoSlipModal && (cargoSlipUrl || selectedCargoSlipUrl) && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => {
-            setShowCargoSlipModal(false)
-            if (cargoSlipUrl) {
-              window.URL.revokeObjectURL(cargoSlipUrl)
-              setCargoSlipUrl(null)
-            }
-            if (selectedCargoSlipUrl) {
-              window.URL.revokeObjectURL(selectedCargoSlipUrl)
-              setSelectedCargoSlipUrl(null)
-            }
-          }}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col"
-            >
-              <div className="p-4 border-b border-slate-200 dark:border-dark-border flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">
-                      Kargo Fişi
-                    </h2>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                      {selectedOrder ? `Sipariş: ${selectedOrder.orderNumber || selectedOrder.externalOrderId}` : 'Kargo Fişi'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        const url = cargoSlipUrl || selectedCargoSlipUrl
-                        if (url) {
-                          const a = document.createElement('a')
-                          a.href = url
-                          a.download = selectedOrder 
-                            ? `kargo-fisi-ticimax-${selectedOrder.orderNumber || selectedOrder.externalOrderId}.pdf`
-                            : `kargo-fisi-${selectedCargoSlip || 'ticimax'}.pdf`
-                          document.body.appendChild(a)
-                          a.click()
-                          document.body.removeChild(a)
-                          
-                          // Kargo fişi başarıyla indirildi, state'e ekle
-                          if (selectedOrder?.id) {
-                            setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
-                          }
-                        }
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                    >
-                      <Download className="w-4 h-4" />
-                      İndir
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowCargoSlipModal(false)
-                        if (cargoSlipUrl) {
-                          window.URL.revokeObjectURL(cargoSlipUrl)
-                          setCargoSlipUrl(null)
-                        }
-                        if (selectedCargoSlipUrl) {
-                          window.URL.revokeObjectURL(selectedCargoSlipUrl)
-                          setSelectedCargoSlipUrl(null)
-                        }
-                      }}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900">
-                <iframe
-                  src={cargoSlipUrl || selectedCargoSlipUrl || ''}
-                  className="w-full h-full border-0"
-                  title="Kargo Fişi PDF"
-                />
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Toplu Kargo Fişi Yükleme Modal */}
-      <AnimatePresence>
-        {showBulkUploadModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => {
-            setShowBulkUploadModal(false)
-            setBulkUploadFiles([])
-            setBulkUploadResult(null)
-          }}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="p-6 border-b border-slate-200 dark:border-dark-border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
-                      Toplu Kargo Fişi Yükleme
-                    </h2>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                      PDF dosyalarını seçin. Dosya adları sipariş numaralarıyla eşleşmelidir.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowBulkUploadModal(false)
-                      setBulkUploadFiles([])
-                      setBulkUploadResult(null)
-                    }}
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6 space-y-4">
-                {!bulkUploadResult ? (
-                  <>
-                    <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center hover:border-purple-500 transition-colors">
-                      <FileUp className="w-12 h-12 mx-auto text-slate-400 mb-4" />
-                      <label className="cursor-pointer">
-                        <input
-                          type="file"
-                          multiple
-                          accept=".pdf"
-                          onChange={handleBulkUploadFiles}
-                          className="hidden"
-                          disabled={uploadingBulk}
-                        />
-                        <span className="text-slate-600 dark:text-slate-400">
-                          PDF dosyalarını seçmek için tıklayın veya sürükleyip bırakın
-                        </span>
-                      </label>
-                      <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
-                        Maksimum 10 dosya, her biri 50MB'a kadar
-                      </p>
-                    </div>
-
-                    {bulkUploadFiles.length > 0 && (
-                      <div className="space-y-2">
-                        <h3 className="font-semibold text-slate-800 dark:text-slate-200">
-                          Seçilen Dosyalar ({bulkUploadFiles.length})
-                        </h3>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {bulkUploadFiles.map((file, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg"
-                            >
-                              <div className="flex items-center gap-2">
-                                <FileSpreadsheet className="w-4 h-4 text-purple-600" />
-                                <span className="text-sm text-slate-700 dark:text-slate-300">
-                                  {file.name}
-                                </span>
-                                <span className="text-xs text-slate-500">
-                                  ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setBulkUploadFiles(bulkUploadFiles.filter((_, i) => i !== idx))
-                                }}
-                                className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-end gap-2 pt-4">
-                      <button
-                        onClick={() => {
-                          setShowBulkUploadModal(false)
-                          setBulkUploadFiles([])
-                        }}
-                        className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                        disabled={uploadingBulk}
-                      >
-                        İptal
-                      </button>
-                      <button
-                        onClick={handleBulkUpload}
-                        disabled={bulkUploadFiles.length === 0 || uploadingBulk}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {uploadingBulk ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Yükleniyor...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-4 h-4" />
-                            Yükle
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-4">
-                    <div className={`p-4 rounded-lg ${bulkUploadResult.processed > 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        {bulkUploadResult.processed > 0 ? (
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                        ) : (
-                          <AlertCircle className="w-5 h-5 text-red-600" />
-                        )}
-                        <h3 className="font-semibold text-slate-800 dark:text-slate-200">
-                          Yükleme Tamamlandı
-                        </h3>
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        {bulkUploadResult.processed} dosya başarıyla yüklendi
-                        {bulkUploadResult.failed > 0 && `, ${bulkUploadResult.failed} dosya başarısız`}
-                      </p>
-                    </div>
-
-                    {bulkUploadResult.errors && bulkUploadResult.errors.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-semibold text-red-600 dark:text-red-400">Hatalar:</h4>
-                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                          {bulkUploadResult.errors.map((err: any, idx: number) => (
-                            <div key={idx} className="p-2 bg-red-50 dark:bg-red-900/20 rounded text-sm">
-                              <span className="font-medium">{err.fileName}:</span> {err.error}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-end gap-2 pt-4">
-                      <button
-                        onClick={() => {
-                          setShowBulkUploadModal(false)
-                          setBulkUploadFiles([])
-                          setBulkUploadResult(null)
-                        }}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                      >
-                        Tamam
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Faturalar Modal */}
-      <AnimatePresence>
-        {showInvoicesModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowInvoicesModal(false)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="p-6 border-b border-slate-200 dark:border-dark-border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
-                      Faturalar
-                    </h2>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                      Kargo fişi için fatura seçebilirsiniz
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowInvoicesModal(false)}
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6">
-                {invoicesLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                  </div>
-                ) : invoices.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                    <p className="text-slate-600 dark:text-slate-400">Henüz fatura yüklenmemiş</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {invoices.map((invoice) => (
-                      <div
-                        key={invoice.id}
-                        className={`bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer ${
-                          selectedInvoiceId === invoice.id ? 'ring-2 ring-blue-500 border-blue-500' : ''
-                        }`}
-                        onClick={() => {
-                          setSelectedInvoiceId(invoice.id)
-                          setInvoiceLink('')
-                          setShowInvoicesModal(false)
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                            <div>
-                              <p className="font-semibold text-slate-900 dark:text-slate-200">
-                                {invoice.invoiceNumber || `Fatura #${invoice.id}`}
-                              </p>
-                              {invoice.fileName && (
-                                <p className="text-sm text-slate-600 dark:text-slate-400">
-                                  {fixInvoiceFileName(invoice.fileName)}
-                                </p>
-                              )}
-                              {invoice.totalAmount && (
-                                <p className="text-sm text-slate-600 dark:text-slate-400">
-                                  {invoice.totalAmount.toLocaleString('tr-TR', { style: 'currency', currency: invoice.currency || 'TRY' })}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          {selectedInvoiceId === invoice.id && (
-                            <CheckCircle className="w-5 h-5 text-blue-600" />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Kargo Fişleri Modal */}
-      <AnimatePresence>
-        {showCargoSlipsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowCargoSlipsModal(false)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="p-6 border-b border-slate-200 dark:border-dark-border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">
-                      Kargo Fişleri
-                    </h2>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                      Yüklenen kargo fişi PDF'lerini görüntüleyebilirsiniz
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowCargoSlipsModal(false)}
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6">
-                {cargoSlipsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                  </div>
-                ) : cargoSlips.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Truck className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                    <p className="text-slate-600 dark:text-slate-400">Henüz kargo fişi yüklenmemiş</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {cargoSlips.map((slip, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1">
-                            <FileSpreadsheet className="w-5 h-5 text-purple-600" />
-                            <div className="flex-1">
-                              <p className="font-semibold text-slate-900 dark:text-slate-200">
-                                {slip.originalName || slip.fileName}
-                              </p>
-                              <div className="flex items-center gap-4 mt-1 text-sm text-slate-600 dark:text-slate-400">
-                                <span>
-                                  {(slip.size / 1024 / 1024).toFixed(2)} MB
-                                </span>
-                                <span>
-                                  {new Date(slip.createdAt).toLocaleString('tr-TR')}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleViewCargoSlip(slip.fileName)}
-                              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                            >
-                              <Eye className="w-4 h-4" />
-                              Görüntüle
-                            </button>
-                            <button
-                              onClick={async () => {
-                                const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
-                                const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-                                const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
-                                const token = sessionStorage.getItem('authToken') || ''
-                                
-                                try {
-                                  const response = await fetch(`${API_BASE_URL}/admin/ticimax-orders/cargo-slips/${encodeURIComponent(slip.fileName)}`, {
-                                    headers: {
-                                      'X-API-Key': API_KEY,
-                                      'Authorization': `Bearer ${token}`,
-                                      'X-Admin-Key': ADMIN_KEY
-                                    }
-                                  })
-                                  
-                                  if (response.ok) {
-                                    const blob = await response.blob()
-                                    const url = window.URL.createObjectURL(blob)
-                                    const a = document.createElement('a')
-                                    a.href = url
-                                    a.download = slip.fileName || `kargo-fisi-${slip.fileName}.pdf`
-                                    document.body.appendChild(a)
-                                    a.click()
-                                    window.URL.revokeObjectURL(url)
-                                    document.body.removeChild(a)
-                                    
-                                    // Kargo fişi başarıyla indirildi, state'e ekle
-                                    if (slip.orderId && selectedOrder?.id === slip.orderId) {
-                                      setCargoSlipGenerated(prev => new Set(prev).add(slip.orderId))
-                                    } else if (selectedOrder?.id) {
-                                      setCargoSlipGenerated(prev => new Set(prev).add(selectedOrder.id))
-                                    }
-                                  }
-                                } catch (error) {
-                                  console.error('Kargo fişi indirme hatası:', error)
-                                }
-                              }}
-                              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                            >
-                              <Download className="w-4 h-4" />
-                              İndir
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCargoSlip(slip.fileName)}
-                              disabled={deletingCargoSlip === slip.fileName}
-                              className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-                            >
-                              {deletingCargoSlip === slip.fileName ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                              Sil
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
