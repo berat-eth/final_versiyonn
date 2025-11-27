@@ -228,6 +228,137 @@ export default function TicimaxOrders() {
     setShowOrderDetailModal(true)
   }
 
+  const handleShowInvoices = async () => {
+    try {
+      setInvoicesLoading(true)
+      setShowInvoicesModal(true)
+      const response = await api.get<ApiResponse<any[]>>('/admin/invoices')
+      if (response.success && response.data) {
+        setInvoices(response.data)
+        // İlk faturayı varsayılan olarak seç
+        if (response.data.length > 0 && !selectedInvoiceId) {
+          setSelectedInvoiceId(response.data[0].id)
+        }
+      }
+    } catch (err: any) {
+      console.error('Faturalar yüklenemedi:', err)
+    } finally {
+      setInvoicesLoading(false)
+    }
+  }
+
+  const handleGenerateCargoSlip = async () => {
+    if (!selectedOrder) return
+    
+    // API base URL'i fonksiyonun başında tanımla
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
+    
+    try {
+    // Fatura linki veya seçili fatura kontrolü
+    let invoiceUrl = ''
+    
+    if (invoiceLink && invoiceLink.trim()) {
+      // Fatura linki girilmişse onu kullan
+      invoiceUrl = invoiceLink.trim()
+    } else if (selectedInvoiceId) {
+      // Seçili faturayı bul
+      const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId)
+      if (!selectedInvoice) {
+        alert('Seçili fatura bulunamadı.')
+        return
+      }
+      
+      // Direkt PDF dosyasına erişim için download URL'i oluştur
+      if (selectedInvoice.id) {
+        // Admin endpoint ile direkt dosya indirme
+        invoiceUrl = `${API_BASE_URL}/admin/invoices/${selectedInvoice.id}/download`
+      } else if (selectedInvoice.shareUrl) {
+        // Share URL varsa download endpoint'ine yönlendir
+        invoiceUrl = `${selectedInvoice.shareUrl}/download`
+      }
+    } else {
+        alert('Lütfen bir fatura seçin veya fatura linki girin.')
+      return
+    }
+
+      // Kargo bilgilerini al
+      const cargoTrackingNumber = selectedOrder.cargoTrackingNumber || ''
+      const cargoProviderName = selectedOrder.cargoProviderName || ''
+      const barcode = selectedOrder.barcode || ''
+
+      // Backend'e istek gönder (blob response için doğrudan fetch)
+    const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+    const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+    const token = sessionStorage.getItem('authToken') || ''
+    
+      const response = await fetch(`${API_BASE_URL}/admin/generate-cargo-slip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY,
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Key': ADMIN_KEY
+        },
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+          invoiceUrl: invoiceUrl,
+          cargoTrackingNumber: cargoTrackingNumber,
+          cargoProviderName: cargoProviderName,
+          barcode: barcode,
+          customerName: selectedOrder.customerName,
+          customerEmail: selectedOrder.customerEmail,
+          customerPhone: selectedOrder.customerPhone,
+          customerAddress: selectedOrder.shippingAddress || selectedOrder.fullAddress,
+          city: selectedOrder.city,
+          district: selectedOrder.district,
+          // Sadece productName ve productSku gönder
+          items: (selectedOrder.items || []).map(item => ({
+            productName: item.productName || '',
+            productSku: item.productSku || ''
+          })),
+          provider: 'ticimax' // Ticimax siparişi olduğunu belirt
+        })
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `kargo-fisi-ticimax-${selectedOrder.orderNumber || selectedOrder.externalOrderId}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+        
+        // Kargo fişi başarıyla indirildi, siparişleri yeniden yükle
+        await loadOrders()
+      } else {
+        const errorText = await response.text()
+        let errorMessage = 'Bilinmeyen hata'
+        try {
+          const error = JSON.parse(errorText)
+          errorMessage = error.message || errorMessage
+        } catch {
+          errorMessage = errorText || errorMessage
+        }
+        alert('Kargo fişi oluşturulamadı: ' + errorMessage)
+      }
+    } catch (error: any) {
+      console.error('Kargo fişi oluşturma hatası:', error)
+      alert('Kargo fişi oluşturulamadı: ' + (error.message || 'Bilinmeyen hata'))
+    }
+  }
+
+  const fixInvoiceFileName = (fileName: string) => {
+    if (!fileName) return ''
+    try {
+      // Latin1 encoding sorununu düzelt
+      return decodeURIComponent(escape(fileName))
+    } catch {
+      return fileName
+    }
+  }
 
   const filteredOrders = orders.filter(order => {
     if (searchQuery) {
@@ -636,15 +767,15 @@ export default function TicimaxOrders() {
                             </option>
                           ))}
                         </select>
-                        {selectedInvoiceId && !invoiceLink && (
-                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                            Seçili fatura kargo fişindeki QR kodda kullanılacak
-                          </p>
-                        )}
-                      </div>
-                    )}
+                          {selectedInvoiceId && !invoiceLink && (
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                              Seçili fatura kargo fişindeki QR kodda kullanılacak
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
                 {/* Sipariş Bilgileri */}
                 <div>
@@ -803,7 +934,7 @@ export default function TicimaxOrders() {
                 <div className="border-t border-slate-200 dark:border-dark-border pt-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     {selectedOrder.orderDate && (
-                      <div>
+                    <div>
                         <label className="text-slate-600 dark:text-slate-400">Sipariş Tarihi</label>
                         <p className="text-slate-900 dark:text-slate-200 font-medium">
                           {new Date(selectedOrder.orderDate).toLocaleString('tr-TR')}
@@ -825,43 +956,43 @@ export default function TicimaxOrders() {
       </AnimatePresence>
 
         {/* Invoices Modal */}
-        <AnimatePresence>
+      <AnimatePresence>
           {showInvoicesModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowInvoicesModal(false)}>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                onClick={(e) => e.stopPropagation()}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
                 className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-              >
+            >
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div>
+                <div className="flex items-center justify-between">
+                  <div>
                       <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <Receipt className="w-6 h-6" />
                         PDF Faturalar
-                      </h2>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                    </h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         Sisteme yüklenmiş tüm faturalar
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowInvoicesModal(false)
-                      }}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
+                    </p>
                   </div>
+                  <button
+                    onClick={() => {
+                        setShowInvoicesModal(false)
+                    }}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
+              </div>
 
-                <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-6">
                   {invoicesLoading ? (
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                    </div>
+                </div>
                   ) : invoices.length === 0 ? (
                     <div className="text-center py-12">
                       <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
@@ -886,13 +1017,13 @@ export default function TicimaxOrders() {
                                     {fixInvoiceFileName(invoice.fileName)}
                                   </span>
                                 )}
-                              </div>
+                </div>
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                 {invoice.customerName && (
                                   <div>
                                     <label className="text-slate-600 dark:text-slate-400">Müşteri</label>
                                     <p className="text-slate-900 dark:text-white">{invoice.customerName}</p>
-                                  </div>
+              </div>
                                 )}
                                 {invoice.totalAmount && (
                                   <div>
@@ -900,26 +1031,26 @@ export default function TicimaxOrders() {
                                     <p className="text-slate-900 dark:text-white">
                                       {Number(invoice.totalAmount).toFixed(2)} {invoice.currency || 'TRY'}
                                     </p>
-                                  </div>
-                                )}
+          </div>
+        )}
                                 {invoice.invoiceDate && (
-                                  <div>
+                  <div>
                                     <label className="text-slate-600 dark:text-slate-400">Tarih</label>
                                     <p className="text-slate-900 dark:text-white">
                                       {new Date(invoice.invoiceDate).toLocaleDateString('tr-TR')}
                                     </p>
-                                  </div>
-                                )}
+          </div>
+        )}
                                 {invoice.fileSize && (
-                                  <div>
+                  <div>
                                     <label className="text-slate-600 dark:text-slate-400">Boyut</label>
                                     <p className="text-slate-900 dark:text-white">
                                       {(invoice.fileSize / 1024).toFixed(2)} KB
-                                    </p>
-                                  </div>
+                    </p>
+                  </div>
                                 )}
-                              </div>
-                            </div>
+                </div>
+              </div>
                             <div className="flex items-center gap-2 ml-4">
                               {(() => {
                                 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
@@ -943,8 +1074,8 @@ export default function TicimaxOrders() {
 
                                 return (
                                   <>
-                                    <button
-                                      onClick={() => {
+                              <button
+                                onClick={() => {
                                         fetch(viewUrl, {
                                           headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -967,9 +1098,9 @@ export default function TicimaxOrders() {
                                       title="Görüntüle"
                                     >
                                       <Eye className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => {
+                              </button>
+                      <button
+                        onClick={() => {
                                         fetch(downloadUrl, {
                                           headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -997,24 +1128,24 @@ export default function TicimaxOrders() {
                                       title="İndir"
                                     >
                                       <Download className="w-4 h-4" />
-                                    </button>
+                      </button>
                                   </>
                                 )
                               })()}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
                     </div>
-                  )}
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+                      </div>
+                            </div>
+                          ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
         {/* JSON Data Modal */}
-        <AnimatePresence>
+      <AnimatePresence>
           {showJsonModal && selectedOrder && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowJsonModal(false)}>
             <motion.div
@@ -1036,7 +1167,7 @@ export default function TicimaxOrders() {
                     </p>
                   </div>
                   <button
-                    onClick={() => {
+                        onClick={() => {
                       setShowJsonModal(false)
                     }}
                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
@@ -1064,11 +1195,11 @@ export default function TicimaxOrders() {
                       }
                     })()}
                   </pre>
-                </div>
+                  </div>
                 
                 <div className="mt-4 flex items-center justify-end gap-2">
-                  <button
-                    onClick={async () => {
+                            <button
+                              onClick={async () => {
                       try {
                         const jsonData = (selectedOrder as any).orderData 
                           ? (typeof (selectedOrder as any).orderData === 'string' 
@@ -1080,8 +1211,8 @@ export default function TicimaxOrders() {
                           const jsonString = JSON.stringify(jsonData, null, 2)
                           await navigator.clipboard.writeText(jsonString)
                           alert('JSON verisi panoya kopyalandı!')
-                        }
-                      } catch (error) {
+                                  }
+                                } catch (error) {
                         alert('Kopyalama hatası: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'))
                       }
                     }}
@@ -1089,8 +1220,8 @@ export default function TicimaxOrders() {
                   >
                     <FileJson className="w-4 h-4" />
                     Kopyala
-                  </button>
-                </div>
+                            </button>
+                          </div>
               </div>
             </motion.div>
           </div>
