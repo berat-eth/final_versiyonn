@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown, MapPin, Mail } from 'lucide-react'
+import { Server, Cpu, HardDrive, Activity, Wifi, Database, Zap, AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown, MapPin, Mail, RefreshCw } from 'lucide-react'
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Bar, Legend } from 'recharts'
 import { motion } from 'framer-motion'
 import { api } from '@/lib/api'
@@ -41,6 +41,8 @@ export default function ServerStats() {
   const [networkSpeed, setNetworkSpeed] = useState(0)
   const [cpuData, setCpuData] = useState<any[]>([])
   const [networkData, setNetworkData] = useState<any[]>([])
+  const [speedtestData, setSpeedtestData] = useState<any>(null)
+  const [speedtestLoading, setSpeedtestLoading] = useState(false)
   const [servers, setServers] = useState<any[]>([])
   const [processes, setProcesses] = useState<any[]>([
     {
@@ -169,6 +171,42 @@ export default function ServerStats() {
     return () => clearInterval(t)
   }, [])
 
+  const fetchSpeedtest = async () => {
+    try {
+      setSpeedtestLoading(true)
+      const res = await api.get<any>('/admin/speedtest')
+      if ((res as any)?.success && (res as any).data) {
+        const data = (res as any).data
+        setSpeedtestData(data)
+        
+        // Speedtest verilerini networkData'ya ekle
+        if (data.download !== null && data.upload !== null) {
+          const now = new Date()
+          const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+          
+          // Son 10 speedtest sonucunu sakla
+          setNetworkData(prev => {
+            const newData = [
+              ...prev,
+              {
+                time: timeStr,
+                download: data.download,
+                upload: data.upload
+              }
+            ]
+            // Son 10 kaydı tut
+            return newData.slice(-10)
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Speedtest hatası:', e)
+      // Hata durumunda sessizce devam et
+    } finally {
+      setSpeedtestLoading(false)
+    }
+  }
+
   const fetchStats = async () => {
     try {
       setLoading(true)
@@ -181,7 +219,20 @@ export default function ServerStats() {
         setDiskUsage(d.diskUsage || 0)
         setNetworkSpeed(d.networkSpeed || 0)
         setCpuData(d.cpuHistory || [])
-        setNetworkData(d.networkHistory || [])
+        // networkHistory boşsa, speedtest verilerini kullan
+        if (!d.networkHistory || d.networkHistory.length === 0) {
+          // Speedtest verisi varsa onu kullan
+          if (speedtestData && speedtestData.download !== null && speedtestData.upload !== null) {
+            const timeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+            setNetworkData([{
+              time: timeStr,
+              download: speedtestData.download,
+              upload: speedtestData.upload
+            }])
+          }
+        } else {
+          setNetworkData(d.networkHistory || [])
+        }
         setServers(d.servers || [])
         // FTP ve SSH süreçlerini koru, API'den gelen süreçlerle birleştir
         const apiProcesses = d.processes || []
@@ -210,8 +261,15 @@ export default function ServerStats() {
 
   useEffect(() => {
     fetchStats()
+    // İlk yüklemede speedtest yap
+    fetchSpeedtest()
     const timer = setInterval(fetchStats, 45000)
-    return () => clearInterval(timer)
+    // Speedtest'i daha uzun aralıklarla çalıştır (5 dakikada bir)
+    const speedtestTimer = setInterval(fetchSpeedtest, 300000)
+    return () => {
+      clearInterval(timer)
+      clearInterval(speedtestTimer)
+    }
   }, [])
 
   // Ziyaretçi IP / Konum verileri
@@ -481,8 +539,74 @@ export default function ServerStats() {
         </div>
 
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm p-6 border border-slate-200 dark:border-slate-700">
-          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Ağ Trafiği</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Download/Upload (Mbps)</p>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-1">Ağ Trafiği</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Download/Upload (Mbps)</p>
+            </div>
+            <button
+              onClick={fetchSpeedtest}
+              disabled={speedtestLoading}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                speedtestLoading
+                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+                  : 'bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-600'
+              }`}
+            >
+              {speedtestLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Test Ediliyor...
+                </>
+              ) : (
+                <>
+                  <Activity className="w-4 h-4" />
+                  Hız Testi
+                </>
+              )}
+            </button>
+          </div>
+          
+          {/* Speedtest Sonuçları */}
+          {speedtestData && (speedtestData.download !== null || speedtestData.upload !== null) && (
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-600 dark:text-slate-400 text-xs mb-1">Download</p>
+                  <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                    {speedtestData.download !== null ? `${speedtestData.download.toFixed(2)} Mbps` : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-600 dark:text-slate-400 text-xs mb-1">Upload</p>
+                  <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                    {speedtestData.upload !== null ? `${speedtestData.upload.toFixed(2)} Mbps` : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-600 dark:text-slate-400 text-xs mb-1">Latency</p>
+                  <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                    {speedtestData.latency !== null ? `${speedtestData.latency.toFixed(2)} ms` : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-600 dark:text-slate-400 text-xs mb-1">Packet Loss</p>
+                  <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                    {speedtestData.packetLoss !== null ? `${speedtestData.packetLoss.toFixed(2)}%` : 'N/A'}
+                  </p>
+                </div>
+              </div>
+              {speedtestData.server && (
+                <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <span className="font-medium">Sunucu:</span> {speedtestData.server}
+                    {speedtestData.isp && ` • ISP: ${speedtestData.isp}`}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
           <ResponsiveContainer width="100%" height={260}>
             {networkData && networkData.length > 0 ? (
             <ComposedChart data={networkData}>
@@ -491,11 +615,15 @@ export default function ServerStats() {
               <YAxis stroke="#94a3b8" className="dark:stroke-slate-400" />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
-              <Area type="monotone" dataKey="download" stroke="#10b981" fill="#10b98133" strokeWidth={2} />
-              <Line type="monotone" dataKey="upload" stroke="#f59e0b" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="download" stroke="#10b981" fill="#10b98133" strokeWidth={2} name="Download (Mbps)" />
+              <Line type="monotone" dataKey="upload" stroke="#f59e0b" strokeWidth={2} dot={false} name="Upload (Mbps)" />
             </ComposedChart>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">Veri yok</div>
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 text-sm">
+                <Wifi className="w-8 h-8 mb-2 opacity-50" />
+                <p>Veri yok</p>
+                <p className="text-xs mt-1">Hız testi yapmak için yukarıdaki butona tıklayın</p>
+              </div>
             )}
           </ResponsiveContainer>
         </div>
