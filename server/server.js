@@ -6406,32 +6406,130 @@ app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-Admin-Key');
   
   try {
-    const { exec } = require('child_process');
-    const util = require('util');
-    const execPromise = util.promisify(exec);
+    const { spawn } = require('child_process');
+    const os = require('os');
     
-    // Speedtest komutunu çalıştır (JSON formatında çıktı al)
-    let stdout, stderr;
-    try {
-      const result = await execPromise('speedtest --format=json', { 
-        timeout: 120000, // 2 dakika timeout
-        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+    let stdout = '';
+    let stderr = '';
+    
+    // Linux/Unix sistemlerde nice ile CPU priority'yi düşür, Windows'ta direkt çalıştır
+    const isWindows = os.platform() === 'win32';
+    const command = isWindows ? 'speedtest' : 'nice';
+    const args = isWindows 
+      ? ['--format=json', '--accept-license', '--accept-gdpr']
+      : ['-n', '19', 'speedtest', '--format=json', '--accept-license', '--accept-gdpr'];
+    
+    // spawn kullan (exec yerine) - daha az bellek kullanır, stream tabanlı
+    const speedtestProcess = spawn(command, args, {
+      timeout: 90000, // 90 saniye (daha kısa)
+      maxBuffer: 2 * 1024 * 1024, // 2MB (daha küçük buffer)
+      stdio: ['ignore', 'pipe', 'pipe'] // stdin'i ignore et
+    });
+    
+    // Stream'leri asenkron oku
+    speedtestProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    speedtestProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    // Process'i Promise ile sarmala
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        speedtestProcess.kill('SIGTERM');
+        reject(new Error('Speedtest zaman aşımına uğradı'));
+      }, 90000);
+      
+      speedtestProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code === 0 || code === null) {
+          resolve();
+        } else {
+          // Code 0 değilse ama çıktı varsa devam et
+          if (stdout || stderr) {
+            resolve();
+          } else {
+            // nice komutu bulunamazsa fallback dene (sadece Linux/Unix'te)
+            if (!isWindows && (code === 127 || stderr.includes('nice') || stderr.includes('command not found'))) {
+              // Fallback: nice olmadan dene
+              const fallbackProcess = spawn('speedtest', ['--format=json', '--accept-license', '--accept-gdpr'], {
+                timeout: 90000,
+                maxBuffer: 2 * 1024 * 1024,
+                stdio: ['ignore', 'pipe', 'pipe']
+              });
+              
+              let fallbackStdout = '';
+              let fallbackStderr = '';
+              
+              fallbackProcess.stdout.on('data', (data) => {
+                fallbackStdout += data.toString();
+              });
+              
+              fallbackProcess.stderr.on('data', (data) => {
+                fallbackStderr += data.toString();
+              });
+              
+              fallbackProcess.on('close', (fallbackCode) => {
+                if (fallbackCode === 0 || fallbackCode === null || fallbackStdout || fallbackStderr) {
+                  stdout = fallbackStdout;
+                  stderr = fallbackStderr;
+                  resolve();
+                } else {
+                  reject(new Error(`Speedtest process exited with code ${fallbackCode}`));
+                }
+              });
+              
+              fallbackProcess.on('error', (err) => {
+                reject(err);
+              });
+            } else {
+              reject(new Error(`Speedtest process exited with code ${code}`));
+            }
+          }
+        }
       });
-      stdout = result.stdout;
-      stderr = result.stderr;
-    } catch (execError) {
-      // Eğer JSON format desteklenmiyorsa, normal çıktıyı al
-      try {
-        const result = await execPromise('speedtest', { 
-          timeout: 120000,
-          maxBuffer: 10 * 1024 * 1024
-        });
-        stdout = result.stdout;
-        stderr = result.stderr;
-      } catch (e) {
-        throw execError;
-      }
-    }
+      
+      speedtestProcess.on('error', (err) => {
+        clearTimeout(timeout);
+        // nice komutu bulunamazsa fallback dene (sadece Linux/Unix'te)
+        if (!isWindows && (err.message.includes('nice') || err.code === 'ENOENT')) {
+          const fallbackProcess = spawn('speedtest', ['--format=json', '--accept-license', '--accept-gdpr'], {
+            timeout: 90000,
+            maxBuffer: 2 * 1024 * 1024,
+            stdio: ['ignore', 'pipe', 'pipe']
+          });
+          
+          let fallbackStdout = '';
+          let fallbackStderr = '';
+          
+          fallbackProcess.stdout.on('data', (data) => {
+            fallbackStdout += data.toString();
+          });
+          
+          fallbackProcess.stderr.on('data', (data) => {
+            fallbackStderr += data.toString();
+          });
+          
+          fallbackProcess.on('close', (fallbackCode) => {
+            if (fallbackCode === 0 || fallbackCode === null || fallbackStdout || fallbackStderr) {
+              stdout = fallbackStdout;
+              stderr = fallbackStderr;
+              resolve();
+            } else {
+              reject(new Error(`Speedtest process exited with code ${fallbackCode}`));
+            }
+          });
+          
+          fallbackProcess.on('error', (fallbackErr) => {
+            reject(fallbackErr);
+          });
+        } else {
+          reject(err);
+        }
+      });
+    });
     
     if (stderr && !stderr.includes('Speedtest by Ookla') && !stderr.includes('Testing')) {
       console.warn('Speedtest stderr:', stderr);
