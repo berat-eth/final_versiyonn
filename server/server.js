@@ -10600,8 +10600,15 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const firstPage = pages[0];
     const { width, height } = firstPage.getSize();
     
+    // A5 boyutları: 148 x 210 mm (yaklaşık 420 x 595 points)
+    // A5 sayfa kontrolü ve uyumlu konumlandırma
+    const isA5 = Math.abs(width - 420) < 50 && Math.abs(height - 595) < 50;
+    const pageHeight = height;
+    const pageWidth = width;
+    
     // PDF'den metin çıkar ve "Koşullar" kelimesini ara
-    let qrY = 120; // Varsayılan: sayfanın altından 120 points yukarı
+    // A5 için optimize edilmiş konum: sayfanın altından yaklaşık 80-100 points yukarı
+    let qrY = isA5 ? 100 : 150; // A5 için daha uygun konum
     let foundConditions = false;
     
     try {
@@ -10614,11 +10621,11 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
       
       if (match) {
         foundConditions = true;
-        // "Koşullar" bulundu, sayfanın alt kısmına yakın bir konuma yerleştir
-        // PDF'lerde genellikle "Koşullar" bölümü sayfanın alt kısmında olur
-        // Sayfanın altından 80-100 points yukarıya yerleştir
-        qrY = 100;
-        console.log('✅ "Koşullar" bölümü bulundu, QR kod yerleştiriliyor');
+        // "Koşullar" bulundu, A5 için optimize edilmiş konum
+        // A5 sayfasında "Koşullar" genellikle sayfanın altından 60-80 points yukarıda
+        // QR kod "Koşullar"ın hemen altına, sayfanın altından 80-100 points yukarıya
+        qrY = isA5 ? 80 : 130;
+        console.log('✅ "Koşullar" bölümü bulundu, QR kod yerleştiriliyor (A5 uyumlu)');
       } else {
         console.log('⚠️ "Koşullar" bölümü bulunamadı, varsayılan konum kullanılıyor');
       }
@@ -10626,9 +10633,9 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
       console.warn('⚠️ PDF metin çıkarma hatası, varsayılan konum kullanılıyor:', parseError.message);
     }
     
-    // A5 boyutları: 148 x 210 mm (yaklaşık 420 x 595 points)
-    // QR kod boyutu A5 için uygun: 60-70 points (yaklaşık 21-25mm)
-    const qrSize = 70; // A5 için uygun boyut
+    // A5 için optimize edilmiş QR kod boyutu: 60 points (yaklaşık 21mm)
+    // A5 sayfasında daha kompakt görünmesi için
+    const qrSize = isA5 ? 60 : 70;
     
     // QR kod oluştur
     const qrCodeDataUrl = await QRCode.toDataURL(invoiceUrl, {
@@ -10641,8 +10648,8 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
     const qrImage = await pdfDoc.embedPng(qrImageBytes);
     
-    // QR kod konumu: Sayfanın ortası veya sol taraf
-    const qrX = width / 2 - qrSize / 2; // Sayfanın ortası
+    // QR kod konumu: A5 için sayfanın ortası, diğer boyutlar için de ortalanmış
+    const qrX = pageWidth / 2 - qrSize / 2; // Sayfanın ortası
     
     // QR kod'u PDF'e ekle
     firstPage.drawImage(qrImage, {
@@ -10667,13 +10674,14 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     };
     
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontSize = 10;
-    const textY = qrY - fontSize - 5; // QR kodun altına 5 points boşlukla
+    // A5 için daha küçük font boyutu
+    const fontSize = isA5 ? 9 : 10;
+    const textY = qrY - fontSize - 4; // QR kodun altına 4 points boşlukla (A5 için optimize)
     
     // Metni ASCII'ye çevir
     const text = turkishToAscii('E-fatura Bağlantınız'); // "E-fatura Baglantiniz"
     const textWidth = font.widthOfTextAtSize(text, fontSize);
-    const textX = width / 2 - textWidth / 2;
+    const textX = pageWidth / 2 - textWidth / 2;
     
     firstPage.drawText(text, {
       x: textX,
