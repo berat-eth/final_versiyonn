@@ -10587,17 +10587,44 @@ const handleMulterError = (err, req, res, next) => {
   next();
 };
 
-// Ticimax kargo fişi PDF'e QR kod ekleme fonksiyonu (sol alt köşe, A5 uyumlu)
+// Ticimax kargo fişi PDF'e QR kod ekleme fonksiyonu (Koşullar bölümünün altına)
 async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
   try {
-    const { PDFDocument, rgb } = require('pdf-lib');
+    const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
     const QRCode = require('qrcode');
+    const pdfParse = require('pdf-parse');
     
     // PDF'i yükle
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const pages = pdfDoc.getPages();
     const firstPage = pages[0];
     const { width, height } = firstPage.getSize();
+    
+    // PDF'den metin çıkar ve "Koşullar" kelimesini ara
+    let qrY = 120; // Varsayılan: sayfanın altından 120 points yukarı
+    let foundConditions = false;
+    
+    try {
+      const pdfData = await pdfParse(pdfBuffer);
+      const text = pdfData.text || '';
+      
+      // "Koşullar" kelimesini ara (case-insensitive, Türkçe karakter desteği)
+      const conditionsRegex = /koşullar|kosullar|KOŞULLAR|KOSULLAR/gi;
+      const match = text.match(conditionsRegex);
+      
+      if (match) {
+        foundConditions = true;
+        // "Koşullar" bulundu, sayfanın alt kısmına yakın bir konuma yerleştir
+        // PDF'lerde genellikle "Koşullar" bölümü sayfanın alt kısmında olur
+        // Sayfanın altından 80-100 points yukarıya yerleştir
+        qrY = 100;
+        console.log('✅ "Koşullar" bölümü bulundu, QR kod yerleştiriliyor');
+      } else {
+        console.log('⚠️ "Koşullar" bölümü bulunamadı, varsayılan konum kullanılıyor');
+      }
+    } catch (parseError) {
+      console.warn('⚠️ PDF metin çıkarma hatası, varsayılan konum kullanılıyor:', parseError.message);
+    }
     
     // A5 boyutları: 148 x 210 mm (yaklaşık 420 x 595 points)
     // QR kod boyutu A5 için uygun: 60-70 points (yaklaşık 21-25mm)
@@ -10614,16 +10641,33 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
     const qrImage = await pdfDoc.embedPng(qrImageBytes);
     
-    // Sol alt köşe konumu (A5 uyumlu)
-    const qrX = 20; // Soldan 20 points içeride
-    const qrY = 180; // Alttan 180 points yukarıda (40 points aşağı indirildi)
+    // QR kod konumu: Sayfanın ortası veya sol taraf
+    const qrX = width / 2 - qrSize / 2; // Sayfanın ortası
     
-    // QR kod'u PDF'e ekle (sol alt köşe)
+    // QR kod'u PDF'e ekle
     firstPage.drawImage(qrImage, {
       x: qrX,
       y: qrY,
       width: qrSize,
       height: qrSize
+    });
+    
+    // "E-fatura Bağlantınız" yazısını QR kodun altına ekle
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontSize = 10;
+    const textY = qrY - fontSize - 5; // QR kodun altına 5 points boşlukla
+    
+    // Metni ortala
+    const text = 'E-fatura Bağlantınız';
+    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    const textX = width / 2 - textWidth / 2;
+    
+    firstPage.drawText(text, {
+      x: textX,
+      y: textY,
+      size: fontSize,
+      font: font,
+      color: rgb(0, 0, 0)
     });
     
     // PDF'i byte array olarak döndür
