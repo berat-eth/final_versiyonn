@@ -11071,7 +11071,8 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
       city,
       district,
       items = [],
-      provider = null // 'hepsiburada' veya 'trendyol' veya null
+      provider = null, // 'hepsiburada' veya 'trendyol' veya 'ticimax' veya null
+      referenceNumber = null // Referans numarası (ticimax için)
     } = req.body;
     
     // Debug: Gelen verileri logla
@@ -11816,6 +11817,101 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           }
         }
       }
+    } else if (provider === 'ticimax') {
+      // Ticimax için özel kargo bilgileri - Referans numarası gösterilecek
+      if (cargoProviderName) {
+        doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
+        addUTF8Text('Kargo Firması:', 20, cargoYPos);
+        doc.fillColor('#0f172a').fontSize(8).font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
+        addUTF8Text(cargoProviderName || '', 120, cargoYPos, { width: 280 });
+        cargoYPos += 13;
+      }
+      
+      // Referans numarası göster (ticimax için)
+      if (referenceNumber) {
+        doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
+        addUTF8Text('Referans Numarası:', 20, cargoYPos);
+        doc.fillColor('#0f172a').fontSize(9).font(customFontAvailable ? customFontPathForUse : 'Helvetica-Bold');
+        addUTF8Text(referenceNumber || '', 120, cargoYPos, { width: 280 });
+        cargoYPos += 18;
+        
+        // EAN-16 (Code128) barkod oluştur - Referans numarası için
+        const barcodeY = cargoYPos;
+        const barcodeHeight = 28;
+        const barcodeWidth = 320;
+        
+        // Barkod için kutu
+        doc.rect(20, barcodeY - 3, barcodeWidth, barcodeHeight + 12)
+           .fill('#ffffff')
+           .stroke('#e2e8f0')
+           .lineWidth(0.5);
+        
+        let barcodeImage = null;
+        
+        // bwip-js ile EAN-16 (Code128) barkod oluştur - Referans numarası için
+        if (bwipjs && referenceNumber) {
+          try {
+            const barcodeBuffer = await bwipjs.toBuffer({
+              bcid: 'code128',
+              text: String(referenceNumber),
+              scale: 2.5,
+              height: 12,
+              includetext: true,
+              textxalign: 'center',
+              textsize: 10
+            });
+            barcodeImage = barcodeBuffer;
+            console.log('✅ EAN-16 barkod oluşturuldu (Referans Numarası):', referenceNumber);
+          } catch (error) {
+            console.error('❌ EAN-16 barkod oluşturma hatası:', error);
+            barcodeImage = null;
+          }
+        }
+        
+        // Barkod görseli ekle
+        if (barcodeImage) {
+          doc.image(barcodeImage, 30, barcodeY, { width: barcodeWidth, height: barcodeHeight });
+          cargoYPos += barcodeHeight + 6;
+        } else {
+          // Fallback: QR kod kullan
+          try {
+            const barcodeDataUrl = await QRCode.toDataURL(referenceNumber, {
+              width: 360,
+              margin: 1,
+              errorCorrectionLevel: 'M'
+            });
+            const qrImage = Buffer.from(barcodeDataUrl.split(',')[1], 'base64');
+            doc.image(qrImage, 30, barcodeY, { width: 360, height: barcodeHeight });
+            cargoYPos += barcodeHeight + 10;
+          } catch (error) {
+            // Son fallback: Metin olarak göster
+            doc.fontSize(16)
+               .font('Courier-Bold')
+               .fillColor('#0f172a');
+            addUTF8Text(referenceNumber || '', 20, barcodeY + 10, { 
+              align: 'center',
+              width: 380
+            });
+            cargoYPos += 35;
+          }
+        }
+        
+        // EAN-16 etiketi
+        doc.fontSize(7)
+           .font(customFontAvailable ? customFontPathForUse : 'Helvetica')
+           .fillColor('#64748b');
+        addUTF8Text('EAN-16', 20, cargoYPos, { align: 'center', width: barcodeWidth });
+        cargoYPos += 12;
+      }
+      
+      // Kargo takip numarası varsa göster
+      if (cargoTrackingNumber) {
+        doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
+        addUTF8Text('Kargo Kodu:', 20, cargoYPos);
+        doc.fillColor('#0f172a').fontSize(8).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
+        addUTF8Text(cargoTrackingNumber || '', 120, cargoYPos, { width: 280 });
+        cargoYPos += 13;
+      }
     } else {
       // Trendyol veya diğer marketplace'ler için normal kargo bilgileri
       if (cargoProviderName) {
@@ -11940,7 +12036,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
     if (provider === 'hepsiburada') {
       addUTF8Text('Bu Sipariş Hepsiburada\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
     } else if (provider === 'ticimax') {
-      addUTF8Text('Bu Sipariş Ticimax\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
+      addUTF8Text('Bu sipariş Hugluoutdoor.com oluşturuldu', 20, finalFooterY + 28, { align: 'center', width: 380 });
     } else {
       addUTF8Text('Bu Sipariş Trendyol.com\'dan oluşturulmuştur', 20, finalFooterY + 28, { align: 'center', width: 380 });
     }

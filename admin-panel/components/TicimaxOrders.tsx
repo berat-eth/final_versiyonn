@@ -58,6 +58,7 @@ export default function TicimaxOrders() {
   const [invoicesLoading, setInvoicesLoading] = useState(false)
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
   const [invoiceLink, setInvoiceLink] = useState<string>('')
+  const [referenceNumber, setReferenceNumber] = useState<string>('')
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -316,7 +317,8 @@ export default function TicimaxOrders() {
             productName: item.productName || '',
             productSku: item.productSku || ''
           })),
-          provider: 'ticimax' // Ticimax siparişi olduğunu belirt
+          provider: 'ticimax', // Ticimax siparişi olduğunu belirt
+          referenceNumber: referenceNumber || null // Referans numarası
         })
       })
 
@@ -774,8 +776,30 @@ export default function TicimaxOrders() {
                           )}
                         </div>
                       )}
+                  </div>
+                </div>
+
+                {/* Referans Numarası */}
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Referans Numarası</h3>
+                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Referans Numarası
+                      </label>
+                      <input
+                        type="text"
+                        value={referenceNumber}
+                        onChange={(e) => setReferenceNumber(e.target.value)}
+                        placeholder="Referans numarasını girin"
+                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                        Bu referans numarası kargo fişindeki kargo bilgileri kısmında görüntülenecek ve EAN-16 barkodu oluşturulacak.
+                      </p>
                     </div>
                   </div>
+                </div>
 
                 {/* Sipariş Bilgileri */}
                 <div>
