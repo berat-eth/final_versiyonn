@@ -199,8 +199,12 @@ export default function ServerStats() {
           })
         }
       }
-    } catch (e) {
-      console.error('Speedtest hatası:', e)
+    } catch (e: any) {
+      // CORS veya network hatası durumunda sessizce devam et
+      // Sadece development'ta console'a yaz
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Speedtest hatası (sessizce devam ediliyor):', e?.message || 'Bilinmeyen hata')
+      }
       // Hata durumunda sessizce devam et
     } finally {
       setSpeedtestLoading(false)
@@ -283,7 +287,12 @@ export default function ServerStats() {
           setVisitorIps((res as any).data)
           return
         }
-      } catch {}
+      } catch (e: any) {
+        // 404 veya diğer hatalar için sessizce fallback'e geç
+        if (process.env.NODE_ENV === 'development' && e?.message && !e?.message.includes('404')) {
+          console.warn('visitor-ips endpoint hatası:', e?.message)
+        }
+      }
 
       // Fallback: live-views üzerinden en son görüntülemeleri çek ve ip/location alanlarını güvenli şekilde çıkar
       try {

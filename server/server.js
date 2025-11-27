@@ -6263,6 +6263,8 @@ app.get('/api/admin/user-profiles', authenticateAdmin, async (req, res) => {
 // Admin - Server stats (read-only, lightweight)
 // In-memory network sampling buffer
 let __netSample = { lastBytesRx: 0, lastBytesTx: 0, lastTs: 0 };
+// In-memory CPU history buffer (son 20 ölçüm)
+let __cpuHistory = [];
 
 app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
   try {
@@ -6271,12 +6273,30 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
 
     // CPU and RAM
     const cpus = os.cpus() || [];
-    const load = os.loadavg ? os.loadavg()[0] : 0; // 1-min load
-    const cpuUsage = cpus.length ? Math.min(100, Math.max(0, (load / cpus.length) * 100)) : 0;
+    const loadAvg = os.loadavg ? os.loadavg() : [0, 0, 0];
+    const load1 = loadAvg[0] || 0;
+    const load5 = loadAvg[1] || 0;
+    const load15 = loadAvg[2] || 0;
+    const cpuUsage = cpus.length ? Math.min(100, Math.max(0, (load1 / cpus.length) * 100)) : 0;
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
     const usedMem = Math.max(0, totalMem - freeMem);
     const ramUsage = totalMem ? (usedMem / totalMem) * 100 : 0;
+    
+    // CPU history'ye yeni nokta ekle
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    __cpuHistory.push({
+      time: timeStr,
+      load1: Math.round(load1 * 100) / 100,
+      load5: Math.round(load5 * 100) / 100,
+      load15: Math.round(load15 * 100) / 100
+    });
+    
+    // Son 20 ölçümü tut
+    if (__cpuHistory.length > 20) {
+      __cpuHistory.shift();
+    }
 
     // Disk usage via systeminformation
     let diskUsage = 0;
@@ -6302,14 +6322,14 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
       // Sum across interfaces
       const rx = nets.reduce((s, n) => s + (Number(n.rx_bytes_total || n.rx_bytes || 0)), 0);
       const tx = nets.reduce((s, n) => s + (Number(n.tx_bytes_total || n.tx_bytes || 0)), 0);
-      const now = Date.now();
-      if (__netSample.lastTs && now > __netSample.lastTs) {
-        const dtSec = (now - __netSample.lastTs) / 1000;
+      const nowTs = Date.now();
+      if (__netSample.lastTs && nowTs > __netSample.lastTs) {
+        const dtSec = (nowTs - __netSample.lastTs) / 1000;
         const drx = Math.max(0, rx - __netSample.lastBytesRx);
         // bits/sec to Mbps
         networkSpeed = Math.round(((drx * 8) / dtSec) / 1e6);
       }
-      __netSample = { lastBytesRx: rx, lastBytesTx: tx, lastTs: now };
+      __netSample = { lastBytesRx: rx, lastBytesTx: tx, lastTs: nowTs };
 
       // Build a tiny history with current point; UI already can show blank gracefully
       const hh = new Date().toTimeString().slice(0, 5);
@@ -6331,9 +6351,14 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
       { name: 'node', cpu: Math.round(cpuUsage / 2), memory: Math.round(process.memoryUsage().rss / (1024 * 1024)), status: 'running' }
     ];
 
-    // Simple CPU history snapshot based on current
-    const cpuHistory = [
-      { time: 'now', value: Math.round(cpuUsage) }
+    // CPU history (son 20 ölçüm)
+    const cpuHistory = __cpuHistory.length > 0 ? __cpuHistory : [
+      {
+        time: now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+        load1: Math.round(load1 * 100) / 100,
+        load5: Math.round(load5 * 100) / 100,
+        load15: Math.round(load15 * 100) / 100
+      }
     ];
 
     res.json({
@@ -6365,6 +6390,21 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
 
 // Admin - Speedtest endpoint
 app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
+  // CORS başlıklarını manuel olarak ekle
+  const origin = req.headers.origin;
+  const allowedOrigins = process.env.NODE_ENV === 'production' 
+    ? ['https://api.huglutekstil.com', 'https://admin.huglutekstil.com', 'https://huglutekstil.com', 'https://www.huglutekstil.com']
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3006', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:3006', 'https://api.huglutekstil.com', 'https://admin.huglutekstil.com'];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else if (!origin) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-Admin-Key');
+  
   try {
     const { exec } = require('child_process');
     const util = require('util');
@@ -6851,6 +6891,62 @@ app.post('/api/admin/wallets/transfer', authenticateAdmin, async (req, res) => {
 });
 
 // Admin - Live user product views (from JSON log for now)
+// Admin - Visitor IPs endpoint (live-views'dan türetilmiş)
+app.get('/api/admin/visitor-ips', authenticateAdmin, async (req, res) => {
+  try {
+    // live-views JSON dosyasından oku
+    const filePath = path.join(__dirname, 'data', 'user-activities.json');
+    if (!fs.existsSync(filePath)) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const json = JSON.parse(raw);
+    const activities = json.activities || json || [];
+    
+    // IP'leri grupla
+    const byIp = {};
+    for (const activity of activities) {
+      const ip = activity.ip || activity.ipAddress || activity.clientIp || 'unknown';
+      if (ip === 'unknown') continue;
+      
+      if (!byIp[ip]) {
+        byIp[ip] = {
+          ip,
+          location: activity.location || activity.geo || { 
+            city: activity.city || '-', 
+            country: activity.country || '-' 
+          },
+          lastSeen: activity.activityTimestamp || activity.viewTimestamp || activity.timestamp || null,
+          hits: 1,
+          userId: activity.userId || activity.user_id || null
+        };
+      } else {
+        byIp[ip].hits = (byIp[ip].hits || 0) + 1;
+        const prev = byIp[ip].lastSeen ? new Date(byIp[ip].lastSeen).getTime() : 0;
+        const cur = (activity.activityTimestamp || activity.viewTimestamp || activity.timestamp) 
+          ? new Date(activity.activityTimestamp || activity.viewTimestamp || activity.timestamp).getTime() 
+          : 0;
+        if (cur > prev) {
+          byIp[ip].lastSeen = activity.activityTimestamp || activity.viewTimestamp || activity.timestamp;
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: Object.values(byIp).sort((a, b) => {
+        const timeA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
+        const timeB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
+        return timeB - timeA;
+      })
+    });
+  } catch (error) {
+    console.error('❌ Error getting visitor IPs:', error);
+    res.status(500).json({ success: false, message: 'Visitor IPs alınamadı' });
+  }
+});
+
 app.get('/api/admin/live-views', authenticateAdmin, async (req, res) => {
   try {
     const filePath = path.join(__dirname, 'data', 'user-activities.json');
