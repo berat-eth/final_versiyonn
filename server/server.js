@@ -7232,6 +7232,55 @@ app.put('/api/admin/custom-production-requests/:id/approve-proforma', authentica
   }
 });
 
+// Admin - Delete custom production request
+app.delete('/api/admin/custom-production-requests/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const tenantId = req.tenant?.id || 1
+    const id = parseInt(req.params.id)
+    
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ success: false, message: 'Geçersiz talep ID' })
+    }
+    
+    // Önce talep var mı kontrol et
+    const [requestRows] = await poolWrapper.execute(
+      'SELECT id FROM custom_production_requests WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    )
+    
+    if (requestRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Talep bulunamadı' })
+    }
+    
+    // İlişkili kayıtları sil (items, messages vb.)
+    await poolWrapper.execute(
+      'DELETE FROM custom_production_items WHERE requestId = ? AND tenantId = ?',
+      [id, tenantId]
+    )
+    
+    await poolWrapper.execute(
+      'DELETE FROM custom_production_messages WHERE requestId = ? AND tenantId = ?',
+      [id, tenantId]
+    )
+    
+    // Ana talebi sil
+    const [result] = await poolWrapper.execute(
+      'DELETE FROM custom_production_requests WHERE id = ? AND tenantId = ?',
+      [id, tenantId]
+    )
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Talep silinemedi' })
+    }
+    
+    console.log(`✅ Custom production request ${id} deleted successfully`)
+    res.json({ success: true, message: 'Talep başarıyla silindi' })
+  } catch (error) {
+    console.error('❌ Error deleting custom production request:', error)
+    res.status(500).json({ success: false, message: 'Talep silinirken hata oluştu: ' + (error?.message || 'Bilinmeyen hata') })
+  }
+})
+
 // User quote status update (accept/reject)
 app.put('/api/custom-production-requests/:requestId/quote-status', async (req, res) => {
   try {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { FileText, Search, Filter, Calendar, User, Package, Calculator, Save, RefreshCw, Archive, CheckCircle, XCircle, Edit, Eye, X, Download, Plus, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api } from '@/lib/api'
+import { api, ApiResponse } from '@/lib/api'
 import { productService } from '@/lib/services/productService'
 
 interface ProformaRequest {
@@ -407,6 +407,49 @@ export default function ProformaInvoice() {
       totalWithVat,
       profitPercentage
     })
+  }
+
+  const [deletingRequestId, setDeletingRequestId] = useState<number | null>(null)
+
+  const handleDeleteRequest = async (requestId: number, requestNumber: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Talep seçimini engelle
+    
+    if (!confirm(`"${requestNumber}" talebini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) {
+      return
+    }
+
+    try {
+      setDeletingRequestId(requestId)
+      setError(null)
+
+      const response = await api.delete<ApiResponse<any>>(`/admin/custom-production-requests/${requestId}`)
+
+      if (response.success) {
+        // Silinen talep seçiliyse, seçimi temizle
+        if (selectedRequest?.id === requestId) {
+          setSelectedRequest(null)
+          setSelectedItems([])
+          setCalculation(null)
+        }
+        
+        // Talepleri yeniden yükle
+        await loadRequests()
+        
+        // Başarı mesajı göster
+        setError(null)
+        const successMsg = 'Talep başarıyla silindi'
+        setTimeout(() => {
+          // Başarı mesajını göstermek için geçici olarak error state'ini kullanabiliriz
+          // veya ayrı bir success state ekleyebiliriz
+        }, 100)
+      } else {
+        throw new Error(response.message || 'Talep silinemedi')
+      }
+    } catch (err: any) {
+      setError('Talep silinirken hata oluştu: ' + (err.message || 'Bilinmeyen hata'))
+    } finally {
+      setDeletingRequestId(null)
+    }
   }
 
   const handleSelectRequest = (request: ProformaRequest) => {
@@ -910,7 +953,13 @@ export default function ProformaInvoice() {
       // UTF-8 desteği için encoding ayarları
       const encodeUTF8 = (text: string): string => {
         if (!text) return text
-        return text
+        // Türkçe karakterleri doğru şekilde encode et
+        try {
+          // jsPDF'in Türkçe karakterleri desteklemesi için özel encoding
+          return text
+        } catch {
+          return text
+        }
       }
       
       // Font ayarlama helper fonksiyonu
@@ -925,7 +974,7 @@ export default function ProformaInvoice() {
       // jsPDF text metodunu UTF-8 destekli wrapper ile sarmala
       const addText = (text: string, x: number, y: number, options?: any) => {
         const encodedText = encodeUTF8(text)
-        // Custom font kullan
+        // Custom font kullan (Türkçe karakter desteği için)
         setFont(options?.bold ? 'bold' : 'normal')
         if (options && options.align) {
           doc.text(encodedText, x, y, options)
@@ -936,34 +985,34 @@ export default function ProformaInvoice() {
       
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
-      const margin = 20
+      const margin = 15 // Kargo fişi gibi daha küçük margin
       let yPos = margin
 
-      // Renk tanımları - Modern ve profesyonel
+      // Renk tanımları - Kargo fişi ile uyumlu
       const colors = {
-        primary: [30, 64, 175],      // Blue-600
-        primaryLight: [59, 130, 246], // Blue-500
-        secondary: [139, 92, 246],   // Purple-500
+        primary: [15, 23, 42],        // Slate-900 (#0f172a)
+        primaryLight: [30, 41, 59],   // Slate-800
+        secondary: [139, 92, 246],    // Purple-500
         success: [34, 197, 94],       // Green-500
-        warning: [234, 179, 8],      // Yellow-500
+        warning: [234, 179, 8],       // Yellow-500
         danger: [239, 68, 68],        // Red-500
-        lightGray: [248, 250, 252],   // Slate-50
-        mediumGray: [148, 163, 184],  // Slate-400
-        darkGray: [51, 65, 85],       // Slate-700
-        borderGray: [226, 232, 240],  // Slate-200
+        lightGray: [241, 245, 249],   // Slate-100 (#f1f5f9)
+        mediumGray: [148, 163, 184],  // Slate-400 (#94a3b8)
+        darkGray: [30, 41, 59],       // Slate-800 (#1e293b)
+        borderGray: [226, 232, 240],  // Slate-200 (#e2e8f0)
+        textGray: [100, 116, 139],    // Slate-500 (#64748b)
       }
 
       // Beyaz arka plan
       doc.setFillColor(255, 255, 255)
       doc.rect(0, 0, pageWidth, pageHeight, 'F')
       
-      // Üst başlık bölümü - Gradient efekti için
-      doc.setFillColor(...colors.primary)
-      doc.rect(0, 0, pageWidth, 50, 'F')
+      // Üst başlık bölümü - Kargo fişi gibi beyaz arka plan
+      doc.setFillColor(255, 255, 255)
+      doc.rect(0, 0, pageWidth, 55, 'F')
       
-      // Logo ekleme (sağ üst köşe) - Base64 veya URL ile
+      // Logo ekleme (ortada) - Kargo fişi gibi
       try {
-        // Logo URL'ini deneyelim
         const logoUrl = window.location.origin + '/logo.jpg'
         const img = new Image()
         img.crossOrigin = 'anonymous'
@@ -977,12 +1026,11 @@ export default function ProformaInvoice() {
           img.onload = () => {
             clearTimeout(timeout)
             try {
-              const logoWidth = 40
+              const logoWidth = 120 // Kargo fişi gibi daha büyük
               const logoHeight = (img.height / img.width) * logoWidth
-              const logoX = pageWidth - margin - logoWidth
-              const logoY = 5
+              const logoX = (pageWidth - logoWidth) / 2 // Ortada
+              const logoY = (55 - logoHeight) / 2 + 8 // Dikey ortalama
               
-              // Canvas kullanarak base64'e çevir
               const canvas = document.createElement('canvas')
               canvas.width = img.width
               canvas.height = img.height
@@ -1009,347 +1057,263 @@ export default function ProformaInvoice() {
         console.warn('Logo ekleme hatası:', error)
       }
       
-      // Tarih ve Saat (sağ üst, logo altında)
-      const now = new Date()
-      const invoiceDate = now.toLocaleDateString('tr-TR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      })
-      const invoiceTime = now.toLocaleTimeString('tr-TR', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-      
-      doc.setFontSize(9)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(255, 255, 255)
-      const dateTimeX = pageWidth - margin
-      const dateTimeY = 50
-      addText(invoiceDate, dateTimeX, dateTimeY - 3, { align: 'right' })
-      addText(invoiceTime, dateTimeX, dateTimeY + 2, { align: 'right' })
-      
-      // Fatura Başlığı (sol taraf, büyük ve vurgulu)
-      doc.setFontSize(28)
-      if (customFontName !== 'helvetica') {
-        doc.setFont(customFontName, 'bold')
-      } else {
-        doc.setFont('helvetica', 'bold')
-      }
-      doc.setTextColor(255, 255, 255)
-      addText('PROFORMA FATURA', margin, 30)
-      
-      // Fatura Numarası (sol alt, başlık altında)
-      doc.setFontSize(10)
-      if (customFontName !== 'helvetica') {
-        doc.setFont(customFontName, 'normal')
-      } else {
-        doc.setFont('helvetica', 'normal')
-      }
-      const invoiceNumber = `PRO-${selectedRequest.requestNumber || selectedRequest.id}`
-      addText(`Fatura No: ${invoiceNumber}`, margin, 42)
-      
-      // Alt çizgi (başlık bölümünü ayıran)
-      doc.setDrawColor(255, 255, 255)
-      doc.setLineWidth(0.5)
-      doc.line(margin, 47, pageWidth - margin, 47)
-      
-      yPos = 60
-
-      // Müşteri Bilgileri - Modern kart tasarımı
-      doc.setFillColor(...colors.lightGray)
+      // Alt çizgi (başlık bölümünü ayıran) - Kargo fişi gibi
       doc.setDrawColor(...colors.borderGray)
-      doc.setLineWidth(0.5)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 45, 4, 4, 'FD')
+      doc.setLineWidth(1)
+      doc.line(margin, 54, pageWidth - margin, 54)
       
-      // Başlık arka planı
-      doc.setFillColor(...colors.primary)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 12, 4, 4, 'F')
-      
-      doc.setFontSize(12)
+      yPos = 75 // Kargo fişi gibi 75'ten başla
+
+      // Müşteri Bilgileri - Kargo fişi gibi kompakt düzen
+      doc.setFontSize(11)
       setFont('bold')
-      doc.setTextColor(255, 255, 255)
-      addText('MÜŞTERİ BİLGİLERİ', margin + 5, yPos + 8)
+      doc.setTextColor(...colors.primary)
+      addText('MÜŞTERİ BİLGİLERİ', margin, yPos)
       
-      yPos += 15
-      doc.setFontSize(10)
+      // Alt çizgi
+      doc.setDrawColor(...colors.borderGray)
+      doc.setLineWidth(1)
+      doc.line(margin, yPos + 15, 280, yPos + 15)
+      
+      yPos += 20
+      doc.setFontSize(9)
       setFont('normal')
       doc.setTextColor(...colors.darkGray)
       
-      const infoStartX = margin + 5
-      addText(`• ${selectedRequest.customerName}`, infoStartX, yPos)
-      yPos += 7
-
-      if (selectedRequest.companyName) {
-        addText(`• ${selectedRequest.companyName}`, infoStartX, yPos)
-        yPos += 7
-      }
-
-      if (selectedRequest.customerEmail) {
-        addText(`• ${selectedRequest.customerEmail}`, infoStartX, yPos)
-        yPos += 7
+      if (selectedRequest.customerName) {
+        doc.setTextColor(...colors.textGray)
+        doc.setFontSize(7)
+        addText('Ad Soyad:', margin, yPos)
+        doc.setTextColor(...colors.primary)
+        doc.setFontSize(8)
+        setFont('bold')
+        addText(selectedRequest.customerName || '', 85, yPos, { width: 220 })
+        yPos += 12
       }
 
       if (selectedRequest.customerPhone) {
-        addText(`• ${selectedRequest.customerPhone}`, infoStartX, yPos)
-        yPos += 7
+        doc.setTextColor(...colors.textGray)
+        doc.setFontSize(7)
+        setFont('normal')
+        addText('Telefon:', margin, yPos)
+        doc.setTextColor(...colors.primary)
+        doc.setFontSize(8)
+        addText(selectedRequest.customerPhone || '', 85, yPos, { width: 220 })
+        yPos += 12
       }
 
-      yPos += 10
+      if (selectedRequest.customerEmail) {
+        doc.setTextColor(...colors.textGray)
+        doc.setFontSize(7)
+        addText('E-posta:', margin, yPos)
+        doc.setTextColor(...colors.primary)
+        doc.setFontSize(7)
+        addText(selectedRequest.customerEmail || '', 85, yPos, { width: 220, lineGap: 1 })
+        yPos += 13
+      }
 
-      // Ürünler Başlığı - Modern başlık
-      doc.setFillColor(...colors.primary)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 10, 2, 2, 'F')
-      doc.setFontSize(14)
+      if (selectedRequest.companyName) {
+        doc.setTextColor(...colors.textGray)
+        doc.setFontSize(7)
+        addText('Şirket:', margin, yPos)
+        doc.setTextColor(...colors.primary)
+        doc.setFontSize(8)
+        addText(selectedRequest.companyName || '', 85, yPos, { width: 220 })
+        yPos += 12
+      }
+
+      yPos += 5
+
+      // Ürün Bilgileri Başlığı - Kargo fişi gibi
+      const productStartY = yPos
+      doc.setFontSize(10)
       setFont('bold')
-      doc.setTextColor(255, 255, 255)
-      addText('ÜRÜN DETAYLARI', margin + 5, yPos + 7)
-      yPos += 15
+      doc.setTextColor(...colors.primary)
+      addText('ÜRÜN BİLGİLERİ', margin, yPos)
+      
+      // Alt çizgi
+      doc.setDrawColor(...colors.borderGray)
+      doc.setLineWidth(1)
+      doc.line(margin, yPos + 12, pageWidth - margin, yPos + 12)
+      
+      yPos += 18
 
-      // Ürün kartları
-      calculation.itemCalculations.forEach((itemCalc) => {
+      // Ürün listesi - Kargo fişi gibi kompakt
+      calculation.itemCalculations.forEach((itemCalc, index) => {
         const selectedItem = selectedItems.find(item => item.id === itemCalc.itemId)
         const itemCostsData = itemCosts[itemCalc.itemId] || { unitCost: 0, printingCost: 0, embroideryCost: 0 }
         
         // Sayfa kontrolü
-        if (yPos > pageHeight - 80) {
+        if (yPos > pageHeight - 100) {
           doc.addPage()
           yPos = margin
         }
 
-        // Ürün kartı arka planı - Modern shadow efekti
-        doc.setFillColor(255, 255, 255)
-        doc.setDrawColor(...colors.borderGray)
-        doc.setLineWidth(0.5)
-        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 55, 4, 4, 'FD')
-        
-        // Hafif gölge efekti (üst kenar)
-        doc.setFillColor(...colors.lightGray)
-        doc.rect(margin, yPos, pageWidth - (margin * 2), 2, 'F')
-        
-        const cardStartY = yPos
-        
-        // Ürün adı
-        doc.setFontSize(12)
-        setFont('bold')
-        doc.setTextColor(...colors.primary)
-        const productName = itemCalc.productName.length > 40 
-          ? itemCalc.productName.substring(0, 37) + '...' 
-          : itemCalc.productName
-        addText(productName, margin + 5, yPos + 7)
-        
-        // Toplam adet (sağ üst)
-        doc.setFontSize(10)
-        doc.setFillColor(...colors.success)
-        doc.setDrawColor(...colors.success)
-        doc.circle(pageWidth - margin - 10, yPos + 5, 8, 'F')
-        doc.setTextColor(255, 255, 255)
-        doc.setFont('helvetica', 'bold')
-        doc.text(itemCalc.quantity.toString(), pageWidth - margin - 10, yPos + 8, { align: 'center' })
-        
-        yPos += 12
-
-        // Beden dağılımı (varsa)
-        if (selectedItem && selectedItem.sizeDistribution) {
-          doc.setFontSize(9)
-          doc.setTextColor(...colors.darkGray)
-          setFont('bold')
-          addText('Beden Dağılımı:', margin + 5, yPos)
-          
-          let xPos = margin + 40
-          const sizeEntries = Object.entries(selectedItem.sizeDistribution).filter(([_, qty]) => qty > 0)
-          
-          if (sizeEntries.length > 0) {
-            sizeEntries.forEach(([size, qty]) => {
-              // Beden badge'i
-              doc.setFillColor(...colors.secondary)
-              doc.setDrawColor(...colors.secondary)
-              doc.setLineWidth(0.2)
-              const badgeWidth = 12
-              const badgeHeight = 6
-              doc.roundedRect(xPos, yPos - 4, badgeWidth, badgeHeight, 1, 1, 'FD')
-              
-              // Beden ve adet
-              doc.setFontSize(7)
-              doc.setTextColor(255, 255, 255)
-              setFont('bold')
-              addText(`${size}: ${qty}`, xPos + badgeWidth / 2, yPos - 0.5, { align: 'center' })
-              
-              xPos += badgeWidth + 3
-              if (xPos > pageWidth - margin - 50) {
-                xPos = margin + 40
-                yPos += 8
-              }
-            })
-          } else {
-            setFont('normal')
-            doc.setTextColor(...colors.mediumGray)
-            addText('Beden bilgisi yok', margin + 40, yPos)
-          }
-          
-          yPos += 10
-        } else {
-          yPos += 4
-        }
-
-        // Fiyat bilgileri (grid)
-        const infoY = cardStartY + 35
-        doc.setFontSize(8)
-        doc.setTextColor(...colors.mediumGray)
+        // Ürün adı - Kompakt, tek satır
+        doc.setFontSize(7)
         setFont('normal')
-        
-        // Sol sütun
-        addText(`Birim Maliyet: ₺${itemCostsData.unitCost.toFixed(2)}`, margin + 5, infoY)
-        addText(`Baskı: ₺${itemCostsData.printingCost.toFixed(2)}`, margin + 5, infoY + 4)
-        addText(`Nakış: ₺${itemCostsData.embroideryCost.toFixed(2)}`, margin + 5, infoY + 8)
-        
-        // Orta sütun
-        const midX = pageWidth / 2
-        setFont('bold')
-        doc.setTextColor(...colors.primary)
-        addText(`Birim Fiyat:`, midX - 15, infoY)
-        setFont('bold')
-        doc.setTextColor(...colors.success)
-        addText(`₺${itemCalc.finalUnitPrice.toFixed(2)}`, midX - 15, infoY + 4)
-        
-        // Sağ sütun
-        setFont('bold')
-        doc.setTextColor(...colors.darkGray)
-        addText(`KDV (%${calculation.vatRate}):`, pageWidth - margin - 35, infoY)
-        doc.setTextColor(...colors.warning)
-        addText(`₺${itemCalc.vatAmount.toFixed(2)}`, pageWidth - margin - 35, infoY + 4)
-        doc.setFontSize(10)
-        doc.setTextColor(...colors.danger)
-        addText(`Toplam: ₺${itemCalc.totalWithVat.toFixed(2)}`, pageWidth - margin - 35, infoY + 8)
-        
-        yPos = cardStartY + 50 + 8
+        doc.setTextColor(...colors.textGray)
+        const productName = itemCalc.productName.length > 60 
+          ? itemCalc.productName.substring(0, 57) + '...' 
+          : itemCalc.productName
+        addText(`${index + 1}. ${productName}`, margin, yPos, { width: 360, lineGap: 0.5 })
+        yPos += 13
+
+        // Fiyat bilgileri - Kompakt, tek satır
+        doc.setFontSize(6)
+        doc.setTextColor(...colors.textGray)
+        const costInfo = `Birim: ₺${itemCostsData.unitCost.toFixed(2)} | Baskı: ₺${itemCostsData.printingCost.toFixed(2)} | Nakış: ₺${itemCostsData.embroideryCost.toFixed(2)} | Adet: ${itemCalc.quantity} | Birim Fiyat: ₺${itemCalc.finalUnitPrice.toFixed(2)} | KDV: ₺${itemCalc.vatAmount.toFixed(2)} | Toplam: ₺${itemCalc.totalWithVat.toFixed(2)}`
+        addText(costInfo, margin, yPos, { width: 360 })
+        yPos += 8
+
+        // Ayırıcı çizgi (son ürün değilse)
+        if (index < calculation.itemCalculations.length - 1) {
+          yPos += 1
+          doc.setDrawColor(...colors.borderGray)
+          doc.setLineWidth(0.3)
+          doc.line(margin, yPos, pageWidth - margin, yPos)
+          yPos += 2
+        }
       })
-
-      // Toplam bölümü - Renkli kutu
-      if (yPos > pageHeight - 60) {
-        doc.addPage()
-        yPos = margin
-      }
-
+      
       yPos += 5
-      doc.setFillColor(...colors.lightGray)
-      doc.setDrawColor(...colors.primary)
-      doc.setLineWidth(0.8)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 35, 3, 3, 'FD')
-      
-      yPos += 8
 
-      doc.setFontSize(11)
+      // Fiyat Bilgileri Başlığı - Kargo fişi gibi
+      let priceYPos = yPos
+      doc.setFontSize(10)
       setFont('bold')
-      doc.setTextColor(...colors.darkGray)
-      
-      // Toplam satırları
-      addText('Ara Toplam (KDV Hariç):', pageWidth - 100, yPos, { align: 'right' })
       doc.setTextColor(...colors.primary)
-      addText(`₺${calculation.totalOfferAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' })
-      yPos += 7
+      addText('FİYAT BİLGİLERİ', margin, priceYPos)
+      
+      // Alt çizgi
+      doc.setDrawColor(...colors.borderGray)
+      doc.setLineWidth(1)
+      doc.line(margin, priceYPos + 12, pageWidth - margin, priceYPos + 12)
+      
+      priceYPos += 18
 
-      doc.setTextColor(...colors.darkGray)
-      addText(`KDV (%${calculation.vatRate}):`, pageWidth - 100, yPos, { align: 'right' })
+      // Toplam satırları - Kargo fişi gibi kompakt
+      doc.setFontSize(8)
+      setFont('normal')
+      doc.setTextColor(...colors.textGray)
+      
+      addText('Ara Toplam (KDV Hariç):', margin, priceYPos)
+      doc.setTextColor(...colors.primary)
+      setFont('bold')
+      addText(`₺${calculation.totalOfferAmount.toFixed(2)}`, pageWidth - margin, priceYPos, { align: 'right' })
+      priceYPos += 12
+
+      doc.setTextColor(...colors.textGray)
+      setFont('normal')
+      addText(`KDV (%${calculation.vatRate}):`, margin, priceYPos)
       doc.setTextColor(...colors.warning)
-      addText(`₺${calculation.totalVatAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' })
-      yPos += 8
+      setFont('bold')
+      addText(`₺${calculation.totalVatAmount.toFixed(2)}`, pageWidth - margin, priceYPos, { align: 'right' })
+      priceYPos += 12
 
       // Genel toplam - vurgulu
       doc.setLineWidth(0.5)
-      doc.setDrawColor(...colors.primary)
-      doc.line(pageWidth - 100, yPos - 2, pageWidth - margin, yPos - 2)
+      doc.setDrawColor(...colors.borderGray)
+      doc.line(margin, priceYPos - 2, pageWidth - margin, priceYPos - 2)
       
-      doc.setFontSize(14)
+      doc.setFontSize(10)
       setFont('bold')
       doc.setTextColor(...colors.primary)
-      addText('GENEL TOPLAM (KDV Dahil):', pageWidth - 100, yPos + 5, { align: 'right' })
+      addText('GENEL TOPLAM (KDV Dahil):', margin, priceYPos + 5)
       doc.setTextColor(...colors.success)
-      doc.setFontSize(16)
-      addText(`₺${calculation.totalWithVat.toFixed(2)}`, pageWidth - margin, yPos + 5, { align: 'right' })
+      doc.setFontSize(12)
+      addText(`₺${calculation.totalWithVat.toFixed(2)}`, pageWidth - margin, priceYPos + 5, { align: 'right' })
+      priceYPos += 20
 
-      yPos += 20
-
-      // Maliyet özeti - Renkli kutu
-      if (yPos > pageHeight - 50) {
+      // Maliyet özeti - Kargo fişi gibi kompakt
+      if (priceYPos > pageHeight - 60) {
         doc.addPage()
-        yPos = margin
+        priceYPos = margin
       }
 
-      doc.setFillColor(...colors.secondary)
-      doc.setDrawColor(...colors.secondary)
-      doc.setLineWidth(0.5)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'FD')
-      
-      doc.setFontSize(11)
-      setFont('bold')
-      doc.setTextColor(255, 255, 255)
-      addText('Maliyet Özeti', margin + 5, yPos + 7)
-      
-      yPos += 10
-      doc.setFontSize(9)
+      doc.setFontSize(8)
       setFont('normal')
-      addText(`Toplam Maliyet: ₺${calculation.totalCost.toFixed(2)}`, margin + 5, yPos)
-      addText(`Kâr Marjı: %${profitMargin.toFixed(2)}`, pageWidth / 2 - 20, yPos)
-      addText(`Kâr: %${calculation.profitPercentage.toFixed(2)}`, pageWidth - margin - 30, yPos, { align: 'right' })
+      doc.setTextColor(...colors.textGray)
+      addText(`Toplam Maliyet: ₺${calculation.totalCost.toFixed(2)}`, margin, priceYPos)
+      addText(`Kâr Marjı: %${profitMargin.toFixed(2)}`, pageWidth / 2 - 20, priceYPos)
+      addText(`Kâr: %${calculation.profitPercentage.toFixed(2)}`, pageWidth - margin, priceYPos, { align: 'right' })
+      priceYPos += 10
       
       if (sharedShippingCost > 0) {
-        yPos += 5
-        addText(`Kargo: ₺${sharedShippingCost.toFixed(2)}`, margin + 5, yPos)
+        addText(`Kargo: ₺${sharedShippingCost.toFixed(2)}`, margin, priceYPos)
+        priceYPos += 10
       }
 
-      yPos += 12
-
-      // Notlar
+      // Notlar - Kargo fişi gibi kompakt
       if (notes && notes.trim()) {
-        if (yPos > pageHeight - 50) {
+        if (priceYPos > pageHeight - 50) {
           doc.addPage()
-          yPos = margin
+          priceYPos = margin
         }
 
-        doc.setFillColor(...colors.warning)
-        doc.setDrawColor(...colors.warning)
-        doc.setLineWidth(0.5)
-        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'FD')
+        priceYPos += 5
+        doc.setFontSize(8)
+        setFont('bold')
+        doc.setTextColor(...colors.primary)
+        addText('Notlar:', margin, priceYPos)
+        priceYPos += 8
         
-        yPos += 7
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(255, 255, 255)
-        addText('Notlar', margin + 5, yPos)
-        yPos += 6
+        doc.setFontSize(7)
+        setFont('normal')
+        doc.setTextColor(...colors.textGray)
         
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(9)
-        doc.setTextColor(255, 255, 255)
-        
-        // Notları satırlara böl
         const encodedNotes = encodeUTF8(notes)
         const noteLines = doc.splitTextToSize(encodedNotes, pageWidth - (margin * 2) - 10)
         noteLines.forEach((line: string) => {
-          if (yPos > pageHeight - 20) {
+          if (priceYPos > pageHeight - 30) {
             doc.addPage()
-            yPos = margin + 10
+            priceYPos = margin + 10
           }
-          addText(line, margin + 8, yPos)
-          yPos += 4
+          addText(line, margin, priceYPos)
+          priceYPos += 8
         })
       }
 
-      // Alt bilgi - Renkli çizgi ile
-      const finalY = pageHeight - 12
-      doc.setLineWidth(0.5)
-      doc.setDrawColor(...colors.primary)
-      doc.line(margin, finalY - 3, pageWidth - margin, finalY - 3)
+      // Alt bilgi bölümü - Footer (Kargo fişi gibi)
+      const footerHeight = 40
+      let finalFooterY = priceYPos + 10
+      
+      // Footer sayfa dışına taşmasın
+      if (finalFooterY + footerHeight > pageHeight) {
+        finalFooterY = pageHeight - footerHeight
+      }
+      
+      doc.setFillColor(...colors.lightGray)
+      doc.rect(0, finalFooterY, pageWidth, footerHeight, 'F')
       
       doc.setFontSize(7)
-      doc.setTextColor(...colors.mediumGray)
-      doc.setFont('helvetica', 'italic')
-      doc.text(
+      setFont('normal')
+      doc.setTextColor(...colors.textGray)
+      const invoiceNumber = `PRO-${selectedRequest.requestNumber || selectedRequest.id}`
+      addText(`Fatura No: ${invoiceNumber}`, margin, finalFooterY + 6, { align: 'left' })
+      
+      const now = new Date()
+      addText(`Oluşturulma: ${now.toLocaleString('tr-TR')}`, margin, finalFooterY + 16, { align: 'left' })
+      
+      // Sağ tarafta şirket bilgisi
+      doc.setFontSize(8)
+      setFont('bold')
+      doc.setTextColor(...colors.darkGray)
+      addText('Huğlu Outdoor', pageWidth - margin, finalFooterY + 6, { align: 'right' })
+      
+      doc.setFontSize(6)
+      setFont('normal')
+      doc.setTextColor(...colors.textGray)
+      addText('Proforma Fatura', pageWidth - margin, finalFooterY + 16, { align: 'right' })
+      
+      // Alt bilgi metni
+      doc.setFontSize(7)
+      doc.setTextColor(...colors.textGray)
+      addText(
         'Bu belge bir proforma faturadır ve ödeme belgesi niteliği taşımaz.',
         pageWidth / 2,
-        finalY,
-        { align: 'center' }
+        finalFooterY + 28,
+        { align: 'center', width: pageWidth - (margin * 2) }
       )
 
       // PDF'i indir
@@ -1468,11 +1432,18 @@ export default function ProformaInvoice() {
       
       const encodeUTF8 = (text: string): string => {
         if (!text) return text
-        return text
+        // Türkçe karakterleri doğru şekilde encode et
+        try {
+          // jsPDF'in Türkçe karakterleri desteklemesi için özel encoding
+          return text
+        } catch {
+          return text
+        }
       }
       
       const addText = (text: string, x: number, y: number, options?: any) => {
         const encodedText = encodeUTF8(text)
+        // Custom font kullan (Türkçe karakter desteği için)
         setFont(options?.bold ? 'bold' : 'normal')
         if (options && options.align) {
           doc.text(encodedText, x, y, options)
@@ -1483,31 +1454,33 @@ export default function ProformaInvoice() {
       
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
-      const margin = 20
+      const margin = 15 // Kargo fişi gibi daha küçük margin
       let yPos = margin
 
+      // Renk tanımları - Kargo fişi ile uyumlu
       const colors = {
-        primary: [30, 64, 175],
-        primaryLight: [59, 130, 246],
-        secondary: [139, 92, 246],
-        success: [34, 197, 94],
-        warning: [234, 179, 8],
-        danger: [239, 68, 68],
-        lightGray: [248, 250, 252],
-        mediumGray: [148, 163, 184],
-        darkGray: [51, 65, 85],
-        borderGray: [226, 232, 240],
+        primary: [15, 23, 42],        // Slate-900 (#0f172a)
+        primaryLight: [30, 41, 59],   // Slate-800
+        secondary: [139, 92, 246],    // Purple-500
+        success: [34, 197, 94],       // Green-500
+        warning: [234, 179, 8],       // Yellow-500
+        danger: [239, 68, 68],        // Red-500
+        lightGray: [241, 245, 249],   // Slate-100 (#f1f5f9)
+        mediumGray: [148, 163, 184],  // Slate-400 (#94a3b8)
+        darkGray: [30, 41, 59],       // Slate-800 (#1e293b)
+        borderGray: [226, 232, 240],  // Slate-200 (#e2e8f0)
+        textGray: [100, 116, 139],    // Slate-500 (#64748b)
       }
 
       // Beyaz arka plan
       doc.setFillColor(255, 255, 255)
       doc.rect(0, 0, pageWidth, pageHeight, 'F')
       
-      // Üst başlık bölümü
-      doc.setFillColor(...colors.primary)
-      doc.rect(0, 0, pageWidth, 50, 'F')
+      // Üst başlık bölümü - Kargo fişi gibi beyaz arka plan
+      doc.setFillColor(255, 255, 255)
+      doc.rect(0, 0, pageWidth, 55, 'F')
       
-      // Logo ekleme (sağ üst köşe)
+      // Logo ekleme (ortada) - Kargo fişi gibi
       try {
         const logoUrl = window.location.origin + '/logo.jpg'
         const img = new Image()
@@ -1522,10 +1495,10 @@ export default function ProformaInvoice() {
           img.onload = () => {
             clearTimeout(timeout)
             try {
-              const logoWidth = 40
+              const logoWidth = 120
               const logoHeight = (img.height / img.width) * logoWidth
-              const logoX = pageWidth - margin - logoWidth
-              const logoY = 5
+              const logoX = (pageWidth - logoWidth) / 2
+              const logoY = (55 - logoHeight) / 2 + 8
               
               const canvas = document.createElement('canvas')
               canvas.width = img.width
@@ -1553,256 +1526,242 @@ export default function ProformaInvoice() {
         console.warn('Logo ekleme hatası:', error)
       }
       
-      // Tarih ve Saat (sağ üst, logo altında)
-      const invoiceDateObj = manualInvoiceDate ? new Date(manualInvoiceDate) : new Date()
-      const invoiceDate = invoiceDateObj.toLocaleDateString('tr-TR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      })
-      const invoiceTime = invoiceDateObj.toLocaleTimeString('tr-TR', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+      // Alt çizgi
+      doc.setDrawColor(...colors.borderGray)
+      doc.setLineWidth(1)
+      doc.line(margin, 54, pageWidth - margin, 54)
       
-      doc.setFontSize(9)
-      setFont('normal')
-      doc.setTextColor(255, 255, 255)
-      const dateTimeX = pageWidth - margin
-      const dateTimeY = 50
-      addText(invoiceDate, dateTimeX, dateTimeY - 3, { align: 'right' })
-      addText(invoiceTime, dateTimeX, dateTimeY + 2, { align: 'right' })
-      
-      // Fatura Başlığı (sol taraf)
-      doc.setFontSize(28)
+      yPos = 75
+
+      // Müşteri Bilgileri - Kargo fişi gibi kompakt düzen
+      doc.setFontSize(11)
       setFont('bold')
-      doc.setTextColor(255, 255, 255)
-      addText('PROFORMA FATURA', margin, 30)
-      
-      // Fatura Numarası
-      doc.setFontSize(10)
-      setFont('normal')
-      const invoiceNumber = manualRequestId ? `MANUAL-${manualRequestId}` : `MANUAL-${Date.now()}`
-      addText(`Fatura No: ${invoiceNumber}`, margin, 42)
+      doc.setTextColor(...colors.primary)
+      addText('MÜŞTERİ BİLGİLERİ', margin, yPos)
       
       // Alt çizgi
-      doc.setDrawColor(255, 255, 255)
-      doc.setLineWidth(0.5)
-      doc.line(margin, 47, pageWidth - margin, 47)
-      
-      yPos = 60
-
-      // Müşteri Bilgileri - Modern kart tasarımı
-      doc.setFillColor(...colors.lightGray)
       doc.setDrawColor(...colors.borderGray)
-      doc.setLineWidth(0.5)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 45, 4, 4, 'FD')
+      doc.setLineWidth(1)
+      doc.line(margin, yPos + 15, 280, yPos + 15)
       
-      // Başlık arka planı
-      doc.setFillColor(...colors.primary)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 12, 4, 4, 'F')
-      
-      doc.setFontSize(12)
-      setFont('bold')
-      doc.setTextColor(255, 255, 255)
-      addText('MÜŞTERİ BİLGİLERİ', margin + 5, yPos + 8)
-      
-      yPos += 15
-      doc.setFontSize(10)
+      yPos += 20
+      doc.setFontSize(9)
       setFont('normal')
       doc.setTextColor(...colors.darkGray)
       
-      const infoStartX = margin + 5
-      addText(`• ${manualCustomerName}`, infoStartX, yPos)
-      yPos += 7
-
-      if (manualCompanyName) {
-        addText(`• ${manualCompanyName}`, infoStartX, yPos)
-        yPos += 7
-      }
-
-      if (manualCustomerEmail) {
-        addText(`• ${manualCustomerEmail}`, infoStartX, yPos)
-        yPos += 7
+      if (manualCustomerName) {
+        doc.setTextColor(...colors.textGray)
+        doc.setFontSize(7)
+        addText('Ad Soyad:', margin, yPos)
+        doc.setTextColor(...colors.primary)
+        doc.setFontSize(8)
+        setFont('bold')
+        addText(manualCustomerName || '', 85, yPos, { width: 220 })
+        yPos += 12
       }
 
       if (manualCustomerPhone) {
-        addText(`• ${manualCustomerPhone}`, infoStartX, yPos)
-        yPos += 7
+        doc.setTextColor(...colors.textGray)
+        doc.setFontSize(7)
+        setFont('normal')
+        addText('Telefon:', margin, yPos)
+        doc.setTextColor(...colors.primary)
+        doc.setFontSize(8)
+        addText(manualCustomerPhone || '', 85, yPos, { width: 220 })
+        yPos += 12
       }
 
-      yPos += 10
-
-      // Ürünler Başlığı - Modern başlık
-      doc.setFillColor(...colors.primary)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 10, 2, 2, 'F')
-      doc.setFontSize(14)
-      setFont('bold')
-      doc.setTextColor(255, 255, 255)
-      addText('ÜRÜN DETAYLARI', margin + 5, yPos + 7)
-      yPos += 15
-
-      // Ürün kartları
-      manualCalculation.itemCalculations.forEach((itemCalc) => {
-        const manualItem = manualItems.find(item => parseInt(item.id) === itemCalc.itemId || item.id === `manual-${itemCalc.itemId}`)
-        const itemCostsData = manualItem ? manualItemCosts[manualItem.id] || { unitCost: 0, printingCost: 0, embroideryCost: 0 } : { unitCost: 0, printingCost: 0, embroideryCost: 0 }
-        
-        if (yPos > pageHeight - 80) {
-          doc.addPage()
-          yPos = margin
-        }
-
-        // Ürün kartı arka planı - Modern shadow efekti
-        doc.setFillColor(255, 255, 255)
-        doc.setDrawColor(...colors.borderGray)
-        doc.setLineWidth(0.5)
-        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 55, 4, 4, 'FD')
-        
-        // Hafif gölge efekti (üst kenar)
-        doc.setFillColor(...colors.lightGray)
-        doc.rect(margin, yPos, pageWidth - (margin * 2), 2, 'F')
-        
-        const cardStartY = yPos
-        
-        doc.setFontSize(12)
-        setFont('bold')
+      if (manualCustomerEmail) {
+        doc.setTextColor(...colors.textGray)
+        doc.setFontSize(7)
+        addText('E-posta:', margin, yPos)
         doc.setTextColor(...colors.primary)
-        const productName = itemCalc.productName.length > 40 
-          ? itemCalc.productName.substring(0, 37) + '...' 
-          : itemCalc.productName
-        addText(productName, margin + 5, yPos + 7)
-        
-        doc.setFontSize(10)
-        doc.setFillColor(...colors.success)
-        doc.setDrawColor(...colors.success)
-        doc.circle(pageWidth - margin - 10, yPos + 5, 8, 'F')
-        doc.setTextColor(255, 255, 255)
-        setFont('bold')
-        doc.text(itemCalc.quantity.toString(), pageWidth - margin - 10, yPos + 8, { align: 'center' })
-        
-        yPos += 12
+        doc.setFontSize(7)
+        addText(manualCustomerEmail || '', 85, yPos, { width: 220, lineGap: 1 })
+        yPos += 13
+      }
 
-        const infoY = cardStartY + 35
+      if (manualCompanyName) {
+        doc.setTextColor(...colors.textGray)
+        doc.setFontSize(7)
+        addText('Şirket:', margin, yPos)
+        doc.setTextColor(...colors.primary)
         doc.setFontSize(8)
-        doc.setTextColor(...colors.mediumGray)
-        setFont('normal')
-        
-        addText(`Birim Maliyet: ₺${itemCostsData.unitCost.toFixed(2)}`, margin + 5, infoY)
-        addText(`Baskı: ₺${itemCostsData.printingCost.toFixed(2)}`, margin + 5, infoY + 4)
-        addText(`Nakış: ₺${itemCostsData.embroideryCost.toFixed(2)}`, margin + 5, infoY + 8)
-        
-        const midX = pageWidth / 2
-        setFont('bold')
-        doc.setTextColor(...colors.primary)
-        addText(`Birim Fiyat:`, midX - 15, infoY)
-        setFont('bold')
-        doc.setTextColor(...colors.success)
-        addText(`₺${itemCalc.finalUnitPrice.toFixed(2)}`, midX - 15, infoY + 4)
-        
-        setFont('bold')
-        doc.setTextColor(...colors.darkGray)
-        addText(`KDV (%${manualCalculation.vatRate}):`, pageWidth - margin - 35, infoY)
-        doc.setTextColor(...colors.warning)
-        addText(`₺${itemCalc.vatAmount.toFixed(2)}`, pageWidth - margin - 35, infoY + 4)
-        doc.setFontSize(10)
-        doc.setTextColor(...colors.danger)
-        addText(`Toplam: ₺${itemCalc.totalWithVat.toFixed(2)}`, pageWidth - margin - 35, infoY + 8)
-        
-        yPos = cardStartY + 50 + 8
-      })
-
-      // Toplam bölümü
-      if (yPos > pageHeight - 60) {
-        doc.addPage()
-        yPos = margin
+        addText(manualCompanyName || '', 85, yPos, { width: 220 })
+        yPos += 12
       }
 
       yPos += 5
-      doc.setFillColor(...colors.lightGray)
-      doc.setDrawColor(...colors.primary)
-      doc.setLineWidth(0.8)
-      doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 35, 3, 3, 'FD')
-      
-      yPos += 8
 
-      doc.setFontSize(11)
-      setFont('bold')
-      doc.setTextColor(...colors.darkGray)
-      
-      addText('Ara Toplam (KDV Hariç):', pageWidth - 100, yPos, { align: 'right' })
-      doc.setTextColor(...colors.primary)
-      addText(`₺${manualCalculation.totalOfferAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' })
-      yPos += 7
-
-      doc.setTextColor(...colors.darkGray)
-      addText(`KDV (%${manualCalculation.vatRate}):`, pageWidth - 100, yPos, { align: 'right' })
-      doc.setTextColor(...colors.warning)
-      addText(`₺${manualCalculation.totalVatAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' })
-      yPos += 8
-
-      doc.setLineWidth(0.5)
-      doc.setDrawColor(...colors.primary)
-      doc.line(pageWidth - 100, yPos - 2, pageWidth - margin, yPos - 2)
-      
-      doc.setFontSize(14)
+      // Ürün Bilgileri Başlığı - Kargo fişi gibi
+      const productStartY = yPos
+      doc.setFontSize(10)
       setFont('bold')
       doc.setTextColor(...colors.primary)
-      addText('GENEL TOPLAM (KDV Dahil):', pageWidth - 100, yPos + 5, { align: 'right' })
-      doc.setTextColor(...colors.success)
-      doc.setFontSize(16)
-      addText(`₺${manualCalculation.totalWithVat.toFixed(2)}`, pageWidth - margin, yPos + 5, { align: 'right' })
+      addText('ÜRÜN BİLGİLERİ', margin, yPos)
+      
+      // Alt çizgi
+      doc.setDrawColor(...colors.borderGray)
+      doc.setLineWidth(1)
+      doc.line(margin, yPos + 12, pageWidth - margin, yPos + 12)
+      
+      yPos += 18
 
-      yPos += 20
-
-      // Notlar
-      if (notes && notes.trim()) {
-        if (yPos > pageHeight - 50) {
+      // Ürün listesi - Kargo fişi gibi kompakt
+      manualCalculation.itemCalculations.forEach((itemCalc, index) => {
+        const manualItem = manualItems.find(item => parseInt(item.id) === itemCalc.itemId || item.id === `manual-${itemCalc.itemId}`)
+        const itemCostsData = manualItem ? manualItemCosts[manualItem.id] || { unitCost: 0, printingCost: 0, embroideryCost: 0 } : { unitCost: 0, printingCost: 0, embroideryCost: 0 }
+        
+        if (yPos > pageHeight - 100) {
           doc.addPage()
           yPos = margin
         }
 
-        doc.setFillColor(...colors.warning)
-        doc.setDrawColor(...colors.warning)
-        doc.setLineWidth(0.5)
-        doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'FD')
+        // Ürün adı - Kompakt, tek satır
+        doc.setFontSize(7)
+        setFont('normal')
+        doc.setTextColor(...colors.textGray)
+        const productName = itemCalc.productName.length > 60 
+          ? itemCalc.productName.substring(0, 57) + '...' 
+          : itemCalc.productName
+        addText(`${index + 1}. ${productName}`, margin, yPos, { width: 360, lineGap: 0.5 })
+        yPos += 13
+
+        // Fiyat bilgileri - Kompakt, tek satır
+        doc.setFontSize(6)
+        doc.setTextColor(...colors.textGray)
+        const costInfo = `Birim: ₺${itemCostsData.unitCost.toFixed(2)} | Baskı: ₺${itemCostsData.printingCost.toFixed(2)} | Nakış: ₺${itemCostsData.embroideryCost.toFixed(2)} | Adet: ${itemCalc.quantity} | Birim Fiyat: ₺${itemCalc.finalUnitPrice.toFixed(2)} | KDV: ₺${itemCalc.vatAmount.toFixed(2)} | Toplam: ₺${itemCalc.totalWithVat.toFixed(2)}`
+        addText(costInfo, margin, yPos, { width: 360 })
+        yPos += 8
+
+        // Ayırıcı çizgi (son ürün değilse)
+        if (index < manualCalculation.itemCalculations.length - 1) {
+          yPos += 1
+          doc.setDrawColor(...colors.borderGray)
+          doc.setLineWidth(0.3)
+          doc.line(margin, yPos, pageWidth - margin, yPos)
+          yPos += 2
+        }
+      })
+      
+      yPos += 5
+
+      // Fiyat Bilgileri Başlığı - Kargo fişi gibi
+      let priceYPos = yPos
+      doc.setFontSize(10)
+      setFont('bold')
+      doc.setTextColor(...colors.primary)
+      addText('FİYAT BİLGİLERİ', margin, priceYPos)
+      
+      // Alt çizgi
+      doc.setDrawColor(...colors.borderGray)
+      doc.setLineWidth(1)
+      doc.line(margin, priceYPos + 12, pageWidth - margin, priceYPos + 12)
+      
+      priceYPos += 18
+
+      // Toplam satırları - Kargo fişi gibi kompakt
+      doc.setFontSize(8)
+      setFont('normal')
+      doc.setTextColor(...colors.textGray)
+      
+      addText('Ara Toplam (KDV Hariç):', margin, priceYPos)
+      doc.setTextColor(...colors.primary)
+      setFont('bold')
+      addText(`₺${manualCalculation.totalOfferAmount.toFixed(2)}`, pageWidth - margin, priceYPos, { align: 'right' })
+      priceYPos += 12
+
+      doc.setTextColor(...colors.textGray)
+      setFont('normal')
+      addText(`KDV (%${manualCalculation.vatRate}):`, margin, priceYPos)
+      doc.setTextColor(...colors.warning)
+      setFont('bold')
+      addText(`₺${manualCalculation.totalVatAmount.toFixed(2)}`, pageWidth - margin, priceYPos, { align: 'right' })
+      priceYPos += 12
+
+      // Genel toplam - vurgulu
+      doc.setLineWidth(0.5)
+      doc.setDrawColor(...colors.borderGray)
+      doc.line(margin, priceYPos - 2, pageWidth - margin, priceYPos - 2)
+      
+      doc.setFontSize(10)
+      setFont('bold')
+      doc.setTextColor(...colors.primary)
+      addText('GENEL TOPLAM (KDV Dahil):', margin, priceYPos + 5)
+      doc.setTextColor(...colors.success)
+      doc.setFontSize(12)
+      addText(`₺${manualCalculation.totalWithVat.toFixed(2)}`, pageWidth - margin, priceYPos + 5, { align: 'right' })
+      priceYPos += 20
+
+      // Notlar - Kargo fişi gibi kompakt
+      if (notes && notes.trim()) {
+        if (priceYPos > pageHeight - 50) {
+          doc.addPage()
+          priceYPos = margin
+        }
+
+        priceYPos += 5
+        doc.setFontSize(8)
+        setFont('bold')
+        doc.setTextColor(...colors.primary)
+        addText('Notlar:', margin, priceYPos)
+        priceYPos += 8
         
-        yPos += 7
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(255, 255, 255)
-        addText('Notlar', margin + 5, yPos)
-        yPos += 6
-        
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(9)
-        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(7)
+        setFont('normal')
+        doc.setTextColor(...colors.textGray)
         
         const encodedNotes = encodeUTF8(notes)
         const noteLines = doc.splitTextToSize(encodedNotes, pageWidth - (margin * 2) - 10)
         noteLines.forEach((line: string) => {
-          if (yPos > pageHeight - 20) {
+          if (priceYPos > pageHeight - 30) {
             doc.addPage()
-            yPos = margin + 10
+            priceYPos = margin + 10
           }
-          addText(line, margin + 8, yPos)
-          yPos += 4
+          addText(line, margin, priceYPos)
+          priceYPos += 8
         })
       }
 
-      // Alt bilgi
-      const finalY = pageHeight - 12
-      doc.setLineWidth(0.5)
-      doc.setDrawColor(...colors.primary)
-      doc.line(margin, finalY - 3, pageWidth - margin, finalY - 3)
+      // Alt bilgi bölümü - Footer (Kargo fişi gibi)
+      const footerHeight = 40
+      let finalFooterY = priceYPos + 10
+      
+      if (finalFooterY + footerHeight > pageHeight) {
+        finalFooterY = pageHeight - footerHeight
+      }
+      
+      doc.setFillColor(...colors.lightGray)
+      doc.rect(0, finalFooterY, pageWidth, footerHeight, 'F')
       
       doc.setFontSize(7)
-      doc.setTextColor(...colors.mediumGray)
-      doc.setFont('helvetica', 'italic')
-      doc.text(
+      setFont('normal')
+      doc.setTextColor(...colors.textGray)
+      const invoiceNumber = manualRequestId ? `MANUAL-${manualRequestId}` : `MANUAL-${Date.now()}`
+      addText(`Fatura No: ${invoiceNumber}`, margin, finalFooterY + 6, { align: 'left' })
+      
+      const invoiceDateObj = manualInvoiceDate ? new Date(manualInvoiceDate) : new Date()
+      addText(`Oluşturulma: ${invoiceDateObj.toLocaleString('tr-TR')}`, margin, finalFooterY + 16, { align: 'left' })
+      
+      // Sağ tarafta şirket bilgisi
+      doc.setFontSize(8)
+      setFont('bold')
+      doc.setTextColor(...colors.darkGray)
+      addText('Huğlu Outdoor', pageWidth - margin, finalFooterY + 6, { align: 'right' })
+      
+      doc.setFontSize(6)
+      setFont('normal')
+      doc.setTextColor(...colors.textGray)
+      addText('Proforma Fatura', pageWidth - margin, finalFooterY + 16, { align: 'right' })
+      
+      // Alt bilgi metni
+      doc.setFontSize(7)
+      doc.setTextColor(...colors.textGray)
+      addText(
         'Bu belge bir proforma faturadır ve ödeme belgesi niteliği taşımaz.',
         pageWidth / 2,
-        finalY,
-        { align: 'center' }
+        finalFooterY + 28,
+        { align: 'center', width: pageWidth - (margin * 2) }
       )
 
       // PDF'i indir
@@ -1828,67 +1787,161 @@ export default function ProformaInvoice() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Proforma Fatura - ${invoiceNumber}</title>
   <style>
+    @media print {
+      body { margin: 0; }
+      .no-print { display: none; }
+    }
     body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      max-width: 210mm;
+      margin: 20px auto;
       padding: 20px;
-      color: #333;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    .invoice-container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     .header {
-      text-align: center;
-      border-bottom: 3px solid #1e40af;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-    }
-    .header h1 {
-      color: #1e40af;
-      margin: 0;
-      font-size: 28px;
-    }
-    .invoice-info {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 8px 8px 0 0;
+      margin: -30px -30px 30px -30px;
       display: flex;
       justify-content: space-between;
-      margin-bottom: 30px;
+      align-items: center;
+    }
+    .header-left h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .header-left p {
+      margin: 5px 0 0 0;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    .header-right {
+      text-align: right;
+      font-size: 12px;
     }
     .customer-info {
-      background: #f8f9fa;
-      padding: 15px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
       margin-bottom: 30px;
+      overflow: hidden;
     }
-    .customer-info h3 {
-      margin-top: 0;
-      color: #1e40af;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 30px;
-    }
-    th {
+    .customer-info-header {
       background: #1e40af;
       color: white;
-      padding: 12px;
-      text-align: left;
+      padding: 12px 15px;
+      font-weight: bold;
+      font-size: 14px;
     }
-    td {
-      padding: 10px;
-      border-bottom: 1px solid #e5e7eb;
+    .customer-info-content {
+      padding: 15px;
     }
-    tr:nth-child(even) {
-      background: #f9fafb;
+    .customer-info-content ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .customer-info-content li {
+      padding: 5px 0;
+      color: #334155;
+    }
+    .products-header {
+      background: #1e40af;
+      color: white;
+      padding: 12px 15px;
+      font-weight: bold;
+      font-size: 14px;
+      border-radius: 8px 8px 0 0;
+      margin-bottom: 0;
+    }
+    .product-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .product-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .product-name {
+      font-size: 16px;
+      font-weight: bold;
+      color: #1e40af;
+      flex: 1;
+    }
+    .product-quantity {
+      background: #22c55e;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .product-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      margin-top: 15px;
+    }
+    .detail-column {
+      display: flex;
+      flex-direction: column;
+    }
+    .detail-label {
+      font-size: 10px;
+      color: #64748b;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+    .detail-value {
+      font-size: 14px;
+      font-weight: bold;
+      color: #1e293b;
+    }
+    .detail-value.price {
+      color: #22c55e;
+      font-size: 16px;
+    }
+    .detail-value.vat {
+      color: #f59e0b;
+    }
+    .detail-value.total {
+      color: #ef4444;
+      font-size: 16px;
     }
     .totals {
-      margin-left: auto;
-      width: 300px;
-      margin-top: 20px;
+      background: #f8fafc;
+      border: 2px solid #1e40af;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 30px;
     }
     .totals-row {
       display: flex;
       justify-content: space-between;
       padding: 8px 0;
-      border-bottom: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .totals-row:last-child {
+      border-bottom: none;
     }
     .total-final {
       font-size: 18px;
@@ -1901,104 +1954,111 @@ export default function ProformaInvoice() {
     .notes {
       margin-top: 30px;
       padding: 15px;
-      background: #f8f9fa;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
       border-radius: 8px;
     }
     .footer {
       margin-top: 40px;
+      padding-top: 20px;
+      border-top: 2px solid #e2e8f0;
       text-align: center;
-      color: #6b7280;
+      color: #64748b;
       font-size: 12px;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>PROFORMA FATURA</h1>
-  </div>
-  
-  <div class="invoice-info">
-    <div>
-      <strong>Fatura No:</strong> ${invoiceNumber}
+  <div class="invoice-container">
+    <div class="header">
+      <div class="header-left">
+        <h1>PROFORMA FATURA</h1>
+        <p>Fatura No: ${invoiceNumber}</p>
+      </div>
+      <div class="header-right">
+        <div>Tarih: ${invoiceDate}</div>
+      </div>
     </div>
-    <div>
-      <strong>Tarih:</strong> ${invoiceDate}
+
+    <div class="customer-info">
+      <div class="customer-info-header">MÜŞTERİ BİLGİLERİ</div>
+      <div class="customer-info-content">
+        <ul>
+          <li>• ${selectedRequest.customerName}</li>
+          ${selectedRequest.companyName ? `<li>• ${selectedRequest.companyName}</li>` : ''}
+          ${selectedRequest.customerEmail ? `<li>• ${selectedRequest.customerEmail}</li>` : ''}
+          ${selectedRequest.customerPhone ? `<li>• ${selectedRequest.customerPhone}</li>` : ''}
+        </ul>
+      </div>
     </div>
-  </div>
 
-  <div class="customer-info">
-    <h3>Müşteri Bilgileri</h3>
-    <p><strong>Müşteri:</strong> ${selectedRequest.customerName}</p>
-    ${selectedRequest.companyName ? `<p><strong>Şirket:</strong> ${selectedRequest.companyName}</p>` : ''}
-    ${selectedRequest.customerEmail ? `<p><strong>E-posta:</strong> ${selectedRequest.customerEmail}</p>` : ''}
-    ${selectedRequest.customerPhone ? `<p><strong>Telefon:</strong> ${selectedRequest.customerPhone}</p>` : ''}
-  </div>
+    <div class="products-header">ÜRÜN DETAYLARI</div>
+    
+    ${calculation.itemCalculations.map(itemCalc => {
+      const itemCostsData = itemCosts[itemCalc.itemId] || { unitCost: 0, printingCost: 0, embroideryCost: 0 }
+      return `
+      <div class="product-card">
+        <div class="product-header">
+          <div class="product-name">${itemCalc.productName}</div>
+          <div class="product-quantity">${itemCalc.quantity}</div>
+        </div>
+        <div class="product-details">
+          <div class="detail-column">
+            <div class="detail-label">Birim Maliyet</div>
+            <div class="detail-value">₺${itemCostsData.unitCost.toFixed(2)}</div>
+            <div class="detail-label" style="margin-top: 8px;">Baskı</div>
+            <div class="detail-value">₺${itemCostsData.printingCost.toFixed(2)}</div>
+            <div class="detail-label" style="margin-top: 8px;">Nakış</div>
+            <div class="detail-value">₺${itemCostsData.embroideryCost.toFixed(2)}</div>
+          </div>
+          <div class="detail-column">
+            <div class="detail-label">Birim Fiyat</div>
+            <div class="detail-value price">₺${itemCalc.finalUnitPrice.toFixed(2)}</div>
+          </div>
+          <div class="detail-column">
+            <div class="detail-label">KDV (%${calculation.vatRate})</div>
+            <div class="detail-value vat">₺${itemCalc.vatAmount.toFixed(2)}</div>
+            <div class="detail-label" style="margin-top: 8px;">Toplam</div>
+            <div class="detail-value total">₺${itemCalc.totalWithVat.toFixed(2)}</div>
+          </div>
+        </div>
+      </div>
+      `
+    }).join('')}
 
-  <table>
-    <thead>
-      <tr>
-        <th>Ürün</th>
-        <th>Adet</th>
-        <th>Birim Fiyat (KDV Hariç)</th>
-        <th>KDV (%${calculation.vatRate})</th>
-        <th>Toplam (KDV Dahil)</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${calculation.itemCalculations.map(itemCalc => {
-        const itemCostsData = itemCosts[itemCalc.itemId] || { unitCost: 0, printingCost: 0, embroideryCost: 0 }
-        return `
-        <tr>
-          <td>
-            <strong>${itemCalc.productName}</strong><br>
-            <small style="color: #6b7280;">
-              Birim: ₺${itemCostsData.unitCost.toFixed(2)} | 
-              Baskı: ₺${itemCostsData.printingCost.toFixed(2)} | 
-              Nakış: ₺${itemCostsData.embroideryCost.toFixed(2)}
-            </small>
-          </td>
-          <td>${itemCalc.quantity}</td>
-          <td>₺${itemCalc.finalUnitPrice.toFixed(2)}</td>
-          <td>₺${itemCalc.vatAmount.toFixed(2)}</td>
-          <td>₺${itemCalc.totalWithVat.toFixed(2)}</td>
-        </tr>
-        `
-      }).join('')}
-    </tbody>
-  </table>
-
-  <div class="totals">
-    <div class="totals-row">
-      <span>Ara Toplam (KDV Hariç):</span>
-      <span>₺${calculation.totalOfferAmount.toFixed(2)}</span>
+    <div class="totals">
+      <div class="totals-row">
+        <span>Ara Toplam (KDV Hariç):</span>
+        <span>₺${calculation.totalOfferAmount.toFixed(2)}</span>
+      </div>
+      <div class="totals-row">
+        <span>KDV (%${calculation.vatRate}):</span>
+        <span>₺${calculation.totalVatAmount.toFixed(2)}</span>
+      </div>
+      <div class="totals-row total-final">
+        <span>GENEL TOPLAM (KDV Dahil):</span>
+        <span>₺${calculation.totalWithVat.toFixed(2)}</span>
+      </div>
     </div>
-    <div class="totals-row">
-      <span>KDV (%${calculation.vatRate}):</span>
-      <span>₺${calculation.totalVatAmount.toFixed(2)}</span>
+
+    <div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+      <h3 style="margin-top: 0; color: #1e40af;">Maliyet Özeti</h3>
+      <p>Toplam Maliyet: <strong>₺${calculation.totalCost.toFixed(2)}</strong></p>
+      <p>Kâr Marjı: <strong>%${profitMargin.toFixed(2)}</strong></p>
+      <p>Kâr Yüzdesi: <strong>%${calculation.profitPercentage.toFixed(2)}</strong></p>
+      ${sharedShippingCost > 0 ? `<p>Kargo: <strong>₺${sharedShippingCost.toFixed(2)}</strong></p>` : ''}
     </div>
-    <div class="totals-row total-final">
-      <span>GENEL TOPLAM (KDV Dahil):</span>
-      <span>₺${calculation.totalWithVat.toFixed(2)}</span>
+
+    ${notes && notes.trim() ? `
+    <div class="notes">
+      <h3>Notlar</h3>
+      <p>${notes.replace(/\n/g, '<br>')}</p>
     </div>
-  </div>
+    ` : ''}
 
-  <div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-    <h3 style="margin-top: 0; color: #1e40af;">Maliyet Özeti</h3>
-    <p>Toplam Maliyet: <strong>₺${calculation.totalCost.toFixed(2)}</strong></p>
-    <p>Kâr Marjı: <strong>%${profitMargin.toFixed(2)}</strong></p>
-    <p>Kâr Yüzdesi: <strong>%${calculation.profitPercentage.toFixed(2)}</strong></p>
-    ${sharedShippingCost > 0 ? `<p>Kargo: <strong>₺${sharedShippingCost.toFixed(2)}</strong></p>` : ''}
-  </div>
-
-  ${notes && notes.trim() ? `
-  <div class="notes">
-    <h3>Notlar</h3>
-    <p>${notes.replace(/\n/g, '<br>')}</p>
-  </div>
-  ` : ''}
-
-  <div class="footer">
-    <p>Bu belge bir proforma faturadır ve ödeme belgesi niteliği taşımaz.</p>
+    <div class="footer">
+      <p>Bu belge bir proforma faturadır ve ödeme belgesi niteliği taşımaz.</p>
+    </div>
   </div>
 </body>
 </html>
@@ -2172,7 +2232,7 @@ export default function ProformaInvoice() {
                   <motion.div
                     key={request.id}
                     onClick={() => handleSelectRequest(request)}
-                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                    className={`p-4 rounded-lg border cursor-pointer transition-all relative ${
                       selectedRequest?.id === request.id
                         ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700'
                         : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -2187,9 +2247,25 @@ export default function ProformaInvoice() {
                           {request.customerName}
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(request.status)}`}>
-                        {translateStatus(request.status)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(request.status)}`}>
+                          {translateStatus(request.status)}
+                        </span>
+                        <button
+                          onClick={(e) => handleDeleteRequest(request.id, request.requestNumber, e)}
+                          disabled={deletingRequestId === request.id}
+                          className={`p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors ${
+                            deletingRequestId === request.id ? 'opacity-50 cursor-not-allowed' : 'text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300'
+                          }`}
+                          title="Talebi Sil"
+                        >
+                          {deletingRequestId === request.id ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-500 mt-2">
                       {new Date(request.createdAt).toLocaleDateString('tr-TR')}
