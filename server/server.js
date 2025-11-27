@@ -10653,12 +10653,25 @@ async function addQRCodeToPDF(pdfBuffer, invoiceUrl) {
     });
     
     // "E-fatura Bağlantınız" yazısını QR kodun altına ekle
+    // Türkçe karakterleri ASCII'ye çevir (WinAnsi encoding sorununu önlemek için)
+    const turkishToAscii = (text) => {
+      const map = {
+        'ğ': 'g', 'Ğ': 'G',
+        'ü': 'u', 'Ü': 'U',
+        'ş': 's', 'Ş': 'S',
+        'ı': 'i', 'İ': 'I',
+        'ö': 'o', 'Ö': 'O',
+        'ç': 'c', 'Ç': 'C'
+      };
+      return text.replace(/[ğĞüÜşŞıİöÖçÇ]/g, (char) => map[char] || char);
+    };
+    
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontSize = 10;
     const textY = qrY - fontSize - 5; // QR kodun altına 5 points boşlukla
     
-    // Metni ortala
-    const text = 'E-fatura Bağlantınız';
+    // Metni ASCII'ye çevir
+    const text = turkishToAscii('E-fatura Bağlantınız'); // "E-fatura Baglantiniz"
     const textWidth = font.widthOfTextAtSize(text, fontSize);
     const textX = width / 2 - textWidth / 2;
     
