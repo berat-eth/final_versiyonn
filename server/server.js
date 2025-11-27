@@ -6371,20 +6371,39 @@ app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
     const execPromise = util.promisify(exec);
     
     // Speedtest komutunu çalıştır (JSON formatında çıktı al)
-    const { stdout, stderr } = await execPromise('speedtest --format=json', { 
-      timeout: 120000, // 2 dakika timeout
-      maxBuffer: 10 * 1024 * 1024 // 10MB buffer
-    });
+    let stdout, stderr;
+    try {
+      const result = await execPromise('speedtest --format=json', { 
+        timeout: 120000, // 2 dakika timeout
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+      });
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (execError) {
+      // Eğer JSON format desteklenmiyorsa, normal çıktıyı al
+      try {
+        const result = await execPromise('speedtest', { 
+          timeout: 120000,
+          maxBuffer: 10 * 1024 * 1024
+        });
+        stdout = result.stdout;
+        stderr = result.stderr;
+      } catch (e) {
+        throw execError;
+      }
+    }
     
-    if (stderr && !stderr.includes('Speedtest by Ookla')) {
+    if (stderr && !stderr.includes('Speedtest by Ookla') && !stderr.includes('Testing')) {
       console.warn('Speedtest stderr:', stderr);
     }
     
     // JSON çıktısını parse et
     let speedtestData;
+    const fullOutput = (stdout || '') + (stderr || '');
+    
     try {
-      // stdout'u temizle ve JSON parse et
-      const cleanOutput = stdout.trim();
+      // Önce JSON formatını dene
+      const cleanOutput = fullOutput.trim();
       const jsonMatch = cleanOutput.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         speedtestData = JSON.parse(jsonMatch[0]);
@@ -6393,15 +6412,16 @@ app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
       }
     } catch (parseError) {
       // JSON parse başarısız olursa, text çıktısını parse etmeye çalış
-      const textOutput = stdout + stderr;
+      const textOutput = fullOutput;
       
       // Download ve Upload değerlerini regex ile çıkar
       const downloadMatch = textOutput.match(/Download:\s+([\d.]+)\s+Mbps/i);
       const uploadMatch = textOutput.match(/Upload:\s+([\d.]+)\s+Mbps/i);
       const latencyMatch = textOutput.match(/Idle Latency:\s+([\d.]+)\s+ms/i);
+      const jitterMatch = textOutput.match(/jitter:\s+([\d.]+)\s*ms/i);
       const packetLossMatch = textOutput.match(/Packet Loss:\s+([\d.]+)%/i);
       const serverMatch = textOutput.match(/Server:\s+([^(]+)\s*\(id:\s*(\d+)\)/i);
-      const ispMatch = textOutput.match(/ISP:\s+(.+)/i);
+      const ispMatch = textOutput.match(/ISP:\s+(.+?)(?:\n|$)/i);
       
       speedtestData = {
         download: {
@@ -6416,7 +6436,7 @@ app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
         },
         ping: {
           latency: latencyMatch ? parseFloat(latencyMatch[1]) : null,
-          jitter: null
+          jitter: jitterMatch ? parseFloat(jitterMatch[1]) : null
         },
         packetLoss: packetLossMatch ? parseFloat(packetLossMatch[1]) : null,
         server: {
@@ -6428,9 +6448,30 @@ app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
       };
     }
     
-    // Mbps'e çevir
-    const downloadMbps = speedtestData.download?.bandwidth ? (speedtestData.download.bandwidth / 1000000) : null;
-    const uploadMbps = speedtestData.upload?.bandwidth ? (speedtestData.upload.bandwidth / 1000000) : null;
+    // Mbps'e çevir (JSON formatında zaten Mbps olabilir, kontrol et)
+    let downloadMbps, uploadMbps;
+    
+    if (speedtestData.download?.bandwidth) {
+      // Bandwidth bps cinsindeyse Mbps'e çevir
+      downloadMbps = speedtestData.download.bandwidth > 10000 
+        ? (speedtestData.download.bandwidth / 1000000) 
+        : speedtestData.download.bandwidth;
+    } else if (speedtestData.download?.bytes && speedtestData.download?.elapsed) {
+      // Bytes ve elapsed varsa hesapla
+      downloadMbps = ((speedtestData.download.bytes * 8) / speedtestData.download.elapsed) / 1000000;
+    } else {
+      downloadMbps = null;
+    }
+    
+    if (speedtestData.upload?.bandwidth) {
+      uploadMbps = speedtestData.upload.bandwidth > 10000 
+        ? (speedtestData.upload.bandwidth / 1000000) 
+        : speedtestData.upload.bandwidth;
+    } else if (speedtestData.upload?.bytes && speedtestData.upload?.elapsed) {
+      uploadMbps = ((speedtestData.upload.bytes * 8) / speedtestData.upload.elapsed) / 1000000;
+    } else {
+      uploadMbps = null;
+    }
     
     res.json({
       success: true,
@@ -6440,7 +6481,7 @@ app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
         latency: speedtestData.ping?.latency ? parseFloat(speedtestData.ping.latency.toFixed(2)) : null,
         jitter: speedtestData.ping?.jitter ? parseFloat(speedtestData.ping.jitter.toFixed(2)) : null,
         packetLoss: speedtestData.packetLoss ? parseFloat(speedtestData.packetLoss.toFixed(2)) : null,
-        server: speedtestData.server?.name || null,
+        server: speedtestData.server?.name || speedtestData.server?.host || null,
         serverId: speedtestData.server?.id || null,
         isp: speedtestData.isp || null,
         timestamp: speedtestData.timestamp || new Date().toISOString()
@@ -6453,8 +6494,8 @@ app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
     let errorMessage = 'Speedtest çalıştırılamadı';
     if (error.message && error.message.includes('timeout')) {
       errorMessage = 'Speedtest zaman aşımına uğradı';
-    } else if (error.message && error.message.includes('ENOENT') || error.message.includes('command not found')) {
-      errorMessage = 'Speedtest komutu bulunamadı. Lütfen speedtest-cli paketini yükleyin.';
+    } else if (error.message && (error.message.includes('ENOENT') || error.message.includes('command not found'))) {
+      errorMessage = 'Speedtest komutu bulunamadı. Lütfen speedtest-cli paketini yükleyin: apt install speedtest-cli';
     } else if (error.message) {
       errorMessage = `Speedtest hatası: ${error.message}`;
     }
