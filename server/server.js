@@ -6363,6 +6363,110 @@ app.get('/api/admin/server-stats', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - Speedtest endpoint
+app.get('/api/admin/speedtest', authenticateAdmin, async (req, res) => {
+  try {
+    const { exec } = require('child_process');
+    const util = require('util');
+    const execPromise = util.promisify(exec);
+    
+    // Speedtest komutunu çalıştır (JSON formatında çıktı al)
+    const { stdout, stderr } = await execPromise('speedtest --format=json', { 
+      timeout: 120000, // 2 dakika timeout
+      maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+    });
+    
+    if (stderr && !stderr.includes('Speedtest by Ookla')) {
+      console.warn('Speedtest stderr:', stderr);
+    }
+    
+    // JSON çıktısını parse et
+    let speedtestData;
+    try {
+      // stdout'u temizle ve JSON parse et
+      const cleanOutput = stdout.trim();
+      const jsonMatch = cleanOutput.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        speedtestData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('JSON format bulunamadı');
+      }
+    } catch (parseError) {
+      // JSON parse başarısız olursa, text çıktısını parse etmeye çalış
+      const textOutput = stdout + stderr;
+      
+      // Download ve Upload değerlerini regex ile çıkar
+      const downloadMatch = textOutput.match(/Download:\s+([\d.]+)\s+Mbps/i);
+      const uploadMatch = textOutput.match(/Upload:\s+([\d.]+)\s+Mbps/i);
+      const latencyMatch = textOutput.match(/Idle Latency:\s+([\d.]+)\s+ms/i);
+      const packetLossMatch = textOutput.match(/Packet Loss:\s+([\d.]+)%/i);
+      const serverMatch = textOutput.match(/Server:\s+([^(]+)\s*\(id:\s*(\d+)\)/i);
+      const ispMatch = textOutput.match(/ISP:\s+(.+)/i);
+      
+      speedtestData = {
+        download: {
+          bandwidth: downloadMatch ? parseFloat(downloadMatch[1]) * 1000000 : null, // bps
+          bytes: null,
+          elapsed: null
+        },
+        upload: {
+          bandwidth: uploadMatch ? parseFloat(uploadMatch[1]) * 1000000 : null, // bps
+          bytes: null,
+          elapsed: null
+        },
+        ping: {
+          latency: latencyMatch ? parseFloat(latencyMatch[1]) : null,
+          jitter: null
+        },
+        packetLoss: packetLossMatch ? parseFloat(packetLossMatch[1]) : null,
+        server: {
+          name: serverMatch ? serverMatch[1].trim() : null,
+          id: serverMatch ? parseInt(serverMatch[2]) : null
+        },
+        isp: ispMatch ? ispMatch[1].trim() : null,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Mbps'e çevir
+    const downloadMbps = speedtestData.download?.bandwidth ? (speedtestData.download.bandwidth / 1000000) : null;
+    const uploadMbps = speedtestData.upload?.bandwidth ? (speedtestData.upload.bandwidth / 1000000) : null;
+    
+    res.json({
+      success: true,
+      data: {
+        download: downloadMbps ? parseFloat(downloadMbps.toFixed(2)) : null,
+        upload: uploadMbps ? parseFloat(uploadMbps.toFixed(2)) : null,
+        latency: speedtestData.ping?.latency ? parseFloat(speedtestData.ping.latency.toFixed(2)) : null,
+        jitter: speedtestData.ping?.jitter ? parseFloat(speedtestData.ping.jitter.toFixed(2)) : null,
+        packetLoss: speedtestData.packetLoss ? parseFloat(speedtestData.packetLoss.toFixed(2)) : null,
+        server: speedtestData.server?.name || null,
+        serverId: speedtestData.server?.id || null,
+        isp: speedtestData.isp || null,
+        timestamp: speedtestData.timestamp || new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('❌ Speedtest error:', error);
+    
+    // Hata mesajını kontrol et
+    let errorMessage = 'Speedtest çalıştırılamadı';
+    if (error.message && error.message.includes('timeout')) {
+      errorMessage = 'Speedtest zaman aşımına uğradı';
+    } else if (error.message && error.message.includes('ENOENT') || error.message.includes('command not found')) {
+      errorMessage = 'Speedtest komutu bulunamadı. Lütfen speedtest-cli paketini yükleyin.';
+    } else if (error.message) {
+      errorMessage = `Speedtest hatası: ${error.message}`;
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 
 // Admin - panel config read/write (admin-panel/config.json)
 app.get('/api/admin/panel-config', authenticateAdmin, async (req, res) => {
