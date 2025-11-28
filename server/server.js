@@ -3550,6 +3550,83 @@ function authenticateAdmin(req, res, next) {
   next();
 }
 
+// Yetki kontrolü middleware'i
+async function checkPermission(req, res, next) {
+  try {
+    // Admin authentication kontrolü
+    const authHeader = req.headers['authorization'] || '';
+    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.substring('Bearer '.length) : null;
+    const apiKey = req.headers['x-api-key'];
+    const isValidBearer = bearerToken && bearerToken === ADMIN_TOKEN;
+    const isValidApiKey = apiKey && apiKey === 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f';
+    
+    if (!isValidBearer && !isValidApiKey) {
+      return res.status(401).json({ success: false, message: 'Admin authentication required' });
+    }
+
+    // Gerekli yetkiyi route'dan al (req.requiredPermission)
+    const requiredPermission = req.requiredPermission;
+    if (!requiredPermission) {
+      // Yetki gerektirmeyen endpoint
+      return next();
+    }
+
+    // Admin profil bilgilerini al
+    const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'berat1@admin.local').toString();
+    const [rows] = await poolWrapper.execute(
+      'SELECT permissions FROM users WHERE email = ? AND role = "admin" LIMIT 1',
+      [ADMIN_EMAIL]
+    );
+
+    if (rows.length === 0) {
+      return res.status(403).json({ success: false, message: 'Admin kullanıcı bulunamadı' });
+    }
+
+    let permissions = [];
+    try {
+      permissions = rows[0].permissions ? JSON.parse(rows[0].permissions) : [];
+    } catch (e) {
+      permissions = [];
+    }
+
+    // 'all' yetkisi varsa tüm yetkilere sahip
+    if (permissions.includes('all')) {
+      return next();
+    }
+
+    // Gerekli yetki kontrolü
+    if (Array.isArray(requiredPermission)) {
+      const hasPermission = requiredPermission.some(p => permissions.includes(p));
+      if (!hasPermission) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Bu işlem için yetkiniz bulunmamaktadır' 
+        });
+      }
+    } else {
+      if (!permissions.includes(requiredPermission)) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Bu işlem için yetkiniz bulunmamaktadır' 
+        });
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('❌ Permission check error:', error);
+    res.status(500).json({ success: false, message: 'Yetki kontrolü sırasında hata oluştu' });
+  }
+}
+
+// Yetki gerektiren route wrapper
+function requirePermission(...permissions) {
+  return (req, res, next) => {
+    req.requiredPermission = permissions.length === 1 ? permissions[0] : permissions;
+    checkPermission(req, res, next);
+  };
+}
+
 // Admin login endpoint (username/password -> token)
 app.post('/api/admin/login', async (req, res) => {
   try {
@@ -5523,7 +5600,7 @@ app.post('/api/admin/users/:id/reset-password', authenticateAdmin, async (req, r
 });
 
 // Admin - change own password (berat1 account)
-// Admin - Get current admin profile
+// Admin - Get current admin profile (herkese açık - kendi profilini görmek için)
 app.get('/api/admin/profile', authenticateAdmin, async (req, res) => {
   try {
     // Get admin user from database (first admin user as fallback)
@@ -16128,7 +16205,7 @@ app.put('/api/orders/:id/cancel', requireUserOwnership('order', 'params'), async
 // Ürün transferi, ürün listesi, ürün güncelleme ve rate limit endpoint'leri kaldırıldı
 
 // Admin - Get all products (for admin panel)
-app.get('/api/admin/products', authenticateAdmin, async (req, res) => {
+app.get('/api/admin/products', authenticateAdmin, requirePermission('products', 'all'), async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
     const { limit = 100 } = req.query;
@@ -16292,7 +16369,7 @@ app.post('/api/admin/products', authenticateAdmin, async (req, res) => {
 });
 
 // Admin - Update product
-app.put('/api/admin/products/:id', authenticateAdmin, async (req, res) => {
+app.put('/api/admin/products/:id', authenticateAdmin, requirePermission('products', 'all'), async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
     const tenantId = req.tenant?.id || 1;

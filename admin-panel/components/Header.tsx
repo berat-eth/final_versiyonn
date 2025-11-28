@@ -21,6 +21,9 @@ export default function Header({ onMenuClick }: HeaderProps = {}) {
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   
+  // Admin profile state
+  const [adminProfile, setAdminProfile] = useState<{ name: string; email: string; role: string } | null>(null)
+  
   // Arama için yeni state'ler
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{
@@ -95,6 +98,31 @@ export default function Header({ onMenuClick }: HeaderProps = {}) {
       }
     } catch { setLogs([]) }
   }
+  // Load admin profile
+  useEffect(() => {
+    const loadAdminProfile = async () => {
+      try {
+        const response = await api.get<any>('/admin/profile')
+        if (response.success && response.data) {
+          setAdminProfile({
+            name: response.data.name || 'Admin User',
+            email: response.data.email || '',
+            role: response.data.role || 'admin'
+          })
+        }
+      } catch (error) {
+        console.error('Admin profil bilgileri yüklenemedi:', error)
+        // Fallback
+        setAdminProfile({
+          name: 'Admin User',
+          email: '',
+          role: 'admin'
+        })
+      }
+    }
+    loadAdminProfile()
+  }, [])
+
   useEffect(() => {
     // SSR kontrolü
     if (typeof window === 'undefined') return
@@ -363,11 +391,17 @@ export default function Header({ onMenuClick }: HeaderProps = {}) {
 
           <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-3">
             <div className="text-right hidden md:block">
-              <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Admin User</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Yönetici</p>
+              <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">
+                {adminProfile?.name || 'Admin User'}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {adminProfile?.role === 'admin' ? 'Yönetici' : adminProfile?.role || 'Yönetici'}
+              </p>
             </div>
             <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold cursor-pointer hover:shadow-lg transition-shadow text-xs sm:text-sm md:text-base">
-              AY
+              {adminProfile?.name 
+                ? adminProfile.name.split(' ').map(n => n.charAt(0).toUpperCase()).join('').slice(0, 2) || 'AY'
+                : 'AY'}
             </div>
           </div>
         </div>

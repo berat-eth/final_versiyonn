@@ -65,16 +65,55 @@ import TrendyolAuth from '@/components/TrendyolAuth'
 import TrendyolProducts from '@/components/TrendyolProducts'
 import HepsiburadaOrders from '@/components/HepsiburadaOrders'
 import TicimaxOrders from '@/components/TicimaxOrders'
+import { usePermissions } from '@/lib/hooks/usePermissions'
 
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('dashboard')
+  const { hasPermission, hasAnyPermission } = usePermissions()
   // Desktop'ta varsayılan olarak açık, mobilde kapalı
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showHealthModal, setShowHealthModal] = useState(false)
   const [healthLoading, setHealthLoading] = useState(false)
   const [health, setHealth] = useState<any | null>(null)
   const [healthError, setHealthError] = useState<string | null>(null)
+
+  // Tab yetki kontrolü
+  const getTabPermission = (tabId: string): string[] | null => {
+    const permissionMap: Record<string, string[]> = {
+      'dashboard': [],
+      'ai-insights': [],
+      'products': ['products', 'all'],
+      'categories': ['products', 'all'],
+      'orders': ['orders', 'all'],
+      'cart': ['orders', 'all'],
+      'return-requests': ['orders', 'all'],
+      'customers': ['customers', 'all'],
+      'segments': ['customers', 'all'],
+      'crm': ['customers', 'all'],
+      'analytics': ['reports', 'all'],
+      'live-data': ['reports', 'all'],
+      'live-users': ['reports', 'all'],
+      'settings': ['settings', 'all'],
+      'reviews': ['products', 'all'],
+    }
+    return permissionMap[tabId] || ['all']
+  }
+
+  const canAccessTab = (tabId: string): boolean => {
+    const requiredPermissions = getTabPermission(tabId)
+    if (!requiredPermissions || requiredPermissions.length === 0) return true
+    return hasAnyPermission(requiredPermissions as any)
+  }
+
+  // Yetkisi olmayan tab'a erişim denemesi durumunda dashboard'a yönlendir
+  useEffect(() => {
+    if (activeTab && !canAccessTab(activeTab)) {
+      setActiveTab('dashboard')
+      alert('Bu sayfaya erişim yetkiniz bulunmamaktadır.')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, hasAnyPermission])
 
   // İlk yüklemede ekran genişliğine göre sidebar durumunu ayarla
   useEffect(() => {
@@ -233,63 +272,63 @@ export default function DashboardPage() {
               </div>
             )}
           </AnimatePresence>
-          {activeTab === 'dashboard' && <Dashboard />}
-          {activeTab === 'ai-insights' && <AIInsights />}
-          {activeTab === 'customers' && <Customers />}
-          {activeTab === 'crm' && <CRM />}
-          {activeTab === 'orders' && <Orders />}
-          {activeTab === 'cart' && <Cart />}
-          {activeTab === 'products' && <Products />}
-          {activeTab === 'campaigns' && <Campaigns />}
-          {activeTab === 'coupons' && <Coupons />}
-          {activeTab === 'stories' && <Stories />}
-          {activeTab === 'sliders' && <Sliders />}
-          {activeTab === 'popups' && <Popups />}
-          {activeTab === 'push-notifications' && <PushNotifications />}
-          {activeTab === 'reviews' && <Reviews />}
-          {activeTab === 'applications' && <Applications />}
-          {activeTab === 'customer-care' && <CustomerCare />}
-          {activeTab === 'segments' && <Segments />}
+          {activeTab === 'dashboard' && canAccessTab('dashboard') && <Dashboard />}
+          {activeTab === 'ai-insights' && canAccessTab('ai-insights') && <AIInsights />}
+          {activeTab === 'customers' && canAccessTab('customers') && <Customers />}
+          {activeTab === 'crm' && canAccessTab('crm') && <CRM />}
+          {activeTab === 'orders' && canAccessTab('orders') && <Orders />}
+          {activeTab === 'cart' && canAccessTab('cart') && <Cart />}
+          {activeTab === 'products' && canAccessTab('products') && <Products />}
+          {activeTab === 'campaigns' && canAccessTab('campaigns') && <Campaigns />}
+          {activeTab === 'coupons' && canAccessTab('coupons') && <Coupons />}
+          {activeTab === 'stories' && canAccessTab('stories') && <Stories />}
+          {activeTab === 'sliders' && canAccessTab('sliders') && <Sliders />}
+          {activeTab === 'popups' && canAccessTab('popups') && <Popups />}
+          {activeTab === 'push-notifications' && canAccessTab('push-notifications') && <PushNotifications />}
+          {activeTab === 'reviews' && canAccessTab('reviews') && <Reviews />}
+          {activeTab === 'applications' && canAccessTab('applications') && <Applications />}
+          {activeTab === 'customer-care' && canAccessTab('customer-care') && <CustomerCare />}
+          {activeTab === 'segments' && canAccessTab('segments') && <Segments />}
 
-          {activeTab === 'analytics' && <Analytics />}
-          {activeTab === 'ml-insights' && <MLInsights />}
-          {activeTab === 'live-data' && <LiveData />}
-          {activeTab === 'live-users' && <LiveUsers />}
-          {activeTab === 'server-stats' && <ServerStats />}
-          {activeTab === 'backup' && <Backup />}
+          {activeTab === 'analytics' && canAccessTab('analytics') && <Analytics />}
+          {activeTab === 'ml-insights' && canAccessTab('ml-insights') && <MLInsights />}
+          {activeTab === 'live-data' && canAccessTab('live-data') && <LiveData />}
+          {activeTab === 'live-users' && canAccessTab('live-users') && <LiveUsers />}
+          {activeTab === 'server-stats' && canAccessTab('server-stats') && <ServerStats />}
+          {activeTab === 'backup' && canAccessTab('backup') && <Backup />}
 
-          {activeTab === 'chatbot' && <Chatbot />}
-          {activeTab === 'security' && <Security />}
-          {activeTab === 'snort-logs' && <SnortLogs />}
-          {activeTab === 'settings' && <Settings />}
-          {activeTab === 'bulk-custom-production' && <BulkCustomProduction />}
-          {activeTab === 'quote-form-requests' && <QuoteFormRequests />}
-          {activeTab === 'proforma-invoice' && <ProformaInvoice />}
-          {activeTab === 'project-ajax' && <ProjectAjax />}
-          {activeTab === 'email' && <Email />}
-          {activeTab === 'sms' && <SMS />}
-          {activeTab === 'production-planning' && <ProductionPlanning />}
-          {activeTab === 'production-orders' && <ProductionOrders />}
-          {activeTab === 'production-tracking' && <ProductionTracking />}
-          {activeTab === 'categories' && <Categories />}
-          {activeTab === 'payment-transactions' && <PaymentTransactions />}
-          {activeTab === 'return-requests' && <ReturnRequests />}
-          {activeTab === 'user-wallets' && <UserWallets />}
-          {activeTab === 'wallet-transactions' && <WalletTransactions />}
-          {activeTab === 'wallet-recharge-requests' && <WalletRechargeRequests />}
-          {activeTab === 'wallet-withdraw-requests' && <WalletWithdrawRequests />}
-          {activeTab === 'referral-earnings' && <ReferralEarnings />}
-          {activeTab === 'discount-wheel-spins' && <DiscountWheelSpins />}
-          {activeTab === 'recommendations' && <Recommendations />}
-          {activeTab === 'google-maps-scraper' && <GoogleMapsScraper />}
-          {activeTab === 'seo' && <SEO />}
-          {activeTab === 'integrations' && <Integrations />}
-          {activeTab === 'trendyol-auth' && <TrendyolAuth />}
-          {activeTab === 'trendyol-orders' && <TrendyolOrders />}
-          {activeTab === 'trendyol-products' && <TrendyolProducts />}
-          {activeTab === 'hepsiburada-orders' && <HepsiburadaOrders />}
-          {activeTab === 'ticimax-orders' && <TicimaxOrders />}
-          {activeTab === 'invoices' && <Invoices />}
+          {activeTab === 'chatbot' && canAccessTab('chatbot') && <Chatbot />}
+          {activeTab === 'security' && canAccessTab('security') && <Security />}
+          {activeTab === 'snort-logs' && canAccessTab('snort-logs') && <SnortLogs />}
+          {activeTab === 'settings' && canAccessTab('settings') && <Settings />}
+          {activeTab === 'bulk-custom-production' && canAccessTab('bulk-custom-production') && <BulkCustomProduction />}
+          {activeTab === 'quote-form-requests' && canAccessTab('quote-form-requests') && <QuoteFormRequests />}
+          {activeTab === 'proforma-invoice' && canAccessTab('proforma-invoice') && <ProformaInvoice />}
+          {activeTab === 'project-ajax' && canAccessTab('project-ajax') && <ProjectAjax />}
+          {activeTab === 'email' && canAccessTab('email') && <Email />}
+          {activeTab === 'sms' && canAccessTab('sms') && <SMS />}
+          {activeTab === 'production-planning' && canAccessTab('production-planning') && <ProductionPlanning />}
+          {activeTab === 'production-orders' && canAccessTab('production-orders') && <ProductionOrders />}
+          {activeTab === 'production-tracking' && canAccessTab('production-tracking') && <ProductionTracking />}
+          {activeTab === 'categories' && canAccessTab('categories') && <Categories />}
+          {activeTab === 'payment-transactions' && canAccessTab('payment-transactions') && <PaymentTransactions />}
+          {activeTab === 'return-requests' && canAccessTab('return-requests') && <ReturnRequests />}
+          {activeTab === 'user-wallets' && canAccessTab('user-wallets') && <UserWallets />}
+          {activeTab === 'wallet-transactions' && canAccessTab('wallet-transactions') && <WalletTransactions />}
+          {activeTab === 'wallet-recharge-requests' && canAccessTab('wallet-recharge-requests') && <WalletRechargeRequests />}
+          {activeTab === 'wallet-withdraw-requests' && canAccessTab('wallet-withdraw-requests') && <WalletWithdrawRequests />}
+          {activeTab === 'referral-earnings' && canAccessTab('referral-earnings') && <ReferralEarnings />}
+          {activeTab === 'discount-wheel-spins' && canAccessTab('discount-wheel-spins') && <DiscountWheelSpins />}
+          {activeTab === 'recommendations' && canAccessTab('recommendations') && <Recommendations />}
+          {activeTab === 'google-maps-scraper' && canAccessTab('google-maps-scraper') && <GoogleMapsScraper />}
+          {activeTab === 'seo' && canAccessTab('seo') && <SEO />}
+          {activeTab === 'integrations' && canAccessTab('integrations') && <Integrations />}
+          {activeTab === 'trendyol-auth' && canAccessTab('trendyol-auth') && <TrendyolAuth />}
+          {activeTab === 'trendyol-orders' && canAccessTab('trendyol-orders') && <TrendyolOrders />}
+          {activeTab === 'trendyol-products' && canAccessTab('trendyol-products') && <TrendyolProducts />}
+          {activeTab === 'hepsiburada-orders' && canAccessTab('hepsiburada-orders') && <HepsiburadaOrders />}
+          {activeTab === 'ticimax-orders' && canAccessTab('ticimax-orders') && <TicimaxOrders />}
+          {activeTab === 'invoices' && canAccessTab('invoices') && <Invoices />}
         </main>
       </div>
     </div>
