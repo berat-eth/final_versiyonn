@@ -12064,6 +12064,13 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         
         const productName = item.productName || 'Ürün Adı';
         const productSku = item.productSku ? String(item.productSku) : '';
+        const productSize = item.productSize ? String(item.productSize) : '';
+        const merchantSku = item.merchantSku ? String(item.merchantSku) : '';
+        const productColor = item.productColor ? String(item.productColor) : '';
+        const quantity = item.quantity ? parseInt(item.quantity) : 1;
+        // Hepsiburada için özel alanlar
+        const option1 = item.option1 ? String(item.option1) : '';
+        const option2 = item.option2 ? String(item.option2) : '';
         
         // Ürün adı (maksimum kompakt, tek satır, ellipsis ile)
         doc.fillColor('#64748b').fontSize(7).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (8'den 7'ye)
@@ -12072,12 +12079,56 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         addUTF8Text(`${index + 1}. ${truncatedName}`, 20, productYPos, { width: 360, lineGap: 0.5 });
         productYPos += 13; // Küçültüldü (18'den 13'e)
         
-        // SKU bilgisi (ürün adının altında, daha kompakt)
-        if (productSku && String(productSku).trim() !== '') {
+        // Ürün detay bilgileri - Hepsiburada için özel format
+        let detailLines = [];
+        
+        if (provider === 'hepsiburada') {
+          // Hepsiburada için: Seçenek 1, Seçenek 2, Adet
+          if (option1 && String(option1).trim() !== '') {
+            detailLines.push(`Seçenek 1: ${option1}`);
+          }
+          
+          if (option2 && String(option2).trim() !== '') {
+            detailLines.push(`Seçenek 2: ${option2}`);
+          }
+          
+          if (quantity && quantity > 0) {
+            detailLines.push(`Adet: ${quantity}`);
+          }
+        } else {
+          // Trendyol ve diğer marketplace'ler için: productSize, merchantSku, productColor, quantity
+          if (productSize && String(productSize).trim() !== '') {
+            detailLines.push(`Beden: ${productSize}`);
+          }
+          
+          if (merchantSku && String(merchantSku).trim() !== '') {
+            detailLines.push(`Merchant SKU: ${merchantSku}`);
+          }
+          
+          if (productColor && String(productColor).trim() !== '') {
+            detailLines.push(`Renk: ${productColor}`);
+          }
+          
+          if (quantity && quantity > 0) {
+            detailLines.push(`Adet: ${quantity}`);
+          }
+        }
+        
+        // Detay bilgilerini göster
+        if (detailLines.length > 0) {
+          doc.fillColor('#64748b').fontSize(6).font(customFontAvailable ? customFontPathForUse : 'Helvetica');
+          // Detayları yan yana veya alt alta göster (maksimum 2 satır)
+          const detailText = detailLines.join(' | ');
+          addUTF8Text(detailText, 20, productYPos, { width: 360 });
+          productYPos += 8;
+        }
+        
+        // SKU bilgisi (ürün adının altında, daha kompakt) - eğer merchantSku yoksa göster
+        if (productSku && String(productSku).trim() !== '' && (!merchantSku || String(merchantSku).trim() === '')) {
           doc.fillColor('#64748b').fontSize(6).font(customFontAvailable ? customFontPathForUse : 'Helvetica'); // Küçültüldü (7'den 6'ya)
           addUTF8Text(`SKU: ${productSku}`, 20, productYPos, { width: 360 });
           productYPos += 8; // Küçültüldü (10'dan 8'e)
-        } else {
+        } else if (!detailLines.length) {
           productYPos += 1; // Küçültüldü (2'den 1'e)
         }
         

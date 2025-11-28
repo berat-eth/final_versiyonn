@@ -271,11 +271,26 @@ export default function HepsiburadaOrders() {
           city: selectedOrder.city,
           district: selectedOrder.district,
           provider: 'hepsiburada', // Hepsiburada siparişi olduğunu belirt
-          // Sadece productName ve productSku gönder (itemData gibi büyük alanları gönderme)
-          items: (selectedOrder.items || []).map(item => ({
-            productName: item.productName || '',
-            productSku: item.productSku || ''
-          }))
+          // Ürün bilgilerini gönder (option1, option2, quantity dahil)
+          items: (selectedOrder.items || []).map(item => {
+            // itemData'yı parse et (JSON string ise)
+            let itemData = null;
+            try {
+              if (item.itemData) {
+                itemData = typeof item.itemData === 'string' ? JSON.parse(item.itemData) : item.itemData;
+              }
+            } catch (e) {
+              console.warn('itemData parse hatası:', e);
+            }
+            
+            return {
+              productName: item.productName || '',
+              productSku: item.productSku || '',
+              option1: item.option1 || itemData?.['Seçenek 1'] || itemData?.option1 || '',
+              option2: item.option2 || itemData?.['Seçenek 2'] || itemData?.option2 || '',
+              quantity: item.quantity || 1
+            };
+          })
         })
       })
 

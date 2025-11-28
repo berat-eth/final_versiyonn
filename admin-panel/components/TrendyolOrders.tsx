@@ -255,11 +255,27 @@ export default function TrendyolOrders() {
           customerAddress: selectedOrder.shippingAddress || selectedOrder.fullAddress,
           city: selectedOrder.city,
           district: selectedOrder.district,
-          // Sadece productName ve productSku gönder (itemData gibi büyük alanları gönderme)
-          items: (selectedOrder.items || []).map(item => ({
-            productName: item.productName || '',
-            productSku: item.productSku || ''
-          }))
+          // Ürün bilgilerini gönder (productSize, merchantSku, productColor, quantity dahil)
+          items: (selectedOrder.items || []).map(item => {
+            // itemData'yı parse et (JSON string ise)
+            let itemData = null;
+            try {
+              if (item.itemData) {
+                itemData = typeof item.itemData === 'string' ? JSON.parse(item.itemData) : item.itemData;
+              }
+            } catch (e) {
+              console.warn('itemData parse hatası:', e);
+            }
+            
+            return {
+              productName: item.productName || '',
+              productSku: item.productSku || '',
+              productSize: itemData?.productSize || itemData?.size || item.productSize || '',
+              merchantSku: itemData?.merchantSku || item.merchantSku || item.productSku || '',
+              productColor: itemData?.productColor || itemData?.color || item.productColor || '',
+              quantity: item.quantity || 1
+            };
+          })
         })
       })
 
