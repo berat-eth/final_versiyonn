@@ -5290,7 +5290,7 @@ app.get('/api/admin/users/admins', authenticateAdmin, async (req, res) => {
     
     const [rows] = await poolWrapper.execute(`
       SELECT u.id, u.name, u.email, u.phone, u.role, u.isActive, u.permissions, u.createdAt,
-             (SELECT MAX(timestamp) FROM security_events WHERE username = u.email AND eventType = 'ADMIN_LOGIN_SUCCESS') as lastLogin
+             (SELECT MAX(detectedAt) FROM security_events WHERE username = u.email AND eventType = 'ADMIN_LOGIN_SUCCESS') as lastLogin
       FROM users u 
       WHERE u.role = 'admin'
       ORDER BY u.createdAt DESC
