@@ -11606,8 +11606,11 @@ app.get('/api/admin/invoices/:id/download', authenticateAdmin, async (req, res) 
     }
 
     const fileName = rows[0].fileName || 'invoice.pdf';
+    // RFC 5987 formatında dosya adını encode et (Türkçe ve özel karakterler için)
+    const safeFileName = fileName.replace(/[^\x20-\x7E]/g, ''); // ASCII olmayan karakterleri temizle
+    const encodedFileName = encodeURIComponent(fileName);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`);
     res.sendFile(filePath);
   } catch (error) {
     console.error('❌ Error downloading invoice:', error);
@@ -11659,8 +11662,11 @@ app.get('/api/invoices/share/:token/download', async (req, res) => {
     }
 
     const fileName = rows[0].fileName || 'invoice.pdf';
+    // RFC 5987 formatında dosya adını encode et (Türkçe ve özel karakterler için)
+    const safeFileName = fileName.replace(/[^\x20-\x7E]/g, ''); // ASCII olmayan karakterleri temizle
+    const encodedFileName = encodeURIComponent(fileName);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`);
     res.sendFile(filePath);
   } catch (error) {
     console.error('❌ Error downloading invoice:', error);
