@@ -6,7 +6,7 @@ import {
   Calendar, DollarSign, Package, MapPin, Upload, Trash2, FileSpreadsheet, Eye, Truck, Code, FileJson, Receipt, Printer, FileText, Download, ExternalLink
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api, type ApiResponse } from '@/lib/api'
+import { api, type ApiResponse, translateError } from '@/lib/api'
 
 interface TicimaxOrder {
   id: number
@@ -95,7 +95,7 @@ export default function TicimaxOrders() {
         }
       }
     } catch (err: any) {
-      setError('Siparişler yüklenemedi: ' + (err.message || 'Bilinmeyen hata'))
+      setError('Siparişler yüklenemedi: ' + translateError(err))
     } finally {
       setLoading(false)
     }

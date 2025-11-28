@@ -196,6 +196,27 @@ class ApiClient {
       return data;
     } catch (error) {
       console.error('API Request Error:', error);
+      
+      // "Failed to fetch" hatasını Türkçeleştir
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        const turkishError = new Error('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.');
+        (turkishError as any).status = 0;
+        (turkishError as any).originalError = error;
+        throw turkishError;
+      }
+      
+      // Network hatalarını Türkçeleştir
+      if (error instanceof TypeError && (
+        error.message.includes('fetch') || 
+        error.message.includes('network') ||
+        error.message.includes('NetworkError')
+      )) {
+        const turkishError = new Error('Ağ hatası oluştu. Lütfen internet bağlantınızı kontrol edin.');
+        (turkishError as any).status = 0;
+        (turkishError as any).originalError = error;
+        throw turkishError;
+      }
+      
       throw error;
     }
   }
@@ -236,6 +257,38 @@ class ApiClient {
 }
 
 export const api = new ApiClient(API_BASE_URL, API_KEY, ADMIN_KEY);
+
+/**
+ * Hata mesajını Türkçeleştir
+ */
+export function translateError(error: any): string {
+  if (!error) return 'Bilinmeyen hata';
+  
+  const errorMessage = error.message || String(error);
+  
+  // "Failed to fetch" hatasını Türkçeleştir
+  if (errorMessage === 'Failed to fetch' || errorMessage.includes('Failed to fetch')) {
+    return 'Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.';
+  }
+  
+  // Network hatalarını Türkçeleştir
+  if (errorMessage.includes('fetch') || 
+      errorMessage.includes('network') ||
+      errorMessage.includes('NetworkError') ||
+      errorMessage.includes('Network request failed')) {
+    return 'Ağ hatası oluştu. Lütfen internet bağlantınızı kontrol edin.';
+  }
+  
+  // TypeError network hataları
+  if (error instanceof TypeError && (
+    errorMessage.includes('fetch') || 
+    errorMessage.includes('network')
+  )) {
+    return 'Ağ hatası oluştu. Lütfen internet bağlantınızı kontrol edin.';
+  }
+  
+  return errorMessage;
+}
 
 // Type definitions
 export interface ApiResponse<T> {
