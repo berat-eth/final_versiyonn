@@ -11600,33 +11600,36 @@ app.get('/api/admin/invoices/:id/download', authenticateAdmin, async (req, res) 
       return res.status(404).json({ success: false, message: 'Invoice file not found' });
     }
 
-    // Dosya yolunu normalize et - mutlak yol kontrolü
+    // Dosya yolunu normalize et - /uploads/invoices/... formatını düzelt
     let filePath = rows[0].filePath;
-    if (filePath.startsWith('/')) {
-      // Mutlak yol ise, __dirname ile birleştir
-      filePath = path.join(__dirname, filePath);
-    } else {
-      // Göreli yol ise, direkt birleştir
-      filePath = path.join(__dirname, filePath);
+    
+    // Eğer /uploads/invoices/... formatındaysa, başındaki / karakterini kaldır
+    if (filePath.startsWith('/uploads/')) {
+      filePath = filePath.substring(1); // İlk / karakterini kaldır
     }
+    
+    // __dirname ile birleştir (artık göreli yol olarak işlenecek)
+    filePath = path.join(__dirname, filePath);
     
     // Dosya yoksa alternatif yolları dene
     if (!fs.existsSync(filePath)) {
-      // Alternatif 1: filePath'i direkt kullan (mutlak yol olabilir)
-      const altPath1 = rows[0].filePath;
+      // Alternatif 1: uploads/invoices klasöründen dosya adı ile
+      const fileName = path.basename(rows[0].filePath);
+      const altPath1 = path.join(__dirname, 'uploads', 'invoices', fileName);
       if (fs.existsSync(altPath1)) {
         filePath = altPath1;
       } else {
-        // Alternatif 2: uploads klasörünü kontrol et
-        const altPath2 = path.join(__dirname, 'uploads', 'invoices', path.basename(rows[0].filePath));
+        // Alternatif 2: Orijinal filePath'i mutlak yol olarak dene
+        const altPath2 = rows[0].filePath;
         if (fs.existsSync(altPath2)) {
           filePath = altPath2;
         } else {
           console.error('❌ Invoice file not found at any path:', {
             original: rows[0].filePath,
-            tried1: filePath,
-            tried2: altPath1,
-            tried3: altPath2
+            normalized: filePath,
+            tried1: altPath1,
+            tried2: altPath2,
+            __dirname: __dirname
           });
           return res.status(404).json({ success: false, message: 'Invoice file not found' });
         }
@@ -11684,33 +11687,36 @@ app.get('/api/invoices/share/:token/download', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Invoice file not found' });
     }
 
-    // Dosya yolunu normalize et - mutlak yol kontrolü
+    // Dosya yolunu normalize et - /uploads/invoices/... formatını düzelt
     let filePath = rows[0].filePath;
-    if (filePath.startsWith('/')) {
-      // Mutlak yol ise, __dirname ile birleştir
-      filePath = path.join(__dirname, filePath);
-    } else {
-      // Göreli yol ise, direkt birleştir
-      filePath = path.join(__dirname, filePath);
+    
+    // Eğer /uploads/invoices/... formatındaysa, başındaki / karakterini kaldır
+    if (filePath.startsWith('/uploads/')) {
+      filePath = filePath.substring(1); // İlk / karakterini kaldır
     }
+    
+    // __dirname ile birleştir (artık göreli yol olarak işlenecek)
+    filePath = path.join(__dirname, filePath);
     
     // Dosya yoksa alternatif yolları dene
     if (!fs.existsSync(filePath)) {
-      // Alternatif 1: filePath'i direkt kullan (mutlak yol olabilir)
-      const altPath1 = rows[0].filePath;
+      // Alternatif 1: uploads/invoices klasöründen dosya adı ile
+      const fileName = path.basename(rows[0].filePath);
+      const altPath1 = path.join(__dirname, 'uploads', 'invoices', fileName);
       if (fs.existsSync(altPath1)) {
         filePath = altPath1;
       } else {
-        // Alternatif 2: uploads klasörünü kontrol et
-        const altPath2 = path.join(__dirname, 'uploads', 'invoices', path.basename(rows[0].filePath));
+        // Alternatif 2: Orijinal filePath'i mutlak yol olarak dene
+        const altPath2 = rows[0].filePath;
         if (fs.existsSync(altPath2)) {
           filePath = altPath2;
         } else {
           console.error('❌ Invoice file not found at any path:', {
             original: rows[0].filePath,
-            tried1: filePath,
-            tried2: altPath1,
-            tried3: altPath2
+            normalized: filePath,
+            tried1: altPath1,
+            tried2: altPath2,
+            __dirname: __dirname
           });
           return res.status(404).json({ success: false, message: 'Invoice file not found' });
         }
