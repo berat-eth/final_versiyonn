@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LayoutDashboard, Package, ShoppingCart, Users, Settings, BarChart3, Bell, LogOut, ShoppingBasket, Megaphone, Image, FileText, UserCog, UsersRound, Radio, MessageSquare, Shield, Crown, Ticket, Star, AlertTriangle, Menu, X, Database, Sparkles, Mail, Smartphone, Factory, ClipboardList, PackageCheck, Wallet, CreditCard, RotateCcw, Gift, Disc, FolderTree, Activity, DollarSign, Link, Monitor, Brain, Briefcase, Map, Search, SquareStack, Eye, Link2, Receipt, Key, List } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { usePermissions, type Permission } from '@/lib/hooks/usePermissions'
 
 interface SidebarProps {
   activeTab: string
@@ -13,71 +12,8 @@ interface SidebarProps {
   onToggle?: () => void
 }
 
-// Menü öğelerinin yetki mapping'i
-const getMenuPermission = (menuId: string): Permission[] | null => {
-  const permissionMap: Record<string, Permission[]> = {
-    'dashboard': [], // Herkese açık
-    'ai-insights': [], // Herkese açık
-    'products': ['products', 'all'],
-    'categories': ['products', 'all'],
-    'orders': ['orders', 'all'],
-    'cart': ['orders', 'all'],
-    'return-requests': ['orders', 'all'],
-    'customers': ['customers', 'all'],
-    'segments': ['customers', 'all'],
-    'crm': ['customers', 'all'],
-    'analytics': ['reports', 'all'],
-    'live-data': ['reports', 'all'],
-    'live-users': ['reports', 'all'],
-    'settings': ['settings', 'all'],
-    // Diğer tüm menü öğeleri için 'all' yetkisi gerekli
-    'production-planning': ['all'],
-    'production-orders': ['all'],
-    'production-tracking': ['all'],
-    'campaigns': ['all'],
-    'coupons': ['all'],
-    'discount-wheel-spins': ['all'],
-    'email': ['all'],
-    'sms': ['all'],
-    'push-notifications': ['all'],
-    'stories': ['all'],
-    'sliders': ['all'],
-    'popups': ['all'],
-    'google-maps-scraper': ['all'],
-    'ml-insights': ['all'],
-    'project-ajax': ['all'],
-    'recommendations': ['all'],
-    'payment-transactions': ['all'],
-    'user-wallets': ['all'],
-    'wallet-recharge-requests': ['all'],
-    'wallet-withdraw-requests': ['all'],
-    'referral-earnings': ['all'],
-    'invoices': ['all'],
-    'trendyol-auth': ['all'],
-    'trendyol-orders': ['all'],
-    'trendyol-products': ['all'],
-    'hepsiburada-orders': ['all'],
-    'ticimax-orders': ['all'],
-    'server-stats': ['all'],
-    'backup': ['all'],
-    'security': ['all'],
-    'seo': ['all'],
-    'admin-logs': ['all'],
-    'snort-logs': ['all'],
-    'chatbot': ['all'],
-    'applications': ['all'],
-    'bulk-custom-production': ['all'],
-    'quote-form-requests': ['all'],
-    'proforma-invoice': ['all'],
-    'reviews': ['products', 'all'],
-  }
-  return permissionMap[menuId] || ['all']
-}
-
 export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: SidebarProps) {
   const router = useRouter()
-  const { hasPermission, hasAnyPermission } = usePermissions()
-  
   // Mobilde varsayılan olarak kapalı, desktop'ta açık
   // Eğer parent'tan isOpen prop'u geliyorsa onu kullan, yoksa local state kullan
   const [internalCollapsed, setInternalCollapsed] = useState(true)
@@ -293,13 +229,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
             {group.items.map((item, index) => {
               const Icon = item.icon
               const isActive = activeTab === item.id
-              const requiredPermissions = getMenuPermission(item.id)
-              // Yetki kontrolü: null ise herkese açık, array ise kontrol et
-              const hasAccess = requiredPermissions === null || requiredPermissions.length === 0 || hasAnyPermission(requiredPermissions)
-              
-              // Yetkisi yoksa menü öğesini gösterme
-              if (!hasAccess) return null
-              
               return (
                 <motion.button
                   key={item.id}
@@ -343,22 +272,20 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onToggle }: S
       </nav>
 
       <div className="p-3 border-t border-slate-700 bg-slate-900 flex-shrink-0">
-        {(hasPermission('settings') || hasPermission('all')) && (
-          <button 
-            onClick={() => setActiveTab('settings')}
-            title={isCollapsed ? 'Ayarlar' : ''}
-            className={`w-full flex items-center ${
-              isCollapsed ? 'justify-center px-2' : 'px-3'
-            } py-2.5 rounded-lg transition-all ${
-              activeTab === 'settings'
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                : 'text-slate-300 hover:bg-slate-800/50'
-            }`}
-          >
-            <Settings className={`w-5 h-5 ${!isCollapsed && 'mr-2'}`} />
-            {!isCollapsed && <span>Ayarlar</span>}
-          </button>
-        )}
+        <button 
+          onClick={() => setActiveTab('settings')}
+          title={isCollapsed ? 'Ayarlar' : ''}
+          className={`w-full flex items-center ${
+            isCollapsed ? 'justify-center px-2' : 'px-3'
+          } py-2.5 rounded-lg transition-all ${
+            activeTab === 'settings'
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+              : 'text-slate-300 hover:bg-slate-800/50'
+          }`}
+        >
+          <Settings className={`w-5 h-5 ${!isCollapsed && 'mr-2'}`} />
+          {!isCollapsed && <span>Ayarlar</span>}
+        </button>
         <button 
           onClick={handleLogout}
           title={isCollapsed ? 'Çıkış Yap' : ''}

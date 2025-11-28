@@ -299,7 +299,6 @@ export default function Settings() {
         try {
             if (editingAdmin) {
                 // Update admin
-                console.log('Updating admin:', editingAdmin.id, adminFormData)
                 const response = await api.put<ApiResponse<any>>(`/admin/users/${editingAdmin.id}`, {
                     name: adminFormData.name,
                     email: adminFormData.email,
@@ -307,22 +306,17 @@ export default function Settings() {
                     isActive: adminFormData.isActive,
                     permissions: adminFormData.permissions
                 })
-                console.log('Update response:', response)
                 if (response.success) {
                     setAdminFormMessage({ type: 'success', text: 'Admin kullanıcı güncellendi' })
-                    // Başarı mesajından sonra modal'ı kapat
-                    setTimeout(() => {
-                        setShowEditAdminModal(false)
-                        setEditingAdmin(null)
-                        resetAdminForm()
-                    }, 1500)
+                    setShowEditAdminModal(false)
+                    setEditingAdmin(null)
+                    resetAdminForm()
                     await loadAdminUsers()
                 } else {
                     setAdminFormMessage({ type: 'error', text: response.message || 'Admin kullanıcı güncellenemedi' })
                 }
             } else {
                 // Create admin
-                console.log('Creating admin:', adminFormData)
                 const response = await api.post<ApiResponse<any>>('/admin/users', {
                     name: adminFormData.name,
                     email: adminFormData.email,
@@ -331,22 +325,17 @@ export default function Settings() {
                     isActive: adminFormData.isActive,
                     permissions: adminFormData.permissions
                 })
-                console.log('Create response:', response)
                 if (response.success) {
                     setAdminFormMessage({ type: 'success', text: 'Admin kullanıcı oluşturuldu' })
-                    // Başarı mesajından sonra modal'ı kapat
-                    setTimeout(() => {
-                        setShowAddAdminModal(false)
-                        resetAdminForm()
-                    }, 1500)
+                    setShowAddAdminModal(false)
+                    resetAdminForm()
                     await loadAdminUsers()
                 } else {
                     setAdminFormMessage({ type: 'error', text: response.message || 'Admin kullanıcı oluşturulamadı' })
                 }
             }
         } catch (error: any) {
-            console.error('Admin işlem hatası:', error)
-            setAdminFormMessage({ type: 'error', text: error?.response?.data?.message || error?.message || 'İşlem başarısız' })
+            setAdminFormMessage({ type: 'error', text: error?.message || 'İşlem başarısız' })
         } finally {
             setAdminFormLoading(false)
         }
@@ -402,28 +391,18 @@ export default function Settings() {
 
     // Toggle permission
     const togglePermission = (permission: string) => {
-        setAdminFormData(prev => {
-            if (permission === 'all') {
-                if (prev.permissions.includes('all')) {
-                    return { ...prev, permissions: [] }
-                } else {
-                    return { ...prev, permissions: ['all'] }
-                }
+        if (permission === 'all') {
+            if (adminFormData.permissions.includes('all')) {
+                setAdminFormData({ ...adminFormData, permissions: [] })
             } else {
-                // 'all' seçiliyse, önce 'all'ı kaldır
-                let newPermissions = prev.permissions.filter(p => p !== 'all')
-                
-                if (newPermissions.includes(permission)) {
-                    // Yetkiyi kaldır
-                    newPermissions = newPermissions.filter(p => p !== permission)
-                } else {
-                    // Yetkiyi ekle
-                    newPermissions = [...newPermissions, permission]
-                }
-                
-                return { ...prev, permissions: newPermissions }
+                setAdminFormData({ ...adminFormData, permissions: ['all'] })
             }
-        })
+        } else {
+            const newPermissions = adminFormData.permissions.includes(permission)
+                ? adminFormData.permissions.filter(p => p !== permission && p !== 'all')
+                : [...adminFormData.permissions.filter(p => p !== 'all'), permission]
+            setAdminFormData({ ...adminFormData, permissions: newPermissions })
+        }
     }
 
     // Update profile
@@ -835,9 +814,9 @@ export default function Settings() {
                                     <div className="p-6 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center text-slate-600 dark:text-slate-400">Listelenecek admin bulunamadı.</div>
                                 )}
 
-                                {/* Yeni Admin Ekleme/Düzenleme Modal */}
+                                {/* Yeni Admin Ekleme Modal */}
                                 <AnimatePresence>
-                                    {(showAddAdminModal || showEditAdminModal) && (
+                                    {showAddAdminModal && (
                                         <motion.div
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}

@@ -287,7 +287,7 @@ export default function HepsiburadaOrders() {
             }
             
             return {
-              productName: item.productName || '',
+            productName: item.productName || '',
               productSku: item.productSku || '',
               option1: item.option1 || itemData?.['Seçenek 1'] || itemData?.option1 || '',
               option2: item.option2 || itemData?.['Seçenek 2'] || itemData?.option2 || '',
