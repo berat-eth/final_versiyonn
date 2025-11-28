@@ -394,6 +394,9 @@ export default function Invoices() {
     try {
       setError(null)
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
+      const token = sessionStorage.getItem('authToken') || ''
+      const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+      const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
       
       // Debug: Invoice verilerini kontrol et
       console.log('Invoice data:', invoice)
@@ -403,41 +406,44 @@ export default function Invoices() {
         return
       }
       
-      // Direkt backend URL'i oluştur
-      let viewUrl: string | null = null
+      // Admin endpoint ile PDF'i blob olarak indir ve göster
+      const downloadUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
       
-      // Öncelik sırası: fileUrl > filePath > shareUrl > default download endpoint
-      if (invoice.fileUrl) {
-        viewUrl = invoice.fileUrl.startsWith('http') ? invoice.fileUrl : `${API_BASE_URL}${invoice.fileUrl}`
-      } else if (invoice.filePath) {
-        viewUrl = invoice.filePath.startsWith('http') ? invoice.filePath : `${API_BASE_URL}${invoice.filePath}`
-      } else if (invoice.shareUrl) {
-        // Share URL varsa download endpoint'ine yönlendir
-        viewUrl = invoice.shareUrl.includes('/download') ? invoice.shareUrl : `${invoice.shareUrl}/download`
-      } else if (invoice.id) {
-        // Admin endpoint ile direkt dosya indirme
-        viewUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
-      }
-      
-      if (!viewUrl) {
-        setError('Fatura görüntüleme URL\'si bulunamadı. Lütfen faturayı kontrol edin.')
-        return
-      }
-      
-      console.log('Using direct backend URL:', viewUrl)
-      
-      // Direkt backend URL'ini yeni sekmede aç
       try {
-        const newWindow = window.open(viewUrl, '_blank')
-        
-        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-          // Popup engellenmişse, iframe ile göster
-          showPDFInIframe(viewUrl)
+        // Authentication header'ları ile PDF'i indir
+        const response = await fetch(downloadUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-API-Key': API_KEY,
+            'X-Admin-Key': ADMIN_KEY
+          }
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Fatura indirilemedi' }))
+          setError(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
+          return
         }
-      } catch (err) {
-        console.error('Window open error:', err)
-        // Iframe ile göster
-        showPDFInIframe(viewUrl)
+
+        const blob = await response.blob()
+        const blobUrl = window.URL.createObjectURL(blob)
+        
+        // Blob URL'ini yeni sekmede aç
+        try {
+          const newWindow = window.open(blobUrl, '_blank')
+          
+          if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            // Popup engellenmişse, iframe ile göster
+            showPDFInIframe(blobUrl)
+          }
+        } catch (err) {
+          console.error('Window open error:', err)
+          // Iframe ile göster
+          showPDFInIframe(blobUrl)
+        }
+      } catch (fetchErr: any) {
+        console.error('PDF indirme hatası:', fetchErr)
+        setError(fetchErr.message || 'PDF indirilemedi')
       }
     } catch (err: any) {
       console.error('PDF görüntüleme hatası:', err)
@@ -652,32 +658,23 @@ export default function Invoices() {
                               }
                               
                               const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
+                              const token = sessionStorage.getItem('authToken') || ''
+                              const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+                              const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
                               
-                              // Direkt backend URL'i oluştur
-                              let downloadUrl: string | null = null
-                              
-                              // Öncelik sırası: fileUrl > filePath > shareUrl > default download endpoint
-                              if (invoice.fileUrl) {
-                                downloadUrl = invoice.fileUrl.startsWith('http') ? invoice.fileUrl : `${API_BASE_URL}${invoice.fileUrl}`
-                              } else if (invoice.filePath) {
-                                downloadUrl = invoice.filePath.startsWith('http') ? invoice.filePath : `${API_BASE_URL}${invoice.filePath}`
-                              } else if (invoice.shareUrl) {
-                                // Share URL varsa download endpoint'ine yönlendir
-                                downloadUrl = invoice.shareUrl.includes('/download') ? invoice.shareUrl : `${invoice.shareUrl}/download`
-                              } else if (invoice.id) {
-                                // Admin endpoint ile direkt dosya indirme
-                                downloadUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
-                              }
-                              
-                              if (!downloadUrl) {
-                                setError('Fatura indirme URL\'si bulunamadı. Lütfen faturayı kontrol edin.')
-                                return
-                              }
+                              // Admin endpoint ile direkt dosya indirme
+                              const downloadUrl = `${API_BASE_URL}/admin/invoices/${invoice.id}/download`
                               
                               console.log('Downloading from direct backend URL:', downloadUrl)
                               
-                              // Direkt backend'den PDF'i indir
-                              const response = await fetch(downloadUrl)
+                              // Authentication header'ları ile PDF'i indir
+                              const response = await fetch(downloadUrl, {
+                                headers: {
+                                  'Authorization': `Bearer ${token}`,
+                                  'X-API-Key': API_KEY,
+                                  'X-Admin-Key': ADMIN_KEY
+                                }
+                              })
 
                               if (!response.ok) {
                                 const contentType = response.headers.get('content-type') || ''
