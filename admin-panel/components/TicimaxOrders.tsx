@@ -312,10 +312,11 @@ export default function TicimaxOrders() {
           customerAddress: selectedOrder.shippingAddress || selectedOrder.fullAddress,
           city: selectedOrder.city,
           district: selectedOrder.district,
-          // Sadece productName ve productSku gönder
+          // Ürün bilgilerini gönder (quantity dahil)
           items: (selectedOrder.items || []).map(item => ({
             productName: item.productName || '',
-            productSku: item.productSku || ''
+            productSku: item.productSku || '',
+            quantity: item.quantity || 1
           })),
           provider: 'ticimax', // Ticimax siparişi olduğunu belirt
           referenceNumber: referenceNumber || null // Referans numarası

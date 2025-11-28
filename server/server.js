@@ -12095,6 +12095,11 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           if (quantity && quantity > 0) {
             detailLines.push(`Adet: ${quantity}`);
           }
+        } else if (provider === 'ticimax') {
+          // Ticimax için: Sadece Adet
+          if (quantity && quantity > 0) {
+            detailLines.push(`Adet: ${quantity}`);
+          }
         } else {
           // Trendyol ve diğer marketplace'ler için: productSize, merchantSku, productColor, quantity
           if (productSize && String(productSize).trim() !== '') {
