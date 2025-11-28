@@ -11600,9 +11600,37 @@ app.get('/api/admin/invoices/:id/download', authenticateAdmin, async (req, res) 
       return res.status(404).json({ success: false, message: 'Invoice file not found' });
     }
 
-    const filePath = path.join(__dirname, rows[0].filePath);
+    // Dosya yolunu normalize et - mutlak yol kontrolü
+    let filePath = rows[0].filePath;
+    if (filePath.startsWith('/')) {
+      // Mutlak yol ise, __dirname ile birleştir
+      filePath = path.join(__dirname, filePath);
+    } else {
+      // Göreli yol ise, direkt birleştir
+      filePath = path.join(__dirname, filePath);
+    }
+    
+    // Dosya yoksa alternatif yolları dene
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'Invoice file not found' });
+      // Alternatif 1: filePath'i direkt kullan (mutlak yol olabilir)
+      const altPath1 = rows[0].filePath;
+      if (fs.existsSync(altPath1)) {
+        filePath = altPath1;
+      } else {
+        // Alternatif 2: uploads klasörünü kontrol et
+        const altPath2 = path.join(__dirname, 'uploads', 'invoices', path.basename(rows[0].filePath));
+        if (fs.existsSync(altPath2)) {
+          filePath = altPath2;
+        } else {
+          console.error('❌ Invoice file not found at any path:', {
+            original: rows[0].filePath,
+            tried1: filePath,
+            tried2: altPath1,
+            tried3: altPath2
+          });
+          return res.status(404).json({ success: false, message: 'Invoice file not found' });
+        }
+      }
     }
 
     const fileName = rows[0].fileName || 'invoice.pdf';
@@ -11656,9 +11684,37 @@ app.get('/api/invoices/share/:token/download', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Invoice file not found' });
     }
 
-    const filePath = path.join(__dirname, rows[0].filePath);
+    // Dosya yolunu normalize et - mutlak yol kontrolü
+    let filePath = rows[0].filePath;
+    if (filePath.startsWith('/')) {
+      // Mutlak yol ise, __dirname ile birleştir
+      filePath = path.join(__dirname, filePath);
+    } else {
+      // Göreli yol ise, direkt birleştir
+      filePath = path.join(__dirname, filePath);
+    }
+    
+    // Dosya yoksa alternatif yolları dene
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'Invoice file not found' });
+      // Alternatif 1: filePath'i direkt kullan (mutlak yol olabilir)
+      const altPath1 = rows[0].filePath;
+      if (fs.existsSync(altPath1)) {
+        filePath = altPath1;
+      } else {
+        // Alternatif 2: uploads klasörünü kontrol et
+        const altPath2 = path.join(__dirname, 'uploads', 'invoices', path.basename(rows[0].filePath));
+        if (fs.existsSync(altPath2)) {
+          filePath = altPath2;
+        } else {
+          console.error('❌ Invoice file not found at any path:', {
+            original: rows[0].filePath,
+            tried1: filePath,
+            tried2: altPath1,
+            tried3: altPath2
+          });
+          return res.status(404).json({ success: false, message: 'Invoice file not found' });
+        }
+      }
     }
 
     const fileName = rows[0].fileName || 'invoice.pdf';
