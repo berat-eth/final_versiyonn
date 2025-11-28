@@ -37,6 +37,9 @@ interface MarketplaceOrder {
     price: number
     productImage?: string
     productSku?: string
+    itemData?: any // JSON data from item
+    option1?: string
+    option2?: string
   }>
 }
 
