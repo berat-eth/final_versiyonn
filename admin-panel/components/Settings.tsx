@@ -11,7 +11,30 @@ export default function Settings() {
     const [showPassword, setShowPassword] = useState(false)
     const [showNewPassword, setShowNewPassword] = useState(false)
     const [showAddAdminModal, setShowAddAdminModal] = useState(false)
+    const [showEditAdminModal, setShowEditAdminModal] = useState(false)
+    const [editingAdmin, setEditingAdmin] = useState<any>(null)
     const [adminUsers, setAdminUsers] = useState([] as Array<{ id: number; name: string; email: string; role: string; status: 'Aktif' | 'Pasif'; lastLogin: string; permissions: string[] }>)
+    const [adminUsersLoading, setAdminUsersLoading] = useState(false)
+    const [adminFormData, setAdminFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        role: 'admin',
+        isActive: true,
+        permissions: [] as string[]
+    })
+    const [adminFormLoading, setAdminFormLoading] = useState(false)
+    const [adminFormMessage, setAdminFormMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+    // Available permissions
+    const availablePermissions = [
+        { key: 'products', label: 'Ürün Yönetimi' },
+        { key: 'orders', label: 'Sipariş Yönetimi' },
+        { key: 'customers', label: 'Müşteri Yönetimi' },
+        { key: 'reports', label: 'Raporlar' },
+        { key: 'settings', label: 'Ayarlar' },
+        { key: 'all', label: 'Tüm Yetkiler' }
+    ]
 
     // Form States
     const [profileData, setProfileData] = useState({
@@ -197,6 +220,262 @@ export default function Settings() {
         timezone: 'Europe/Istanbul'
     })
 
+    // Password change state
+    const [passwordData, setPasswordData] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    })
+    const [profileLoading, setProfileLoading] = useState(false)
+    const [passwordLoading, setPasswordLoading] = useState(false)
+    const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+    // Load profile data
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                const response = await api.get<ApiResponse<any>>('/admin/profile')
+                if (response.success && response.data) {
+                    setProfileData({
+                        name: response.data.name || '',
+                        email: response.data.email || '',
+                        phone: response.data.phone || '',
+                        role: response.data.role || 'admin',
+                        avatar: ''
+                    })
+                }
+            } catch (error) {
+                console.error('Profil bilgileri yüklenemedi:', error)
+            }
+        }
+        loadProfile()
+    }, [])
+
+    // Load admin users
+    const loadAdminUsers = async () => {
+        setAdminUsersLoading(true)
+        try {
+            const response = await api.get<ApiResponse<any[]>>('/admin/users/admins')
+            if (response.success && response.data) {
+                setAdminUsers(response.data.map((admin: any) => ({
+                    id: admin.id,
+                    name: admin.name,
+                    email: admin.email,
+                    role: admin.role,
+                    status: admin.status as 'Aktif' | 'Pasif',
+                    lastLogin: admin.lastLogin,
+                    permissions: admin.permissions || []
+                })))
+            }
+        } catch (error) {
+            console.error('Admin kullanıcıları yüklenemedi:', error)
+        } finally {
+            setAdminUsersLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        if (activeTab === 'admin-users') {
+            loadAdminUsers()
+        }
+    }, [activeTab])
+
+    // Handle add admin
+    const handleAddAdmin = async () => {
+        if (!adminFormData.name || !adminFormData.email || (!editingAdmin && !adminFormData.password)) {
+            setAdminFormMessage({ type: 'error', text: 'Ad, e-posta ve şifre alanları zorunludur' })
+            return
+        }
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(adminFormData.email)) {
+            setAdminFormMessage({ type: 'error', text: 'Geçerli bir e-posta adresi girin' })
+            return
+        }
+
+        setAdminFormLoading(true)
+        setAdminFormMessage(null)
+        try {
+            if (editingAdmin) {
+                // Update admin
+                const response = await api.put<ApiResponse<any>>(`/admin/users/${editingAdmin.id}`, {
+                    name: adminFormData.name,
+                    email: adminFormData.email,
+                    role: adminFormData.role,
+                    isActive: adminFormData.isActive,
+                    permissions: adminFormData.permissions
+                })
+                if (response.success) {
+                    setAdminFormMessage({ type: 'success', text: 'Admin kullanıcı güncellendi' })
+                    setShowEditAdminModal(false)
+                    setEditingAdmin(null)
+                    resetAdminForm()
+                    await loadAdminUsers()
+                } else {
+                    setAdminFormMessage({ type: 'error', text: response.message || 'Admin kullanıcı güncellenemedi' })
+                }
+            } else {
+                // Create admin
+                const response = await api.post<ApiResponse<any>>('/admin/users', {
+                    name: adminFormData.name,
+                    email: adminFormData.email,
+                    password: adminFormData.password,
+                    role: adminFormData.role,
+                    isActive: adminFormData.isActive,
+                    permissions: adminFormData.permissions
+                })
+                if (response.success) {
+                    setAdminFormMessage({ type: 'success', text: 'Admin kullanıcı oluşturuldu' })
+                    setShowAddAdminModal(false)
+                    resetAdminForm()
+                    await loadAdminUsers()
+                } else {
+                    setAdminFormMessage({ type: 'error', text: response.message || 'Admin kullanıcı oluşturulamadı' })
+                }
+            }
+        } catch (error: any) {
+            setAdminFormMessage({ type: 'error', text: error?.message || 'İşlem başarısız' })
+        } finally {
+            setAdminFormLoading(false)
+        }
+    }
+
+    // Handle delete admin
+    const handleDeleteAdmin = async (id: number) => {
+        if (!confirm('Bu admin kullanıcıyı silmek istediğinizden emin misiniz?')) {
+            return
+        }
+
+        try {
+            const response = await api.delete<ApiResponse<any>>(`/admin/users/${id}`)
+            if (response.success) {
+                alert('Admin kullanıcı silindi')
+                await loadAdminUsers()
+            } else {
+                alert(response.message || 'Admin kullanıcı silinemedi')
+            }
+        } catch (error: any) {
+            alert(error?.message || 'Admin kullanıcı silinemedi')
+        }
+    }
+
+    // Handle edit admin
+    const handleEditAdmin = (admin: any) => {
+        setEditingAdmin(admin)
+        setAdminFormData({
+            name: admin.name,
+            email: admin.email,
+            password: '',
+            role: admin.role,
+            isActive: admin.status === 'Aktif',
+            permissions: admin.permissions || []
+        })
+        setShowEditAdminModal(true)
+        setAdminFormMessage(null)
+    }
+
+    // Reset admin form
+    const resetAdminForm = () => {
+        setAdminFormData({
+            name: '',
+            email: '',
+            password: '',
+            role: 'admin',
+            isActive: true,
+            permissions: []
+        })
+        setAdminFormMessage(null)
+        setEditingAdmin(null)
+    }
+
+    // Toggle permission
+    const togglePermission = (permission: string) => {
+        if (permission === 'all') {
+            if (adminFormData.permissions.includes('all')) {
+                setAdminFormData({ ...adminFormData, permissions: [] })
+            } else {
+                setAdminFormData({ ...adminFormData, permissions: ['all'] })
+            }
+        } else {
+            const newPermissions = adminFormData.permissions.includes(permission)
+                ? adminFormData.permissions.filter(p => p !== permission && p !== 'all')
+                : [...adminFormData.permissions.filter(p => p !== 'all'), permission]
+            setAdminFormData({ ...adminFormData, permissions: newPermissions })
+        }
+    }
+
+    // Update profile
+    const handleUpdateProfile = async () => {
+        if (!profileData.name || !profileData.email) {
+            setProfileMessage({ type: 'error', text: 'Ad ve e-posta alanları zorunludur' })
+            return
+        }
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(profileData.email)) {
+            setProfileMessage({ type: 'error', text: 'Geçerli bir e-posta adresi girin' })
+            return
+        }
+
+        setProfileLoading(true)
+        setProfileMessage(null)
+        try {
+            const response = await api.put<ApiResponse<any>>('/admin/profile', {
+                name: profileData.name,
+                email: profileData.email,
+                phone: profileData.phone
+            })
+            if (response.success) {
+                setProfileMessage({ type: 'success', text: 'Profil başarıyla güncellendi' })
+            } else {
+                setProfileMessage({ type: 'error', text: response.message || 'Profil güncellenemedi' })
+            }
+        } catch (error: any) {
+            setProfileMessage({ type: 'error', text: error?.message || 'Profil güncellenemedi' })
+        } finally {
+            setProfileLoading(false)
+        }
+    }
+
+    // Change password
+    const handleChangePassword = async () => {
+        if (!passwordData.currentPassword || !passwordData.newPassword) {
+            setProfileMessage({ type: 'error', text: 'Mevcut ve yeni şifre alanları zorunludur' })
+            return
+        }
+
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setProfileMessage({ type: 'error', text: 'Yeni şifreler eşleşmiyor' })
+            return
+        }
+
+        if (passwordData.newPassword.length < 6) {
+            setProfileMessage({ type: 'error', text: 'Yeni şifre en az 6 karakter olmalıdır' })
+            return
+        }
+
+        setPasswordLoading(true)
+        setProfileMessage(null)
+        try {
+            const response = await api.post<ApiResponse<any>>('/admin/change-password', {
+                currentPassword: passwordData.currentPassword,
+                newPassword: passwordData.newPassword
+            })
+            if (response.success) {
+                setProfileMessage({ type: 'success', text: 'Şifre başarıyla değiştirildi' })
+                setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+            } else {
+                setProfileMessage({ type: 'error', text: response.message || 'Şifre değiştirilemedi' })
+            }
+        } catch (error: any) {
+            setProfileMessage({ type: 'error', text: error?.message || 'Şifre değiştirilemedi' })
+        } finally {
+            setPasswordLoading(false)
+        }
+    }
+
     const tabs = [
         { id: 'profile', label: 'Profil Bilgileri', icon: User },
         { id: 'admin-users', label: 'Admin Kullanıcılar', icon: Shield },
@@ -327,6 +606,28 @@ export default function Settings() {
                                     </div>
                                 </div>
 
+                                {/* Success/Error Messages */}
+                                {profileMessage && (
+                                    <div className={`p-4 rounded-xl ${
+                                        profileMessage.type === 'success' 
+                                            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200' 
+                                            : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+                                    }`}>
+                                        {profileMessage.text}
+                                    </div>
+                                )}
+
+                                {/* Save Profile Button */}
+                                <div className="pt-6 border-t border-slate-200 dark:border-slate-700">
+                                    <button
+                                        onClick={handleUpdateProfile}
+                                        disabled={profileLoading}
+                                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                                    >
+                                        {profileLoading ? 'Kaydediliyor...' : 'Profil Bilgilerini Kaydet'}
+                                    </button>
+                                </div>
+
                                 <div className="pt-6 border-t border-slate-200 dark:border-slate-700">
                                     <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-4">Şifre Değiştir</h4>
                                     <div className="space-y-4">
@@ -337,6 +638,8 @@ export default function Settings() {
                                             <div className="relative">
                                                 <input
                                                     type={showPassword ? 'text' : 'password'}
+                                                    value={passwordData.currentPassword}
+                                                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                                                     className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
                                                     placeholder="••••••••"
                                                 />
@@ -356,6 +659,8 @@ export default function Settings() {
                                             <div className="relative">
                                                 <input
                                                     type={showNewPassword ? 'text' : 'password'}
+                                                    value={passwordData.newPassword}
+                                                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                                                     className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
                                                     placeholder="••••••••"
                                                 />
@@ -368,6 +673,27 @@ export default function Settings() {
                                                 </button>
                                             </div>
                                         </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                                Yeni Şifre (Tekrar)
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type={showNewPassword ? 'text' : 'password'}
+                                                    value={passwordData.confirmPassword}
+                                                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                                                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white"
+                                                    placeholder="••••••••"
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleChangePassword}
+                                            disabled={passwordLoading}
+                                            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                                        >
+                                            {passwordLoading ? 'Değiştiriliyor...' : 'Şifreyi Değiştir'}
+                                        </button>
                                     </div>
                                 </div>
                             </motion.div>
@@ -386,7 +712,10 @@ export default function Settings() {
                                         <p className="text-slate-500 dark:text-slate-400 text-sm">Sistem yöneticilerini ve yetkilerini yönetin</p>
                                     </div>
                                     <button
-                                        onClick={() => setShowAddAdminModal(true)}
+                                        onClick={() => {
+                                            resetAdminForm()
+                                            setShowAddAdminModal(true)
+                                        }}
                                         className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-700 dark:to-purple-700 text-white rounded-xl hover:shadow-lg transition-shadow"
                                     >
                                         <UserPlus className="w-5 h-5" />
@@ -447,20 +776,32 @@ export default function Settings() {
                                                     </div>
                                                     <div className="flex items-center gap-4">
                                                         <div className="text-right">
-                                                            <p className="text-xs text-slate-500 mb-1">Yetkiler</p>
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Yetkiler</p>
                                                             <div className="flex flex-wrap gap-1">
-                                                                {admin.permissions.map((perm, idx) => (
-                                                                    <span key={idx} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
-                                                                        {perm}
-                                                                    </span>
-                                                                ))}
+                                                                {admin.permissions.length > 0 ? (
+                                                                    admin.permissions.map((perm, idx) => (
+                                                                        <span key={idx} className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-xs">
+                                                                            {availablePermissions.find(p => p.key === perm)?.label || perm}
+                                                                        </span>
+                                                                    ))
+                                                                ) : (
+                                                                    <span className="text-xs text-slate-400">Yetki tanımlanmamış</span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            <button className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors">
+                                                            <button 
+                                                                onClick={() => handleEditAdmin(admin)}
+                                                                className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                                                                title="Düzenle"
+                                                            >
                                                                 <Edit className="w-5 h-5" />
                                                             </button>
-                                                            <button className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors">
+                                                            <button 
+                                                                onClick={() => handleDeleteAdmin(admin.id)}
+                                                                className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                                                title="Sil"
+                                                            >
                                                                 <Trash2 className="w-5 h-5" />
                                                             </button>
                                                         </div>
@@ -481,7 +822,11 @@ export default function Settings() {
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0 }}
                                             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                                            onClick={() => setShowAddAdminModal(false)}
+                                            onClick={() => {
+                                                setShowAddAdminModal(false)
+                                                setShowEditAdminModal(false)
+                                                resetAdminForm()
+                                            }}
                                         >
                                             <motion.div
                                                 initial={{ scale: 0.9, opacity: 0 }}
@@ -491,9 +836,15 @@ export default function Settings() {
                                                 className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full"
                                             >
                                                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                                                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Yeni Admin Kullanıcı Ekle</h3>
+                                                    <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+                                                        {editingAdmin ? 'Admin Kullanıcı Düzenle' : 'Yeni Admin Kullanıcı Ekle'}
+                                                    </h3>
                                                     <button
-                                                        onClick={() => setShowAddAdminModal(false)}
+                                                        onClick={() => {
+                                                            setShowAddAdminModal(false)
+                                                            setShowEditAdminModal(false)
+                                                            resetAdminForm()
+                                                        }}
                                                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                                                     >
                                                         <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
@@ -501,29 +852,69 @@ export default function Settings() {
                                                 </div>
 
                                                 <div className="p-6 space-y-4">
+                                                    {adminFormMessage && (
+                                                        <div className={`p-4 rounded-xl ${
+                                                            adminFormMessage.type === 'success' 
+                                                                ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200' 
+                                                                : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+                                                        }`}>
+                                                            {adminFormMessage.text}
+                                                        </div>
+                                                    )}
+                                                    
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Ad Soyad</label>
-                                                            <input type="text" className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300" placeholder="Ahmet Yılmaz" />
+                                                            <input 
+                                                                type="text" 
+                                                                value={adminFormData.name}
+                                                                onChange={(e) => setAdminFormData({ ...adminFormData, name: e.target.value })}
+                                                                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300" 
+                                                                placeholder="Ahmet Yılmaz" 
+                                                            />
                                                         </div>
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">E-posta</label>
-                                                            <input type="email" className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300" placeholder="admin@example.com" />
+                                                            <input 
+                                                                type="email" 
+                                                                value={adminFormData.email}
+                                                                onChange={(e) => setAdminFormData({ ...adminFormData, email: e.target.value })}
+                                                                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300" 
+                                                                placeholder="admin@example.com" 
+                                                            />
                                                         </div>
+                                                        {!editingAdmin && (
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Şifre</label>
+                                                                <input 
+                                                                    type="password" 
+                                                                    value={adminFormData.password}
+                                                                    onChange={(e) => setAdminFormData({ ...adminFormData, password: e.target.value })}
+                                                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300" 
+                                                                    placeholder="••••••••" 
+                                                                />
+                                                            </div>
+                                                        )}
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Rol</label>
-                                                            <select className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300">
-                                                                <option>Super Admin</option>
-                                                                <option>Admin</option>
-                                                                <option>Moderatör</option>
-                                                                <option>Editör</option>
+                                                            <select 
+                                                                value={adminFormData.role}
+                                                                onChange={(e) => setAdminFormData({ ...adminFormData, role: e.target.value })}
+                                                                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300"
+                                                            >
+                                                                <option value="admin">Admin</option>
+                                                                <option value="superadmin">Super Admin</option>
                                                             </select>
                                                         </div>
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Durum</label>
-                                                            <select className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300">
-                                                                <option>Aktif</option>
-                                                                <option>Pasif</option>
+                                                            <select 
+                                                                value={adminFormData.isActive ? 'Aktif' : 'Pasif'}
+                                                                onChange={(e) => setAdminFormData({ ...adminFormData, isActive: e.target.value === 'Aktif' })}
+                                                                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-300"
+                                                            >
+                                                                <option value="Aktif">Aktif</option>
+                                                                <option value="Pasif">Pasif</option>
                                                             </select>
                                                         </div>
                                                     </div>
@@ -531,39 +922,34 @@ export default function Settings() {
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Yetkiler</label>
                                                         <div className="grid grid-cols-2 gap-3">
-                                                            <label className="flex items-center space-x-2">
-                                                                <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Ürün Yönetimi</span>
-                                                            </label>
-                                                            <label className="flex items-center space-x-2">
-                                                                <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Sipariş Yönetimi</span>
-                                                            </label>
-                                                            <label className="flex items-center space-x-2">
-                                                                <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Müşteri Yönetimi</span>
-                                                            </label>
-                                                            <label className="flex items-center space-x-2">
-                                                                <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Raporlar</span>
-                                                            </label>
-                                                            <label className="flex items-center space-x-2">
-                                                                <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Ayarlar</span>
-                                                            </label>
-                                                            <label className="flex items-center space-x-2">
-                                                                <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                                                                <span className="text-sm text-slate-700 dark:text-slate-300">Tüm Yetkiler</span>
-                                                            </label>
+                                                            {availablePermissions.map((perm) => (
+                                                                <label key={perm.key} className="flex items-center space-x-2 cursor-pointer">
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        checked={adminFormData.permissions.includes(perm.key)}
+                                                                        onChange={() => togglePermission(perm.key)}
+                                                                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" 
+                                                                    />
+                                                                    <span className="text-sm text-slate-700 dark:text-slate-300">{perm.label}</span>
+                                                                </label>
+                                                            ))}
                                                         </div>
                                                     </div>
 
                                                     <div className="flex space-x-3 pt-4">
-                                                        <button className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium">
-                                                            Admin Ekle
+                                                        <button 
+                                                            onClick={handleAddAdmin}
+                                                            disabled={adminFormLoading}
+                                                            className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {adminFormLoading ? 'Kaydediliyor...' : (editingAdmin ? 'Güncelle' : 'Admin Ekle')}
                                                         </button>
                                                         <button 
-                                                            onClick={() => setShowAddAdminModal(false)}
+                                                            onClick={() => {
+                                                                setShowAddAdminModal(false)
+                                                                setShowEditAdminModal(false)
+                                                                resetAdminForm()
+                                                            }}
                                                             className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-6 py-3 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors font-medium"
                                                         >
                                                             İptal

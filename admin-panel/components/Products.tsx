@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { formatDDMMYYYY } from '@/lib/date'
-import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield, UploadCloud, Activity, ToggleLeft, ToggleRight, CheckSquare, Square, Upload } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Filter, TrendingUp, Package, Eye, RefreshCw, Power, Shield, UploadCloud, Activity, ToggleLeft, ToggleRight, CheckSquare, Square, Upload, FileText, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { productService } from '@/lib/services'
 import type { Product } from '@/lib/api'
 import { AnimatePresence } from 'framer-motion'
-import { api } from '@/lib/api'
+import { api, type ApiResponse } from '@/lib/api'
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([])
@@ -43,6 +43,10 @@ export default function Products() {
   const [trendyolIntegration, setTrendyolIntegration] = useState<any>(null)
   const [transferringProducts, setTransferringProducts] = useState<Record<number, boolean>>({})
   const [transferMessages, setTransferMessages] = useState<Record<number, { type: 'success' | 'error'; message: string }>>({})
+  // Fatura yükleme için state'ler
+  const [showInvoicesModal, setShowInvoicesModal] = useState(false)
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [invoicesLoading, setInvoicesLoading] = useState(false)
 
   const categories = ['Tümü', 'Kamp Malzemeleri', 'Outdoor Giyim', 'Ayakkabı', 'Aksesuar']
 
@@ -93,6 +97,23 @@ export default function Products() {
     fetchProducts(currentPage)
     loadTrendyolIntegration()
   }, [currentPage])
+
+  // Faturaları yükle
+  const handleShowInvoices = async () => {
+    try {
+      setInvoicesLoading(true)
+      const response = await api.get<ApiResponse<any[]>>('/admin/invoices')
+      if (response.success && response.data) {
+        setInvoices(response.data)
+        setShowInvoicesModal(true)
+      }
+    } catch (err: any) {
+      console.error('Faturalar yüklenemedi:', err)
+      alert('Faturalar yüklenirken hata oluştu')
+    } finally {
+      setInvoicesLoading(false)
+    }
+  }
 
   // Trendyol entegrasyonunu yükle
   const loadTrendyolIntegration = async () => {
@@ -674,6 +695,14 @@ export default function Products() {
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             Yenile
+          </button>
+          <button
+            onClick={handleShowInvoices}
+            disabled={invoicesLoading}
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-xl flex items-center hover:shadow-lg transition-shadow disabled:opacity-60"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            {invoicesLoading ? 'Yükleniyor...' : 'Faturalar'}
           </button>
         </div>
       </div>
@@ -1325,6 +1354,104 @@ export default function Products() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Faturalar Modal */}
+      <AnimatePresence>
+        {showInvoicesModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowInvoicesModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Faturalar</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Tüm faturaları görüntüleyin</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowInvoicesModal(false)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                {invoicesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <RefreshCw className="w-8 h-8 text-slate-400 animate-spin" />
+                  </div>
+                ) : invoices.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                    <p className="text-slate-500 dark:text-slate-400">Henüz fatura bulunmuyor</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {invoices.map((invoice) => (
+                      <motion.div
+                        key={invoice.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <h4 className="font-semibold text-slate-800 dark:text-slate-100">
+                                Fatura #{invoice.id}
+                              </h4>
+                              {invoice.number && (
+                                <span className="text-sm text-slate-500 dark:text-slate-400">
+                                  No: {invoice.number}
+                                </span>
+                              )}
+                            </div>
+                            {invoice.date && (
+                              <p className="text-sm text-slate-600 dark:text-slate-400">
+                                Tarih: {formatDDMMYYYY(invoice.date)}
+                              </p>
+                            )}
+                            {invoice.amount && (
+                              <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mt-1">
+                                Tutar: ₺{typeof invoice.amount === 'number' ? invoice.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : invoice.amount}
+                              </p>
+                            )}
+                          </div>
+                          {invoice.url && (
+                            <a
+                              href={invoice.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                            >
+                              Görüntüle
+                            </a>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

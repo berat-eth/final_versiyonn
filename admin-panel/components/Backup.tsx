@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, Upload, Database, Clock, CheckCircle, AlertTriangle, HardDrive, Cloud, RefreshCw, Trash2, Calendar, X, Save, FileText, FileCode } from 'lucide-react'
+import { Download, Upload, Database, Clock, CheckCircle, AlertTriangle, HardDrive, Cloud, RefreshCw, Trash2, Calendar, X, Save, FileText, FileCode, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '@/lib/api'
 
@@ -16,7 +16,12 @@ interface BackupItem {
   fileType: string
 }
 
+const BACKUP_PASSWORD = 'Hk@145362..'
+
 export default function Backup() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const [backups, setBackups] = useState<BackupItem[]>([])
 
   const [isCreatingBackup, setIsCreatingBackup] = useState(false)
@@ -32,6 +37,19 @@ export default function Backup() {
     password: '',
     directory: '/backups'
   })
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasswordError('')
+    
+    if (password === BACKUP_PASSWORD) {
+      setIsAuthenticated(true)
+      setPassword('')
+    } else {
+      setPasswordError('Hatalı şifre! Lütfen tekrar deneyin.')
+      setPassword('')
+    }
+  }
 
   const reloadBackups = async () => {
     // Sunucuda list endpoint yoksa, tek "son oluşturulan" yedeği lokal listede tutarız
@@ -167,6 +185,60 @@ export default function Backup() {
   }
 
   useEffect(()=>{ reloadBackups() }, [])
+
+  // Şifre koruması - sayfa içeriğini göster
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-slate-200 dark:border-slate-700"
+        >
+          <div className="p-8">
+            <div className="flex items-center justify-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center">
+                <Lock className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-center text-slate-800 dark:text-slate-100 mb-2">
+              Veri Yedekleme
+            </h2>
+            <p className="text-center text-slate-600 dark:text-slate-400 mb-6">
+              Bu sayfaya erişmek için şifre gereklidir
+            </p>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Şifre
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    setPasswordError('')
+                  }}
+                  placeholder="Şifrenizi girin"
+                  className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                  autoFocus
+                />
+                {passwordError && (
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-shadow"
+              >
+                Giriş Yap
+              </button>
+            </form>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

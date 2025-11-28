@@ -5271,6 +5271,214 @@ app.get('/api/admin/top-customers', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Admin - Get admin users only
+app.get('/api/admin/users/admins', authenticateAdmin, async (req, res) => {
+  try {
+    // Check and add permissions column if it doesn't exist
+    try {
+      const [cols] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'permissions'
+      `);
+      if (cols.length === 0) {
+        await poolWrapper.execute('ALTER TABLE users ADD COLUMN permissions JSON NULL AFTER role');
+        console.log('✅ Added permissions column to users table');
+      }
+    } catch (e) {
+      console.warn('⚠️ Could not check/add permissions column:', e.message);
+    }
+    
+    const [rows] = await poolWrapper.execute(`
+      SELECT u.id, u.name, u.email, u.phone, u.role, u.isActive, u.permissions, u.createdAt,
+             (SELECT MAX(timestamp) FROM security_events WHERE username = u.email AND eventType = 'ADMIN_LOGIN_SUCCESS') as lastLogin
+      FROM users u 
+      WHERE u.role = 'admin'
+      ORDER BY u.createdAt DESC
+    `);
+    
+    const admins = rows.map(admin => {
+      let permissions = [];
+      try {
+        permissions = admin.permissions ? JSON.parse(admin.permissions) : [];
+      } catch (e) {
+        permissions = [];
+      }
+      
+      return {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone || '',
+        role: admin.role,
+        status: admin.isActive ? 'Aktif' : 'Pasif',
+        permissions: permissions,
+        lastLogin: admin.lastLogin ? new Date(admin.lastLogin).toLocaleString('tr-TR') : 'Hiç giriş yapılmamış',
+        createdAt: admin.createdAt
+      };
+    });
+    
+    res.json({ success: true, data: admins });
+  } catch (error) {
+    console.error('❌ Error getting admin users:', error);
+    res.status(500).json({ success: false, message: 'Admin kullanıcıları alınamadı' });
+  }
+});
+
+// Admin - Create admin user
+app.post('/api/admin/users', authenticateAdmin, async (req, res) => {
+  try {
+    const { name, email, password, role, isActive, permissions } = req.body || {};
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Ad, e-posta ve şifre gereklidir' });
+    }
+    
+    // Email unique kontrolü
+    const [existingUser] = await poolWrapper.execute(
+      'SELECT id FROM users WHERE email = ?',
+      [email.toLowerCase()]
+    );
+    
+    if (existingUser.length > 0) {
+      return res.status(400).json({ success: false, message: 'Bu e-posta adresi zaten kullanılıyor' });
+    }
+    
+    // Get tenant ID
+    const [tenants] = await poolWrapper.execute('SELECT id FROM tenants WHERE isActive = true ORDER BY id ASC LIMIT 1');
+    const tenantId = tenants.length > 0 ? tenants[0].id : 1;
+    
+    // Hash password
+    const hashedPassword = await hashPassword(password);
+    
+    // Generate user_id
+    const userIdStr = (Math.floor(10000000 + Math.random() * 90000000)).toString();
+    
+    // Prepare permissions
+    let permissionsJson = '[]';
+    if (permissions && Array.isArray(permissions)) {
+      permissionsJson = JSON.stringify(permissions);
+    }
+    
+    // Insert admin user
+    const [result] = await poolWrapper.execute(
+      'INSERT INTO users (user_id, tenantId, name, email, password, role, isActive, permissions, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+      [userIdStr, tenantId, name, email.toLowerCase(), hashedPassword, role || 'admin', isActive !== undefined ? isActive : true, permissionsJson]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Admin kullanıcı oluşturuldu',
+      data: { id: result.insertId, name, email, role: role || 'admin' }
+    });
+  } catch (error) {
+    console.error('❌ Error creating admin user:', error);
+    res.status(500).json({ success: false, message: 'Admin kullanıcı oluşturulamadı' });
+  }
+});
+
+// Admin - Update admin user
+app.put('/api/admin/users/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { name, email, role, isActive, permissions } = req.body || {};
+    
+    if (!name || !email) {
+      return res.status(400).json({ success: false, message: 'Ad ve e-posta gereklidir' });
+    }
+    
+    // Email unique kontrolü (kendi email'i hariç)
+    const [existingUser] = await poolWrapper.execute(
+      'SELECT id FROM users WHERE email = ? AND id != ?',
+      [email.toLowerCase(), userId]
+    );
+    
+    if (existingUser.length > 0) {
+      return res.status(400).json({ success: false, message: 'Bu e-posta adresi zaten kullanılıyor' });
+    }
+    
+    // Prepare permissions
+    let permissionsJson = null;
+    if (permissions !== undefined) {
+      if (Array.isArray(permissions)) {
+        permissionsJson = JSON.stringify(permissions);
+      } else {
+        permissionsJson = '[]';
+      }
+    }
+    
+    // Build update query
+    const updates = ['name = ?', 'email = ?'];
+    const values = [name, email.toLowerCase()];
+    
+    if (role) {
+      updates.push('role = ?');
+      values.push(role);
+    }
+    
+    if (isActive !== undefined) {
+      updates.push('isActive = ?');
+      values.push(isActive);
+    }
+    
+    if (permissionsJson !== null) {
+      updates.push('permissions = ?');
+      values.push(permissionsJson);
+    }
+    
+    values.push(userId);
+    
+    await poolWrapper.execute(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ? AND role = 'admin'`,
+      values
+    );
+    
+    res.json({ success: true, message: 'Admin kullanıcı güncellendi' });
+  } catch (error) {
+    console.error('❌ Error updating admin user:', error);
+    res.status(500).json({ success: false, message: 'Admin kullanıcı güncellenemedi' });
+  }
+});
+
+// Admin - Delete admin user
+app.delete('/api/admin/users/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    
+    // Güvenlik: Kendi hesabını silemesin
+    const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'berat1@admin.local').toString();
+    const [currentAdmin] = await poolWrapper.execute(
+      'SELECT id FROM users WHERE email = ? AND role = "admin" LIMIT 1',
+      [ADMIN_EMAIL]
+    );
+    
+    if (currentAdmin.length > 0 && currentAdmin[0].id === userId) {
+      return res.status(400).json({ success: false, message: 'Kendi hesabınızı silemezsiniz' });
+    }
+    
+    // Check if user is admin
+    const [user] = await poolWrapper.execute(
+      'SELECT id, role FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (user.length === 0) {
+      return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
+    
+    if (user[0].role !== 'admin') {
+      return res.status(400).json({ success: false, message: 'Sadece admin kullanıcıları silinebilir' });
+    }
+    
+    // Delete admin user
+    await poolWrapper.execute('DELETE FROM users WHERE id = ? AND role = "admin"', [userId]);
+    
+    res.json({ success: true, message: 'Admin kullanıcı silindi' });
+  } catch (error) {
+    console.error('❌ Error deleting admin user:', error);
+    res.status(500).json({ success: false, message: 'Admin kullanıcı silinemedi' });
+  }
+});
+
 // Admin - User management
 app.put('/api/admin/users/:id/role', authenticateAdmin, async (req, res) => {
   try {
@@ -5315,13 +5523,87 @@ app.post('/api/admin/users/:id/reset-password', authenticateAdmin, async (req, r
 });
 
 // Admin - change own password (berat1 account)
+// Admin - Get current admin profile
+app.get('/api/admin/profile', authenticateAdmin, async (req, res) => {
+  try {
+    // Get admin user from database (first admin user as fallback)
+    // In a real scenario, you'd get this from the token or session
+    const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'berat1@admin.local').toString();
+    const [rows] = await poolWrapper.execute(
+      'SELECT id, name, email, phone, role, permissions FROM users WHERE email = ? AND role = "admin" LIMIT 1',
+      [ADMIN_EMAIL]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Admin kullanıcı bulunamadı' });
+    }
+    
+    const admin = rows[0];
+    let permissions = [];
+    try {
+      permissions = admin.permissions ? JSON.parse(admin.permissions) : [];
+    } catch (e) {
+      permissions = [];
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone || '',
+        role: admin.role,
+        permissions: permissions
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting admin profile:', error);
+    res.status(500).json({ success: false, message: 'Profil bilgileri alınamadı' });
+  }
+});
+
+// Admin - Update current admin profile
+app.put('/api/admin/profile', authenticateAdmin, async (req, res) => {
+  try {
+    const { name, email, phone } = req.body || {};
+    
+    if (!name || !email) {
+      return res.status(400).json({ success: false, message: 'Ad ve e-posta alanları gereklidir' });
+    }
+    
+    const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'berat1@admin.local').toString();
+    
+    // Check if email is already taken by another user
+    const [existingUser] = await poolWrapper.execute(
+      'SELECT id FROM users WHERE email = ? AND email != ? AND role = "admin"',
+      [email, ADMIN_EMAIL]
+    );
+    
+    if (existingUser.length > 0) {
+      return res.status(400).json({ success: false, message: 'Bu e-posta adresi zaten kullanılıyor' });
+    }
+    
+    // Update admin profile
+    await poolWrapper.execute(
+      'UPDATE users SET name = ?, email = ?, phone = ? WHERE email = ? AND role = "admin"',
+      [name, email, phone || null, ADMIN_EMAIL]
+    );
+    
+    res.json({ success: true, message: 'Profil güncellendi' });
+  } catch (error) {
+    console.error('❌ Error updating admin profile:', error);
+    res.status(500).json({ success: false, message: 'Profil güncellenemedi' });
+  }
+});
+
 app.post('/api/admin/change-password', authenticateAdmin, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body || {};
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ success: false, message: 'Mevcut ve yeni şifre gerekli' });
     }
-    const ADMIN_EMAIL = 'berat1@admin.local';
+    const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'berat1@admin.local').toString();
     const [rows] = await poolWrapper.execute('SELECT id, password FROM users WHERE email = ? AND role = "admin" LIMIT 1', [ADMIN_EMAIL]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'Admin bulunamadı' });
     const ok = await verifyPassword(currentPassword, rows[0].password);
@@ -12509,6 +12791,13 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
             [orderId, tenantId]
           );
           console.log(`✅ Marketplace siparişi ${orderId} için kargo fişi yazdırıldı bilgisi kaydedildi`);
+        } else {
+          // Mobil uygulamadan gelen siparişler için (provider null)
+          await poolWrapper.execute(
+            'UPDATE orders SET cargoSlipPrintedAt = NOW() WHERE id = ? AND tenantId = ?',
+            [orderId, tenantId]
+          );
+          console.log(`✅ Mobil siparişi ${orderId} için kargo fişi yazdırıldı bilgisi kaydedildi`);
         }
         
         // PDF'i response olarak gönder
@@ -14140,12 +14429,37 @@ app.delete('/api/admin/production-orders/:orderId/steps/:stepId', authenticateAd
 // Admin - Tüm siparişleri listele
 app.get('/api/admin/orders', authenticateAdmin, async (req, res) => {
   try {
+    const tenantId = req.tenant?.id || 1;
     const { page = 1, limit = 20, status = '', dateFrom = '', dateTo = '', q = '' } = req.query;
     const offset = (page - 1) * limit;
 
+    // Veritabanında cargoSlipPrintedAt sütununun var olup olmadığını kontrol et
+    try {
+      const [columns] = await poolWrapper.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'orders' 
+        AND COLUMN_NAME = 'cargoSlipPrintedAt'
+      `);
+      
+      if (columns.length === 0) {
+        // cargoSlipPrintedAt sütunu yoksa ekle
+        console.log('⚠️ cargoSlipPrintedAt sütunu bulunamadı, ekleniyor...');
+        await poolWrapper.execute(`
+          ALTER TABLE orders 
+          ADD COLUMN cargoSlipPrintedAt TIMESTAMP NULL AFTER updatedAt
+        `);
+        console.log('✅ cargoSlipPrintedAt sütunu eklendi');
+      }
+    } catch (alterError) {
+      console.error('❌ cargoSlipPrintedAt sütunu kontrolü/ekleme hatası:', alterError);
+      // Hata olsa bile devam et
+    }
+
     // Build filters
-    const whereClauses = [];
-    const params = [];
+    const whereClauses = ['o.tenantId = ?'];
+    const params = [tenantId];
     if (status) {
       whereClauses.push('o.status = ?');
       params.push(String(status));
@@ -14168,6 +14482,7 @@ app.get('/api/admin/orders', authenticateAdmin, async (req, res) => {
     const [orders] = await poolWrapper.execute(
       `
       SELECT o.id, o.totalAmount, o.status, o.createdAt, o.city, o.district, o.fullAddress, o.shippingAddress, o.paymentMethod,
+             o.customerName, o.customerEmail, o.customerPhone, o.cargoSlipPrintedAt,
              u.name as userName, u.email as userEmail, 
              t.name as tenantName
       FROM orders o 

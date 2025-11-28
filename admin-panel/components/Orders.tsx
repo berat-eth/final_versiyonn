@@ -7,7 +7,7 @@ import { orderService } from '@/lib/services'
 import { formatDDMMYYYY } from '@/lib/date'
 import { generateShippingLabelHTML } from '@/lib/printTemplates'
 import type { Order } from '@/lib/api'
-import { api } from '@/lib/api'
+import { api, type ApiResponse } from '@/lib/api'
 
 export default function Orders() {
   const copyToClipboard = async (text: string) => {
@@ -52,8 +52,6 @@ export default function Orders() {
     }
   }
 
-  useEffect(() => { reloadOrders() }, [])
-
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null)
   const [showCargoModal, setShowCargoModal] = useState(false)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
@@ -66,6 +64,40 @@ export default function Orders() {
   const [generatingLabelId, setGeneratingLabelId] = useState<number | null>(null)
   const [autoInvoicingId, setAutoInvoicingId] = useState<number | null>(null)
   const [autoInvoiceSupported, setAutoInvoiceSupported] = useState<boolean>(true)
+  // Kargo fişi için state'ler
+  const [showCargoSlipModal, setShowCargoSlipModal] = useState(false)
+  const [selectedOrderForCargoSlip, setSelectedOrderForCargoSlip] = useState<Order | null>(null)
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [invoicesLoading, setInvoicesLoading] = useState(false)
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
+  const [invoiceLink, setInvoiceLink] = useState<string>('')
+  const [generatingCargoSlipId, setGeneratingCargoSlipId] = useState<number | null>(null)
+
+  useEffect(() => { reloadOrders() }, [])
+
+  // Kargo fişi modal'ı açıldığında faturaları otomatik yükle
+  useEffect(() => {
+    if (showCargoSlipModal && selectedOrderForCargoSlip) {
+      const loadInvoices = async () => {
+        try {
+          setInvoicesLoading(true)
+          const response = await api.get<ApiResponse<any[]>>('/admin/invoices')
+          if (response.success && response.data) {
+            setInvoices(response.data)
+            // İlk faturayı varsayılan olarak seç
+            if (response.data.length > 0 && !selectedInvoiceId) {
+              setSelectedInvoiceId(response.data[0].id)
+            }
+          }
+        } catch (err: any) {
+          console.error('Faturalar yüklenemedi:', err)
+        } finally {
+          setInvoicesLoading(false)
+        }
+      }
+      loadInvoices()
+    }
+  }, [showCargoSlipModal, selectedOrderForCargoSlip, selectedInvoiceId])
 
   const statusConfig: Record<any, { label: string; color: string; icon: any; dotColor: string }> = {
     pending: { label: 'Ödeme Bekleniyor', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: Clock, dotColor: 'bg-yellow-500' },
@@ -139,6 +171,130 @@ export default function Orders() {
       alert('Otomatik fatura özelliği şu anda sunucuda desteklenmiyor.')
     } finally {
       setAutoInvoicingId(null)
+    }
+  }
+
+  // Faturaları yükle
+  const handleShowInvoices = async () => {
+    try {
+      setInvoicesLoading(true)
+      const response = await api.get<ApiResponse<any[]>>('/admin/invoices')
+      if (response.success && response.data) {
+        setInvoices(response.data)
+        // İlk faturayı varsayılan olarak seç
+        if (response.data.length > 0 && !selectedInvoiceId) {
+          setSelectedInvoiceId(response.data[0].id)
+        }
+      }
+    } catch (err: any) {
+      console.error('Faturalar yüklenemedi:', err)
+    } finally {
+      setInvoicesLoading(false)
+    }
+  }
+
+  // Kargo fişi oluştur
+  const handleGenerateCargoSlip = async () => {
+    if (!selectedOrderForCargoSlip) return
+    
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.huglutekstil.com/api'
+    
+    try {
+      setGeneratingCargoSlipId(selectedOrderForCargoSlip.id)
+      
+      // Fatura linki veya seçili fatura kontrolü
+      let invoiceUrl = ''
+      
+      if (invoiceLink && invoiceLink.trim()) {
+        invoiceUrl = invoiceLink.trim()
+      } else if (selectedInvoiceId) {
+        const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId)
+        if (!selectedInvoice) {
+          alert('Seçili fatura bulunamadı.')
+          return
+        }
+        
+        if (selectedInvoice.id) {
+          invoiceUrl = `${API_BASE_URL}/admin/invoices/${selectedInvoice.id}/download`
+        } else if (selectedInvoice.shareUrl) {
+          invoiceUrl = `${selectedInvoice.shareUrl}/download`
+        }
+      } else {
+        alert('Lütfen bir fatura seçin veya fatura linki girin.')
+        return
+      }
+
+      // Kargo bilgilerini al
+      const cargoTrackingNumber = (selectedOrderForCargoSlip as any).trackingNumber || ''
+      const cargoProviderName = (selectedOrderForCargoSlip as any).cargoCompany || ''
+      const barcode = (selectedOrderForCargoSlip as any).barcode || ''
+
+      // Backend'e istek gönder
+      const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'huglu_1f3a9b6c2e8d4f0a7b1c3d5e9f2468ab1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+      const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'huglu-admin-2024-secure-key-CHANGE-THIS'
+      const token = sessionStorage.getItem('authToken') || ''
+      
+      const response = await fetch(`${API_BASE_URL}/admin/generate-cargo-slip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY,
+          'Authorization': `Bearer ${token}`,
+          'X-Admin-Key': ADMIN_KEY
+        },
+        body: JSON.stringify({
+          orderId: selectedOrderForCargoSlip.id,
+          invoiceUrl: invoiceUrl,
+          cargoTrackingNumber: cargoTrackingNumber,
+          cargoProviderName: cargoProviderName,
+          barcode: barcode,
+          customerName: (selectedOrderForCargoSlip as any).userName || (selectedOrderForCargoSlip as any).customerName || '',
+          customerEmail: (selectedOrderForCargoSlip as any).userEmail || (selectedOrderForCargoSlip as any).customerEmail || '',
+          customerPhone: (selectedOrderForCargoSlip as any).customerPhone || '',
+          customerAddress: selectedOrderForCargoSlip.shippingAddress || (selectedOrderForCargoSlip as any).fullAddress || '',
+          city: (selectedOrderForCargoSlip as any).city || '',
+          district: (selectedOrderForCargoSlip as any).district || '',
+          items: (selectedOrderForCargoSlip.items || []).map(item => ({
+            productName: item.productName || '',
+            productSku: '',
+            quantity: item.quantity || 1
+          })),
+          provider: null // Mobil uygulamadan gelen siparişler için provider null
+        })
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `kargo-fisi-${selectedOrderForCargoSlip.id}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+        
+        // Kargo fişi başarıyla indirildi, siparişleri yeniden yükle
+        await reloadOrders()
+        setShowCargoSlipModal(false)
+        setSelectedOrderForCargoSlip(null)
+        alert('✅ Kargo fişi başarıyla oluşturuldu ve indirildi!')
+      } else {
+        const errorText = await response.text()
+        let errorMessage = 'Bilinmeyen hata'
+        try {
+          const error = JSON.parse(errorText)
+          errorMessage = error.message || errorMessage
+        } catch {
+          errorMessage = errorText || errorMessage
+        }
+        alert('Kargo fişi oluşturulamadı: ' + errorMessage)
+      }
+    } catch (error: any) {
+      console.error('Kargo fişi oluşturma hatası:', error)
+      alert('Kargo fişi oluşturulamadı: ' + (error.message || 'Bilinmeyen hata'))
+    } finally {
+      setGeneratingCargoSlipId(null)
     }
   }
 
@@ -384,12 +540,18 @@ export default function Orders() {
                           <Eye className="w-5 h-5 text-slate-400 group-hover:text-blue-600" />
                         </button>
                         <button
-                          onClick={() => handleGenerateShippingLabel(order)}
-                          disabled={generatingLabelId === order.id}
-                          className="p-2 hover:bg-emerald-50 rounded-lg transition-colors group disabled:opacity-50"
+                          onClick={() => {
+                            setSelectedOrderForCargoSlip(order)
+                            setShowCargoSlipModal(true)
+                          }}
+                          disabled={generatingCargoSlipId === order.id}
+                          className="p-2 hover:bg-emerald-50 rounded-lg transition-colors group disabled:opacity-50 relative"
                           title="Kargo Fişi Oluştur"
                         >
                           <Printer className="w-5 h-5 text-slate-400 group-hover:text-emerald-600" />
+                          {(order as any).cargoSlipPrintedAt && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" title="Kargo fişi yazıldı"></span>
+                          )}
                         </button>
                         {autoInvoiceSupported && (
                           <button
@@ -974,11 +1136,19 @@ export default function Orders() {
                         <Truck className="w-5 h-5 text-purple-600" />
                         <p className="text-sm font-semibold text-slate-700">Kargo Bilgileri</p>
                       </div>
-                      {viewingOrder.cargoStatus && (
-                        <span className={`px-3 py-1 rounded-lg text-xs font-medium ${cargoStatusConfig[viewingOrder.cargoStatus].color}`}>
-                          {cargoStatusConfig[viewingOrder.cargoStatus].label}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {(viewingOrder as any).cargoSlipPrintedAt && (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Kargo Fişi Yazıldı
+                          </span>
+                        )}
+                        {viewingOrder.cargoStatus && (
+                          <span className={`px-3 py-1 rounded-lg text-xs font-medium ${cargoStatusConfig[viewingOrder.cargoStatus].color}`}>
+                            {cargoStatusConfig[viewingOrder.cargoStatus].label}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
@@ -1047,6 +1217,19 @@ export default function Orders() {
 
                 {/* Hızlı İşlemler */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <button
+                    onClick={() => {
+                      setSelectedOrderForCargoSlip(viewingOrder)
+                      setShowCargoSlipModal(true)
+                    }}
+                    className="flex flex-col items-center justify-center p-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors relative"
+                  >
+                    <Printer className="w-6 h-6 text-emerald-600 mb-2" />
+                    <span className="text-xs font-medium text-emerald-700">Kargo Fişi</span>
+                    {(viewingOrder as any).cargoSlipPrintedAt && (
+                      <span className="absolute top-2 right-2 w-2 h-2 bg-green-500 rounded-full" title="Kargo fişi yazıldı"></span>
+                    )}
+                  </button>
                   {viewingOrder.trackingNumber && (
                     <button
                       onClick={() => handleTrackCargo(viewingOrder)}
@@ -1082,6 +1265,160 @@ export default function Orders() {
                 >
                   Kapat
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Kargo Fişi Modal */}
+      <AnimatePresence>
+        {showCargoSlipModal && selectedOrderForCargoSlip && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => {
+              setShowCargoSlipModal(false)
+              setSelectedOrderForCargoSlip(null)
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center">
+                    <Printer className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Kargo Fişi Oluştur</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Sipariş #{selectedOrderForCargoSlip.id}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowCargoSlipModal(false)
+                    setSelectedOrderForCargoSlip(null)
+                  }}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Fatura Seçimi */}
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Fatura Bilgileri</h3>
+                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-4">
+                    {/* Fatura Linki */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Fatura Linki (Opsiyonel)
+                      </label>
+                      <input
+                        type="text"
+                        value={invoiceLink}
+                        onChange={(e) => {
+                          setInvoiceLink(e.target.value)
+                          if (e.target.value.trim()) {
+                            setSelectedInvoiceId(null)
+                          }
+                        }}
+                        placeholder="https://api.huglutekstil.com/api/invoices/share/..."
+                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      {invoiceLink && invoiceLink.trim() && (
+                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                          Fatura linki girildi. Bu link QR kodda kullanılacak.
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Fatura Seçimi */}
+                    {invoicesLoading ? (
+                      <div className="text-center py-4">
+                        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Faturalar yükleniyor...</p>
+                      </div>
+                    ) : invoices.length > 0 ? (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Kargo Fişi için Fatura Seçimi
+                        </label>
+                        <select
+                          value={selectedInvoiceId || ''}
+                          onChange={(e) => {
+                            setSelectedInvoiceId(e.target.value ? Number(e.target.value) : null)
+                            if (e.target.value) {
+                              setInvoiceLink('')
+                            }
+                          }}
+                          disabled={!!(invoiceLink && invoiceLink.trim())}
+                          className={`w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                            invoiceLink && invoiceLink.trim() 
+                              ? 'opacity-50 cursor-not-allowed' 
+                              : ''
+                          }`}
+                        >
+                          <option value="">Fatura Seçiniz</option>
+                          {invoices.map((invoice) => (
+                            <option key={invoice.id} value={invoice.id}>
+                              {invoice.invoiceNumber || `Fatura #${invoice.id}`} 
+                              {invoice.fileName && ` - ${invoice.fileName}`}
+                              {invoice.totalAmount && ` (${Number(invoice.totalAmount).toFixed(2)} ${invoice.currency || 'TRY'})`}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedInvoiceId && !invoiceLink && (
+                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                            Seçili fatura kargo fişindeki QR kodda kullanılacak
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
+                        Fatura bulunamadı. Fatura linki girebilirsiniz.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Butonlar */}
+                <div className="flex space-x-3">
+                  <button
+                    onClick={handleGenerateCargoSlip}
+                    disabled={generatingCargoSlipId === selectedOrderForCargoSlip.id || (!invoiceLink && !selectedInvoiceId)}
+                    className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {generatingCargoSlipId === selectedOrderForCargoSlip.id ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Oluşturuluyor...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="w-5 h-5" />
+                        <span>Kargo Fişi Oluştur</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCargoSlipModal(false)
+                      setSelectedOrderForCargoSlip(null)
+                    }}
+                    className="px-6 py-3 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
+                  >
+                    İptal
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

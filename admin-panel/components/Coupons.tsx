@@ -278,10 +278,10 @@ export default function Coupons() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-700'
-      case 'used': return 'bg-blue-100 text-blue-700'
-      case 'expired': return 'bg-red-100 text-red-700'
-      default: return 'bg-slate-100 text-slate-700'
+      case 'active': return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+      case 'used': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+      case 'expired': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+      default: return 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
     }
   }
 
@@ -498,7 +498,7 @@ export default function Coupons() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400"></div>
       </div>
     )
   }
@@ -558,13 +558,13 @@ export default function Coupons() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 hover:shadow-lg transition-shadow"
+          className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl p-6 border border-green-200 dark:border-green-800 hover:shadow-lg transition-shadow"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <Ticket className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
+              <Ticket className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
-            <span className="text-2xl font-bold text-green-600">{coupons.filter(c => c.active).length}</span>
+            <span className="text-2xl font-bold text-green-600 dark:text-green-400">{coupons.filter(c => c.active).length}</span>
           </div>
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Aktif Kuponlar</h3>
           <p className="text-sm text-slate-600 dark:text-slate-400">Şu anda kullanılabilir kuponlar</p>
@@ -574,13 +574,13 @@ export default function Coupons() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-200 hover:shadow-lg transition-shadow"
+          className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800 hover:shadow-lg transition-shadow"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Users className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+              <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
-            <span className="text-2xl font-bold text-blue-600">{discountCodes.filter(c => c.active).length}</span>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{discountCodes.filter(c => c.active).length}</span>
           </div>
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Aktif İndirim Kodları</h3>
           <p className="text-sm text-slate-600 dark:text-slate-400">Kullanıcıya özel indirim kodları</p>
@@ -590,13 +590,13 @@ export default function Coupons() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl p-6 border border-purple-200 hover:shadow-lg transition-shadow"
+          className="bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 rounded-2xl p-6 border border-purple-200 dark:border-purple-800 hover:shadow-lg transition-shadow"
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Gift className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+              <Gift className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
-            <span className="text-2xl font-bold text-purple-600">{giftCards.filter(c => c.status === 'active').length}</span>
+            <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{giftCards.filter(c => c.status === 'active').length}</span>
           </div>
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Aktif Hediye Kartları</h3>
           <p className="text-sm text-slate-600 dark:text-slate-400">Kullanılabilir hediye kartları</p>
@@ -656,8 +656,10 @@ export default function Coupons() {
         </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-bold text-green-600">
-                        {coupon.type === 'percentage' ? `%${coupon.discount}` : `${coupon.discount}₺`}
+                      <div className="font-bold text-green-600 dark:text-green-400">
+                        {coupon.discount 
+                          ? (coupon.type === 'percentage' ? `%${coupon.discount}` : `${coupon.discount}₺`)
+                          : '-'}
         </div>
                       {coupon.minAmount > 0 && (
                         <div className="text-xs text-slate-500 dark:text-slate-400">Min: {coupon.minAmount}₺</div>
@@ -665,18 +667,24 @@ export default function Coupons() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm">
-                        <div className="font-semibold text-slate-800 dark:text-slate-100">{coupon.used}/{coupon.maxUses}</div>
-                        <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-1">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{ width: `${(coupon.used / coupon.maxUses) * 100}%` }}
-                          ></div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">
+                          {coupon.used ?? 0}/{coupon.maxUses || '∞'}
+                        </div>
+                        {coupon.maxUses && (
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-1">
+                            <div 
+                              className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full" 
+                              style={{ width: `${((coupon.used ?? 0) / coupon.maxUses) * 100}%` }}
+                            ></div>
         </div>
+                        )}
       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-slate-600 dark:text-slate-400">
-                        {new Date(coupon.validUntil).toLocaleDateString('tr-TR')}
+                        {coupon.validUntil && !isNaN(new Date(coupon.validUntil).getTime())
+                          ? new Date(coupon.validUntil).toLocaleDateString('tr-TR')
+                          : '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -738,32 +746,32 @@ export default function Coupons() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50">
+              <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Kod</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Kullanıcı</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">İndirim</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Kullanım</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Geçerlilik</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Durum</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">İşlem</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Kod</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Kullanıcı</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">İndirim</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Kullanım</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Geçerlilik</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Durum</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">İşlem</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {filteredDiscountCodes.map((code, index) => (
                   <motion.tr
                     key={code.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="hover:bg-slate-50 transition-colors"
+                    className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl flex items-center justify-center text-white">
                           <Users className="w-5 h-5" />
                         </div>
-                        <div className="font-semibold text-slate-800">{code.code}</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">{code.code}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -772,45 +780,51 @@ export default function Coupons() {
                           {code.userName ? code.userName.charAt(0).toUpperCase() : 'G'}
                         </div>
                         <div className="text-sm">
-                          <div className="font-semibold text-slate-800">{code.userName || 'Genel'}</div>
+                          <div className="font-semibold text-slate-800 dark:text-slate-100">{code.userName || 'Genel'}</div>
                           {code.userId && (
-                            <div className="text-xs text-slate-500">ID: {code.userId}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">ID: {code.userId}</div>
                           )}
                           {code.userEmail && (
-                            <div className="text-xs text-slate-500">{code.userEmail}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{code.userEmail}</div>
                           )}
                         </div>
               </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-bold text-green-600">
-                        {code.type === 'percentage' ? `%${code.discount}` : `${code.discount}₺`}
+                      <div className="font-bold text-green-600 dark:text-green-400">
+                        {code.discount 
+                          ? (code.type === 'percentage' ? `%${code.discount}` : `${code.discount}₺`)
+                          : '-'}
               </div>
                       {code.minAmount && code.minAmount > 0 && (
-                        <div className="text-xs text-slate-500">Min: {code.minAmount}₺</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">Min: {code.minAmount}₺</div>
                       )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm">
-                        <div className="font-semibold">{code.used}/{code.maxUses || '∞'}</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">
+                          {code.used ?? 0}/{code.maxUses || '∞'}
+                        </div>
                         {code.maxUses && (
-                          <div className="w-full bg-slate-200 rounded-full h-2 mt-1">
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-1">
                             <div 
-                              className="bg-green-600 h-2 rounded-full" 
-                              style={{ width: `${(code.used / code.maxUses) * 100}%` }}
+                              className="bg-green-600 dark:bg-green-400 h-2 rounded-full" 
+                              style={{ width: `${((code.used ?? 0) / code.maxUses) * 100}%` }}
                 ></div>
               </div>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-slate-600">
-                        {new Date(code.validUntil).toLocaleDateString('tr-TR')}
+                      <div className="text-sm text-slate-600 dark:text-slate-400">
+                        {code.validUntil && !isNaN(new Date(code.validUntil).getTime())
+                          ? new Date(code.validUntil).toLocaleDateString('tr-TR')
+                          : '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                        code.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        code.active ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                       }`}>
                         {code.active ? 'Aktif' : 'Pasif'}
                       </span>
@@ -819,21 +833,21 @@ export default function Coupons() {
                       <div className="flex items-center space-x-2">
                         <button 
                           onClick={() => copyCode(code.code)}
-                          className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+                          className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400 transition-colors"
                           title="Kopyala"
                         >
                           <Copy className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => openModal('discount-code', code)}
-                          className="p-2 hover:bg-green-50 rounded-lg text-green-600 transition-colors"
+                          className="p-2 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg text-green-600 dark:text-green-400 transition-colors"
                           title="Düzenle"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => deleteItem(code.id, 'discount-code')}
-                          className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
+                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg text-red-600 dark:text-red-400 transition-colors"
                           title="Sil"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -878,21 +892,21 @@ export default function Coupons() {
                   <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">İşlem</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {filteredGiftCards.map((card, index) => (
                   <motion.tr
                     key={card.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="hover:bg-slate-50 transition-colors"
+                    className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-white">
                           <Gift className="w-5 h-5" />
                         </div>
-                        <div className="font-semibold text-slate-800">{card.code}</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">{card.code}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -901,25 +915,31 @@ export default function Coupons() {
                           {card.recipientName ? card.recipientName.charAt(0).toUpperCase() : 'H'}
                         </div>
                         <div className="text-sm">
-                          <div className="font-semibold text-slate-800">{card.recipientName || 'Belirtilmemiş'}</div>
+                          <div className="font-semibold text-slate-800 dark:text-slate-100">{card.recipientName || 'Belirtilmemiş'}</div>
                           {card.recipientEmail && (
-                            <div className="text-xs text-slate-500">{card.recipientEmail}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{card.recipientEmail}</div>
                           )}
                           {card.userId && (
-                            <div className="text-xs text-blue-600">Kullanıcı ID: {card.userId}</div>
+                            <div className="text-xs text-blue-600 dark:text-blue-400">Kullanıcı ID: {card.userId}</div>
                           )}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-bold text-purple-600">{card.amount}₺</div>
+                      <div className="font-bold text-purple-600 dark:text-purple-400">
+                        {card.amount ? `${card.amount}₺` : '-'}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-bold text-green-600">{card.balance}₺</div>
+                      <div className="font-bold text-green-600 dark:text-green-400">
+                        {card.balance !== undefined && card.balance !== null ? `${card.balance}₺` : '-'}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-slate-600">
-                        {new Date(card.validUntil).toLocaleDateString('tr-TR')}
+                      <div className="text-sm text-slate-600 dark:text-slate-400">
+                        {card.validUntil && !isNaN(new Date(card.validUntil).getTime())
+                          ? new Date(card.validUntil).toLocaleDateString('tr-TR')
+                          : '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -935,21 +955,21 @@ export default function Coupons() {
                       <div className="flex items-center space-x-2">
                         <button 
                           onClick={() => copyCode(card.code)}
-                          className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+                          className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400 transition-colors"
                           title="Kopyala"
                         >
                           <Copy className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => openModal('gift-card', card)}
-                          className="p-2 hover:bg-green-50 rounded-lg text-green-600 transition-colors"
+                          className="p-2 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg text-green-600 dark:text-green-400 transition-colors"
                           title="Düzenle"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
               <button
                           onClick={() => deleteItem(card.id, 'gift-card')}
-                          className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
+                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg text-red-600 dark:text-red-400 transition-colors"
                           title="Sil"
               >
                           <Trash2 className="w-4 h-4" />
@@ -1110,13 +1130,13 @@ export default function Coupons() {
                             setShowUserSearch(true)
                           }}
                           onFocus={() => setShowUserSearch(true)}
-                          className="w-full px-4 py-3 pl-10 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                          className="w-full px-4 py-3 pl-10 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-800 dark:text-slate-100" 
                           placeholder="Kullanıcı adı veya e-posta ile ara..."
                         />
-                        <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                        <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                         {userSearchLoading && (
                           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 dark:border-blue-400"></div>
                           </div>
                         )}
                       </div>
@@ -1126,7 +1146,7 @@ export default function Coupons() {
                         <div className="absolute z-20 w-full mt-1 bg-white dark:bg-dark-card border border-slate-300 dark:border-slate-600 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                           {userSearchLoading ? (
                             <div className="p-4 text-center">
-                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
                               <div className="text-sm text-slate-500 dark:text-slate-400 mt-2">Kullanıcılar aranıyor...</div>
                             </div>
                           ) : users.length > 0 ? (
@@ -1193,7 +1213,7 @@ export default function Coupons() {
                     )}
 
                     {/* Manuel Kullanıcı ID Girişi */}
-                    <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
                       <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">Veya Manuel Kullanıcı ID</label>
                       <input 
                         type="number" 
@@ -1305,14 +1325,14 @@ export default function Coupons() {
                     id="active" 
                     checked={formData.active} 
                     onChange={(e)=>setFormData({...formData,active:e.target.checked})} 
-                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-blue-600 dark:text-blue-400 border-slate-300 dark:border-slate-600 rounded focus:ring-blue-500 dark:bg-slate-700"
                   />
-                  <label htmlFor="active" className="text-sm font-medium text-slate-700">
+                  <label htmlFor="active" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Aktif
                   </label>
                 </div>
 
-                <div className="flex space-x-4 pt-6 border-t border-slate-200">
+                <div className="flex space-x-4 pt-6 border-t border-slate-200 dark:border-slate-700">
                   <button 
                     type="submit" 
                     disabled={submitLoading}
@@ -1333,7 +1353,7 @@ export default function Coupons() {
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)} 
-                    className="px-8 py-4 border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors font-semibold"
+                    className="px-8 py-4 border border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-semibold text-slate-700 dark:text-slate-300"
                   >
                     İptal
                   </button>
