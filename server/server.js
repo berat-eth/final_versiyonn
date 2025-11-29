@@ -12416,6 +12416,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         const merchantSku = item.merchantSku ? String(item.merchantSku) : '';
         const productColor = item.productColor ? String(item.productColor) : '';
         const quantity = item.quantity ? parseInt(item.quantity) : 1;
+        const price = item.price ? parseFloat(item.price) : 0;
         // Hepsiburada için özel alanlar
         const option1 = item.option1 ? String(item.option1) : '';
         const option2 = item.option2 ? String(item.option2) : '';
@@ -12431,7 +12432,7 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
         let detailLines = [];
         
         if (provider === 'hepsiburada') {
-          // Hepsiburada için: Seçenek 1, Seçenek 2, Adet
+          // Hepsiburada için: Seçenek 1, Seçenek 2, Adet, Fiyat
           if (option1 && String(option1).trim() !== '') {
             detailLines.push(`Seçenek 1: ${option1}`);
           }
@@ -12443,13 +12444,25 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           if (quantity && quantity > 0) {
             detailLines.push(`Adet: ${quantity}`);
           }
+          
+          // Fiyat bilgisi ekle
+          if (price && price > 0) {
+            const formattedPrice = price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            detailLines.push(`Fiyat: ${formattedPrice} TRY`);
+          }
         } else if (provider === 'ticimax') {
-          // Ticimax için: Sadece Adet
+          // Ticimax için: Adet, Fiyat
           if (quantity && quantity > 0) {
             detailLines.push(`Adet: ${quantity}`);
           }
+          
+          // Fiyat bilgisi ekle
+          if (price && price > 0) {
+            const formattedPrice = price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            detailLines.push(`Fiyat: ${formattedPrice} TRY`);
+          }
         } else {
-          // Trendyol ve diğer marketplace'ler için: productSize, merchantSku, productColor, quantity
+          // Trendyol ve diğer marketplace'ler için: productSize, merchantSku, productColor, quantity, Fiyat
           if (productSize && String(productSize).trim() !== '') {
             detailLines.push(`Beden: ${productSize}`);
           }
@@ -12464,6 +12477,12 @@ app.post('/api/admin/generate-cargo-slip', authenticateAdmin, async (req, res) =
           
           if (quantity && quantity > 0) {
             detailLines.push(`Adet: ${quantity}`);
+          }
+          
+          // Fiyat bilgisi ekle
+          if (price && price > 0) {
+            const formattedPrice = price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            detailLines.push(`Fiyat: ${formattedPrice} TRY`);
           }
         }
         

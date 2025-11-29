@@ -271,13 +271,17 @@ export default function TrendyolOrders() {
               console.warn('itemData parse hatası:', e);
             }
             
+            // Trendyol için fiyat: itemData'dan totalPrice veya item.price
+            const itemPrice = itemData?.totalPrice || item.price || 0;
+            
             return {
               productName: item.productName || '',
               productSku: item.productSku || '',
               productSize: itemData?.productSize || itemData?.size || item.productSize || '',
               merchantSku: itemData?.merchantSku || item.merchantSku || item.productSku || '',
               productColor: itemData?.productColor || itemData?.color || item.productColor || '',
-              quantity: item.quantity || 1
+              quantity: item.quantity || 1,
+              price: itemPrice
             };
           })
         })

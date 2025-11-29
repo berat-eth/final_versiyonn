@@ -291,7 +291,8 @@ export default function HepsiburadaOrders() {
               productSku: item.productSku || '',
               option1: item.option1 || itemData?.['Seçenek 1'] || itemData?.option1 || '',
               option2: item.option2 || itemData?.['Seçenek 2'] || itemData?.option2 || '',
-              quantity: item.quantity || 1
+              quantity: item.quantity || 1,
+              price: item.price || itemData?.['Faturalandırılacak Satış Fiyatı'] || 0
             };
           })
         })
