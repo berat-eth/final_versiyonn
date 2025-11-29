@@ -36,6 +36,7 @@ import { ProductListControls } from '../components/ProductListControls';
 import { FlashDealsHeader } from '../components/FlashDealsHeader';
 import FlashDealService, { FlashDeal } from '../services/FlashDealService';
 import { Chatbot } from '../components/Chatbot';
+import { CacheService } from '../services/CacheService';
 
 interface ProductListScreenProps {
   navigation: any;
@@ -128,101 +129,6 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
     return Math.abs(hash).toString(36);
   }, [filters]);
-
-  useEffect(() => {
-    let mounted = true;
-    // Başlangıçta işlemleri paralel başlat, render'ı bekletme
-    loadData(1, false);
-    loadFavorites();
-    loadCampaigns();
-    // Flash deals sadece showFlashDeals true ise veya cache'den yüklenecek (4 dakikada bir API'den çekiliyor)
-    if (showFlashDeals) {
-      loadFlashDeals();
-    }
-    if (mounted && !nowIntervalRef.current) {
-      nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
-    }
-
-    const unsubscribeFocus = navigation.addListener('focus', () => {
-      if (!nowIntervalRef.current) {
-        nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
-      }
-    });
-    const unsubscribeBlur = navigation.addListener('blur', () => {
-      if (nowIntervalRef.current) {
-        clearInterval(nowIntervalRef.current);
-        nowIntervalRef.current = null;
-      }
-    });
-
-    return () => {
-      mounted = false;
-      unsubscribeFocus?.();
-      unsubscribeBlur?.();
-      if (nowIntervalRef.current) {
-        clearInterval(nowIntervalRef.current);
-        nowIntervalRef.current = null;
-      }
-    };
-  }, [selectedCategory, navigation, showFlashDeals, loadData]);
-
-  // ✅ OPTIMIZASYON: Cache prefetching - Sonraki sayfayı arka planda önceden yükle
-  useEffect(() => {
-    if (!selectedCategory && !showFlashDeals && !searchQuery && hasMore && currentPageNum === 1 && products.length > 0) {
-      // İlk sayfa yüklendikten sonra, sonraki sayfayı arka planda cache'le
-      const prefetchPage = currentPageNum + 1;
-      ProductController.cacheBatchPages(prefetchPage, prefetchPage, ITEMS_PER_PAGE).catch(() => {});
-    }
-  }, [currentPageNum, hasMore, selectedCategory, showFlashDeals, searchQuery, products.length]);
-
-  useEffect(() => {
-    if (route.params?.searchQuery) {
-      setSearchQuery(route.params.searchQuery);
-    }
-  }, [route.params?.searchQuery]);
-
-  // Route params değiştiğinde selectedCategory'yi güncelle
-  useEffect(() => {
-    if (route.params?.category !== undefined) {
-      setSelectedCategory(route.params.category);
-    }
-    if (route.params?.showFlashDeals !== undefined) {
-      setShowFlashDeals(route.params.showFlashDeals);
-    }
-  }, [route.params?.category, route.params?.showFlashDeals]);
-
-  // ✅ OPTIMIZASYON: Debounce süresini 500ms'ye çıkar, cache invalidation ve state optimizasyonu
-  useEffect(() => {
-    const hasSearch = searchQuery && searchQuery.trim().length >= 2; // Minimum 2 karakter
-    const hasFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
-    
-    // Arama sorgusu 2 karakterden azsa, sonuçları temizle
-    if (searchQuery && searchQuery.trim().length > 0 && searchQuery.trim().length < 2) {
-      setFilteredProducts([]);
-      setTotalProducts(0);
-      return;
-    }
-    
-    // ✅ OPTIMIZASYON: Cache invalidation when filters/search change
-    if (hasSearch || hasFilters || sortBy !== 'default') {
-      // Clear memory cache when filters/search/sort change
-      memoryCacheRef.current.clear();
-    }
-    
-    // ✅ OPTIMIZASYON: Debounce timer - 500ms
-    const timeoutId = setTimeout(() => {
-      if (hasSearch || hasFilters) {
-        // Arama veya filtreleme varsa API'den tüm sonuçları çek
-        loadFilteredData();
-      } else if (products.length > 0) {
-        // Arama/filtreleme yoksa sadece sıralama uygula
-        applyFiltersAndSort();
-      }
-    }, 500); // 500ms debounce (300ms'den artırıldı)
-    
-    return () => clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, sortBy, filters]);
 
   // ✅ OPTIMIZASYON: Infinite scroll için append-based yükleme + Memory cache
   const loadData = useCallback(async (page: number = 1, append: boolean = false, forceRefresh: boolean = false) => {
@@ -354,6 +260,101 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       loadingMoreRef.current = false;
     }
   }, [selectedCategory, categories.length, searchQuery, sortBy, filters, getCacheKey, getFiltersHash]);
+
+  useEffect(() => {
+    let mounted = true;
+    // Başlangıçta işlemleri paralel başlat, render'ı bekletme
+    loadData(1, false);
+    loadFavorites();
+    loadCampaigns();
+    // Flash deals sadece showFlashDeals true ise veya cache'den yüklenecek (4 dakikada bir API'den çekiliyor)
+    if (showFlashDeals) {
+      loadFlashDeals();
+    }
+    if (mounted && !nowIntervalRef.current) {
+      nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
+    }
+
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      if (!nowIntervalRef.current) {
+        nowIntervalRef.current = setInterval(() => setNowTs(Date.now()), 1000);
+      }
+    });
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      if (nowIntervalRef.current) {
+        clearInterval(nowIntervalRef.current);
+        nowIntervalRef.current = null;
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribeFocus?.();
+      unsubscribeBlur?.();
+      if (nowIntervalRef.current) {
+        clearInterval(nowIntervalRef.current);
+        nowIntervalRef.current = null;
+      }
+    };
+  }, [selectedCategory, navigation, showFlashDeals, loadData]);
+
+  // ✅ OPTIMIZASYON: Cache prefetching - Sonraki sayfayı arka planda önceden yükle
+  useEffect(() => {
+    if (!selectedCategory && !showFlashDeals && !searchQuery && hasMore && currentPageNum === 1 && products.length > 0) {
+      // İlk sayfa yüklendikten sonra, sonraki sayfayı arka planda cache'le
+      const prefetchPage = currentPageNum + 1;
+      ProductController.cacheBatchPages(prefetchPage, prefetchPage, ITEMS_PER_PAGE).catch(() => {});
+    }
+  }, [currentPageNum, hasMore, selectedCategory, showFlashDeals, searchQuery, products.length]);
+
+  useEffect(() => {
+    if (route.params?.searchQuery) {
+      setSearchQuery(route.params.searchQuery);
+    }
+  }, [route.params?.searchQuery]);
+
+  // Route params değiştiğinde selectedCategory'yi güncelle
+  useEffect(() => {
+    if (route.params?.category !== undefined) {
+      setSelectedCategory(route.params.category);
+    }
+    if (route.params?.showFlashDeals !== undefined) {
+      setShowFlashDeals(route.params.showFlashDeals);
+    }
+  }, [route.params?.category, route.params?.showFlashDeals]);
+
+  // ✅ OPTIMIZASYON: Debounce süresini 500ms'ye çıkar, cache invalidation ve state optimizasyonu
+  useEffect(() => {
+    const hasSearch = searchQuery && searchQuery.trim().length >= 2; // Minimum 2 karakter
+    const hasFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
+    
+    // Arama sorgusu 2 karakterden azsa, sonuçları temizle
+    if (searchQuery && searchQuery.trim().length > 0 && searchQuery.trim().length < 2) {
+      setFilteredProducts([]);
+      setTotalProducts(0);
+      return;
+    }
+    
+    // ✅ OPTIMIZASYON: Cache invalidation when filters/search change
+    if (hasSearch || hasFilters || sortBy !== 'default') {
+      // Clear memory cache when filters/search/sort change
+      memoryCacheRef.current.clear();
+    }
+    
+    // ✅ OPTIMIZASYON: Debounce timer - 500ms
+    const timeoutId = setTimeout(() => {
+      if (hasSearch || hasFilters) {
+        // Arama veya filtreleme varsa API'den tüm sonuçları çek
+        loadFilteredData();
+      } else if (products.length > 0) {
+        // Arama/filtreleme yoksa sadece sıralama uygula
+        applyFiltersAndSort();
+      }
+    }, 500); // 500ms debounce (300ms'den artırıldı)
+    
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, sortBy, filters]);
 
   const loadCampaigns = async () => {
     try {

@@ -45,6 +45,7 @@ export default function TicimaxOrders() {
   const [statusFilter, setStatusFilter] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
@@ -66,7 +67,7 @@ export default function TicimaxOrders() {
     }, 500)
     
     return () => clearTimeout(timeoutId)
-  }, [statusFilter, startDate, endDate])
+  }, [statusFilter, startDate, endDate, sortOrder])
 
   const loadOrders = async () => {
     try {
@@ -75,6 +76,7 @@ export default function TicimaxOrders() {
       if (statusFilter) params.status = statusFilter
       if (startDate) params.startDate = startDate
       if (endDate) params.endDate = endDate
+      params.sortOrder = sortOrder
       
       const response = await api.get<ApiResponse<TicimaxOrder[]>>('/admin/ticimax-orders', params)
       if (response.success && response.data) {
@@ -440,7 +442,7 @@ export default function TicimaxOrders() {
 
       {/* Filtreler */}
       <div className="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-slate-200 dark:border-dark-border p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Arama
@@ -493,6 +495,19 @@ export default function TicimaxOrders() {
               onChange={(e) => setEndDate(e.target.value)}
               className="w-full px-4 py-2 border border-slate-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-dark-bg dark:text-slate-200"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Sıralama
+            </label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+              className="w-full px-4 py-2 border border-slate-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-dark-bg dark:text-slate-200"
+            >
+              <option value="desc">En Yeni (Önce)</option>
+              <option value="asc">En Eski (Önce)</option>
+            </select>
           </div>
         </div>
       </div>

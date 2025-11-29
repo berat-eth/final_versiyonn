@@ -11102,7 +11102,7 @@ app.post('/api/admin/ticimax-orders/import', authenticateAdmin, multer({ storage
 app.get('/api/admin/ticimax-orders', authenticateAdmin, async (req, res) => {
   try {
     const tenantId = req.tenant?.id || 1;
-    const { status, page = 1, limit = 50, startDate, endDate } = req.query;
+    const { status, page = 1, limit = 50, startDate, endDate, sortOrder = 'desc' } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     let whereClauses = ['tenantId = ?'];
@@ -11125,6 +11125,9 @@ app.get('/api/admin/ticimax-orders', authenticateAdmin, async (req, res) => {
 
     const whereSql = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
+    // Sıralama yönü (asc veya desc)
+    const orderDirection = sortOrder === 'asc' ? 'ASC' : 'DESC';
+
     // Toplam sipariş sayısını al
     const [countResult] = await poolWrapper.execute(
       `SELECT COUNT(*) as total FROM ticimax_orders ${whereSql}`,
@@ -11140,7 +11143,7 @@ app.get('/api/admin/ticimax-orders', authenticateAdmin, async (req, res) => {
     const totalAmount = parseFloat(totalAmountResult[0]?.totalAmount || 0);
 
     const [orders] = await poolWrapper.execute(
-      `SELECT * FROM ticimax_orders ${whereSql} ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+      `SELECT * FROM ticimax_orders ${whereSql} ORDER BY createdAt ${orderDirection} LIMIT ? OFFSET ?`,
       [...params, parseInt(limit), offset]
     );
 
