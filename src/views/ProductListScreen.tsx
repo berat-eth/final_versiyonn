@@ -97,6 +97,33 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
 
   const searchInputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
+  
+  // ✅ OPTIMIZASYON: Memory cache for products (component-level)
+  const memoryCacheRef = useRef<Map<string, { products: Product[], total: number, hasMore: boolean, timestamp: number }>>(new Map());
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  // ✅ OPTIMIZASYON: Generate cache key with all relevant parameters
+  const getCacheKey = useCallback((page: number, category: string | null, filtersHash: string, sortBy: string) => {
+    return `products:page:${page}:category:${category || 'all'}:filters:${filtersHash}:sort:${sortBy}`;
+  }, []);
+
+  // ✅ OPTIMIZASYON: Hash filters for cache key
+  const getFiltersHash = useCallback(() => {
+    const filterStr = JSON.stringify({
+      minPrice: filters.minPrice,
+      maxPrice: filters.maxPrice,
+      brands: filters.brands.sort().join(','),
+      inStock: filters.inStock
+    });
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < filterStr.length; i++) {
+      const char = filterStr.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36);
+  }, [filters]);
 
   useEffect(() => {
     let mounted = true;
@@ -160,7 +187,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
   }, [route.params?.category, route.params?.showFlashDeals]);
 
-  // ✅ OPTIMIZASYON: Debounce süresini 500ms'ye çıkar ve state optimizasyonu
+  // ✅ OPTIMIZASYON: Debounce süresini 500ms'ye çıkar, cache invalidation ve state optimizasyonu
   useEffect(() => {
     const hasSearch = searchQuery && searchQuery.trim().length >= 2; // Minimum 2 karakter
     const hasFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
@@ -170,6 +197,12 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       setFilteredProducts([]);
       setTotalProducts(0);
       return;
+    }
+    
+    // ✅ OPTIMIZASYON: Cache invalidation when filters/search change
+    if (hasSearch || hasFilters || sortBy !== 'default') {
+      // Clear memory cache when filters/search/sort change
+      memoryCacheRef.current.clear();
     }
     
     // ✅ OPTIMIZASYON: Debounce timer - 500ms
@@ -187,16 +220,44 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, sortBy, filters]);
 
-  // ✅ OPTIMIZASYON: Infinite scroll için append-based yükleme
-  const loadData = useCallback(async (page: number = 1, append: boolean = false) => {
+  // ✅ OPTIMIZASYON: Infinite scroll için append-based yükleme + Memory cache
+  const loadData = useCallback(async (page: number = 1, append: boolean = false, forceRefresh: boolean = false) => {
     try {
+      const effectiveCategory = selectedCategory && selectedCategory !== 'Tümü' ? selectedCategory : null;
+      const filtersHash = getFiltersHash();
+      const cacheKey = getCacheKey(page, effectiveCategory, filtersHash, sortBy);
+      
+      // ✅ OPTIMIZASYON: Check memory cache first (only if no search/filters and not forcing refresh)
+      if (!forceRefresh && !searchQuery && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock && sortBy === 'default') {
+        const cached = memoryCacheRef.current.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+          // Cache hit - return immediately
+          if (page === 1) {
+            setProducts(cached.products);
+            setFilteredProducts(cached.products);
+          } else if (append) {
+            setProducts(prev => [...prev, ...cached.products]);
+            setFilteredProducts(prev => [...prev, ...cached.products]);
+          }
+          setTotalProducts(cached.total);
+          setHasMore(cached.hasMore);
+          setCurrentPageNum(page);
+          setLoading(false);
+          setLoadingMore(false);
+          
+          // ✅ OPTIMIZASYON: Stale-while-revalidate - refresh in background
+          if (page === 1) {
+            loadData(page, false, true).catch(() => {});
+          }
+          return;
+        }
+      }
+      
       if (page === 1) {
         setLoading(true);
       } else {
         setLoadingMore(true);
       }
-      
-      const effectiveCategory = selectedCategory && selectedCategory !== 'Tümü' ? selectedCategory : null;
       
       // Kategorileri sadece ilk yüklemede veya kategori listesi boşsa çek
       const categoriesPromise = (page === 1 && categories.length === 0) 
@@ -254,6 +315,16 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         setTotalProducts(total || 0);
         setHasMore(Boolean(more));
         setCurrentPageNum(page);
+        
+        // ✅ OPTIMIZASYON: Cache the result in memory (only if no search/filters)
+        if (!searchQuery && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock && sortBy === 'default') {
+          memoryCacheRef.current.set(cacheKey, {
+            products: pageArray,
+            total: total || 0,
+            hasMore: Boolean(more),
+            timestamp: Date.now()
+          });
+        }
       }
       
       // Kategorileri sadece yeni veri geldiyse güncelle
@@ -266,7 +337,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [selectedCategory, categories.length, searchQuery, sortBy, filters]);
+  }, [selectedCategory, categories.length, searchQuery, sortBy, filters, getCacheKey, getFiltersHash]);
 
   const loadCampaigns = async () => {
     try {
@@ -371,20 +442,33 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     if (!loadingMore && hasMore && !selectedCategory && !showFlashDeals && !searchQuery && 
         filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
       const nextPage = currentPageNum + 1;
-      loadData(nextPage, true); // append=true ile sonraki sayfayı ekle
+      loadData(nextPage, true, false); // append=true ile sonraki sayfayı ekle
     }
   }, [loadingMore, hasMore, selectedCategory, showFlashDeals, searchQuery, filters, currentPageNum, loadData]);
 
+  // ✅ OPTIMIZASYON: Cache invalidation on refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setCurrentPageNum(1);
     setHasMore(true);
+    
+    // ✅ OPTIMIZASYON: Clear memory cache on refresh
+    memoryCacheRef.current.clear();
+    const effectiveCategory = selectedCategory && selectedCategory !== 'Tümü' ? selectedCategory : null;
+    if (effectiveCategory) {
+      // Clear category cache
+      await CacheService.clearPattern('cache:products:category:');
+    } else {
+      // Clear products cache
+      await CacheService.clearPattern('cache:products:page:');
+    }
+    
     await Promise.all([
-      loadData(1, false), // append=false ile reset
+      loadData(1, false, true), // append=false, forceRefresh=true ile reset
       loadFlashDeals()
     ]);
     setRefreshing(false);
-  }, [loadData]);
+  }, [loadData, selectedCategory]);
 
 
   // API'den filtrelenmiş verileri yükle
@@ -618,23 +702,27 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
   }, [cachedUserId, favoriteProducts]);
 
-  const handleSearchSubmit = () => {
+  // ✅ OPTIMIZASYON: Cache invalidation on search
+  const handleSearchSubmit = useCallback(() => {
     // Arama veya filtreleme varsa API'den tüm sonuçları çek
     const hasSearch = searchQuery && searchQuery.trim().length > 0;
     const hasFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
     
+    // ✅ OPTIMIZASYON: Clear cache when searching
     if (hasSearch || hasFilters) {
+      memoryCacheRef.current.clear();
       loadFilteredData();
     } else {
       // Arama/filtreleme yoksa normal sayfalama moduna dön
       setCurrentPageNum(1);
-      loadData(1);
+      loadData(1, false, true); // forceRefresh=true
     }
-  };
+  }, [searchQuery, filters, loadFilteredData, loadData]);
 
   const hasActiveFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
 
-  const handleCategorySelect = (category: string | null) => {
+  // ✅ OPTIMIZASYON: Cache invalidation on category change
+  const handleCategorySelect = useCallback(async (category: string | null) => {
     setSelectedCategory(category);
     // Kategori değiştiğinde sayfa 1'e dön ve filtreleri sıfırla
     setCurrentPageNum(1);
@@ -647,7 +735,15 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       inStock: false,
     });
     setSortBy('default');
-  };
+    
+    // ✅ OPTIMIZASYON: Clear cache when category changes
+    memoryCacheRef.current.clear();
+    if (category) {
+      await CacheService.clearPattern('cache:products:category:');
+    } else {
+      await CacheService.clearPattern('cache:products:page:');
+    }
+  }, []);
 
   const handleAllCategoriesPress = () => {
     navigation.navigate('AllCategories');
@@ -753,7 +849,9 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
           // Normal sayfalama moduna dön
           setCurrentPageNum(1);
           setHasMore(true);
-          loadData(1, false);
+          // ✅ OPTIMIZASYON: Clear cache when clearing filters
+          memoryCacheRef.current.clear();
+          loadData(1, false, true); // forceRefresh=true
         }}
         variant="outline"
         size="medium"

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
 import { useTheme } from '@/lib/ThemeContext'
 import { 
@@ -30,15 +30,81 @@ export default function MLInsights() {
   const [logType, setLogType] = useState('training')
   const [error, setError] = useState<string | null>(null)
 
+  // Debounce timer ref
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Retry helper with exponential backoff for 429 errors
+  const retryWithBackoff = useCallback(async <T,>(
+    fn: () => Promise<T>,
+    maxRetries: number = 5,
+    baseDelay: number = 1000
+  ): Promise<T> => {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        
+        // 429 hatası kontrolü
+        const is429Error = 
+          error?.status === 429 || 
+          error?.response?.status === 429 ||
+          (error?.message && error.message.includes('429')) ||
+          (error?.message && error.message.includes('Too many requests'));
+        
+        if (is429Error && attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+          console.log(`⏳ Rate limit (429) - ${delay}ms bekleniyor (deneme ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // 429 değilse veya son denemeyse throw et
+        throw error;
+      }
+    }
+    
+    throw lastError;
+  }, []);
+
+  // Debounced load data
   useEffect(() => {
-    loadData()
+    // Önceki timer'ı temizle
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Yeni timer başlat
+    debounceTimerRef.current = setTimeout(() => {
+      loadData();
+    }, 300); // 300ms debounce
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   }, [timeRange, activeSection])
 
   useEffect(() => {
     if (activeSection === 'logs') {
-      loadLogs()
+      // Logs için de debounce ekle
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        loadLogs();
+      }, 300);
     }
-  }, [logType])
+    
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [logType, activeSection])
 
   const loadData = async () => {
     setLoading(true)
@@ -48,7 +114,9 @@ export default function MLInsights() {
 
       switch (activeSection) {
         case 'overview':
-          const statsRes = await api.get(`/admin/ml/statistics?timeRange=${timeRange}&tenantId=${tenantId}`) as any
+          const statsRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/statistics?timeRange=${timeRange}&tenantId=${tenantId}`) as Promise<any>
+          )
           console.log('📊 Statistics response:', statsRes)
           if (statsRes && statsRes.success !== false) {
             setStatistics(statsRes.data || statsRes)
@@ -60,7 +128,9 @@ export default function MLInsights() {
 
         case 'predictions':
           // Get all predictions (userId optional)
-          const predRes = await api.get(`/admin/ml/predictions?limit=50&tenantId=${tenantId}`) as any
+          const predRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/predictions?limit=50&tenantId=${tenantId}`) as Promise<any>
+          )
           console.log('🔮 Predictions response:', predRes)
           if (predRes && predRes.success !== false) {
             setPredictions(predRes.data || predRes || [])
@@ -72,7 +142,9 @@ export default function MLInsights() {
 
         case 'recommendations':
           // Get all recommendations (userId optional)
-          const recRes = await api.get(`/admin/ml/recommendations?limit=50&tenantId=${tenantId}`) as any
+          const recRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/recommendations?limit=50&tenantId=${tenantId}`) as Promise<any>
+          )
           console.log('🛍️ Recommendations response:', recRes)
           if (recRes && recRes.success !== false) {
             const recData = recRes.data || recRes
@@ -84,7 +156,9 @@ export default function MLInsights() {
           break
 
         case 'anomalies':
-          const anomRes = await api.get(`/admin/ml/anomalies?limit=100&tenantId=${tenantId}`) as any
+          const anomRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/anomalies?limit=100&tenantId=${tenantId}`) as Promise<any>
+          )
           console.log('⚠️ Anomalies response:', anomRes)
           if (anomRes && anomRes.success !== false) {
             setAnomalies(anomRes.data || anomRes)
@@ -95,7 +169,9 @@ export default function MLInsights() {
           break
 
         case 'segments':
-          const segRes = await api.get(`/admin/ml/segments?tenantId=${tenantId}`) as any
+          const segRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/segments?tenantId=${tenantId}`) as Promise<any>
+          )
           console.log('👥 Segments response:', segRes)
           if (segRes && segRes.success !== false) {
             setSegments(segRes.data || segRes || [])
@@ -106,7 +182,9 @@ export default function MLInsights() {
           break
 
         case 'models':
-          const modelsRes = await api.get(`/admin/ml/models`) as any
+          const modelsRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/models`) as Promise<any>
+          )
           console.log('🤖 Models response:', modelsRes)
           if (modelsRes && modelsRes.success !== false) {
             setModels(modelsRes.data || modelsRes || [])
@@ -123,7 +201,14 @@ export default function MLInsights() {
     } catch (error: any) {
       console.error('❌ Error loading ML data:', error)
       const errorMsg = error.message || error.response?.data?.message || 'Veri yüklenirken bir hata oluştu'
-      setError(errorMsg)
+      
+      // 429 hatası için özel mesaj
+      if (error?.status === 429 || errorMsg.includes('429') || errorMsg.includes('Too many requests')) {
+        setError('Çok fazla istek gönderildi. Lütfen birkaç saniye bekleyip tekrar deneyin.')
+      } else {
+        setError(errorMsg)
+      }
+      
       // Reset all data states on error
       setStatistics(null)
       setPredictions([])
@@ -142,16 +227,24 @@ export default function MLInsights() {
       let logsRes
       switch (logType) {
         case 'training':
-          logsRes = await api.get(`/admin/ml/logs/training?limit=100`) as any
+          logsRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/logs/training?limit=100`) as Promise<any>
+          )
           break
         case 'inference':
-          logsRes = await api.get(`/admin/ml/logs/inference?limit=100`) as any
+          logsRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/logs/inference?limit=100`) as Promise<any>
+          )
           break
         case 'errors':
-          logsRes = await api.get(`/admin/ml/logs/errors?limit=100`) as any
+          logsRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/logs/errors?limit=100`) as Promise<any>
+          )
           break
         default:
-          logsRes = await api.get(`/admin/ml/logs/training?limit=100`) as any
+          logsRes = await retryWithBackoff(() => 
+            api.get(`/admin/ml/logs/training?limit=100`) as Promise<any>
+          )
       }
       console.log('📋 Logs response:', logsRes)
       if (logsRes && logsRes.success !== false) {
@@ -163,7 +256,14 @@ export default function MLInsights() {
     } catch (error: any) {
       console.error('❌ Error loading logs:', error)
       const errorMsg = error.message || error.response?.data?.message || 'Loglar yüklenirken bir hata oluştu'
-      setError(errorMsg)
+      
+      // 429 hatası için özel mesaj
+      if (error?.status === 429 || errorMsg.includes('429') || errorMsg.includes('Too many requests')) {
+        setError('Çok fazla istek gönderildi. Lütfen birkaç saniye bekleyip tekrar deneyin.')
+      } else {
+        setError(errorMsg)
+      }
+      
       setLogs(null)
     }
   }
@@ -171,7 +271,9 @@ export default function MLInsights() {
   const triggerTraining = async (modelType: string) => {
     try {
       console.log(`🚀 Eğitim başlatılıyor: ${modelType}`)
-      const response = await api.post('/admin/ml/train', { modelType, days: 30 }) as any
+      const response = await retryWithBackoff(() => 
+        api.post('/admin/ml/train', { modelType, days: 30 }) as Promise<any>
+      )
       
       if (response.success) {
         alert(`✅ ${modelType} model eğitimi başlatıldı!\n\nKonsol loglarını kontrol edin.`)
@@ -186,7 +288,13 @@ export default function MLInsights() {
     } catch (error: any) {
       console.error('❌ Training error:', error)
       const errorMsg = error.message || error.response?.data?.message || 'Eğitim başlatılamadı'
-      alert(`❌ Hata: ${errorMsg}\n\nML servisinin çalıştığından emin olun (http://localhost:8001)`)
+      
+      // 429 hatası için özel mesaj
+      if (error?.status === 429 || errorMsg.includes('429') || errorMsg.includes('Too many requests')) {
+        alert(`❌ Çok fazla istek gönderildi. Lütfen birkaç saniye bekleyip tekrar deneyin.`)
+      } else {
+        alert(`❌ Hata: ${errorMsg}\n\nML servisinin çalıştığından emin olun (http://localhost:8001)`)
+      }
     }
   }
 

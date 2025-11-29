@@ -7,8 +7,63 @@ interface CacheEntry<T = JsonValue> {
   e: number; // expiry epoch ms
 }
 
+// ✅ OPTIMIZASYON: Memory cache layer
+class MemoryCache {
+  private cache = new Map<string, CacheEntry>();
+  private maxSize = 100; // Maximum number of entries in memory cache
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.e) {
+      // expired, remove
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.v as T;
+  }
+
+  set<T>(key: string, value: T, ttlMs: number): void {
+    // LRU: If cache is full, remove oldest entry
+    if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey);
+    }
+    const entry: CacheEntry<T> = { v: value, e: Date.now() + Math.max(0, ttlMs) };
+    this.cache.set(key, entry);
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key);
+  }
+
+  clearPattern(pattern: string): void {
+    const keysToDelete: string[] = [];
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => this.cache.delete(key));
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const memoryCache = new MemoryCache();
+
 export class CacheService {
+  // ✅ OPTIMIZASYON: Memory cache + AsyncStorage hybrid
   static async get<T = JsonValue>(key: string): Promise<T | null> {
+    // First check memory cache (fastest)
+    const memoryCached = memoryCache.get<T>(key);
+    if (memoryCached !== null) {
+      return memoryCached;
+    }
+
+    // Then check AsyncStorage
     try {
       const raw = await AsyncStorage.getItem(key);
       if (!raw) return null;
@@ -19,6 +74,8 @@ export class CacheService {
         AsyncStorage.removeItem(key).catch(() => {});
         return null;
       }
+      // Populate memory cache from AsyncStorage
+      memoryCache.set(key, parsed.v, parsed.e - Date.now());
       return parsed.v;
     } catch {
       return null;
@@ -27,12 +84,17 @@ export class CacheService {
 
   static async set<T = JsonValue>(key: string, value: T, ttlMs: number): Promise<void> {
     const entry: CacheEntry<T> = { v: value, e: Date.now() + Math.max(0, ttlMs) };
+    // Set in memory cache (immediate)
+    memoryCache.set(key, value, ttlMs);
+    // Set in AsyncStorage (async, non-blocking)
     try {
       await AsyncStorage.setItem(key, JSON.stringify(entry));
     } catch {}
   }
 
   static async del(key: string): Promise<void> {
+    // Remove from both memory and AsyncStorage
+    memoryCache.delete(key);
     try { await AsyncStorage.removeItem(key); } catch {}
   }
 
@@ -41,6 +103,9 @@ export class CacheService {
   }
 
   static async clearPattern(pattern: string): Promise<void> {
+    // Clear from memory cache
+    memoryCache.clearPattern(pattern);
+    // Clear from AsyncStorage
     try {
       const keys = await AsyncStorage.getAllKeys();
       const matchingKeys = keys.filter(k => k.includes(pattern));
@@ -48,6 +113,11 @@ export class CacheService {
         await AsyncStorage.multiRemove(matchingKeys);
       }
     } catch {}
+  }
+
+  // ✅ OPTIMIZASYON: Clear all memory cache
+  static clearMemoryCache(): void {
+    memoryCache.clear();
   }
 
   static async withCache<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
