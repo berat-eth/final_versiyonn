@@ -642,8 +642,7 @@ if (process.env.NODE_ENV !== 'production') {
 // OPTİMİZASYON: Rate limiting - Yüksek trafik için optimize edilmiş
 // Limitler environment variable'lardan yapılandırılabilir
 const {
-  createGeneralAPILimiter,
-  createMobileAPILimiter,
+  createUnifiedAPILimiter,
   createLoginLimiter,
   createAdminLimiter,
   createCriticalLimiter,
@@ -655,11 +654,9 @@ const {
   getClientIP
 } = require('./utils/rate-limiting');
 
-// Genel API limiter - Yüksek trafik için 1500+ istek/15 dakika
-const authLimiter = createGeneralAPILimiter();
-
-// Mobil uygulama limiter - Mobil için 2000+ istek/15 dakika
-const mobileLimiter = createMobileAPILimiter();
+// Birleşik API limiter - Mobil/web tespiti yaparak tek limiter'da birleştirir
+// Guest kullanıcılar için artırılmış limitler, çift rate limiting sorununu çözer
+const unifiedLimiter = createUnifiedAPILimiter();
 
 // Login limiter - Environment variable'dan yapılandırılabilir
 const loginLimiter = createLoginLimiter();
@@ -700,16 +697,14 @@ app.use('/api/payments/process', paymentLimiter);
 // 3. Kategori bazlı endpoint'ler (admin, orders, critical)
 app.use('/api/orders', criticalLimiter);
 
-// 4. Genel endpoint'ler (users, products)
-// Mobil uygulama için özel limiter (daha esnek)
-app.use('/api/users', mobileLimiter);
-app.use('/api/products', mobileLimiter);
-app.use('/api/cart', mobileLimiter);
-app.use('/api/chatbot', mobileLimiter);
-app.use('/api/reviews', mobileLimiter);
-// Web için genel limiter (fallback)
-app.use('/api/users', authLimiter);
-app.use('/api/products', authLimiter);
+// 4. Genel endpoint'ler (users, products, cart, chatbot, reviews)
+// Birleşik limiter kullan - mobil/web tespiti yaparak tek limiter'da birleştirir
+// Çift rate limiting sorununu çözer
+app.use('/api/users', unifiedLimiter);
+app.use('/api/products', unifiedLimiter);
+app.use('/api/cart', unifiedLimiter);
+app.use('/api/chatbot', unifiedLimiter);
+app.use('/api/reviews', unifiedLimiter);
 
 // 5. Admin endpoint'leri - Rate limit kaldırıldı
 // app.use('/api/admin', adminLimiter);
@@ -11631,7 +11626,7 @@ app.get('/api/admin/invoices/:id/download', authenticateAdmin, async (req, res) 
             tried2: altPath2,
             __dirname: __dirname
           });
-          return res.status(404).json({ success: false, message: 'Invoice file not found' });
+      return res.status(404).json({ success: false, message: 'Invoice file not found' });
         }
       }
     }
@@ -11718,7 +11713,7 @@ app.get('/api/invoices/share/:token/download', async (req, res) => {
             tried2: altPath2,
             __dirname: __dirname
           });
-          return res.status(404).json({ success: false, message: 'Invoice file not found' });
+      return res.status(404).json({ success: false, message: 'Invoice file not found' });
         }
       }
     }

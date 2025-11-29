@@ -221,7 +221,7 @@ app.use(cspNonceMiddleware);
 // GÜVENLİK: Rate limiting - Kritik endpoint'ler için özel rate limiting
 // OPTİMİZASYON: Rate limiting - Yüksek trafik için optimize edilmiş
 const {
-  createGeneralAPILimiter,
+  createUnifiedAPILimiter,
   createLoginLimiter,
   createAdminLimiter,
   createCriticalLimiter,
@@ -232,8 +232,9 @@ const {
   createSuspiciousIPLimiter
 } = require('./utils/rate-limiting');
 
-// Genel rate limiting - Yüksek trafik için 1000+ istek/15 dakika
-const limiter = createGeneralAPILimiter();
+// Birleşik API limiter - Mobil/web tespiti yaparak tek limiter'da birleştirir
+// Guest kullanıcılar için artırılmış limitler, çift rate limiting sorununu çözer
+const limiter = createUnifiedAPILimiter();
 
 // OPTİMİZASYON: Rate limiting uygulama - Sıralama düzenlendi
 // Spesifik limiter'lar önce, global limiter'lar son
