@@ -101,7 +101,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   useEffect(() => {
     let mounted = true;
     // Başlangıçta işlemleri paralel başlat, render'ı bekletme
-    loadData();
+    loadData(1, false);
     loadFavorites();
     loadCampaigns();
     // Flash deals sadece showFlashDeals true ise veya cache'den yüklenecek (4 dakikada bir API'den çekiliyor)
@@ -133,7 +133,16 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         nowIntervalRef.current = null;
       }
     };
-  }, [selectedCategory, navigation, showFlashDeals]);
+  }, [selectedCategory, navigation, showFlashDeals, loadData]);
+
+  // ✅ OPTIMIZASYON: Cache prefetching - Sonraki sayfayı arka planda önceden yükle
+  useEffect(() => {
+    if (!selectedCategory && !showFlashDeals && !searchQuery && hasMore && currentPageNum === 1 && products.length > 0) {
+      // İlk sayfa yüklendikten sonra, sonraki sayfayı arka planda cache'le
+      const prefetchPage = currentPageNum + 1;
+      ProductController.cacheBatchPages(prefetchPage, prefetchPage, ITEMS_PER_PAGE).catch(() => {});
+    }
+  }, [currentPageNum, hasMore, selectedCategory, showFlashDeals, searchQuery, products.length]);
 
   useEffect(() => {
     if (route.params?.searchQuery) {
@@ -151,7 +160,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
   }, [route.params?.category, route.params?.showFlashDeals]);
 
-  // Arama veya filtreleme değiştiğinde API'den tüm ürünleri çek (debounce ile)
+  // ✅ OPTIMIZASYON: Debounce süresini 500ms'ye çıkar ve state optimizasyonu
   useEffect(() => {
     const hasSearch = searchQuery && searchQuery.trim().length >= 2; // Minimum 2 karakter
     const hasFilters = filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000;
@@ -163,7 +172,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       return;
     }
     
-    // Debounce timer
+    // ✅ OPTIMIZASYON: Debounce timer - 500ms
     const timeoutId = setTimeout(() => {
       if (hasSearch || hasFilters) {
         // Arama veya filtreleme varsa API'den tüm sonuçları çek
@@ -172,15 +181,20 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         // Arama/filtreleme yoksa sadece sıralama uygula
         applyFiltersAndSort();
       }
-    }, 300); // 300ms debounce
+    }, 500); // 500ms debounce (300ms'den artırıldı)
     
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, sortBy, filters]);
 
-  const loadData = async (page: number = 1) => {
+  // ✅ OPTIMIZASYON: Infinite scroll için append-based yükleme
+  const loadData = useCallback(async (page: number = 1, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (page === 1) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
       
       const effectiveCategory = selectedCategory && selectedCategory !== 'Tümü' ? selectedCategory : null;
       
@@ -211,17 +225,32 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         setHasMore(false);
         setCurrentPageNum(1);
       } else {
-        // Sayfalı yükle
+        // ✅ OPTIMIZASYON: Infinite scroll - append-based yükleme
         const { products: pageItems, total, hasMore: more } = productsResult as any;
         const pageArray = Array.isArray(pageItems) ? pageItems : [];
-        setProducts(pageArray);
-        // Filtre/sıralama yoksa direkt set et, varsa applyFiltersAndSort çalışacak
-        if (!searchQuery && sortBy === 'default' && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
-          setFilteredProducts(pageArray);
+        
+        if (append && page > 1) {
+          // Sonraki sayfayı mevcut listeye ekle
+          setProducts(prev => [...prev, ...pageArray]);
+          setFilteredProducts(prev => {
+            const combined = [...prev, ...pageArray];
+            // Filtre/sıralama yoksa direkt döndür
+            if (!searchQuery && sortBy === 'default' && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
+              return combined;
+            }
+            // Filtre/sıralama varsa applyFiltersAndSort çalışacak (useEffect ile)
+            return combined;
+          });
         } else {
-          // Filtre/sıralama varsa applyFiltersAndSort çalışacak (useEffect ile)
-          setFilteredProducts(pageArray);
+          // İlk yükleme veya reset
+          setProducts(pageArray);
+          if (!searchQuery && sortBy === 'default' && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
+            setFilteredProducts(pageArray);
+          } else {
+            setFilteredProducts(pageArray);
+          }
         }
+        
         setTotalProducts(total || 0);
         setHasMore(Boolean(more));
         setCurrentPageNum(page);
@@ -237,7 +266,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [selectedCategory, categories.length, searchQuery, sortBy, filters]);
 
   const loadCampaigns = async () => {
     try {
@@ -266,7 +295,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     return remainMs > 0 && remainMs <= 7 * 24 * 60 * 60 * 1000; // 1 hafta
   };
 
-  const getFlashDealProducts = (): Product[] => {
+  // ✅ OPTIMIZASYON: useMemo ile memoize et
+  const getFlashDealProducts = useMemo((): Product[] => {
     const allFlashProducts: Product[] = [];
     
     // Flash deals API'sinden gelen ürünleri topla
@@ -310,7 +340,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
     
     return allFlashProducts;
-  };
+  }, [flashDeals, nowTs]);
 
   const formatHMS = (totalSeconds: number) => {
     const sec = Math.max(0, totalSeconds);
@@ -320,7 +350,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const getFlashHeaderData = () => {
+  // ✅ OPTIMIZASYON: useMemo ile memoize et
+  const getFlashHeaderData = useMemo(() => {
     // Flash deals API'sinden gelen en yakın bitiş zamanını bul
     const ends = flashDeals
       .filter(deal => deal.end_date)
@@ -333,28 +364,27 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       remainingTime: remainSec,
       campaignCount: flashDeals.length,
     };
-  };
+  }, [flashDeals, nowTs]);
 
-  const onRefresh = async () => {
+  // ✅ OPTIMIZASYON: Infinite scroll için onEndReached handler
+  const handleLoadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !selectedCategory && !showFlashDeals && !searchQuery && 
+        filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
+      const nextPage = currentPageNum + 1;
+      loadData(nextPage, true); // append=true ile sonraki sayfayı ekle
+    }
+  }, [loadingMore, hasMore, selectedCategory, showFlashDeals, searchQuery, filters, currentPageNum, loadData]);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setCurrentPageNum(1);
     setHasMore(true);
     await Promise.all([
-      loadData(1),
+      loadData(1, false), // append=false ile reset
       loadFlashDeals()
     ]);
     setRefreshing(false);
-  };
-
-  const goToPage = async (pageNum: number) => {
-    if (pageNum < 1) return;
-    if (selectedCategory) return; // kategori modunda sayfalama yok
-    setCurrentPageNum(pageNum);
-    await loadData(pageNum);
-    try { 
-      listRef.current?.scrollToOffset({ offset: 0, animated: true }); 
-    } catch {}
-  };
+  }, [loadData]);
 
 
   // API'den filtrelenmiş verileri yükle
@@ -497,15 +527,17 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     setFilteredProducts(filtered);
   }, [products, filters, sortBy]);
 
-  const handleProductPress = (product: Product, event?: any) => {
+  // ✅ OPTIMIZASYON: Callback memoization
+  const handleProductPress = useCallback((product: Product, event?: any) => {
     // Track heatmap click (product card)
     if (event?.nativeEvent) {
       const { pageX, pageY } = event.nativeEvent;
     }
     navigation.navigate('ProductDetail', { productId: product.id });
-  };
+  }, [navigation]);
 
-  const handleAddToCart = async (product: Product) => {
+  // ✅ OPTIMIZASYON: Callback memoization
+  const handleAddToCart = useCallback(async (product: Product) => {
     try {
       if (product.stock === 0) {
         Alert.alert('Uyarı', 'Bu ürün stokta yok.');
@@ -531,7 +563,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       console.error('Error adding to cart:', error);
       Alert.alert('Hata', 'Ürün sepete eklenirken bir hata oluştu');
     }
-  };
+  }, [cachedUserId, navigation]);
 
   const loadFavorites = async () => {
     try {
@@ -545,7 +577,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     }
   };
 
-  const handleToggleFavorite = async (product: Product) => {
+  // ✅ OPTIMIZASYON: Callback memoization
+  const handleToggleFavorite = useCallback(async (product: Product) => {
     try {
       // ✅ OPTIMIZASYON: Cache'lenmiş userId kullan
       const userId = cachedUserId || await UserController.getCurrentUserId();
@@ -583,7 +616,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       console.error('Error toggling favorite:', error);
       Alert.alert('Hata', 'Favori işlemi sırasında bir hata oluştu');
     }
-  };
+  }, [cachedUserId, favoriteProducts]);
 
   const handleSearchSubmit = () => {
     // Arama veya filtreleme varsa API'den tüm sonuçları çek
@@ -664,6 +697,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     return iconMap[category] || null;
   };
 
+  // ✅ OPTIMIZASYON: Callback memoization - renderProduct zaten useCallback ile sarılmış, dependency'leri optimize et
   const renderProduct = useCallback(({ item, index }: { item: Product; index: number }) => {
     if (viewMode === 'list') {
       return (
@@ -696,7 +730,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         />
       </View>
     );
-  }, [viewMode, favoriteProducts, width]);
+  }, [viewMode, favoriteProducts, width, isAuthenticated, handleProductPress, handleAddToCart, handleToggleFavorite]);
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -719,7 +753,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
           // Normal sayfalama moduna dön
           setCurrentPageNum(1);
           setHasMore(true);
-          loadData(1);
+          loadData(1, false);
         }}
         variant="outline"
         size="medium"
@@ -728,7 +762,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     </View>
   );
 
-  const renderFooter = () => {
+  // ✅ OPTIMIZASYON: renderFooter artık infinite scroll için kullanılmıyor, sadece fallback olarak
+  const renderFooter = useMemo(() => {
     if (selectedCategory) return null;
     if (totalProducts <= 0) return null;
 
@@ -736,28 +771,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     const canPrev = currentPageNum > 1;
     const canNext = currentPageNum < totalPages && hasMore;
 
-    return (
-      <View style={styles.paginationWrap}>
-        <TouchableOpacity
-          style={[styles.pageButton, !canPrev && styles.pageButtonDisabled]}
-          disabled={!canPrev}
-          onPress={() => goToPage(currentPageNum - 1)}
-        >
-          <Text style={styles.pageButtonText}>{'<'} Önceki</Text>
-        </TouchableOpacity>
-        <Text style={styles.pageInfo}>
-          Sayfa {currentPageNum} / {totalPages}
-        </Text>
-        <TouchableOpacity
-          style={[styles.pageButton, !canNext && styles.pageButtonDisabled]}
-          disabled={!canNext}
-          onPress={() => goToPage(currentPageNum + 1)}
-        >
-          <Text style={styles.pageButtonText}>Sonraki {'>'}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+    // Infinite scroll aktif olduğu için pagination gösterilmiyor
+    // Sadece fallback olarak bırakıldı
+    return null;
+  }, [selectedCategory, totalProducts, currentPageNum, hasMore]);
 
   if (loading) {
     return <LoadingIndicator />;
@@ -800,7 +817,7 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             getCategoryIcon={getCategoryIcon}
           />
           <ProductListControls
-            filteredCount={showFlashDeals ? getFlashDealProducts().length : filteredProducts.length}
+            filteredCount={showFlashDeals ? getFlashDealProducts.length : filteredProducts.length}
             totalCount={totalProducts}
             showFlashDeals={showFlashDeals}
             sortBy={sortBy}
@@ -811,15 +828,12 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         </>
       )}
       
-      {showFlashDeals && (() => {
-        const flashData = getFlashHeaderData();
-        return (
-          <FlashDealsHeader
-            remainingTime={flashData.remainingTime}
-            campaignCount={flashData.campaignCount}
-          />
-        );
-      })()}
+      {showFlashDeals && (
+        <FlashDealsHeader
+          remainingTime={getFlashHeaderData.remainingTime}
+          campaignCount={getFlashHeaderData.campaignCount}
+        />
+      )}
       
       {/* Arama loading göstergesi */}
       {isSearching && (
@@ -831,14 +845,14 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       
       <FlatList
         ref={listRef}
-        data={showFlashDeals ? getFlashDealProducts() : filteredProducts}
+        data={showFlashDeals ? getFlashDealProducts : filteredProducts}
         renderItem={renderProduct}
         keyExtractor={(item) => `product-${item.id}-${item.externalId || ''}`}
         numColumns={viewMode === 'grid' ? 2 : 1}
         key={viewMode}
         contentContainerStyle={[
           styles.productList,
-          (showFlashDeals ? getFlashDealProducts() : filteredProducts).length === 0 && styles.emptyList,
+          (showFlashDeals ? getFlashDealProducts : filteredProducts).length === 0 && styles.emptyList,
         ]}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={400}
@@ -850,6 +864,9 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             tintColor={Colors.primary}
           />
         }
+        // ✅ OPTIMIZASYON: Infinite scroll
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
         ListEmptyComponent={showFlashDeals ? () => (
           <View style={styles.emptyState}>
             <Icon name="bolt" size={64} color={Colors.textMuted} />
@@ -857,13 +874,24 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             <Text style={styles.emptyStateText}>Kısa süre sonra tekrar kontrol edin</Text>
           </View>
         ) : renderEmptyState}
-        ListFooterComponent={!showFlashDeals ? renderFooter : null}
+        ListFooterComponent={!showFlashDeals ? (
+          loadingMore ? (
+            <View style={styles.footerLoading}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.footerLoadingText}>Daha fazla yükleniyor...</Text>
+            </View>
+          ) : !hasMore && filteredProducts.length > 0 ? (
+            <View style={styles.footerEnd}>
+              <Text style={styles.footerEndText}>Tüm ürünler gösterildi</Text>
+            </View>
+          ) : renderFooter
+        ) : null}
         removeClippedSubviews={true}
-        maxToRenderPerBatch={viewMode === 'grid' ? 10 : 15}
-        updateCellsBatchingPeriod={100}
-        initialNumToRender={viewMode === 'grid' ? 10 : 15}
-        windowSize={viewMode === 'grid' ? 5 : 8}
-        // Optimized getItemLayout for both grid and list views
+        maxToRenderPerBatch={viewMode === 'grid' ? 8 : 12}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={viewMode === 'grid' ? 8 : 12}
+        windowSize={viewMode === 'grid' ? 5 : 7}
+        // ✅ OPTIMIZASYON: Optimized getItemLayout for both grid and list views
         getItemLayout={viewMode === 'grid' 
           ? (data, index) => {
               const numColumns = 2;

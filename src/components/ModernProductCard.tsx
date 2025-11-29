@@ -88,7 +88,10 @@ const ModernProductCardComponent: React.FC<ModernProductCardProps> = ({
           <View style={styles.horizontalImageContainer}>
             <Image 
               source={{ uri: product.image || 'https://via.placeholder.com/300x300?text=No+Image' }} 
-              style={styles.horizontalImage} 
+              style={styles.horizontalImage}
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
             />
             {renderStockStatus()}
           </View>
@@ -167,7 +170,13 @@ const ModernProductCardComponent: React.FC<ModernProductCardProps> = ({
         noPadding
       >
         <View style={styles.compactImageContainer}>
-          <Image source={{ uri: product.image }} style={styles.compactImage} />
+          <Image 
+            source={{ uri: product.image }} 
+            style={styles.compactImage}
+            contentFit="cover"
+            transition={200}
+            cachePolicy="memory-disk"
+          />
           {renderStockStatus()}
           {onToggleFavorite && (
             <TouchableOpacity
@@ -206,7 +215,10 @@ const ModernProductCardComponent: React.FC<ModernProductCardProps> = ({
       <View style={styles.imageContainer}>
         <Image 
           source={{ uri: product.image || 'https://via.placeholder.com/300x300?text=No+Image' }} 
-          style={styles.image} 
+          style={styles.image}
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
         />
         {renderStockStatus()}
         {onToggleFavorite && (
