@@ -101,6 +101,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
   // ✅ OPTIMIZASYON: Memory cache for products (component-level)
   const memoryCacheRef = useRef<Map<string, { products: Product[], total: number, hasMore: boolean, timestamp: number }>>(new Map());
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  
+  // ✅ İYİLEŞTİRME: Infinite scroll için debouncing ve race condition önleme
+  const loadingMoreRef = useRef<boolean>(false);
+  const onEndReachedCalledDuringMomentum = useRef<boolean>(false);
 
   // ✅ OPTIMIZASYON: Generate cache key with all relevant parameters
   const getCacheKey = useCallback((page: number, category: string | null, filtersHash: string, sortBy: string) => {
@@ -241,10 +245,13 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             setFilteredProducts(prev => [...prev, ...cached.products]);
           }
           setTotalProducts(cached.total);
-          setHasMore(cached.hasMore);
+          // ✅ İYİLEŞTİRME: Cache'den gelen hasMore'u da kontrol et
+          const cachedHasMore = cached.hasMore && (page * ITEMS_PER_PAGE < cached.total);
+          setHasMore(cachedHasMore);
           setCurrentPageNum(page);
           setLoading(false);
           setLoadingMore(false);
+          loadingMoreRef.current = false;
           
           // ✅ OPTIMIZASYON: Stale-while-revalidate - refresh in background
           if (page === 1) {
@@ -254,10 +261,13 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         }
       }
       
+      // ✅ İYİLEŞTİRME: Loading state'lerini daha güvenilir yönet
       if (page === 1) {
         setLoading(true);
+        loadingMoreRef.current = false;
       } else {
         setLoadingMore(true);
+        loadingMoreRef.current = true;
       }
       
       // Kategorileri sadece ilk yüklemede veya kategori listesi boşsa çek
@@ -314,7 +324,9 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         }
         
         setTotalProducts(total || 0);
-        setHasMore(Boolean(more));
+        // ✅ İYİLEŞTİRME: hasMore state'ini daha güvenilir kontrol et
+        const hasMoreProducts = Boolean(more) && (page * ITEMS_PER_PAGE < (total || 0));
+        setHasMore(hasMoreProducts);
         setCurrentPageNum(page);
         
         // ✅ OPTIMIZASYON: Cache the result in memory (only if no search/filters)
@@ -338,6 +350,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      // ✅ İYİLEŞTİRME: Loading flag'i temizle
+      loadingMoreRef.current = false;
     }
   }, [selectedCategory, categories.length, searchQuery, sortBy, filters, getCacheKey, getFiltersHash]);
 
@@ -439,25 +453,72 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     };
   }, [flashDeals, nowTs]);
 
-  // ✅ OPTIMIZASYON: Infinite scroll için onEndReached handler - Düzeltilmiş koşullar
+  // ✅ İYİLEŞTİRME: Infinite scroll için onEndReached handler - Race condition önleme ve debouncing
   const handleLoadMore = useCallback(() => {
-    // Temel kontroller
-    if (loadingMore || !hasMore) return;
+    // ✅ İYİLEŞTİRME: Race condition önleme - ref ile kontrol
+    if (loadingMoreRef.current || loadingMore || !hasMore) {
+      if (__DEV__) {
+        console.log('🔄 [InfiniteScroll] Skip - loadingMore:', loadingMore, 'hasMore:', hasMore, 'ref:', loadingMoreRef.current);
+      }
+      return;
+    }
     
     // Kategori veya flash deals aktifse infinite scroll çalışmasın (tüm ürünler zaten yüklü)
-    if (selectedCategory || showFlashDeals) return;
+    if (selectedCategory || showFlashDeals) {
+      if (__DEV__) {
+        console.log('🔄 [InfiniteScroll] Skip - category or flash deals active');
+      }
+      return;
+    }
     
     // Arama varsa infinite scroll çalışmasın (tüm sonuçlar zaten yüklü)
-    if (searchQuery && searchQuery.trim().length >= 2) return;
+    if (searchQuery && searchQuery.trim().length >= 2) {
+      if (__DEV__) {
+        console.log('🔄 [InfiniteScroll] Skip - search active');
+      }
+      return;
+    }
     
     // Filtreleme varsa infinite scroll çalışmasın (tüm sonuçlar zaten yüklü)
-    if (filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000) return;
+    if (filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000) {
+      if (__DEV__) {
+        console.log('🔄 [InfiniteScroll] Skip - filters active');
+      }
+      return;
+    }
     
-    // ✅ DÜZELTME: sortBy kontrolü kaldırıldı - sıralama değişse bile infinite scroll çalışsın
+    // ✅ İYİLEŞTİRME: Loading flag set et
+    loadingMoreRef.current = true;
+    
     // Sonraki sayfayı yükle
     const nextPage = currentPageNum + 1;
-    loadData(nextPage, true, false); // append=true ile sonraki sayfayı ekle
+    if (__DEV__) {
+      console.log('🔄 [InfiniteScroll] Loading page:', nextPage, 'current:', currentPageNum, 'hasMore:', hasMore);
+    }
+    
+    loadData(nextPage, true, false).finally(() => {
+      // ✅ İYİLEŞTİRME: Loading flag'i temizle
+      loadingMoreRef.current = false;
+      if (__DEV__) {
+        console.log('✅ [InfiniteScroll] Page loaded:', nextPage);
+      }
+    });
   }, [loadingMore, hasMore, selectedCategory, showFlashDeals, searchQuery, filters, currentPageNum, loadData]);
+  
+  // ✅ İYİLEŞTİRME: onMomentumScrollBegin handler - scroll başladığında flag'i sıfırla
+  const handleMomentumScrollBegin = useCallback(() => {
+    onEndReachedCalledDuringMomentum.current = false;
+  }, []);
+  
+  // ✅ İYİLEŞTİRME: onEndReached wrapper - debouncing ve momentum kontrolü
+  const handleEndReached = useCallback(() => {
+    // Momentum scroll sırasında tetiklenmeyi önle
+    if (onEndReachedCalledDuringMomentum.current) {
+      return;
+    }
+    onEndReachedCalledDuringMomentum.current = true;
+    handleLoadMore();
+  }, [handleLoadMore]);
 
   // ✅ OPTIMIZASYON: Cache invalidation on refresh
   const onRefresh = useCallback(async () => {
@@ -978,9 +1039,10 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             tintColor={Colors.primary}
           />
         }
-        // ✅ OPTIMIZASYON: Infinite scroll - threshold düşürüldü
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.2}
+        // ✅ İYİLEŞTİRME: Infinite scroll - threshold optimize edildi ve momentum kontrolü eklendi
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.3}
+        onMomentumScrollBegin={handleMomentumScrollBegin}
         ListEmptyComponent={showFlashDeals ? () => (
           <View style={styles.emptyState}>
             <Icon name="bolt" size={64} color={Colors.textMuted} />
@@ -1005,23 +1067,11 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         updateCellsBatchingPeriod={50}
         initialNumToRender={viewMode === 'grid' ? 8 : 12}
         windowSize={viewMode === 'grid' ? 5 : 7}
-        // ✅ OPTIMIZASYON: Optimized getItemLayout for both grid and list views
-        getItemLayout={viewMode === 'grid' 
-          ? (data, index) => {
-              const numColumns = 2;
-              const itemHeight = 280; // Approximate height for grid item
-              const row = Math.floor(index / numColumns);
-              return {
-                length: itemHeight,
-                offset: itemHeight * row,
-                index,
-              };
-            }
-          : (data, index) => ({
-              length: 120,
-              offset: 120 * index,
-              index,
-            })}
+        // ✅ İYİLEŞTİRME: getItemLayout kaldırıldı - yanlış hesaplama infinite scroll'u bozuyordu
+        // getItemLayout kaldırıldı çünkü:
+        // 1. Grid layout'ta item yükseklikleri değişken (ürün adı uzunluğuna göre)
+        // 2. Yanlış hesaplama infinite scroll'un tetiklenmesini engelliyor
+        // 3. FlatList otomatik olarak daha iyi hesaplama yapıyor
       />
 
       {/* Infinite scroll aktif - sayfalama kaldırıldı */}
