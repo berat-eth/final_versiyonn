@@ -821,12 +821,14 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       );
     }
 
+    // ✅ DÜZELTME: Grid layout için flex-based yaklaşım - boşlukları düzelt
+    const itemSpacing = Spacing.sm;
     return (
       <View style={{ 
-        width: '50%', 
-        paddingLeft: index % 2 === 0 ? 0 : (Spacing.xs / 2) + 2.5,
-        paddingRight: index % 2 === 0 ? (Spacing.xs / 2) + 2.5 : 0,
-        marginBottom: 15, // Daha fazla alt mesafe
+        flex: 1,
+        marginBottom: 15,
+        marginLeft: index % 2 === 0 ? 0 : itemSpacing / 2,
+        marginRight: index % 2 === 0 ? itemSpacing / 2 : 0,
       }}>
         <ModernProductCard
           product={item}
@@ -835,7 +837,6 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
           onToggleFavorite={isAuthenticated ? () => handleToggleFavorite(item) : undefined}
           isFavorite={favoriteProducts.includes(item.id)}
           variant="default"
-          width={(width - Spacing.lg * 2 - Spacing.xs) / 2}
         />
       </View>
     );
@@ -965,6 +966,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
           styles.productList,
           (showFlashDeals ? getFlashDealProducts : filteredProducts).length === 0 && styles.emptyList,
         ]}
+        // ✅ DÜZELTME: Grid layout için column wrapper style - item'lar arası boşluk
+        columnWrapperStyle={viewMode === 'grid' ? styles.columnWrapper : undefined}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={400}
         refreshControl={
@@ -1245,6 +1248,11 @@ const styles = StyleSheet.create({
   productList: {
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    marginBottom: 0,
   },
   emptyList: {
     flex: 1,
