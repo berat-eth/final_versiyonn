@@ -147,12 +147,17 @@ const createLoginLimiter = () => rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
   message: 'Too many login attempts, please try again after 15 minutes',
-  onLimitReached: (req, res, options) => {
-    const ip = getClientIP(req);
-    const endpoint = req.path || req.url;
-    
-    // Rate limit aşımı loglama
-    console.warn(`[RATE_LIMIT_LOGIN] Limit exceeded - IP: ${ip}, Endpoint: ${endpoint}, Method: ${req.method}`);
+  handler: (req, res, next, options) => {
+    // Rate limit aşımı loglama (ilk aşımda)
+    if (req.rateLimit && req.rateLimit.used === req.rateLimit.limit + 1) {
+      const ip = getClientIP(req);
+      const endpoint = req.path || req.url;
+      console.warn(`[RATE_LIMIT_LOGIN] Limit exceeded - IP: ${ip}, Endpoint: ${endpoint}, Method: ${req.method}`);
+    }
+    res.status(options.statusCode).json({
+      success: false,
+      message: options.message
+    });
   }
 });
 
@@ -205,14 +210,19 @@ const createCriticalLimiter = () => rateLimit({
     return isMobile ? `mobile:${identifier}` : `web:${identifier}`;
   },
   message: 'Rate limit exceeded for this endpoint',
-  onLimitReached: (req, res, options) => {
-    const ip = getClientIP(req);
-    const userId = getUserIdFromRequest(req);
-    const isMobile = detectClientType(req);
-    const endpoint = req.path || req.url;
-    
-    // Rate limit aşımı loglama
-    console.warn(`[RATE_LIMIT_CRITICAL] Limit exceeded - IP: ${ip}, UserId: ${userId || 'guest'}, Client: ${isMobile ? 'mobile' : 'web'}, Endpoint: ${endpoint}, Method: ${req.method}`);
+  handler: (req, res, next, options) => {
+    // Rate limit aşımı loglama (ilk aşımda)
+    if (req.rateLimit && req.rateLimit.used === req.rateLimit.limit + 1) {
+      const ip = getClientIP(req);
+      const userId = getUserIdFromRequest(req);
+      const isMobile = detectClientType(req);
+      const endpoint = req.path || req.url;
+      console.warn(`[RATE_LIMIT_CRITICAL] Limit exceeded - IP: ${ip}, UserId: ${userId || 'guest'}, Client: ${isMobile ? 'mobile' : 'web'}, Endpoint: ${endpoint}, Method: ${req.method}`);
+    }
+    res.status(options.statusCode).json({
+      success: false,
+      message: options.message
+    });
   }
 });
 
@@ -273,14 +283,19 @@ const createUnifiedAPILimiter = () => {
     },
     message: 'Too many requests, please try again later',
     skip: (req) => isPrivateIP(req.ip),
-    onLimitReached: (req, res, options) => {
-      const ip = getClientIP(req);
-      const userId = getUserIdFromRequest(req);
-      const isMobile = detectClientType(req);
-      const endpoint = req.path || req.url;
-      
-      // Rate limit aşımı loglama
-      console.warn(`[RATE_LIMIT] Limit exceeded - IP: ${ip}, UserId: ${userId || 'guest'}, Client: ${isMobile ? 'mobile' : 'web'}, Endpoint: ${endpoint}, Method: ${req.method}`);
+    handler: (req, res, next, options) => {
+      // Rate limit aşımı loglama (ilk aşımda)
+      if (req.rateLimit && req.rateLimit.used === req.rateLimit.limit + 1) {
+        const ip = getClientIP(req);
+        const userId = getUserIdFromRequest(req);
+        const isMobile = detectClientType(req);
+        const endpoint = req.path || req.url;
+        console.warn(`[RATE_LIMIT] Limit exceeded - IP: ${ip}, UserId: ${userId || 'guest'}, Client: ${isMobile ? 'mobile' : 'web'}, Endpoint: ${endpoint}, Method: ${req.method}`);
+      }
+      res.status(options.statusCode).json({
+        success: false,
+        message: options.message
+      });
     }
   });
 };

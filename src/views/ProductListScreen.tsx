@@ -228,7 +228,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
       const cacheKey = getCacheKey(page, effectiveCategory, filtersHash, sortBy);
       
       // ✅ OPTIMIZASYON: Check memory cache first (only if no search/filters and not forcing refresh)
-      if (!forceRefresh && !searchQuery && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock && sortBy === 'default') {
+      // ✅ DÜZELTME: sortBy kontrolü kaldırıldı - sıralama değişse bile cache kullanılsın
+      if (!forceRefresh && !searchQuery && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
         const cached = memoryCacheRef.current.get(cacheKey);
         if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
           // Cache hit - return immediately
@@ -317,7 +318,8 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
         setCurrentPageNum(page);
         
         // ✅ OPTIMIZASYON: Cache the result in memory (only if no search/filters)
-        if (!searchQuery && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock && sortBy === 'default') {
+        // ✅ DÜZELTME: sortBy kontrolü kaldırıldı - sıralama değişse bile cache'e yazılsın
+        if (!searchQuery && filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
           memoryCacheRef.current.set(cacheKey, {
             products: pageArray,
             total: total || 0,
@@ -437,13 +439,24 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
     };
   }, [flashDeals, nowTs]);
 
-  // ✅ OPTIMIZASYON: Infinite scroll için onEndReached handler
+  // ✅ OPTIMIZASYON: Infinite scroll için onEndReached handler - Düzeltilmiş koşullar
   const handleLoadMore = useCallback(() => {
-    if (!loadingMore && hasMore && !selectedCategory && !showFlashDeals && !searchQuery && 
-        filters.minPrice === 0 && filters.maxPrice === 10000 && filters.brands.length === 0 && !filters.inStock) {
-      const nextPage = currentPageNum + 1;
-      loadData(nextPage, true, false); // append=true ile sonraki sayfayı ekle
-    }
+    // Temel kontroller
+    if (loadingMore || !hasMore) return;
+    
+    // Kategori veya flash deals aktifse infinite scroll çalışmasın (tüm ürünler zaten yüklü)
+    if (selectedCategory || showFlashDeals) return;
+    
+    // Arama varsa infinite scroll çalışmasın (tüm sonuçlar zaten yüklü)
+    if (searchQuery && searchQuery.trim().length >= 2) return;
+    
+    // Filtreleme varsa infinite scroll çalışmasın (tüm sonuçlar zaten yüklü)
+    if (filters.brands.length > 0 || filters.inStock || filters.minPrice > 0 || filters.maxPrice < 10000) return;
+    
+    // ✅ DÜZELTME: sortBy kontrolü kaldırıldı - sıralama değişse bile infinite scroll çalışsın
+    // Sonraki sayfayı yükle
+    const nextPage = currentPageNum + 1;
+    loadData(nextPage, true, false); // append=true ile sonraki sayfayı ekle
   }, [loadingMore, hasMore, selectedCategory, showFlashDeals, searchQuery, filters, currentPageNum, loadData]);
 
   // ✅ OPTIMIZASYON: Cache invalidation on refresh
@@ -962,9 +975,9 @@ export const ProductListScreen: React.FC<ProductListScreenProps> = ({ navigation
             tintColor={Colors.primary}
           />
         }
-        // ✅ OPTIMIZASYON: Infinite scroll
+        // ✅ OPTIMIZASYON: Infinite scroll - threshold düşürüldü
         onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={0.2}
         ListEmptyComponent={showFlashDeals ? () => (
           <View style={styles.emptyState}>
             <Icon name="bolt" size={64} color={Colors.textMuted} />
