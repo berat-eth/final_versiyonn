@@ -69,6 +69,13 @@ export default function TicimaxOrders() {
     return () => clearTimeout(timeoutId)
   }, [statusFilter, startDate, endDate, sortOrder])
 
+  // Sipariş detay modalı açıldığında faturaları otomatik yükle
+  useEffect(() => {
+    if (showOrderDetailModal && selectedOrder) {
+      loadInvoices()
+    }
+  }, [showOrderDetailModal, selectedOrder])
+
   const loadOrders = async () => {
     try {
       setLoading(true)
@@ -229,16 +236,20 @@ export default function TicimaxOrders() {
   const handleOrderClick = (order: TicimaxOrder) => {
     setSelectedOrder(order)
     setShowOrderDetailModal(true)
+    // Modal açıldığında fatura linki ve referans numarasını temizle
+    setInvoiceLink('')
+    setReferenceNumber('')
+    setSelectedInvoiceId(null)
   }
 
-  const handleShowInvoices = async () => {
+  // Faturaları yükle (hem modal hem de otomatik yükleme için)
+  const loadInvoices = async () => {
     try {
       setInvoicesLoading(true)
-      setShowInvoicesModal(true)
       const response = await api.get<ApiResponse<any[]>>('/admin/invoices')
       if (response.success && response.data) {
         setInvoices(response.data)
-        // İlk faturayı varsayılan olarak seç
+        // İlk faturayı varsayılan olarak seç (sadece daha önce seçilmemişse)
         if (response.data.length > 0 && !selectedInvoiceId) {
           setSelectedInvoiceId(response.data[0].id)
         }
@@ -247,6 +258,14 @@ export default function TicimaxOrders() {
       console.error('Faturalar yüklenemedi:', err)
     } finally {
       setInvoicesLoading(false)
+    }
+  }
+
+  const handleShowInvoices = async () => {
+    setShowInvoicesModal(true)
+    // Faturalar zaten yüklenmişse tekrar yükleme
+    if (invoices.length === 0) {
+      await loadInvoices()
     }
   }
 
@@ -756,11 +775,16 @@ export default function TicimaxOrders() {
                     </div>
                     
                     {/* Fatura Seçimi - Link girildiğinde devre dışı */}
-                    {invoices.length > 0 && (
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                          Kargo Fişi için Fatura Seçimi
-                        </label>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Kargo Fişi için Fatura Seçimi
+                      </label>
+                      {invoicesLoading ? (
+                        <div className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                          <span className="text-sm text-slate-600 dark:text-slate-400">Faturalar yükleniyor...</span>
+                        </div>
+                      ) : (
                         <select
                           value={selectedInvoiceId || ''}
                           onChange={(e) => {
@@ -777,21 +801,25 @@ export default function TicimaxOrders() {
                           }`}
                         >
                           <option value="">Fatura Seçiniz</option>
-                          {invoices.map((invoice) => (
-                            <option key={invoice.id} value={invoice.id}>
-                              {invoice.invoiceNumber || `Fatura #${invoice.id}`} 
-                              {invoice.fileName && ` - ${fixInvoiceFileName(invoice.fileName)}`}
-                              {invoice.totalAmount && ` (${Number(invoice.totalAmount).toFixed(2)} ${invoice.currency || 'TRY'})`}
-                            </option>
-                          ))}
-                        </select>
-                          {selectedInvoiceId && !invoiceLink && (
-                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                              Seçili fatura kargo fişindeki QR kodda kullanılacak
-                            </p>
+                          {invoices.length === 0 ? (
+                            <option value="" disabled>Fatura bulunamadı</option>
+                          ) : (
+                            invoices.map((invoice) => (
+                              <option key={invoice.id} value={invoice.id}>
+                                {invoice.invoiceNumber || `Fatura #${invoice.id}`} 
+                                {invoice.fileName && ` - ${fixInvoiceFileName(invoice.fileName)}`}
+                                {invoice.totalAmount && ` (${Number(invoice.totalAmount).toFixed(2)} ${invoice.currency || 'TRY'})`}
+                              </option>
+                            ))
                           )}
-                        </div>
+                        </select>
                       )}
+                      {selectedInvoiceId && !invoiceLink && !invoicesLoading && (
+                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                          Seçili fatura kargo fişindeki QR kodda kullanılacak
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
